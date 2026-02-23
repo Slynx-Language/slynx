@@ -119,6 +119,7 @@ impl TypesModule {
         id
     }
 
+    ///Retrieves the TypeId of the provided `name` on the current module
     pub fn get_id(&self, name: &SymbolPointer) -> Option<&TypeId> {
         self.type_names.get(name)
     }

@@ -115,4 +115,8 @@ pub enum HirExpressionKind {
         expr: Box<HirExpression>,
         field_index: usize,
     },
+    FunctionCall {
+        name: DeclarationId,
+        args: Vec<HirExpression>,
+    },
 }

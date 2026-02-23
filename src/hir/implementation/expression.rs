@@ -5,8 +5,13 @@ use color_eyre::eyre::Result;
 use crate::{
     hir::{
         ExpressionId, SlynxHir, TypeId,
+<<<<<<< HEAD
         definitions::{HirExpression, HirExpressionKind},
         error::{HIRError, HIRErrorKind},
+=======
+        deffinitions::{HirExpression, HirExpressionKind},
+        error::{HIRError, HIRErrorKind, InvalidTypeReason, ValueUsage},
+>>>>>>> d733410 (feat: implemented function call on hir level)
         types::{FieldMethod, HirType},
     },
     parser::ast::{ASTExpression, ASTExpressionKind, NamedExpr, Operator, Span},
@@ -112,6 +117,57 @@ impl SlynxHir {
         ty: Option<TypeId>,
     ) -> Result<HirExpression> {
         match expr.kind {
+            ASTExpressionKind::FunctionCall { name, args } => {
+                let func_symbol = self.get_symbol_of(&name.identifier, &expr.span)?;
+                let Some((decl, tyid)) = self
+                    .declarations_module
+                    .retrieve_declaration_data_by_name(&func_symbol)
+                else {
+                    return Err(HIRError {
+                        kind: HIRErrorKind::NameNotRecognized(name.identifier),
+                        span: expr.span,
+                    }
+                    .into());
+                };
+                let ty = self.types_module.get_type(&tyid);
+                let HirType::Function {
+                    return_type,
+                    args: expect_args,
+                } = ty
+                else {
+                    return Err(HIRError {
+                        kind: HIRErrorKind::NotAFunction(name.identifier, ty.clone()),
+                        span: expr.span,
+                    }
+                    .into());
+                };
+                if expect_args.len() != args.len() {
+                    return Err(HIRError {
+                        kind: HIRErrorKind::InvalidFuncallArgLength {
+                            func_name: name.identifier,
+                            expected_length: expect_args.len(),
+                            received_length: args.len(),
+                        },
+                        span: expr.span,
+                    }
+                    .into());
+                }
+                let exprs = args
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, v)| self.resolve_expr(v, None))
+                    .collect::<Result<Vec<_>>>()?;
+
+                Ok(HirExpression {
+                    id: ExpressionId::new(),
+                    ty: *return_type,
+                    kind: HirExpressionKind::FunctionCall {
+                        name: decl,
+                        args: exprs,
+                    },
+                    span: expr.span,
+                })
+            }
             ASTExpressionKind::Boolean(b) => Ok(HirExpression {
                 id: ExpressionId::new(),
                 ty: self.types_module.bool_id(),
