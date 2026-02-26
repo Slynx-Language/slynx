@@ -141,4 +141,11 @@ impl TypesModule {
             .get(name)
             .map(|id| &mut self.types[id.as_raw() as usize])
     }
+    pub fn get_type_from_ref(&self, id: &TypeId) -> &HirType {
+        if let HirType::Reference { rf, .. } = self.get_type(&id) {
+            self.get_type(rf)
+        } else {
+            unreachable!("The provided ref_ty should be of type Reference");
+        }
+    }
 }

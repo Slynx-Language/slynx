@@ -54,7 +54,9 @@ impl std::fmt::Display for HIRError {
                 expected_length,
                 received_length,
             } => {
-                format!("Function '{func_name}' expected to receive {expected_length} arguments, instead got {received_length} arguments")
+                format!(
+                    "Function '{func_name}' expected to receive {expected_length} arguments, instead got {received_length} arguments"
+                )
             }
             HIRErrorKind::NotAFunction(name, ty) => {
                 format!(
@@ -111,12 +113,14 @@ impl std::error::Error for HIRError {}
 #[derive(Debug)]
 pub enum InvalidTypeReason {
     MissingGeneric,
+    IncorrectUsage,
 }
 
 impl std::fmt::Display for InvalidTypeReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InvalidTypeReason::MissingGeneric => write!(f, "missing generic type"),
+            InvalidTypeReason::IncorrectUsage => write!(f, "is being used incorrectly"),
         }
     }
 }

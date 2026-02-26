@@ -3,7 +3,7 @@ use color_eyre::eyre::Result;
 use crate::{
     hir::{
         SlynxHir, TypeId, VariableId,
-        error::{HIRError, HIRErrorKind},
+        error::{HIRError, HIRErrorKind, InvalidTypeReason},
         symbols::SymbolPointer,
         types::HirType,
     },
@@ -24,6 +24,41 @@ impl SlynxHir {
             }
             .into(),
         )
+    }
+
+    ///Retrieves the type of something by knowing the provided `ref_ty` is a reference to it
+    pub fn get_type_from_ref(&self, ref_ty: TypeId) -> &HirType {
+        if let HirType::Reference { rf, .. } = self.types_module.get_type(&ref_ty) {
+            self.types_module.get_type(rf)
+        } else {
+            unreachable!("The provided ref_ty should be of type Reference");
+        }
+    }
+
+    ///Since when a object is defined, its generated as an unnamed type, and has got a reference to it, this retrieves the inner layout of the object
+    pub fn get_object_type_from_name(&self, name: &str, span: &Span) -> Result<&HirType> {
+        if let Some(symbol) = self.symbols_module.retrieve(name) {
+            if let Some(ref_id) = self.types_module.get_id(symbol)
+                && let HirType::Reference { rf, .. } = self.types_module.get_type(ref_id)
+            {
+                Ok(self.types_module.get_type(rf))
+            } else {
+                return Err(HIRError {
+                    kind: HIRErrorKind::InvalidType {
+                        ty: name.to_string(),
+                        reason: InvalidTypeReason::IncorrectUsage,
+                    },
+                    span: span.clone(),
+                }
+                .into());
+            }
+        } else {
+            Err(HIRError {
+                kind: HIRErrorKind::NameNotRecognized(name.to_string()),
+                span: span.clone(),
+            }
+            .into())
+        }
     }
 
     pub fn get_typeid_of_name(&self, name: &str, span: &Span) -> Result<TypeId> {

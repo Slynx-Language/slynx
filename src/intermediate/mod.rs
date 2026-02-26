@@ -316,7 +316,7 @@ impl IntermediateRepr {
         for decl in decls {
             match decl.kind {
                 HirDeclarationKind::Object => {
-                    let HirType::Struct { fields } = module.get_type(&decl.ty) else {
+                    let HirType::Struct { fields } = module.get_type_from_ref(&decl.ty) else {
                         unreachable!("Type of a object declaration should be 'struct'");
                     };
                     let ty = self.retrieve_complex(fields.as_slice(), &module);

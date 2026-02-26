@@ -71,7 +71,7 @@ impl SlynxHir {
 
         let HirType::Struct {
             fields: field_types,
-        } = self.types_module.get_type(&ty).clone()
+        } = self.get_type_from_ref(ty).clone()
         else {
             unreachable!();
         };
@@ -136,6 +136,7 @@ impl SlynxHir {
                     }
                     .into());
                 };
+
                 let return_type = *return_type;
 
                 if expect_args.len() != args.len() {

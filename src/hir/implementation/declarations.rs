@@ -57,7 +57,11 @@ impl SlynxHir {
             }
             .into());
         };
-        let HirType::Struct { fields: ty_field } = self.types_module.get_type_mut(&declty) else {
+        let HirType::Reference { rf, .. } = self.types_module.get_type(&declty) else {
+            unreachable!("WTF, type of custom object should be a reference to its real type");
+        };
+        let rf = *rf;
+        let HirType::Struct { fields: ty_field } = self.types_module.get_type_mut(&rf) else {
             unreachable!("WTF. Type of object should be a Struct ty");
         };
 
@@ -83,7 +87,16 @@ impl SlynxHir {
             .map(|f| self.symbols_module.intern(&f.name.name))
             .collect();
 
-        let ty = self.define_type(name, HirType::Struct { fields: Vec::new() });
+        let ty = self
+            .types_module
+            .insert_unnamed_type(HirType::Struct { fields: Vec::new() });
+        let ty = self.define_type(
+            name,
+            HirType::Reference {
+                rf: ty,
+                generics: Vec::new(),
+            },
+        );
 
         self.declarations_module.create_object(name, ty, def_fields);
         Ok(())
