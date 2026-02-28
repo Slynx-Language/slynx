@@ -1,0 +1,13 @@
+component A {
+    pub prop value: int = 1;
+}
+
+component B {
+    pub prop value: str = "text";
+}
+
+component Holder {
+    pub prop item: A = B {};
+}
+
+func main(): Component -> Holder {};
