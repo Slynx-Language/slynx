@@ -145,7 +145,15 @@ impl SlynxCompiler for WebCompiler {
                         span: DUMMY_SP,
                     }),
                 },
-                u => unimplemented!("{:?}", u),
+                IntermediateInstructionKind::Read(v) => Stmt::Expr(ExprStmt {
+                    expr: Box::new(Expr::Ident(
+                        self.contexts[handle.0]
+                            .retrieve_varname(*v)
+                            .cloned()
+                            .unwrap(),
+                    )),
+                    span: DUMMY_SP,
+                }),
             };
             out.push(stmt);
         }
@@ -239,7 +247,7 @@ impl SlynxCompiler for WebCompiler {
                 raw: None,
             })),
             IntermediateExprKind::Bool(b) => Expr::Lit(Lit::Bool((*b).into())),
-            un => unimplemented!("{un:?}"),
+            IntermediateExprKind::Native(native) => self.compile_native(native, ctx, ir, handle),
         }
     }
 
@@ -285,5 +293,64 @@ impl Operator {
             Self::GreaterThanOrEqual => BinaryOp::GtEq,
             Self::LessThanOrEqual => BinaryOp::LtEq,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WebCompiler;
+    use crate::{
+        compiler::{js::contexts::JsFunction, slynx_compiler::SlynxCompiler},
+        intermediate::{
+            IntermediateRepr,
+            context::IntermediateContext,
+            expr::IntermediateExpr,
+            id::{ContextHandle, VarId},
+            node::IntermediateInstruction,
+            types::IntermediateType,
+        },
+    };
+    use swc_ecma_ast::{Expr, Stmt};
+
+    #[test]
+    fn compile_expression_handles_native_component() {
+        let handle = ContextHandle(0);
+        let mut compiler = WebCompiler::new();
+        compiler.contexts.push(JsFunction::new(handle));
+
+        let mut ctx = IntermediateContext::new_function(
+            handle,
+            "f".to_string(),
+            Vec::new(),
+            IntermediateType::Void,
+        );
+        let text_expr = ctx.insert_expr(IntermediateExpr::int(1));
+        let native_expr = ctx.insert_expr(IntermediateExpr::native_text(text_expr, vec![None]));
+
+        let ir = IntermediateRepr::new();
+        let compiled = compiler.compile_expression(&ctx.exprs[native_expr], &ctx, &ir, handle);
+        assert!(matches!(compiled, Expr::Object(_)));
+    }
+
+    #[test]
+    fn compile_instructions_handles_read_instruction() {
+        let handle = ContextHandle(0);
+        let mut compiler = WebCompiler::new();
+        let mut js_ctx = JsFunction::new(handle);
+        let var = VarId::new();
+        js_ctx.create_variable(var, "v0");
+        compiler.contexts.push(js_ctx);
+
+        let ctx = IntermediateContext::new_function(
+            handle,
+            "f".to_string(),
+            Vec::new(),
+            IntermediateType::Void,
+        );
+        let instructions = vec![IntermediateInstruction::read(var)];
+        let ir = IntermediateRepr::new();
+
+        let compiled = compiler.compile_instructions(&instructions, &ctx, &ir, handle);
+        assert!(matches!(compiled.as_slice(), [Stmt::Expr(_)]));
     }
 }
