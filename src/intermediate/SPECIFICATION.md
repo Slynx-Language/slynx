@@ -1,9 +1,9 @@
 # Slynx IR
 
-Slynx IR specifies what the backend compiling it should do instead of how, even though the language is a bit opiniously about how to do so.
+Slynx IR specifies what the backend compiling it should do instead of how, even though the language is a bit opinionated about how to do so.
 First of all the IR follows SSA and is extremely typed.
-The IR has got the concept of 'contexts' that are anything able to be runned, this means a struct isn't a context, because it by itself cannot execute code, but a method or a function are, as well as components that can have code
-to be run, such as the reactivity their reactivity model.
+The IR has got the concept of 'contexts' that are anything able to be run, this means a struct isn't a context, because it by itself cannot execute code, but a method or a function are, as well as components that can have code
+to be run, such as the reactivity model.
 
 ## Syntax
 
