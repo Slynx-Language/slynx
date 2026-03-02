@@ -209,7 +209,7 @@ $entry:
 }
 ```
 
-The idea is that instead of the value being optional on the IR as it's on the Slynx code, is to when the value is ommited, we instead of passing null, pass the explictly the default value.
+The idea is that instead of the value being optional on the IR as it's on the Slynx code, is to when the value is omitted, we instead of passing null, pass the explicitly the default value.
 For some button that updates the state, suppose the following code:
 
 ```slynx
