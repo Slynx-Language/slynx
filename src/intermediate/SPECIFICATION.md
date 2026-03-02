@@ -39,7 +39,7 @@ The IR has implementation of operations primitives. The syntax for the deffiniti
 
 Which represents the following struct:
 
-```
+```slynx
 object S {
   property_1: int,
   property_2: float
@@ -48,9 +48,7 @@ object S {
 
 Tuples(WIP) use the same method, so a tuple in slynx denotated by
 ```slynx
-
 object T(int,float);
-
 ```
 
 is defined by the same way as `S`, the only thing is how their fields are accessed on the code. (Tuples must be implemented in slynx yet)
@@ -58,10 +56,10 @@ is defined by the same way as `S`, the only thing is how their fields are access
 ### Strings
 Strings on the IR are represented as internalized values. On the IR they live on a separated struct called Internalizer, and their access can be made via slices. Note that this IR expects them to be UTF8, and be represented as, inside the IR
 
-```
+```slynxir
 struct %StrHandle {usize, usize}
 ```
-which in slynx would be
+which in slynx would be on slynx the equivalent to
 
 ```slynx
 struct StrHandle {
@@ -87,7 +85,7 @@ func main(): Person{
 ```
 
 on the IR it would be represented as
-```
+```slynxir
 struct %StrHandle {usize, usize}
 @str0 = "jorge"; //this is a handle to the string "jorge", but its just for readability, because internally its the %StrHandle
 
@@ -110,6 +108,7 @@ Note that termination operations do not terminate the context, but rather, the c
 
 #### Labels
 Labels are named as `$name` and represent another block that can be used run. All labels are meant to be declared inside a context and be used only by that specific context. Think of them like:
+```slynxir
 i32 main(i32){
 $entry:
   inc = addi32 p0, 1;
@@ -118,12 +117,14 @@ $end:
   twice = muli32, inc, 2;
   ret twice;
 }
+```
+
 Since a label is a named block, it needs to terminate with a termination operation.
 
 #### Functions
 Functions are defined on the IR level as the following:
-```
-int #add(int, int) {
+```slynxir
+i32 #add(i32, i32) {
 $entry:
   result = addi32 p0, p1;
   ret result;
@@ -142,17 +143,15 @@ func currency_of(money: int): Currency {
 ```
 in the IR can be represented by
 
-```
+```slynxir
+struct %Currency {i32}
 
-struct %Currency {int}
-
-%Currency currency_of(int) {
+%Currency currency_of(i32) {
 $entry:
   result = %Currency{0};
   propset result, 0, p0;
   ret result;
 }
-
 ```
 
 Which represents that it creates a temporary variable named `result` being the currency zeroed. storefield stores the value of `p0` on the first field of `result`
@@ -164,7 +163,6 @@ even though slynx in its PoC is idealized(might change since its not complete ye
 A component like the following:
 
 ```slynx
-
 func f(n: int): int {
   n * 2
 }
@@ -187,16 +185,15 @@ func main():Component {
 
 Can be compiled to an IR that looks like the following:
 
-```
-
-int f(int) {
+```slynxir
+i32 f(i32) {
 $entry:
   result = muli32 p0, 2;
   ret result;
 }
 
-component %Counter(int) {
-  %count: int = p0;
+component %Counter(i32) {
+  %count: i32 = p0;
   
   #t0: specialized Text;
   #t1: specialized Text;
@@ -210,8 +207,8 @@ $entry:
   Counter1 = %Counter(12);
   ret Counter1
 }
-
 ```
+
 The idea is that instead of the value being optional on the IR as it's on the Slynx code, is to when the value is ommited, we instead of passing null, pass the explictly the default value.
 For some button that updates the state, suppose the following code:
 
@@ -242,13 +239,12 @@ func main():Component {
 ```
 which will generate:
 
-```
-
-special component %Text(bytes) {
-  %text: bytes = p0;
+```slynxir
+special component %Text(%StrHandle) {
+  %text: %StrHandle = p0;
 }
 
-int f(int) {
+i32 f(i32) {
 $entry:
   result = muli32 p0, 2;
   ret result;
@@ -264,8 +260,8 @@ $entry:
   ret
 }
 
-component %Counter(int) {
-  %count: int = p0;
+component %Counter(i32) {
+  %count: i32 = p0;
 
   #t0: specialized Text;
   #t1: specialized Text;
