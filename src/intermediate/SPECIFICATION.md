@@ -7,6 +7,31 @@ to be run, such as the reactivity their reactivity model.
 
 ## Syntax
 
+### Basic Types
+
+Primitive scalar types used by this IR:
+
+* Signed integers: `i8`, `i16`, `i32`, `i64`, `i128`
+* Unsigned integers: `u8`, `u16`, `u32`, `u64`, `u128`
+* Floating point: `f32`, `f64`
+* Boolean: `bool`
+* Pointer-sized unsigned integer: `usize`, `isize`
+
+`usize` means target-native pointer-sized unsigned integer when the backend supports it.
+If a backend has no native `usize` representation, it must treat `usize` as `u64`.
+The same idea is used for `isize`, if the backend has no isize representation, then it's represented as a `i64`
+
+Text and byte-oriented primitive types:
+
+* `str`: immutable UTF-8 string handle type
+* `bytes`: immutable byte-sequence handle type
+
+Language-level aliases currently used in examples:
+
+* `int` maps to an integer primitive selected by the frontend/lowering stage which is idealized to be i32
+* `float` maps to a floating primitive selected by the frontend/lowering stage which is idealized to be f32
+
+
 ### Structs
 The IR has implementation of operations primitives. The syntax for the deffinition of a struct can be the following:
 
@@ -34,7 +59,7 @@ is defined by the same way as `S`, the only thing is how their fields are access
 Functions are defined on the IR level as the following:
 ```
 int #add(int, int) {
-  result = addint p0, p1;
+  result = addi32 p0, p1;
   ret result;
 }
 ```
@@ -57,13 +82,62 @@ struct %Currency {int}
 
 %Currency currency_of(int) {
   result = %Currency{0};
-  storefield result, 0, p0;
+  propset result, 0, p0;
   ret result;
 }
 
 ```
 
 Which represents that it creates a temporary variable named `result` being the currency zeroed. storefield stores the value of `p0` on the first field of `result`
+
+#### Strings
+Strings on the IR are represented as internalized values. On the IR they live on a separated struct called Internalizer, and their access can be made via slices. Note that this IR expects them to be UTF8, and be represented as, inside the IR
+
+```
+struct %Handle {usize, usize}
+```
+which in slynx would be
+
+```slynx
+struct Handle {
+  ptr: usize,
+  length: usize, //length in bytes
+}
+```
+
+Note that this is a internal struct that is automatically put on the IR.
+When referencing a string, what the IR will see it's the string logical pointer, so the specialized backend only sees it as well, and based on this pointer, the compiler can access the string on the Internalizer.
+Strings or `str` type in slynx, are supposed to be utf8 and immutable. Due to that, on the IR textual form, the way of seeing the usage of a string is via %StrHandle.
+
+Suppose the following:
+```slynx
+object Person {
+  name: str,
+  age: int
+}
+func main(): Person{
+  let p = Person(name: "jorge", age: 44);
+  p
+}
+```
+
+on the IR it would be represented as
+```
+struct %StrHandle {usize, usize}
+@str0 = "jorge"; //this is a handle to the string "jorge", but its just for readability, because internally its the %StrHandle
+
+struct %Person {%StrHandle, i32}
+
+%Person main(void) {
+  p = %Person{@str0, 44};
+  ret p;
+}
+```
+
+and so the compiler can determine how it should be done internally.<br>
+The instructions for strings are:
+
+
 
 #### Components
 
@@ -333,3 +407,8 @@ Division:
 * cmplt, compares the first value to the second one, and returns 1u8 if the first is less than the second one, and 0u8 otherwise
 * cmplte, compares the first value to the second one, and returns 1u8 if the first is less than or equal to the second one, and 0u8 otherwise
 * cmpne, compares the first value to the second one, and returns 1u8 if they're not equal, and 0u8 otherwise
+
+##### Strings Operations
+
+* strconcat: Concats the first to the second string and returns a new copy.
+* strlen: Returns the length of the string
