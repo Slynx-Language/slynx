@@ -101,7 +101,7 @@ and so the compiler can determine how it should be done internally.
 
 
 ### Contexts
-All 'contexts' are refered as any piece of code that executes some sort of code. A struct cannot be considered a context by itself because it cannot execute any sort of code, but can be used for execution.
+All 'contexts' are referred as any piece of code that executes some sort of code. A struct cannot be considered a context by itself because it cannot execute any sort of code, but can be used for execution.
 Based on that, all contexts are composed by basic blocks.
 Basic Blocks have a linear sequence of instructions and MUST terminate with some termination operation. Since its linear there are no jumps.
 Note that termination operations do not terminate the context, but rather, the current block, which means that we can enter another block via `labels`
@@ -154,7 +154,7 @@ $entry:
 }
 ```
 
-Which represents that it creates a temporary variable named `result` being the currency zeroed. storefield stores the value of `p0` on the first field of `result`
+Which represents that it creates a temporary variable named `result` being the currency zeroed. `propset` stores the value of `p0` on the first property(field) of `result`
 
 #### Components
 
@@ -278,7 +278,7 @@ AnyComponent main() {
 $entry:
   Counter0 = %Counter(0); //0 = default value
   Counter1 = %Counter(12);
-  ret Counter;
+  ret Counter1;
 }
 
 ```
