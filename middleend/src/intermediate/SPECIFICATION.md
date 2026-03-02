@@ -405,6 +405,7 @@ $entry:
 
 Differently of default values, special values are primitives that are expected to exist on the runtime we are compiling to.
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 ### UI Operations
 Anything on the IR that initializes with '@' and is being used as an instruction, is an specific UI Operation, which determine what the UI itself should do. If being used as a value, then it's the visual reference to a handle of some internal string
@@ -487,3 +488,151 @@ Saturing addition:
 These operations are idealized to be implemented on the future and for the V1 are not being implemented. Note that since these are only IDEALIZED, they might and probably WILL change
 =======
 >>>>>>> 61bf353 (chore: wrote basic specification of IR)
+=======
+
+#### Instructions
+
+##### Integer Operations
+
+For now, arithmetic instructions are only defined for integer types.
+Each instruction takes two operands of the same type and returns a value of that same type.
+Unless explicitly stated otherwise, arithmetic instructions in this section are saturating.
+
+Saturating semantics:
+
+* If the exact result is representable in the operand type, that result is returned.
+* If the exact result is above the type maximum, the type maximum is returned.
+* If the exact result is below the type minimum, the type minimum is returned.
+* For division, divide-by-zero traps. Signed `MIN / -1` saturates to `MAX`.
+
+Addition:
+
+* addi8: saturating add of two `i8` values, returns an `i8`
+* addi16: saturating add of two `i16` values, returns an `i16`
+* addi32: saturating add of two `i32` values, returns an `i32`
+* addi64: saturating add of two `i64` values, returns an `i64`
+* addi128: saturating add of two `i128` values, returns an `i128`
+* addu8: saturating add of two `u8` values, returns a `u8`
+* addu16: saturating add of two `u16` values, returns a `u16`
+* addu32: saturating add of two `u32` values, returns a `u32`
+* addu64: saturating add of two `u64` values, returns a `u64`
+* addu128: saturating add of two `u128` values, returns a `u128`
+
+Subtraction:
+
+* subi8: saturating subtraction, returns an `i8`
+* subi16: saturating subtraction, returns an `i16`
+* subi32: saturating subtraction, returns an `i32`
+* subi64: saturating subtraction, returns an `i64`
+* subi128: saturating subtraction, returns an `i128`
+* subu8: saturating subtraction, returns a `u8`
+* subu16: saturating subtraction, returns a `u16`
+* subu32: saturating subtraction, returns a `u32`
+* subu64: saturating subtraction, returns a `u64`
+* subu128: saturating subtraction, returns a `u128`
+
+Multiplication:
+
+* muli8: saturating multiplication, returns an `i8`
+* muli16: saturating multiplication, returns an `i16`
+* muli32: saturating multiplication, returns an `i32`
+* muli64: saturating multiplication, returns an `i64`
+* muli128: saturating multiplication, returns an `i128`
+* mulu8: saturating multiplication, returns a `u8`
+* mulu16: saturating multiplication, returns a `u16`
+* mulu32: saturating multiplication, returns a `u32`
+* mulu64: saturating multiplication, returns a `u64`
+* mulu128: saturating multiplication, returns a `u128`
+
+Division:
+
+* divi8: saturating division, returns an `i8`
+* divi16: saturating division, returns an `i16`
+* divi32: saturating division, returns an `i32`
+* divi64: saturating division, returns an `i64`
+* divi128: saturating division, returns an `i128`
+* divu8: saturating division, returns a `u8`
+* divu16: saturating division, returns a `u16`
+* divu32: saturating division, returns a `u32`
+* divu64: saturating division, returns a `u64`
+* divu128: saturating division, returns a `u128`
+
+Wrapping variants:
+
+Wrapping instructions are explicit and use modulo `2^N` arithmetic for the operand bit width.
+
+Wrapping addition:
+
+* wrapping_addi8
+* wrapping_addi16
+* wrapping_addi32
+* wrapping_addi64
+* wrapping_addi128
+* wrapping_addu8
+* wrapping_addu16
+* wrapping_addu32
+* wrapping_addu64
+* wrapping_addu128
+
+Wrapping subtraction:
+
+* wrapping_subi8
+* wrapping_subi16
+* wrapping_subi32
+* wrapping_subi64
+* wrapping_subi128
+* wrapping_subu8
+* wrapping_subu16
+* wrapping_subu32
+* wrapping_subu64
+* wrapping_subu128
+
+Wrapping multiplication:
+
+* wrapping_muli8
+* wrapping_muli16
+* wrapping_muli32
+* wrapping_muli64
+* wrapping_muli128
+* wrapping_mulu8
+* wrapping_mulu16
+* wrapping_mulu32
+* wrapping_mulu64
+* wrapping_mulu128
+
+##### Floating Point Operations
+
+Floating point instructions follow IEEE-754 semantics and are not saturating.
+Backends must preserve NaN, infinity and signed zero behavior.
+Unless a backend cannot represent a specific edge case, the default rounding mode is round-to-nearest, ties-to-even.
+Floating point divide-by-zero does not trap and follows IEEE-754 results.
+
+Addition:
+
+* addf32: adds two `f32` values and returns an `f32`
+* addf64: adds two `f64` values and returns an `f64`
+
+Subtraction:
+
+* subf32: subtracts the second `f32` from the first and returns an `f32`
+* subf64: subtracts the second `f64` from the first and returns an `f64`
+
+Multiplication:
+
+* mulf32: multiplies two `f32` values and returns an `f32`
+* mulf64: multiplies two `f64` values and returns an `f64`
+
+Division:
+
+* divf32: divides the first `f32` by the second and returns an `f32`
+* divf64: divides the first `f64` by the second and returns an `f64`
+
+##### Logic Operations
+
+* cmp, compares the first value to the second one, and returns 1u8 if they're equal, 0u8 if they're not
+* cmpgt, compares the first value to the second one, and returns 1u8 if the first is greater than the second one, and 0u8 otherwhise
+* cmpgte, compares the first value to the second one, and returns 1u8 if the first is greater or equal to the second one, and 0u8 otherwhise
+* cmplt, compares the first value to the second one, and returns 1u8 if the first is less than the second one, and 0u8 otherwise
+* cmplte, compares the first value to the second one, and returns 1u8 if the first is less than or equal to the second one, and 0u8 otherwise
+* cmpne, compares the first value to the second one, and returns 1u8 if they're not equal, and 0u8 otherwise
+>>>>>>> ccdd92f (chore: wrote about more instructions)
