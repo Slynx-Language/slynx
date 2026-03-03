@@ -14,8 +14,19 @@ use crate::{
     },
 };
 impl TypeChecker {
-    pub(super) fn resolve_specialized(&mut self, _: &mut SpecializedComponent) -> Result<()> {
-        Ok(())
+    pub(super) fn resolve_specialized(
+        &mut self,
+        component: &mut SpecializedComponent,
+    ) -> Result<TypeId> {
+        match component {
+            SpecializedComponent::Text { text } => {
+                text.ty = self.unify(&text.ty, &self.types_module.str_id(), &text.span)?;
+            }
+            SpecializedComponent::Div { children } => {
+                self.resolve_component_members(children, self.types_module.generic_component_id())?;
+            }
+        }
+        Ok(self.types_module.generic_component_id())
     }
 
     pub(super) fn resolve_statments(
@@ -205,15 +216,7 @@ impl TypeChecker {
                 }
             }
             HirExpressionKind::Bool(_) => self.types_module.bool_id(),
-            HirExpressionKind::Specialized(ref mut s) => match s {
-                SpecializedComponent::Text { text } => {
-                    text.ty = self.unify(&text.ty, &self.types_module.str_id(), &text.span)?;
-                    text.ty
-                }
-                SpecializedComponent::Div { .. } => {
-                    todo!()
-                }
-            },
+            HirExpressionKind::Specialized(ref mut s) => self.resolve_specialized(s)?,
         };
 
         expr.ty = self.unify(&expected, &calc, &expr.span)?;

@@ -159,15 +159,6 @@ impl SlynxHir {
                             span: child.span,
                         }
                     }
-                    //else {
-                    //     return Err(HIRError {
-                    //         span: child.span.clone(),
-                    //         kind: HIRErrorKind::InvalidChild {
-                    //             child: Box::new(child),
-                    //         },
-                    //     }
-                    //     .into());
-                    // }
                 }
             });
         }
