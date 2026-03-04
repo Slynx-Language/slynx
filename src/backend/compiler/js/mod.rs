@@ -17,6 +17,7 @@ use swc_ecma_codegen::{Config, Emitter, text_writer::JsWriter};
 
 use crate::{
     backend::compiler::{js::contexts::JsFunction, slynx_compiler::SlynxCompiler},
+    frontend::parser::ast::Operator,
     middleend::intermediate::{
         IntermediateRepr,
         context::IntermediateContext,
@@ -24,7 +25,6 @@ use crate::{
         id::ContextHandle,
         node::{IntermediateInstruction, IntermediateInstructionKind, IntermediatePlace},
     },
-    frontend::parser::ast::Operator,
 };
 
 #[derive(Debug, Default)]

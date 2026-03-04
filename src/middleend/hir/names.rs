@@ -1,13 +1,13 @@
 use color_eyre::eyre::Result;
 
 use crate::{
+    frontend::parser::ast::Span,
     middleend::hir::{
         SlynxHir, TypeId, VariableId,
         error::{HIRError, HIRErrorKind, InvalidTypeReason},
         symbols::SymbolPointer,
         types::HirType,
     },
-    frontend::parser::ast::Span,
 };
 
 //file specific to implement things related to name resolution

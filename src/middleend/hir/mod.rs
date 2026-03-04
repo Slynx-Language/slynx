@@ -13,6 +13,10 @@ use std::collections::HashMap;
 use color_eyre::eyre::Result;
 
 use crate::{
+    frontend::parser::ast::{
+        ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberKind,
+        ComponentMemberValue, Span, VisibilityModifier,
+    },
     middleend::hir::{
         declarations::DeclarationsModule,
         definitions::{
@@ -23,10 +27,6 @@ use crate::{
         scopes::ScopeModule,
         symbols::SymbolsModule,
         types::{HirType, TypesModule},
-    },
-    frontend::parser::ast::{
-        ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberKind,
-        ComponentMemberValue, Span, VisibilityModifier,
     },
 };
 

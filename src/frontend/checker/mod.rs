@@ -8,13 +8,13 @@ use color_eyre::eyre::Result;
 
 use crate::{
     frontend::checker::error::{IncompatibleComponentReason, TypeError, TypeErrorKind},
+    frontend::parser::ast::Span,
     middleend::hir::{
         SlynxHir, TypeId, VariableId,
         definitions::{HirDeclaration, HirDeclarationKind},
         symbols::SymbolPointer,
         types::{FieldMethod, HirType, TypesModule},
     },
-    frontend::parser::ast::Span,
 };
 
 #[derive(Debug)]

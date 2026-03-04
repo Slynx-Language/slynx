@@ -1,10 +1,10 @@
 use crate::{
+    frontend::parser::ast::{GenericIdentifier, VisibilityModifier},
     middleend::hir::{
         TypeId, VariableId,
         error::{HIRError, HIRErrorKind},
         symbols::SymbolPointer,
     },
-    frontend::parser::ast::{GenericIdentifier, VisibilityModifier},
 };
 
 #[derive(Debug, Clone)]

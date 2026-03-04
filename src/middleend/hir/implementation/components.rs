@@ -2,12 +2,12 @@
 use color_eyre::eyre::Result;
 
 use crate::{
+    frontend::parser::ast::{ComponentExpression, ComponentMemberValue, Span},
     middleend::hir::{
         SlynxHir,
         definitions::{ComponentMemberDeclaration, SpecializedComponent},
         error::{HIRError, HIRErrorKind},
     },
-    frontend::parser::ast::{ComponentExpression, ComponentMemberValue, Span},
 };
 
 impl SlynxHir {

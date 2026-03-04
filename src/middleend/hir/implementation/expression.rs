@@ -3,13 +3,13 @@ use std::mem::discriminant;
 use color_eyre::eyre::Result;
 
 use crate::{
+    frontend::parser::ast::{ASTExpression, ASTExpressionKind, NamedExpr, Operator, Span},
     middleend::hir::{
         ExpressionId, SlynxHir, TypeId,
         definitions::{HirExpression, HirExpressionKind},
         error::{HIRError, HIRErrorKind},
         types::{FieldMethod, HirType},
     },
-    frontend::parser::ast::{ASTExpression, ASTExpressionKind, NamedExpr, Operator, Span},
 };
 
 impl SlynxHir {

@@ -1,16 +1,15 @@
 use std::path::PathBuf;
 
 use crate::{
-    frontend::checker::TypeChecker,
     backend::compiler::{js::WebCompiler, slynx_compiler::SlynxCompiler},
+    frontend::checker::TypeChecker,
     middleend::hir::SlynxHir,
     middleend::intermediate::IntermediateRepr,
 };
 
+pub mod backend;
 pub mod frontend;
 pub mod middleend;
-pub mod backend;
-
 
 mod context;
 

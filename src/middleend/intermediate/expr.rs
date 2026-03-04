@@ -1,9 +1,9 @@
 use crate::{
+    frontend::parser::ast::Operator,
     middleend::intermediate::{
         id::{ContextHandle, TyId, ValueId, VarId},
         string::StringHandle,
     },
-    frontend::parser::ast::Operator,
 };
 
 ///A Native component that is not user-defined

@@ -1,11 +1,11 @@
 use color_eyre::eyre::Result;
 
 use crate::{
+    frontend::parser::ast::{ASTExpression, ASTExpressionKind, ASTStatement, ASTStatementKind},
     middleend::hir::{
         SlynxHir,
         definitions::{HirStatement, HirStatementKind},
     },
-    frontend::parser::ast::{ASTExpression, ASTExpressionKind, ASTStatement, ASTStatementKind},
 };
 
 impl SlynxHir {

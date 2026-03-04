@@ -1,6 +1,6 @@
 use crate::{
-    middleend::hir::{definitions::HirExpression, types::HirType},
     frontend::parser::ast::{ComponentExpression, Span},
+    middleend::hir::{definitions::HirExpression, types::HirType},
 };
 
 #[derive(Debug)]

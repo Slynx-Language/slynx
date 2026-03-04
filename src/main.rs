@@ -1,7 +1,7 @@
 pub mod backend;
 pub mod context;
-pub mod middleend;
 pub mod frontend;
+pub mod middleend;
 
 use std::{path::PathBuf, process::exit};
 
@@ -24,7 +24,6 @@ fn main() -> Result<()> {
     let ctx = SlynxContext::new(path.into())?;
 
     if let Err(e) = ctx.start_compilation(WebCompiler::new()) {
-
         if !cfg!(debug_assertions) {
             eprintln!("{e}");
             exit(1);

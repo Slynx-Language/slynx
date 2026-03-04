@@ -1,12 +1,12 @@
 use color_eyre::eyre::Result;
 
 use crate::{
+    frontend::parser::ast::{GenericIdentifier, Span},
     middleend::hir::{
         DeclarationId, SlynxHir, TypeId,
         error::{HIRError, HIRErrorKind},
         types::HirType,
     },
-    frontend::parser::ast::{GenericIdentifier, Span},
 };
 
 impl SlynxHir {

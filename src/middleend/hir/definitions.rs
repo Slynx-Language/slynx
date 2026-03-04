@@ -1,6 +1,6 @@
 use crate::{
-    middleend::hir::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId},
     frontend::parser::ast::{Operator, Span},
+    middleend::hir::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId},
 };
 
 #[derive(Debug)]

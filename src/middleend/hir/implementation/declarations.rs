@@ -1,13 +1,13 @@
 use color_eyre::eyre::Result;
 
+use crate::frontend::parser::ast::{
+    ComponentMember, ComponentMemberKind, GenericIdentifier, ObjectField, Span, TypedName,
+};
 use crate::middleend::hir::{
     PropertyId, SlynxHir,
     definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
     error::{HIRError, HIRErrorKind},
     types::HirType,
-};
-use crate::frontend::parser::ast::{
-    ComponentMember, ComponentMemberKind, GenericIdentifier, ObjectField, Span, TypedName,
 };
 
 impl SlynxHir {
