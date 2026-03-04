@@ -1,28 +1,20 @@
 use swc_atoms::Atom;
 use swc_common::DUMMY_SP;
-<<<<<<< HEAD
 use swc_ecma_ast::{
     ArrayLit, Expr, ExprOrSpread, IdentName, Lit, MemberExpr, MemberProp, ObjectLit, PropOrSpread,
 };
-=======
-use swc_ecma_ast::{Expr, IdentName, MemberExpr, MemberProp, ObjectLit, PropOrSpread};
->>>>>>> 673350bdf83de9e71f0201d3f72330e2818494c1
 
 use crate::{
     backend::compiler::{js::WebCompiler, slynx_compiler::SlynxCompiler},
     middleend::intermediate::{
         IntermediateRepr,
         context::IntermediateContext,
-<<<<<<< HEAD
         expr::{NativeComponent, NativeComponentKind},
-=======
->>>>>>> 673350bdf83de9e71f0201d3f72330e2818494c1
         id::{ContextHandle, ValueId},
     },
 };
 
 impl WebCompiler {
-<<<<<<< HEAD
     fn compile_array_from_exprs(&self, values: Vec<Expr>) -> Expr {
         Expr::Array(ArrayLit {
             span: DUMMY_SP,
@@ -112,8 +104,6 @@ impl WebCompiler {
         })
     }
 
-=======
->>>>>>> 673350bdf83de9e71f0201d3f72330e2818494c1
     pub fn compile_struct(
         &mut self,
         exprs: &[ValueId],

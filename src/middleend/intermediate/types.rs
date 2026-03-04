@@ -1,11 +1,7 @@
 use crate::{
     middleend::hir::{
         TypeId,
-<<<<<<< HEAD
         types::{FieldMethod, HirType, TypesModule},
-=======
-        types::{HirType, TypesModule},
->>>>>>> 673350bdf83de9e71f0201d3f72330e2818494c1
     },
     middleend::intermediate::IntermediateRepr,
 };
@@ -28,11 +24,7 @@ pub enum IntermediateType {
 
 impl IntermediateRepr {
     ////Creates a new complex type from the provided `tys` and returns it
-<<<<<<< HEAD
     pub fn retrieve_complex(&self, tys: &[TypeId], module: &TypesModule) -> IntermediateType {
-=======
-    pub fn retrieve_complex(&mut self, tys: &[TypeId], module: &TypesModule) -> IntermediateType {
->>>>>>> 673350bdf83de9e71f0201d3f72330e2818494c1
         IntermediateType::Complex(tys.iter().map(|t| self.get_type(t, module)).collect())
     }
 
@@ -47,7 +39,6 @@ impl IntermediateRepr {
                 let vecty = self.get_type(ty, module);
                 IntermediateType::Vector(Box::new(vecty))
             }
-<<<<<<< HEAD
             HirType::Struct { fields } => self.retrieve_complex(fields, module),
             HirType::Component { .. } | HirType::GenericComponent => IntermediateType::Component,
             HirType::Function { args, return_type } => IntermediateType::Function(
@@ -83,20 +74,10 @@ impl IntermediateRepr {
             }
             HirType::Infer => {
                 unreachable!("Infer type should be fully resolved before IR lowering")
-=======
-            HirType::GenericComponent => IntermediateType::Component,
-            HirType::Reference { rf, .. } => IntermediateType::Reference(*rf),
-            v @ (HirType::Function { .. } | HirType::Struct { .. } | HirType::Component { .. }) => {
-                unreachable!("All struct types should be reference instead. Got {v:?}");
-            }
-            HirType::VarReference(_) | HirType::Field(_) | HirType::Infer => {
-                unreachable!("These should have been resolved during checker")
->>>>>>> 673350bdf83de9e71f0201d3f72330e2818494c1
             }
         }
     }
 }
-<<<<<<< HEAD
 
 #[cfg(test)]
 mod tests {
@@ -132,5 +113,3 @@ mod tests {
         assert!(matches!(lowered, IntermediateType::Bool));
     }
 }
-=======
->>>>>>> 673350bdf83de9e71f0201d3f72330e2818494c1
