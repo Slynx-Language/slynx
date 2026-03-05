@@ -299,6 +299,9 @@ The `@emit p0, %count` on the function, tells that `p0` should execute its `%cou
 * @bind: which follows `@bind %property |> func -> value`, means that on update of `%property` inside the component we are defining, updates the provided `value`
 * @emit: which follows `@emit Component, %property`, means that it should execute the binds related to `%property` of the provided `Component`
 * @rerender: which follows: `@rerender Component`, means that the `Component` should be re-rendered
+* @hide: which follows `@hide Component, #child`, means that the `#child` of the provided `Component` should quit the UI tree. This instruction does not determine if the backend should kill or not the component, this is a compiler's choice
+* @reveal: which follows `@reveal Component, #child`, does the opposite of `@hide`. It tells the `child` of the `Component` should be revealed on the UI. This instruction does not determine if the backend should create a new component or use a cached one, this is a compiler's choice
+
 
 ### Instructions
 
