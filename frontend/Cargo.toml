@@ -1,0 +1,9 @@
+[package]
+name = "frontend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+color-eyre = "0.6.5"
+middleend={path="../middleend"}
+common = {path="../common"}

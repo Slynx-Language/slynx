@@ -1,0 +1,9 @@
+[package]
+name = "middleend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = {path = "../common"}
+color-eyre = "0.6.5"
+rart = "0.2.1"

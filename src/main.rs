@@ -1,16 +1,12 @@
-pub mod checker;
-pub mod compiler;
-pub mod context;
-pub mod hir;
-pub mod intermediate;
-pub mod parser;
+
 
 use std::{path::PathBuf, process::exit};
 
 use clap::Parser;
 use color_eyre::eyre::Result;
 
-use crate::{compiler::js::WebCompiler, context::SlynxContext};
+use backend::compiler::js::WebCompiler;
+use slynx::context::SlynxContext;
 
 #[derive(Debug, Parser)]
 struct Cli {
