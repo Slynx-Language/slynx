@@ -1,6 +1,6 @@
 # Slynx IR
-
-Slynx IR specifies what the backend compiling it should do instead of how, even though the language is a bit opinionated about how to do so.
+This IR is is intended to be used by underlying compilers, the language compiles down to JS only as a prove of concept, to show that it's possible to use this IR and compile to any target. Note that for so, this IR
+tells what the backend compiling it should do instead of how, even though the language is a bit opinionated about the 'how'(mainly due to DOD).
 First of all the IR follows SSA and is extremely typed.
 The IR has got the concept of 'contexts' that are anything able to be run, this means a struct isn't a context, because it by itself cannot execute code, but a method or a function are, as well as components that can have code
 to be run, such as the reactivity model.
@@ -111,26 +111,40 @@ Labels are named as `$name` and represent another block that can be used run. Al
 ```slynxir
 i32 main(i32){
 $entry:
-  inc = addi32 p0, 1;
+  inc = add i32 p0, 1;
   br $end
 $end:
-  twice = muli32, inc, 2;
+  twice = mul i32, inc, 2;
   ret twice;
 }
 ```
 
-Since a label is a named block, it needs to terminate with a termination operation.
+Since a label is a named block, it needs to terminate with a termination operation. Labels can receive parameters and can be entered through `br` and `cbr`, which pass values explicitly to the destination label(s). This replaces implicit branch-return style flows and keeps dataflow explicit for compilation and optimization.
 
-#### Functions
+Label parameters follow the `lpN` naming pattern, where `N` is the parameter index (starting at `0`), similarly to function parameters (`pN`):
+```slynxir
+$lbl(i32, u32):
+  lb0_u = cast u32, lp0;
+  r = addu32, lb0_u, lp1;
+  ret r;
+```
+Branches pass label parameters by position:
+```slynxir
+$entry:
+  n = add i32 p0, 1;
+  br $lbl(n, 2u32);
+```
+
+ #### Functions
 Functions are defined on the IR level as the following:
 ```slynxir
 i32 #add(i32, i32) {
 $entry:
-  result = addi32 p0, p1;
+  result = add i32 p0, p1;
   ret result;
 }
 ```
-Where p0 is the first parameter and p1 the second one. The order of the names then is pN where N is the (N+1)th parameter of the function.
+ Where p0 is the first parameter and p1 the second one. The order of the names then is pN where N is the (N+1)th parameter of the function.
 Something in slynx such as
 ```slynx
 struct Currency {
@@ -253,10 +267,10 @@ $entry:
 void Counter_count_update(%Counter) {
 $entry:
   count = prop_get p0, 0;
-  inc = addi32 count, 1;
+  inc = add i32 count, 1;
   prop_set p0, 0, inc;
   @emit p0, %count;
-  @rerender p0;
+  @rerender p 0;
   ret
 }
 
@@ -308,44 +322,41 @@ The `@emit p0, %count` on the function, tells that `p0` should execute its `%cou
 
 #### Termination Operations
 
-* br: Unconditional branch. Emits that the provided `label` should be executed.
-* cbr: Conditional branch. Follows that `cbr value, $if_label, $else_label`. If the `value` is true, then it executes the `$if_label`, otherwhise `$else_labels`. Obviously, `value` must be a boolean
+* br: Unconditional branch. Follows `br $label(arg0, arg1, ...)` and transfers control to `$label`, binding arguments to its `lpN` parameters.
+* cbr: Conditional branch. Follows `cbr value, $if_label(args...), $else_label(args...)`. If `value` is true, then it executes `$if_label`, otherwise `$else_label`. Obviously, `value` must be a boolean.
 * ret: Only used inside functions, returns the provided value
 
 #### General Operations
+By default on the IR everything is moved, due to DOD, so to consume something that is not intended to be moved, we copy it via `copy` instruction.
+
+* copy: copies the provided `value`. It follows as `copy value`.
+* call: which follows: `call f, arg1, arg2, ...`, calls the provided function `f` passing `arg1`, `arg2`, ..., as parameters to it. A call is an expression
 * cast: which follows: `cast ty, value` casts the provided `value`, copies the value and casts it to the provided `ty`
+* select: which follows `select cond, v1, v2`, selects `v1` if `cond` is `true` and `v2` otherwise
 
 #### Numeric Operations
 
-For now, arithmetic instructions are only defined for integer types.
 Each instruction takes a type argument, and two operands of the same type and returns a value of that same type. Since this only covers integers, the `type` argument(also refered as `ty`) can be any primitive integer type
-Unless explicitly stated otherwise, arithmetic instructions in this section are saturating.
-
-Saturating semantics:
-
-* If the exact result is representable in the operand type, that result is returned.
-* If the exact result is above the type maximum, the type maximum is returned.
-* If the exact result is below the type minimum, the type minimum is returned.
-* For division, divide-by-zero traps. Signed `MIN / -1` saturates to `MAX`.
+Unless explicitly stated otherwise, arithmetic instructions in this section are wrapping.
 
 Addition:
 
-* add: which follows `add ty, a,b` adds the provided `a` and `b` value asserting their type is the same as `ty` and returns the saturing result.
-* sub: which follows `sub ty, a,b` subtracts the provided `a` and `b` value asserting their type is the same as `ty` and returns the saturing result.
-* mul: which follows `mul ty, a,b` multiplies the provided `a` and `b` value asserting their type is the same as `ty` and returns the saturing result.
-* div: which follows `div ty, a,b` divides the provided `a` and `b` value asserting their type is the same as `ty` and returns the saturing result.
-* rem: which follows `rem ty, a,b` takes remainder value from the provided `a` and `b` value asserting their type is the same as `ty` and returns the saturing result.
+* add: which follows `add ty, a,b` adds the provided `a` and `b` value asserting their type is the same as `ty` and returns the wrapping result.
+* sub: which follows `sub ty, a,b` subtracts the provided `a` and `b` value asserting their type is the same as `ty` and returns the wrapping result.
+* mul: which follows `mul ty, a,b` multiplies the provided `a` and `b` value asserting their type is the same as `ty` and returns the wrapping result.
+* div: which follows `div ty, a,b` divides the provided `a` and `b` value asserting their type is the same as `ty` and returns the wrapping result.
+* rem: which follows `rem ty, a,b` takes remainder value from the provided `a` and `b` value asserting their type is the same as `ty` and returns the wrapping result.
 
 
-Wrapping variants:
+Saturing variants:
 
-Wrapping instructions are explicit and use modulo `2^N` arithmetic for the operand bit width.
+Saturing instructions are explicit and if the result would overflow, it instead, bounds the value to `MIN/MAX`.
 
-Wrapping addition:
+Saturing addition:
 
-* wrapping_add
-* wrapping_sub
-* wrapping_mul
+* sat_add
+* sat_sub
+* sat_mul
 
 #### Bit Operations(Only for integers)
 * and: which follows `band ty, a,b`, stands for Bit AND, executes the AND operation from the provided `a` and `b` value asserting their type is the same as `ty` and returns the saturing result.
@@ -354,20 +365,16 @@ Wrapping addition:
 * not: which follows `bnot value`, standds for Bit Not, executes the NOT operation on the provided `value` and returns a copy of it. The type of this operation is inferred by the type of `value`.
 * shl: which follows `shl ty, a,b` shifts to the left the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result.
 * shr: which follows `shr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the logical implementation. So if `ty` is negative(thus, bit 1 to tell so), it will not keep
-* ashr: which follows `ashr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the arithmetical implementation, so the negative bit keeps. This is the same as N * 2, for N of any int type
+* ashr: which follows `ashr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the arithmetical implementation, so the negative bit keeps. This is the same as N / 2, for N of any int type
 
 #### Logic Operations
 
 * cmp, compares the first value to the second one, and returns `true` if they're equal, `false` if they're not
-* cmpgt, compares the first value to the second one, and returns `true if the first is greater than the second one, and `false` otherwhise
+* cmpgt, compares the first value to the second one, and returns `true` if the first is greater than the second one, and `false` otherwhise
 * cmpgte, compares the first value to the second one, and returns `true` if the first is greater or equal to the second one, and `false` otherwhise
 * cmplt, compares the first value to the second one, and returns `true` if the first is less than the second one, and `false` otherwise
 * cmplte, compares the first value to the second one, and returns `true` if the first is less than or equal to the second one, and `false` otherwise
 * cmpne, compares the first value to the second one, and returns `true` if they're not equal, and `false` otherwise
 
-#### Strings Operations
-
-* strconcat: Concats the first to the second string and returns a new copy.
-* strcmp: Compares the first string to the second one, and returns 1u8 if they're equal, 0u8 if they're not.
-* strcmpne: Compares the first string to the second one, and returns 1u8 if they're not equal, 0u8 otherwise.
-* strlen: Returns the length of provided the string
+#### Idealized For The Future
+These operations are idealized to be implemented on the future and for the V1 are not being implemented. Note that since these are only IDEALIZED, they might and probably WILL change
