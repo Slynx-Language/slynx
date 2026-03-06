@@ -1,10 +1,8 @@
-use frontend::{
-    hir::{
-        TypeId,
-        types::{FieldMethod, HirType, TypesModule},
-    },
-};
 use crate::intermediate::IntermediateRepr;
+use frontend::hir::{
+    TypeId,
+    types::{FieldMethod, HirType, TypesModule},
+};
 
 #[derive(Debug, Clone)]
 pub enum IntermediateType {

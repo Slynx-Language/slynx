@@ -3,13 +3,10 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use color_eyre::{Report, eyre::Result, owo_colors::OwoColorize};
 
 use backend::compiler::slynx_compiler::SlynxCompiler;
-use frontend::parser::{
-    Parser,
-    error::ParseError,
-};
-use frontend::lexer::{Lexer, error::LexerError};
-use frontend::hir::{SlynxHir, error::HIRError};
 use frontend::checker::{TypeChecker, error::TypeError};
+use frontend::hir::{SlynxHir, error::HIRError};
+use frontend::lexer::{Lexer, error::LexerError};
+use frontend::parser::{Parser, error::ParseError};
 use middleend::IntermediateRepr;
 
 #[derive(Debug)]

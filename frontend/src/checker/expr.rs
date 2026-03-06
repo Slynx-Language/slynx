@@ -3,7 +3,6 @@ use color_eyre::eyre::Result;
 use super::TypeChecker;
 
 use crate::checker::error::{TypeError, TypeErrorKind};
-use common::ast::Span;
 use crate::hir::{
     DeclarationId, TypeId,
     definitions::{
@@ -12,6 +11,7 @@ use crate::hir::{
     },
     types::{FieldMethod, HirType},
 };
+use common::ast::Span;
 impl TypeChecker {
     fn get_function_signature(
         &self,

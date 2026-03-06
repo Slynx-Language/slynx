@@ -6,16 +6,6 @@ pub mod string;
 pub mod types;
 use std::collections::HashMap;
 
-use frontend::{
-    hir::{
-        DeclarationId, PropertyId, TypeId, VariableId,
-        definitions::{
-            ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirExpression,
-            HirExpressionKind, HirStatement, HirStatementKind, SpecializedComponent,
-        },
-        types::{HirType, TypesModule},
-    }
-};
 use crate::intermediate::{
     context::{IntermediateContext, IntermediateContextType},
     expr::IntermediateExpr,
@@ -23,6 +13,14 @@ use crate::intermediate::{
     node::{IntermediateInstruction, IntermediatePlace},
     string::StringPool,
     types::IntermediateType,
+};
+use frontend::hir::{
+    DeclarationId, PropertyId, TypeId, VariableId,
+    definitions::{
+        ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirExpression,
+        HirExpressionKind, HirStatement, HirStatementKind, SpecializedComponent,
+    },
+    types::{HirType, TypesModule},
 };
 #[derive(Debug, Default)]
 /// Struct used to represent the intermediate representation of Slynx. Will be used when being compiled. This contains the monomorfization of types

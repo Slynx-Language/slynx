@@ -1,5 +1,5 @@
-use common::ast::Span;
 use crate::hir::{DeclarationId, VariableId, types::HirType};
+use common::ast::Span;
 
 #[derive(Debug)]
 pub enum IncompatibleComponentReason {

@@ -1,10 +1,7 @@
 use color_eyre::eyre::Result;
 
-use crate::parser::{
-    Parser,
-    error::ParseError,
-};
 use crate::lexer::tokens::{Token, TokenKind};
+use crate::parser::{Parser, error::ParseError};
 
 use common::ast::{
     ASTDeclaration, ASTDeclarationKind, ASTStatement, ASTStatementKind, Span, TypedName,

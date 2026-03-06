@@ -4,10 +4,8 @@ use common::ast::{
     Span, VisibilityModifier,
 };
 
-use crate::parser::{
-    error::ParseError
-};
 use crate::lexer::tokens::{Token, TokenKind};
+use crate::parser::error::ParseError;
 
 use super::Parser;
 impl Parser {

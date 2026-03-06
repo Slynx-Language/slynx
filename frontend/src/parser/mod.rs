@@ -12,9 +12,7 @@ use crate::lexer::{
     TokenStream,
     tokens::{Token, TokenKind},
 };
-use crate::parser::{
-    error::ParseError,
-};
+use crate::parser::error::ParseError;
 
 use common::ast::ASTDeclaration;
 pub struct Parser {

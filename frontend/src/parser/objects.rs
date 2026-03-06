@@ -1,9 +1,7 @@
 use color_eyre::eyre::Result;
 
-use crate::parser::{
-    Parser,
-};
 use crate::lexer::tokens::{Token, TokenKind};
+use crate::parser::Parser;
 
 use common::ast::{ASTDeclaration, ASTDeclarationKind, ObjectField, Span, VisibilityModifier};
 
