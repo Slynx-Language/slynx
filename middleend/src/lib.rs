@@ -1,2 +1,2 @@
-pub mod intermediate;
-pub use intermediate::IntermediateRepr;
+pub mod ir;
+pub use ir::*;
