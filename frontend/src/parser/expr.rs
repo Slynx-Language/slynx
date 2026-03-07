@@ -7,6 +7,8 @@ use common::ast::{
 };
 
 impl Parser {
+    /// Parses a function call expression. 
+    /// It expects the current token to be an identifier, followed by a left parenthesis '(', then a list of expressions as arguments separated by commas, and finally a right parenthesis ')'.
     pub fn parse_funcall(&mut self) -> Result<ASTExpression> {
         let identifier = self.parse_type()?;
 
@@ -182,6 +184,7 @@ impl Parser {
         }
     }
 
+    /// Parses a primary expression, which can be a literal (integer, float, string, boolean), an identifier, a parenthesized expression, or a field access expression.
     pub fn parse_primary(&mut self) -> Result<ASTExpression> {
         let expr = if let TokenKind::Identifier(_) = self.peek()?.kind
             && let Some(value) = self.parse_identifier_exprs()?
@@ -230,6 +233,7 @@ impl Parser {
         }
     }
 
+    /// Parses multiplicative expressions, which consist of primary expressions combined with multiplication '*' or division '/' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a primary expression, and then repeatedly checking for multiplicative operators and parsing the right-hand side (RHS) as another primary expression until no more multiplicative operators are found.
     pub fn parse_multiplicative(&mut self) -> Result<ASTExpression> {
         let mut lhs = self.parse_primary()?;
         while let Ok(curr) = self.peek()
@@ -255,6 +259,7 @@ impl Parser {
         }
         Ok(lhs)
     }
+    /// Parses additive expressions, which consist of multiplicative expressions combined with addition '+' or subtraction '-' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a multiplicative expression, and then repeatedly checking for additive operators and parsing the right-hand side (RHS) as another multiplicative expression until no more additive operators are found.
     pub fn parse_additive(&mut self) -> Result<ASTExpression> {
         let mut lhs = self.parse_multiplicative()?;
         while let Ok(curr) = self.peek()
@@ -357,7 +362,7 @@ impl Parser {
             _ => Err(ParseError::UnexpectedToken(current, "A field access".to_string()).into()),
         }
     }
-
+    /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.
     pub fn parse_expression(&mut self) -> Result<ASTExpression> {
         let expr = self.parse_logical()?;
         Ok(expr)

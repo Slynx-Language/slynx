@@ -8,6 +8,7 @@ pub enum ParseError {
 }
 
 impl std::fmt::Display for ParseError {
+    ///Formats the `ParseError` into a human-readable string. It matches on the type of error and constructs an appropriate message. For `UnexpectedToken`, it includes the unexpected token and what was expected. For `UnexpectedEndOfInput`, it simply states that the end of input was unexpected.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ParseError::UnexpectedToken(token, expected_ty) => {
