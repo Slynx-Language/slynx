@@ -15,14 +15,21 @@ use crate::lexer::{
 use crate::parser::error::ParseError;
 
 use common::ast::ASTDeclaration;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParserFlags {
+    None,
+    RequireSemicolon,
+}
 pub struct Parser {
+    flags: ParserFlags,
     stream: TokenStream,
 }
 
 impl Parser {
     ///Creates a new parser instance from the given `stream`
     pub fn new(stream: TokenStream) -> Self {
-        Parser { stream }
+        Parser { stream, flags: ParserFlags::None }
+
     }
 
     /// Consumes the next token from the input stream and returns it.
@@ -103,5 +110,18 @@ impl Parser {
             }
         }
         Ok(out)
+    }
+    pub fn reset_flags(&mut self){
+        self.flags = ParserFlags::None;
+    }
+    pub fn set_flags(&mut self, flag: ParserFlags) {
+        self.flags = flag;
+    }
+     pub fn finish_current_parse(&mut self) -> Result<(), Report> {
+        if self.flags == ParserFlags::RequireSemicolon {
+            self.expect(&TokenKind::SemiColon)?;
+        }
+        self.reset_flags();
+        Ok(())
     }
 }

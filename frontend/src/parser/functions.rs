@@ -88,7 +88,7 @@ impl Parser {
                     if self.peek()?.kind == TokenKind::RBrace {
                         continue;
                     }
-                    self.expect(&TokenKind::SemiColon)?;
+                   self.finish_current_parse()?;
                 }
                 let end = self.expect(&TokenKind::RBrace)?.span.end;
                 Ok(ASTDeclaration {
