@@ -1,11 +1,13 @@
 use std::{path::PathBuf, sync::Arc};
 
-pub mod context;
+mod context;
 pub use context::*;
 pub use frontend::checker;
+pub use frontend::hir;
+pub use frontend::lexer;
 pub use frontend::parser;
+
 pub use middleend::IntermediateRepr;
-pub use middleend::intermediate;
 
 use middleend::intermediate::{
     context::IntermediateContext, expr::IntermediateExpr, id::ContextHandle,
