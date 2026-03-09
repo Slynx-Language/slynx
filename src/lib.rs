@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-pub mod context;
+mod context;
 pub use context::*;
 pub use frontend::checker;
 pub use frontend::hir;
