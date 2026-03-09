@@ -5,3 +5,11 @@ pub struct Context {
     ///Named labels that can have instructions and determine what on the code to be executed. The first label this points to is the `$entry` label
     labels: IRPointer<Label>,
 }
+
+impl Context {
+    pub fn new() -> Self {
+        Self {
+            labels: IRPointer::new(0,0),
+        }
+    }
+}

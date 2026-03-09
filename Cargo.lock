@@ -434,6 +434,7 @@ dependencies = [
  "color-eyre",
  "common",
  "frontend",
+ "smallvec",
 ]
 
 [[package]]
