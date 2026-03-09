@@ -49,12 +49,20 @@ impl std::error::Error for SlynxError {}
 #[derive(Debug)]
 pub struct CompilationOutput {
     output_path: PathBuf,
+<<<<<<< HEAD
     ir: SlynxIR,
+=======
+    ir: IntermediateRepr,
+>>>>>>> c1c2c10 (fix: removed usage of web compiler)
 }
 
 impl CompilationOutput {
     ///Creates a new compilation output with the provided `ir`. Writes the `ir` in its textual format on the provided `entry_point` with extension of `sir`
+<<<<<<< HEAD
     fn new(entry_point: &Path, ir: SlynxIR) -> Self {
+=======
+    fn new(entry_point: &Path, ir: IntermediateRepr) -> Self {
+>>>>>>> c1c2c10 (fix: removed usage of web compiler)
         Self {
             output_path: entry_point.with_extension("sir"),
             ir,
@@ -62,7 +70,11 @@ impl CompilationOutput {
     }
 
     ///Consumes and retrieves the IR of this compilation output
+<<<<<<< HEAD
     pub fn ir(self) -> SlynxIR {
+=======
+    pub fn ir(self) -> IntermediateRepr {
+>>>>>>> c1c2c10 (fix: removed usage of web compiler)
         self.ir
     }
 
@@ -191,9 +203,15 @@ impl SlynxContext {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     ///Compiles the code from the current contexts and returns the compilation result including the IR
 =======
 >>>>>>> cb6c316 (refactor: mini refactor on code organization)
+=======
+=======
+    ///Compiles the code from the current contexts and returns the compilation result including the IR
+>>>>>>> da95aa5 (fix: removed usage of web compiler)
+>>>>>>> c1c2c10 (fix: removed usage of web compiler)
     pub fn compile(self) -> Result<CompilationOutput> {
         let stream = match Lexer::tokenize(self.get_entry_point_source()) {
             Ok(value) => value,
@@ -300,6 +318,7 @@ impl SlynxContext {
 
         ir.generate(hir.declarations, module);
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 <<<<<<< HEAD
         let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
@@ -310,6 +329,8 @@ impl SlynxContext {
     pub fn start_compilation(self) -> Result<()> {
 =======
 =======
+=======
+>>>>>>> c1c2c10 (fix: removed usage of web compiler)
         println!("{ir:#?}");
 >>>>>>> 2caee7b (feat: removed var and added value instead)
         let output = CompilationOutput::new(self.entry_point.as_ref(), Vec::new());
@@ -317,9 +338,20 @@ impl SlynxContext {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     pub fn start_compilation(self ) -> Result<()> {
 >>>>>>> cb6c316 (refactor: mini refactor on code organization)
 =======
+=======
+=======
+
+        let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
+        Ok(output)
+    }
+
+    ///Compile the code on this context and writes it on the same path
+>>>>>>> da95aa5 (fix: removed usage of web compiler)
+>>>>>>> c1c2c10 (fix: removed usage of web compiler)
     pub fn start_compilation(self) -> Result<()> {
 >>>>>>> 2caee7b (feat: removed var and added value instead)
         let output = self.compile()?;
