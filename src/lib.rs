@@ -7,7 +7,6 @@ pub use frontend::hir;
 pub use frontend::lexer;
 pub use frontend::parser;
 
-<<<<<<< HEAD
 pub use middleend::IntermediateRepr;
 
 use middleend::intermediate::{
@@ -46,9 +45,6 @@ pub trait SlynxCompiler {
 }
 
 ///Compiels the provided `slynx` code from the provided `path` and writes the slynx IR textual form into the same `path` but with extension `sir`
-=======
-///Compiels the provided `slynx` code from the provided `path` and writes the slynx IR into the same `path` but with extension `sir`. The IR in this phase is not human readable, but instead, made for computers to read
->>>>>>> bd60dbd (docs: resolved docs related to functions lib.rs)
 pub fn compile_code(path: PathBuf) -> color_eyre::eyre::Result<()> {
     let context = SlynxContext::new(Arc::new(path))?;
     let output = context.compile()?;
