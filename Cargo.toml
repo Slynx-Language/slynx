@@ -6,9 +6,13 @@ edition = "2024"
 [build-dependencies]
 lalrpop = "0.22.2"
 
+[workspace.dependencies]
+smallvec = "1.15.1"
+color-eyre = "0.6.5"
+
 [dependencies]
 clap = { version = "4.5.52", features = ["derive"] }
-color-eyre = "0.6.5"
+color-eyre={workspace=true}
 middleend = {path="./middleend"}
 frontend = {path="./frontend"}
 

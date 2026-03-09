@@ -6,4 +6,6 @@ edition = "2024"
 [dependencies]
 common = {path = "../common"}
 frontend = {path = "../frontend"}
-color-eyre = "0.6.5"
+color-eyre={workspace=true}
+smallvec={workspace=true}
+
