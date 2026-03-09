@@ -3,7 +3,6 @@ use std::{path::PathBuf, process::exit};
 use clap::Parser;
 use color_eyre::eyre::Result;
 
-use backend::compiler::js::WebCompiler;
 use slynx::context::SlynxContext;
 
 #[derive(Debug, Parser)]
@@ -17,7 +16,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let path = PathBuf::from(cli.target);
     let ctx = SlynxContext::new(path.into())?;
-    if let Err(e) = ctx.start_compilation(WebCompiler::new()) {
+    if let Err(e) = ctx.start_compilation() {
         if !cfg!(debug_assertions) {
             eprintln!("{e}");
             exit(1);

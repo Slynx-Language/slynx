@@ -16,4 +16,10 @@ impl<T> IRPointer<T> {
             data: PhantomData,
         }
     }
+
+    #[inline]
+    ///Gets the raw value of the pointer
+    pub unsafe fn raw(&self) -> u64 {
+        self.inner
+    }
 }

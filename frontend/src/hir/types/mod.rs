@@ -129,6 +129,24 @@ impl TypesModule {
         v
     }
 
+    ///Returns the inner object from the provided `ty`, returns None if the type is not a object
+    pub fn get_object(&self, ty: &TypeId) -> Option<&HirType> {
+        match self.get_type(ty) {
+            v @ HirType::Struct { .. } => Some(&v),
+            HirType::Reference { rf, .. } => self.get_object(rf),
+            _ => None,
+        }
+    }
+
+    ///Returns the inner component from the provided `ty`, returns None if the type is not a object
+    pub fn get_component(&self, ty: &TypeId) -> Option<&HirType> {
+        match self.get_type(ty) {
+            v @ HirType::Component { .. } => Some(&v),
+            HirType::Reference { rf, .. } => self.get_object(rf),
+            _ => None,
+        }
+    }
+
     ///Simply inserts the provided `ty` inside this module. Doesn't map it to anything
     pub fn insert_unnamed_type(&mut self, ty: HirType) -> TypeId {
         let id = TypeId::from_raw(self.types.len() as u64);

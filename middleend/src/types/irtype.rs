@@ -1,7 +1,7 @@
-use crate::IRStructId;
+use crate::{IRStructId, types::functions::IRFunctionId};
 
 /// Logical identifier for a type inside IR type storage.
-/// 
+///
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IRType {
     I8,
@@ -14,7 +14,10 @@ pub enum IRType {
     U64,
     F32,
     F64,
-    Struct(IRStructId)
+    BOOL,
+    VOID,
+    Struct(IRStructId),
+    Function(IRFunctionId),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
