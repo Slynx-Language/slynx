@@ -1,4 +1,4 @@
-use crate::{IRPointer, ir::instruction::Instruction};
+use super::{IRPointer, instruction::Instruction};
 
 ///A label is a named 'piece' of block that has got instructions and can be used to determine values
 pub struct Label {

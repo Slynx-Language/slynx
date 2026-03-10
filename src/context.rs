@@ -188,7 +188,7 @@ impl SlynxContext {
         self.entry_point.to_string_lossy().to_string()
     }
 
-    pub fn compile<S: SlynxCompiler>(self, compiler: S) -> Result<CompilationOutput> {
+    pub fn compile(self) -> Result<CompilationOutput> {
         let stream = match Lexer::tokenize(self.get_entry_point_source()) {
             Ok(value) => value,
             Err(e) => match e {
@@ -294,13 +294,12 @@ impl SlynxContext {
 
         ir.generate(hir.declarations, module);
 
-        let out = compiler.compile(ir);
-        let output = CompilationOutput::new(self.entry_point.as_ref(), out);
+        let output = CompilationOutput::new(self.entry_point.as_ref(), Vec::new());
         Ok(output)
     }
 
-    pub fn start_compilation<S: SlynxCompiler>(self, compiler: S) -> Result<()> {
-        let output = self.compile(compiler)?;
+    pub fn start_compilation(self ) -> Result<()> {
+        let output = self.compile()?;
         output.write()?;
         Ok(())
     }
