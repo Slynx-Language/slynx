@@ -31,6 +31,23 @@ fn function_body<'a>(declarations: &'a [ASTDeclaration], name: &str) -> &'a [AST
     body.as_slice()
 }
 
+fn declaration_doc<'a>(declarations: &'a [ASTDeclaration], name: &str) -> Option<&'a str> {
+    declarations
+        .iter()
+        .find(|decl| match &decl.kind {
+            ASTDeclarationKind::FuncDeclaration {
+                name: decl_name, ..
+            }
+            | ASTDeclarationKind::ObjectDeclaration {
+                name: decl_name, ..
+            }
+            | ASTDeclarationKind::ComponentDeclaration {
+                name: decl_name, ..
+            } => decl_name.identifier == name,
+        })
+        .and_then(|decl| decl.doc.as_deref())
+}
+
 #[test]
 fn parses_function_body_statement_shapes() {
     let declarations = parse_source(
@@ -194,4 +211,44 @@ func main(): int {
 
     assert!(error.contains("Unexpected token"));
     assert!(error.contains("'let'"));
+}
+
+#[test]
+fn attaches_doc_comment_to_following_top_level_declaration() {
+    let declarations = parse_source(
+        r#"
+//*
+ Incrementa o valor em 1.
+ @param value: valor inicial
+ @return: valor incrementado
+*//
+func inc(value: int): int -> value + 1;
+
+func plain(): int -> 0;
+"#,
+    );
+
+    assert_eq!(
+        declaration_doc(&declarations, "inc"),
+        Some("Incrementa o valor em 1.\n@param value: valor inicial\n@return: valor incrementado")
+    );
+    assert_eq!(declaration_doc(&declarations, "plain"), None);
+}
+
+#[test]
+fn combines_consecutive_doc_comments_before_one_declaration() {
+    let declarations = parse_source(
+        r#"
+//* primeira parte *//
+//* segunda parte *//
+object Pessoa{
+    name: str
+}
+"#,
+    );
+
+    assert_eq!(
+        declaration_doc(&declarations, "Pessoa"),
+        Some("primeira parte\n\nsegunda parte")
+    );
 }

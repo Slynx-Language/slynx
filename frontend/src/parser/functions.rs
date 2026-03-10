@@ -59,6 +59,7 @@ impl Parser {
                 let expr = self.parse_expression()?;
                 let end = self.expect(&TokenKind::SemiColon)?.span.end;
                 Ok(ASTDeclaration {
+                    doc: None,
                     span: Span {
                         start: span.start,
                         end,
@@ -85,6 +86,7 @@ impl Parser {
                 }
                 let end = self.expect(&TokenKind::RBrace)?.span.end;
                 Ok(ASTDeclaration {
+                    doc: None,
                     span: Span {
                         start: span.start,
                         end,

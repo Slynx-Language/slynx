@@ -60,15 +60,31 @@ impl Parser {
 
     pub fn parse_declarations(&mut self) -> Result<Vec<ASTDeclaration>> {
         let mut out = Vec::new();
+        let mut pending_doc: Option<String> = None;
         while let Ok(token) = self.peek() {
             match &token.kind {
+                TokenKind::DocComment(doc) => {
+                    let doc = doc.clone();
+                    self.eat()?;
+                    pending_doc = Some(match pending_doc.take() {
+                        Some(prev) if !prev.is_empty() && !doc.is_empty() => {
+                            format!("{prev}\n\n{doc}")
+                        }
+                        Some(prev) if !prev.is_empty() => prev,
+                        _ => doc,
+                    });
+                }
                 TokenKind::Object => {
                     let Token { span, .. } = self.eat()?;
-                    out.push(self.parse_object(span)?);
+                    let mut decl = self.parse_object(span)?;
+                    decl.doc = pending_doc.take();
+                    out.push(decl);
                 }
                 TokenKind::Component => {
                     let Token { span, .. } = self.eat()?;
-                    out.push(self.parse_component(span)?)
+                    let mut decl = self.parse_component(span)?;
+                    decl.doc = pending_doc.take();
+                    out.push(decl)
                 }
                 TokenKind::Func => {
                     let Token {
@@ -78,7 +94,9 @@ impl Parser {
                     else {
                         unreachable!();
                     };
-                    out.push(self.parse_func(span)?)
+                    let mut decl = self.parse_func(span)?;
+                    decl.doc = pending_doc.take();
+                    out.push(decl)
                 }
                 _ => {
                     return Err(ParseError::UnexpectedToken(
@@ -87,6 +105,9 @@ impl Parser {
                     ).into());
                 }
             }
+        }
+        if pending_doc.is_some() {
+            return Err(ParseError::UnexpectedEndOfInput.into());
         }
         Ok(out)
     }

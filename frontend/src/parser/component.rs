@@ -186,6 +186,7 @@ impl Parser {
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
         span.end = end.end;
         Ok(ASTDeclaration {
+            doc: None,
             kind: ASTDeclarationKind::ComponentDeclaration {
                 name: ty,
                 members: defs,

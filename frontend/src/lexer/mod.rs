@@ -31,6 +31,17 @@ impl Index<usize> for TokenStream {
 pub struct Lexer;
 
 impl Lexer {
+    fn normalize_doc_comment(buffer: String) -> String {
+        let lines = buffer.lines().map(str::trim).collect::<Vec<_>>();
+        let start = lines.iter().position(|line| !line.is_empty());
+        let end = lines.iter().rposition(|line| !line.is_empty());
+
+        match (start, end) {
+            (Some(start), Some(end)) => lines[start..=end].join("\n"),
+            _ => String::new(),
+        }
+    }
+
     pub fn tokenize(source: &str) -> Result<TokenStream, LexerError> {
         let mut out = VecDeque::new();
         let mut lines = Vec::new();
@@ -119,7 +130,38 @@ impl Lexer {
                     }
                 }
                 '/' => {
-                    if let Some('=') = chars.get(idx + 1) {
+                    if matches!(chars.get(idx + 1), Some('/'))
+                        && matches!(chars.get(idx + 2), Some('*'))
+                    {
+                        let start = idx;
+                        idx += 3;
+                        let mut buffer = String::new();
+                        let mut terminated = false;
+                        while idx < chars.len() {
+                            if matches!(chars.get(idx), Some('*'))
+                                && matches!(chars.get(idx + 1), Some('/'))
+                                && matches!(chars.get(idx + 2), Some('/'))
+                            {
+                                let end = idx + 2;
+                                idx = end;
+                                terminated = true;
+                                break;
+                            }
+
+                            let current = chars[idx];
+                            if current == '\n' {
+                                lines.push(idx);
+                            }
+                            buffer.push(current);
+                            idx += 1;
+                        }
+
+                        if !terminated {
+                            return Err(LexerError::UnterminatedDocComment { init: start });
+                        }
+
+                        Token::doc_comment(Self::normalize_doc_comment(buffer), start, idx)
+                    } else if let Some('=') = chars.get(idx + 1) {
                         idx += 1;
                         Token::slasheq(idx)
                     } else {

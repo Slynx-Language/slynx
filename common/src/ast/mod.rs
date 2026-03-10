@@ -71,6 +71,7 @@ pub enum ASTStatementKind {
 
 #[derive(Debug)]
 pub struct ASTDeclaration {
+    pub doc: Option<String>,
     pub kind: ASTDeclarationKind,
     pub span: Span,
 }

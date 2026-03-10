@@ -4,6 +4,9 @@ pub enum LexerError {
         char: char,
         index: usize,
     },
+    UnterminatedDocComment {
+        init: usize,
+    },
     MalformedNumber {
         number: String,
         init: usize,
@@ -19,6 +22,9 @@ impl std::fmt::Display for LexerError {
                 f,
                 "The number {number} is malformed and could not be tokenized."
             ),
+            Self::UnterminatedDocComment { .. } => {
+                write!(f, "The documentation comment was not terminated properly.")
+            }
             Self::UnrecognizedChar { char, .. } => {
                 write!(
                     f,

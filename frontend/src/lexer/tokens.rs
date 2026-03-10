@@ -48,6 +48,7 @@ impl std::fmt::Display for TokenKind {
             Self::Float(value) => value.to_string(),
             Self::Int(value) => value.to_string(),
             Self::String(value) => value.to_string(),
+            Self::DocComment(_) => "a documentation comment".to_string(),
             Self::Identifier(value) => value.to_string(),
         };
         write!(f, "{}", result)
@@ -86,6 +87,7 @@ pub enum TokenKind {
     Float(f32),
     Int(i32),
     String(String),
+    DocComment(String),
     Identifier(String),
     Component,
     Func,
@@ -193,6 +195,12 @@ impl Token {
                 end: pos,
                 start: pos,
             },
+        }
+    }
+    pub fn doc_comment(doc: String, start: usize, end: usize) -> Self {
+        Self {
+            kind: TokenKind::DocComment(doc),
+            span: Span { start, end },
         }
     }
     pub fn lt(pos: usize) -> Self {
