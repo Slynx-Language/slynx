@@ -6,19 +6,11 @@ use std::{
 
 use color_eyre::{Report, eyre::Result, owo_colors::OwoColorize};
 
-<<<<<<< HEAD
-=======
-
->>>>>>> b854d69 (feat: initialized ir rewriting)
 use frontend::checker::{TypeChecker, error::TypeError};
 use frontend::hir::{SlynxHir, error::HIRError};
 use frontend::lexer::{Lexer, error::LexerError};
 use frontend::parser::{Parser, error::ParseError};
 use middleend::SlynxIR;
-<<<<<<< HEAD
-=======
-
->>>>>>> 674b1b0 (feat: initialized ir rewriting)
 
 #[derive(Debug)]
 ///The type of the error that was generated
