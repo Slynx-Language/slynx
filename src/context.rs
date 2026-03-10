@@ -190,7 +190,10 @@ impl SlynxContext {
         self.entry_point.to_string_lossy().to_string()
     }
 
+<<<<<<< HEAD
     ///Compiles the code from the current contexts and returns the compilation result including the IR
+=======
+>>>>>>> cb6c316 (refactor: mini refactor on code organization)
     pub fn compile(self) -> Result<CompilationOutput> {
         let stream = match Lexer::tokenize(self.get_entry_point_source()) {
             Ok(value) => value,
@@ -297,12 +300,20 @@ impl SlynxContext {
 
         ir.generate(hir.declarations, module);
 
+<<<<<<< HEAD
         let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
         Ok(output)
     }
 
     ///Compile the code on this context and writes it on the same path
     pub fn start_compilation(self) -> Result<()> {
+=======
+        let output = CompilationOutput::new(self.entry_point.as_ref(), Vec::new());
+        Ok(output)
+    }
+
+    pub fn start_compilation(self ) -> Result<()> {
+>>>>>>> cb6c316 (refactor: mini refactor on code organization)
         let output = self.compile()?;
         output.write()?;
         Ok(())
