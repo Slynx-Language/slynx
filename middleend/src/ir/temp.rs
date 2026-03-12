@@ -10,9 +10,9 @@ pub struct TempIRData {
     ///Maps HIR types to IR types
     types_mapping: HashMap<TypeId, IRTypeId>,
     ///Maps HIR functions to IR functions
-    functions: HashMap<frontend::hir::DeclarationId, IRPointer<Context>>,
+    functions: HashMap<frontend::hir::DeclarationId, IRPointer<Context, 1>>,
     ///The current function being generated
-    current_function: IRPointer<Context>
+    current_function: IRPointer<Context,1>
 }
 
 impl TempIRData {
@@ -31,13 +31,13 @@ impl TempIRData {
 
     #[inline]
     ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)
-    pub fn map_function(&mut self, fid: frontend::hir::DeclarationId, func: IRPointer<Context>) {
+    pub fn map_function(&mut self, fid: frontend::hir::DeclarationId, func: IRPointer<Context,1>) {
         self.functions.insert(fid, func);
     }
     
     #[inline]
     ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)
-    pub fn get_function(&self, fid: frontend::hir::DeclarationId) -> IRPointer<Context> {
+    pub fn get_function(&self, fid: frontend::hir::DeclarationId) -> IRPointer<Context,1> {
         self.functions.get(&fid).cloned().expect("For some reason the provided Function Id is not declared")
     }
     
@@ -52,7 +52,7 @@ impl TempIRData {
     
     #[inline]
     ///Sets the current function being generated
-    pub fn set_current_function(&mut self, func: IRPointer<Context>) {
+    pub fn set_current_function(&mut self, func: IRPointer<Context,1>) {
         self.current_function = func;
     }
     

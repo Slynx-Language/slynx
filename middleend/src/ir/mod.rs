@@ -53,10 +53,10 @@ impl SlynxIR {
                     debug_assert!(out.0 == declaration.id.as_raw() as usize);
                 }
                 frontend::hir::definitions::HirDeclarationKind::Function { .. } => {
-                    let out = self.create_blank_function();
+                    let out = self.create_blank_function().with_length();
                     let ctx = self.get_context(out.clone());
                     temp.define_type(declaration.ty, ctx.ty());
-                    temp.map_function(declaration.id, out);
+                    temp.map_function(declaration.id, out.with_length());
                 }
                 HirDeclarationKind::ComponentDeclaration { .. } => {
                     let out = self.types.create_empty_struct();
@@ -73,7 +73,8 @@ impl SlynxIR {
                 HirDeclarationKind::Function { args, statements, .. } => {
                     self.insert_function_type_for(declaration.ty, &temp, &tys);
                     let func = temp.get_function(declaration.id);
-                    self.initialize_function(func, &statements, &args, &mut temp);
+                    debug_assert!(func.len() == 1);
+                    self.initialize_function(func.with_length::<1>(), &statements, &args, &mut temp);
                 }
                 HirDeclarationKind::ComponentDeclaration { props } => {
                     self.insert_component_fields_for(declaration.ty, &temp, &tys);

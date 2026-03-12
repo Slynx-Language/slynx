@@ -3,14 +3,12 @@ use std::marker::PhantomData;
 ///A Pointer to something on the IR. This is a logical pointer composed by 48 bits(higher bits) that determine where the thing we are pointing to is located on the IR, and a length of 16bits to know how much of it we have as well.
 ///Think of this as a slice, but instead of containing data on the actual memory, it takes on the contents of the IR
 #[derive(Debug)]
-pub struct IRPointer<T> {
+pub struct IRPointer<T, const N: usize = 0> {
     inner: u64,
     data: PhantomData<T>,
 }
 
-
-
-impl<T> Clone for IRPointer<T> {
+impl<T, const N: usize> Clone for IRPointer<T, N> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner,
@@ -19,7 +17,7 @@ impl<T> Clone for IRPointer<T> {
     }
 }
 
-impl<T> IRPointer<T> {
+impl<T, const N: usize> IRPointer<T, N> {
     ///Creates a new IRPointer with the provided `ptr` getting the next `len` values after it.
     pub fn new(ptr: usize, len: usize) -> Self {
         Self {
@@ -27,6 +25,20 @@ impl<T> IRPointer<T> {
             data: PhantomData,
         }
     }
+    
+    ///Creates a new IRPointer with the same pointer but a different length.
+    pub fn with_length<const M: usize>(self) -> IRPointer<T, M> {
+        IRPointer {
+            inner: self.inner,
+            data: PhantomData,
+        }
+    }
+    
+    #[inline]
+    pub fn has_dynamic_length(&self) -> bool {
+        N == 0
+    }
+    
     #[inline]
     ///Returns a null IRPointer
     pub fn null() -> Self {
@@ -57,7 +69,11 @@ impl<T> IRPointer<T> {
     #[inline]
     ///Gets the length part of the IRPointer, i.e. how many values we have after the pointer.
     pub fn len(&self) -> usize {
-        self.inner as usize & 0xffff
+        if N == 0 {
+            self.inner as usize & 0xffff
+        } else {
+            N
+        }
     }
     
     #[inline]
