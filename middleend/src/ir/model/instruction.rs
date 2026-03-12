@@ -9,9 +9,7 @@ pub enum Operand {
     Int(i64),
     Float(f64),
     String(String),
-    Variable(IRPointer<IRVar>),
-    Binary { lhs: IRPointer<Operand>, rhs: IRPointer<Operand> },
-    
+    Variable(IRPointer<IRVar,1>),
 }
 
 #[derive(Debug, Clone)]
@@ -20,7 +18,7 @@ pub enum InstructionType {
     ///Variant used for raw values. Their actual value is their operand
     RawValue,
     ///Variant used for function calls. The `func` field is the pointer to the function context
-    FunctionCall { func: IRPointer<Context> },
+    FunctionCall { func: IRPointer<Context,1> },
 }
 
 #[derive(Debug, Clone)]
@@ -33,16 +31,15 @@ pub struct Instruction {
 
 impl Instruction {
     ///Creates a raw value instruction with the given `value` and `ty`
-    pub fn raw(value: IRPointer<Operand>, ty: IRTypeId) -> Instruction {
-        debug_assert!(value.len() == 1);
+    pub fn raw(value: IRPointer<Operand,1>, ty: IRTypeId) -> Instruction {
         Instruction {
-            operands: value,
+            operands: value.with_length::<0>(),
             instruction_type: InstructionType::RawValue,
             value_type: ty,
         }
     }
     ///Creates a call instruction that calls the function `func` with the arguments `args`. The provided `func_ret` is the return type of the function used as type of the instruction
-    pub fn call(func: IRPointer<Context>, func_ret: IRTypeId, args: IRPointer<Operand>) -> Instruction {
+    pub fn call(func: IRPointer<Context,1>, func_ret: IRTypeId, args: IRPointer<Operand>) -> Instruction {
         Instruction {
             operands: args,
             instruction_type: InstructionType::FunctionCall { func },
