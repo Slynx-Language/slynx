@@ -11,14 +11,16 @@ pub enum Operand {
     String(String),
     Variable(IRPointer<IRVar>),
     Binary { lhs: IRPointer<Operand>, rhs: IRPointer<Operand> },
-    FunctionCall { func: IRPointer<Context> },
+    
 }
 
 #[derive(Debug, Clone)]
 ///An enum that represents the type of instruction
 pub enum InstructionType {
     ///Variant used for raw values. Their actual value is their operand
-    RawValue
+    RawValue,
+    ///Variant used for function calls. The `func` field is the pointer to the function context
+    FunctionCall { func: IRPointer<Context> },
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +45,7 @@ impl Instruction {
     pub fn call(func: IRPointer<Context>, func_ret: IRTypeId, args: IRPointer<Operand>) -> Instruction {
         Instruction {
             operands: args,
-            instruction_type: InstructionType::RawValue,
+            instruction_type: InstructionType::FunctionCall { func },
             value_type: func_ret,
         }
     }
