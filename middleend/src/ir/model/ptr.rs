@@ -22,4 +22,16 @@ impl<T> IRPointer<T> {
     pub unsafe fn raw(&self) -> u64 {
         self.inner
     }
+    
+    #[inline]
+    ///Gets the pointer part of the IRPointer, i.e. the location of the thing we are pointing to on the IR.
+    pub fn ptr(&self) -> usize {
+        (self.inner >> 16) as usize
+    }
+    
+    #[inline]
+    ///Gets the length part of the IRPointer, i.e. how many values we have after the pointer.
+    pub fn len(&self) -> usize {
+        self.inner as usize & 0xffff
+    }
 }

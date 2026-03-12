@@ -39,14 +39,16 @@ impl SlynxIR {
         }
     }
 
+    #[inline]
     ///Retrieves the context from its provided `ctx`
     pub(crate) fn get_context(&self, ctx: IRPointer<Context>) -> &Context {
-        unsafe { &self.contexts[ctx.raw() as usize] }
+        &self.contexts[ctx.ptr()]
     }
 
+    #[inline]
     ///Retrieves the context from its provided `ctx`
     pub(crate) fn get_context_mut(&mut self, ctx: IRPointer<Context>) -> &Context {
-        unsafe { &mut self.contexts[ctx.raw() as usize] }
+        &mut self.contexts[ctx.ptr()]
     }
 
     ///Creates a new blank function with no arguments and returning void. Returns its context handle
