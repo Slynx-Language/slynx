@@ -193,6 +193,19 @@ impl TypeChecker {
                     value.ty = self.get_type_of_expr(value)?;
                     value.ty = self.unify(&ty, &value.ty, &value.span)?;
                 }
+                HirStatementKind::If {
+                    condition,
+                    body,
+                    else_body,
+                } => {
+                    condition.ty = self.get_type_of_expr(condition)?;
+                    let bool_ty = self.types_module.bool_id();
+                    condition.ty = self.unify(&condition.ty, &bool_ty, &condition.span)?;
+                    self.resolve_statments(body, ty)?;
+                    if let Some(else_body) = else_body {
+                        self.resolve_statments(else_body, ty)?;
+                    }
+                }
             }
         }
         Ok(())

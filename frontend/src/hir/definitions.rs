@@ -77,6 +77,12 @@ pub enum HirStatementKind {
     Return {
         expr: HirExpression,
     },
+
+    If {
+        condition: HirExpression,
+        body: Vec<HirStatement>,
+        else_body: Option<Vec<HirStatement>>,
+    },
 }
 
 #[derive(Debug)]

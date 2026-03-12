@@ -9,6 +9,7 @@ use crate::parser::error::ParseError;
 
 use super::Parser;
 impl Parser {
+    /// Parses a visibility modifier for a component member. It checks if the next token is 'pub', and if so, it further checks for an optional parenthetical modifier (like 'parent' or 'child') to determine the specific visibility level. If the token is not 'pub', it defaults to `VisibilityModifier::Private`. The function returns the parsed `VisibilityModifier` or an error if an unexpected token is encountered.
     fn parse_modifier(&mut self) -> Result<VisibilityModifier> {
         Ok(match self.peek()?.kind {
             TokenKind::Pub => {
@@ -47,6 +48,7 @@ impl Parser {
         })
     }
 
+    /// Parses a component member, which can be either a child component or a property. It first checks for any visibility modifiers (like 'pub'), then determines if the member is a child component (identified by an identifier followed by an expression) or a property (identified by the 'prop' keyword followed by an identifier and optional type and default value). The function constructs and returns a `ComponentMember` based on the parsed information, including its kind and span.
     fn parse_component_member(&mut self) -> Result<ComponentMember> {
         let mut span = self.peek()?.span.clone();
         let modifier = self.parse_modifier()?;

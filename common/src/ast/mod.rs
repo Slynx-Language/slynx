@@ -66,7 +66,13 @@ pub enum ASTStatementKind {
         lhs: ASTExpression,
         rhs: ASTExpression,
     },
+
     Expression(ASTExpression),
+    If {
+        condition: Box<ASTExpression>,
+        body: Vec<ASTStatement>,
+        else_body: Option<Vec<ASTStatement>>,
+    },
 }
 
 #[derive(Debug)]

@@ -126,6 +126,7 @@ impl Lexer {
                         Token::slash(idx)
                     }
                 }
+
                 '"' => {
                     let mut buffer = String::new();
                     idx += 1;
@@ -237,6 +238,14 @@ impl Lexer {
                         },
                         "prop" => Token {
                             kind: TokenKind::Prop,
+                            span,
+                        },
+                        "if" => Token {
+                            kind: TokenKind::If,
+                            span,
+                        },
+                        "else" => Token {
+                            kind: TokenKind::Else,
                             span,
                         },
                         "true" => Token {

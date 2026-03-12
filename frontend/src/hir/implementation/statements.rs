@@ -73,6 +73,34 @@ impl SlynxHir {
                     span: statement.span,
                 })
             }
+            ASTStatementKind::If {
+                condition,
+                body,
+                else_body,
+            } => {
+                let cond = self.resolve_expr(*condition, None)?;
+                let mut stmts = Vec::new();
+                for s in body {
+                    stmts.push(self.resolve_statement(s)?);
+                }
+                let else_stmts = if let Some(eb) = else_body {
+                    let mut estmts = Vec::new();
+                    for s in eb {
+                        estmts.push(self.resolve_statement(s)?);
+                    }
+                    Some(estmts)
+                } else {
+                    None
+                };
+                Ok(HirStatement {
+                    span: statement.span,
+                    kind: HirStatementKind::If {
+                        condition: cond,
+                        body: stmts,
+                        else_body: else_stmts,
+                    },
+                })
+            }
         }
     }
 }
