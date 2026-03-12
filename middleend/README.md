@@ -31,7 +31,6 @@ Language-level aliases currently used in examples:
 * `int` maps to an integer primitive selected by the frontend/lowering stage which is idealized to be i32
 * `float` maps to a floating primitive selected by the frontend/lowering stage which is idealized to be f32
 
-
 ### Structs
 The IR has implementation of operations primitives. The syntax for the deffinition of a struct can be the following:
 

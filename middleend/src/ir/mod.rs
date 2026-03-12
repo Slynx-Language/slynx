@@ -1,3 +1,4 @@
+mod contexts;
 mod temp;
 mod helper;
 mod model;
@@ -6,11 +7,11 @@ use model::*;
 use frontend::hir::{
     TypeId,
     definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
-    types::{HirType, TypesModule},
+    types::TypesModule,
 };
 
 use crate::{
-    IRType, IRTypeId, IRTypes,
+    IRTypeId, IRTypes,
 };
 use model::{
         {Instruction, Operand},
@@ -23,6 +24,7 @@ pub struct SlynxIR {
     ///The contexts of this IR
     contexts: Vec<Context>,
     labels: Vec<Label>,
+    variables: Vec<IRVar>,
     instructions: Vec<Instruction>,
     operands: Vec<Operand>,
     types: IRTypes,
@@ -31,42 +33,12 @@ pub struct SlynxIR {
 impl SlynxIR {
     pub fn new() -> Self {
         Self {
+            variables: Vec::new(),
             contexts: Vec::new(),
             labels: Vec::new(),
             instructions: Vec::new(),
             operands: Vec::new(),
             types: IRTypes::new(),
-        }
-    }
-
-    #[inline]
-    ///Retrieves the context from its provided `ctx`
-    pub(crate) fn get_context(&self, ctx: IRPointer<Context>) -> &Context {
-        &self.contexts[ctx.ptr()]
-    }
-
-    #[inline]
-    ///Retrieves the context from its provided `ctx`
-    pub(crate) fn get_context_mut(&mut self, ctx: IRPointer<Context>) -> &Context {
-        &mut self.contexts[ctx.ptr()]
-    }
-
-    ///Creates a new blank function with no arguments and returning void. Returns its context handle
-    fn create_blank_function(&mut self) -> IRPointer<Context> {
-        let context = Context::new(self.types.create_empty_function());
-        let ptr = self.contexts.len();
-        self.contexts.push(context);
-        IRPointer::new(ptr, 1)
-    }
-
-    ///Gets the type of the ir based on the provided `hirty`. Uses `temp` and `tymod` as auxiliary
-    pub fn get_ir_type(&self, hirty: &TypeId, temp: &TempIRData, tymod: &TypesModule) -> IRTypeId {
-        match *hirty {
-            ty if ty == tymod.int_id() => self.types.int_type(),
-            ty if ty == tymod.float_id() => self.types.float_type(),
-            ty if ty == tymod.bool_id() => self.types.bool_type(),
-            ty if ty == tymod.void_id() => self.types.void_type(),
-            ty => temp.get_type(ty),
         }
     }
 
@@ -82,8 +54,9 @@ impl SlynxIR {
                 }
                 frontend::hir::definitions::HirDeclarationKind::Function { .. } => {
                     let out = self.create_blank_function();
-                    let ctx = self.get_context(out);
+                    let ctx = self.get_context(out.clone());
                     temp.define_type(declaration.ty, ctx.ty());
+                    temp.map_function(declaration.id, out);
                 }
                 HirDeclarationKind::ComponentDeclaration { .. } => {
                     let out = self.types.create_empty_struct();
@@ -97,8 +70,10 @@ impl SlynxIR {
                 HirDeclarationKind::Object => {
                     self.insert_object_fields_for(declaration.ty, &temp, &tys);
                 }
-                HirDeclarationKind::Function { .. } => {
+                HirDeclarationKind::Function { args, statements, .. } => {
                     self.insert_function_type_for(declaration.ty, &temp, &tys);
+                    let func = temp.get_function(declaration.id);
+                    self.initialize_function(func, &statements, &args, &mut temp);
                 }
                 HirDeclarationKind::ComponentDeclaration { props } => {
                     self.insert_component_fields_for(declaration.ty, &temp, &tys);

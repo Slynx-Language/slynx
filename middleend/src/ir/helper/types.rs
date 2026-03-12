@@ -1,8 +1,41 @@
 use frontend::hir::{TypeId, types::{HirType, TypesModule}};
 
-use crate::{IRType, SlynxIR, ir::temp::TempIRData};
+use crate::{IRType, IRTypeId, SlynxIR, ir::{model::{Context, IRPointer}, temp::TempIRData}};
 
 impl SlynxIR {
+    
+    #[inline]
+    ///Gets the type of the ir based on the provided `hirty`. Uses `temp` and `tymod` as auxiliary
+    pub fn get_ir_type(&self, hirty: &TypeId, temp: &TempIRData, tymod: &TypesModule) -> IRTypeId {
+        match *hirty {
+            ty if ty == tymod.int_id() => self.types.int_type(),
+            ty if ty == tymod.float_id() => self.types.float_type(),
+            ty if ty == tymod.bool_id() => self.types.bool_type(),
+            ty if ty == tymod.void_id() => self.types.void_type(),
+            ty => temp.get_type(ty),
+        }
+    }
+    
+    #[inline]
+    ///Retrieves the context from its provided `ctx`
+    pub(crate) fn get_context(&self, ctx: IRPointer<Context>) -> &Context {
+        &self.contexts[ctx.ptr()]
+    }
+
+    #[inline]
+    ///Retrieves the context from its provided `ctx`
+    pub(crate) fn get_context_mut(&mut self, ctx: IRPointer<Context>) -> &Context {
+        &mut self.contexts[ctx.ptr()]
+    }
+    
+    ///Creates a new blank function with no arguments and returning void. Returns its context handle
+    pub fn create_blank_function(&mut self) -> IRPointer<Context> {
+        let context = Context::new(self.types.create_empty_function());
+        let ptr = self.contexts.len();
+        self.contexts.push(context);
+        IRPointer::new(ptr, 0)
+    }
+    
     ///Inserts the contents of the provided `decl` type, asserting it's the TypeId for a struct type, using both `temp` and `tys` to resolve the fields. Panics if `decl` is not a struct type.
     pub(crate) fn insert_object_fields_for(&mut self, decl:TypeId, temp:&TempIRData, tys: &TypesModule) {
         
@@ -19,7 +52,7 @@ impl SlynxIR {
         };
         for field in fields {
             let ty = self.get_ir_type(field, &temp, &tys);
-            let obj_ty = self.types.get_object_type(obj);
+            let obj_ty = self.types.get_object_type_mut(obj);
             obj_ty.insert_field(ty);
         }
     }
@@ -40,7 +73,7 @@ impl SlynxIR {
             extended_args.push(arg_ty);
         }
         let ret = self.get_ir_type(return_type, &temp, &tys);
-        let ty = self.types.get_function_type(func_tyid);
+        let ty = self.types.get_function_type_mut(func_tyid);
         ty.insert_arg_types(&extended_args);
         ty.set_return_type(ret);
     }
@@ -63,7 +96,7 @@ impl SlynxIR {
 
         for (_, _, prop) in ty_props {
             let ty = self.get_ir_type(prop, &temp, &tys);
-            let obj_ty = self.types.get_object_type(obj);
+            let obj_ty = self.types.get_object_type_mut(obj);
             obj_ty.insert_field(ty);
         }
     }

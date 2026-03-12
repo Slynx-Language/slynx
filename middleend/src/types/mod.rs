@@ -4,7 +4,9 @@ mod structs;
 pub use irtype::*;
 pub use structs::*;
 
-use crate::types::functions::{IRFunction, IRFunctionId};
+pub use irtype::*;
+pub use functions::*; 
+pub use structs::*;
 
 pub const BUILTIN_TYPES: &[IRType] = &[
     IRType::I8,
@@ -42,12 +44,21 @@ impl IRTypes {
     }
 
     ///Gets a mutable referente to the type of the function with the provided `id`
-    pub fn get_function_type(&mut self, id: IRFunctionId) -> &mut IRFunction {
+    pub fn get_function_type(& self, id: IRFunctionId) -> &IRFunction {
+        &self.functions[id.0]
+    }
+
+    ///Gets a mutable referente to the type of the function with the provided `id`
+    pub fn get_object_type(&mut self, id: IRStructId) -> &IRStruct {
+        &self.structs[id.0]
+    }
+    ///Gets a mutable referente to the type of the function with the provided `id`
+    pub fn get_function_type_mut(&mut self, id: IRFunctionId) -> &mut IRFunction {
         &mut self.functions[id.0]
     }
 
     ///Gets a mutable referente to the type of the function with the provided `id`
-    pub fn get_object_type(&mut self, id: IRStructId) -> &mut IRStruct {
+    pub fn get_object_type_mut(&mut self, id: IRStructId) -> &mut IRStruct {
         &mut self.structs[id.0]
     }
 
