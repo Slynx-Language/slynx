@@ -2,6 +2,7 @@ use smallvec::SmallVec;
 
 use crate::IRTypeId;
 
+#[derive(Debug)]
 pub struct IRFunction {
     args: SmallVec<[IRTypeId; 8]>,
     ret: IRTypeId,
@@ -30,13 +31,13 @@ impl IRFunction {
     pub fn set_return_type(&mut self, ret: IRTypeId) {
         self.ret = ret;
     }
-    
+
     #[inline]
     ///Returns the arguments of this function
     pub fn get_args(&self) -> &[IRTypeId] {
         &self.args
     }
-    
+
     #[inline]
     ///Returns the return type of this function
     pub fn get_return_type(&self) -> IRTypeId {

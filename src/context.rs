@@ -6,13 +6,11 @@ use std::{
 
 use color_eyre::{Report, eyre::Result, owo_colors::OwoColorize};
 
-
 use frontend::checker::{TypeChecker, error::TypeError};
 use frontend::hir::{SlynxHir, error::HIRError};
 use frontend::lexer::{Lexer, error::LexerError};
 use frontend::parser::{Parser, error::ParseError};
 use middleend::SlynxIR;
-
 
 #[derive(Debug)]
 ///The type of the error that was generated
@@ -293,12 +291,12 @@ impl SlynxContext {
         let mut ir = SlynxIR::new();
 
         ir.generate(hir.declarations, module);
-
+        println!("{ir:#?}");
         let output = CompilationOutput::new(self.entry_point.as_ref(), Vec::new());
         Ok(output)
     }
 
-    pub fn start_compilation(self ) -> Result<()> {
+    pub fn start_compilation(self) -> Result<()> {
         let output = self.compile()?;
         output.write()?;
         Ok(())

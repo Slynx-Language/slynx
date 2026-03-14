@@ -15,25 +15,26 @@ use model::{
 };
 use temp::TempIRData;
 
+#[derive(Debug)]
 ///All the IR containing contexts, labels, instructions and operands
 pub struct SlynxIR {
     ///The contexts of this IR
     contexts: Vec<Context>,
     labels: Vec<Label>,
-    variables: Vec<IRVar>,
     instructions: Vec<Instruction>,
     operands: Vec<Operand>,
+    values: Vec<Value>,
     types: IRTypes,
 }
 
 impl SlynxIR {
     pub fn new() -> Self {
         Self {
-            variables: Vec::new(),
             contexts: Vec::new(),
             labels: Vec::new(),
             instructions: Vec::new(),
             operands: Vec::new(),
+            values: Vec::new(),
             types: IRTypes::new(),
         }
     }

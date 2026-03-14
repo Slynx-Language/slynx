@@ -4,8 +4,8 @@ mod structs;
 pub use irtype::*;
 pub use structs::*;
 
+pub use functions::*;
 pub use irtype::*;
-pub use functions::*; 
 pub use structs::*;
 
 pub const BUILTIN_TYPES: &[IRType] = &[
@@ -23,6 +23,7 @@ pub const BUILTIN_TYPES: &[IRType] = &[
     IRType::VOID,
 ];
 
+#[derive(Debug)]
 pub struct IRTypes {
     types: Vec<IRType>,
     structs: Vec<IRStruct>,
@@ -44,7 +45,7 @@ impl IRTypes {
     }
 
     ///Gets a mutable referente to the type of the function with the provided `id`
-    pub fn get_function_type(& self, id: IRFunctionId) -> &IRFunction {
+    pub fn get_function_type(&self, id: IRFunctionId) -> &IRFunction {
         &self.functions[id.0]
     }
 

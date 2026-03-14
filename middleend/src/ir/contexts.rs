@@ -6,7 +6,7 @@ use frontend::hir::{
 use crate::{
     IRTypeId, SlynxIR,
     ir::{
-        model::{Context, IRPointer, Instruction, Label, Operand},
+        model::{Context, IRPointer, Instruction, Label, Operand, Value},
         temp::TempIRData,
     },
 };
@@ -74,20 +74,27 @@ impl SlynxIR {
         out
     }
 
+    ///Gets a value based on its `ptr`
+    pub fn get_value(&self, ptr: IRPointer<Value, 1>) -> Value {
+        self.values[ptr.ptr()].clone()
+    }
+
     ///Returns an instruction pointer for the given expression.
-    pub fn get_instruction_for(
+    pub fn get_value_for(
         &mut self,
         expr: &HirExpression,
         temp: &mut TempIRData,
-    ) -> IRPointer<Instruction, 1> {
-        let ptr = self.instructions.len();
-        let out = IRPointer::new(ptr, 1);
-        let instruction = match &expr.kind {
+    ) -> IRPointer<Value, 1> {
+        let value = match &expr.kind {
             HirExpressionKind::Bool(_)
             | HirExpressionKind::Float(_)
             | HirExpressionKind::Int(_) => {
                 let (operand, optype) = self.get_operands(expr, temp).unwrap();
-                Instruction::raw(operand.with_length(), optype)
+                let instruction = self.insert_instruction(
+                    temp.current_label(),
+                    Instruction::raw(operand.with_length(), optype),
+                );
+                Value::Instruction(instruction)
             }
             HirExpressionKind::FunctionCall { name, args } => {
                 let func = {
@@ -99,12 +106,8 @@ impl SlynxIR {
                 let mut operands = Vec::with_capacity(args.len());
 
                 for arg in args {
-                    let Some((operand, _)) = self.get_operands(arg, temp) else {
-                        panic!(
-                            "Error on trying to get an operand for a function call '{name:?}'. HIR might be malformed"
-                        );
-                    };
-                    operands.push(operand.ptr_to_last());
+                    let value = self.get_value_for(arg, temp);
+                    operands.push(value);
                 }
                 let ptr = self.operands.len();
                 for operand in operands.iter() {
@@ -112,18 +115,24 @@ impl SlynxIR {
                     self.operands.push(op);
                 }
                 let ptr = IRPointer::new(ptr, operands.len());
-                Instruction::call(func, ret_ty, ptr)
+                let instruction = self
+                    .insert_instruction(temp.current_label(), Instruction::call(func, ret_ty, ptr));
+                Value::Instruction(instruction)
             }
             v => unreachable!("{v:?} not implemented"),
         };
-        self.instructions.push(instruction);
-        out
+        self.insert_value(value)
     }
 
-    pub fn insert_instruction(&mut self, label: IRPointer<Label, 1>, instr: Instruction) {
+    pub fn insert_instruction(
+        &mut self,
+        label: IRPointer<Label, 1>,
+        instr: Instruction,
+    ) -> IRPointer<Instruction, 1> {
         self.instructions.push(instr);
         let label = self.get_label_mut(label);
         label.insert_instruction();
+        label.instruction().ptr_to_last()
     }
 
     pub fn initialize_function(
@@ -134,13 +143,14 @@ impl SlynxIR {
         temp: &mut TempIRData,
     ) {
         temp.set_current_function(ir.clone());
+        temp.set_function_args(args);
         let ctx = self.get_context(ir.clone());
         let label = self.insert_label(ir.clone(), "entry");
         for statement in statements {
             match &statement.kind {
                 HirStatementKind::Variable { name, value } => {
-                    let value = self.get_instruction_for(value, temp);
-                    self.insert_variable(ir.clone(), value);
+                    let value = self.get_value_for(value, temp);
+                    temp.add_variable(*name, self.get_value(value));
                 }
                 HirStatementKind::Assign { lhs, value } => {}
 
