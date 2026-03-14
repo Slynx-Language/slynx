@@ -5,7 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use slynx::{SlynxContext, compile_code, compiler::js::WebCompiler};
+use slynx::{SlynxContext, compile_code};
 
 fn temp_case_dir(name: &str) -> PathBuf {
     let mut path = std::env::temp_dir();
@@ -29,15 +29,12 @@ fn write_temp_source(case_dir: &PathBuf) -> PathBuf {
 fn compile_returns_output_before_writing() {
     let case_dir = temp_case_dir("compile-output");
     let source_path = write_temp_source(&case_dir);
-    let output_path = source_path.with_extension("js");
+    let output_path = source_path.with_extension("sir");
 
     let context = SlynxContext::new(Arc::new(source_path)).expect("context should be created");
-    let output = context
-        .compile(WebCompiler::new())
-        .expect("compilation should succeed");
+    let output = context.compile().expect("compilation should succeed");
 
     assert_eq!(output.output_path(), output_path.as_path());
-    assert!(!output.bytes().is_empty());
     assert!(!output_path.exists());
 
     output.write().expect("output should be written");
@@ -50,7 +47,7 @@ fn compile_returns_output_before_writing() {
 fn compile_code_still_writes_js_output() {
     let case_dir = temp_case_dir("compile-code");
     let source_path = write_temp_source(&case_dir);
-    let output_path = source_path.with_extension("js");
+    let output_path = source_path.with_extension("sir");
 
     compile_code(source_path).expect("compile_code should still write the output file");
 

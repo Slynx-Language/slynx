@@ -6,7 +6,6 @@ use std::{
 
 use color_eyre::{Report, eyre::Result, owo_colors::OwoColorize};
 
-use backend::compiler::slynx_compiler::SlynxCompiler;
 use frontend::checker::{TypeChecker, error::TypeError};
 use frontend::hir::{SlynxHir, error::HIRError};
 use frontend::lexer::{Lexer, error::LexerError};
@@ -50,27 +49,31 @@ impl std::error::Error for SlynxError {}
 #[derive(Debug)]
 pub struct CompilationOutput {
     output_path: PathBuf,
-    bytes: Vec<u8>,
+    ir: IntermediateRepr,
 }
 
 impl CompilationOutput {
-    fn new(entry_point: &Path, bytes: Vec<u8>) -> Self {
+    ///Creates a new compilation output with the provided `ir`. Writes the `ir` in its textual format on the provided `entry_point` with extension of `sir`
+    fn new(entry_point: &Path, ir: IntermediateRepr) -> Self {
         Self {
-            output_path: entry_point.with_extension("js"),
-            bytes,
+            output_path: entry_point.with_extension("sir"),
+            ir,
         }
     }
 
+    ///Consumes and retrieves the IR of this compilation output
+    pub fn ir(self) -> IntermediateRepr {
+        self.ir
+    }
+
+    ///Retrieves the path where this compilation output should write the IR at
     pub fn output_path(&self) -> &Path {
         &self.output_path
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
+    ///Writes the IR of this output into the path of `output_path()`
     pub fn write(&self) -> Result<()> {
-        std::fs::write(&self.output_path, &self.bytes)?;
+        std::fs::write(&self.output_path, format!("{:#?}", self.ir))?;
         Ok(())
     }
 }
@@ -187,7 +190,8 @@ impl SlynxContext {
         self.entry_point.to_string_lossy().to_string()
     }
 
-    pub fn compile<S: SlynxCompiler>(self, compiler: S) -> Result<CompilationOutput> {
+    ///Compiles the code from the current contexts and returns the compilation result including the IR
+    pub fn compile(self) -> Result<CompilationOutput> {
         let stream = match Lexer::tokenize(self.get_entry_point_source()) {
             Ok(value) => value,
             Err(e) => match e {
@@ -293,13 +297,13 @@ impl SlynxContext {
 
         ir.generate(hir.declarations, module);
 
-        let out = compiler.compile(ir);
-        let output = CompilationOutput::new(self.entry_point.as_ref(), out);
+        let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
         Ok(output)
     }
 
-    pub fn start_compilation<S: SlynxCompiler>(self, compiler: S) -> Result<()> {
-        let output = self.compile(compiler)?;
+    ///Compile the code on this context and writes it on the same path
+    pub fn start_compilation(self) -> Result<()> {
+        let output = self.compile()?;
         output.write()?;
         Ok(())
     }

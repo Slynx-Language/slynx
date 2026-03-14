@@ -13,11 +13,10 @@ clap = { version = "4.5.52", features = ["derive"] }
 color-eyre = "0.6.5"
 middleend = {path="./middleend"}
 frontend = {path="./frontend"}
-backend = {path="./backend"}
+
 [workspace]
 members = [
   ".",
   "middleend",
   "frontend",
-  "backend"
 ]
