@@ -1,0 +1,14 @@
+hir {
+  component HelloBox : HelloBox
+  {
+    prop pub seupai: float;
+    prop pub maria: int = 0: int;
+    specialized Div { Text { text: maria: str } };
+  }
+
+  func main() -> Component
+  {
+    ret HelloBox { seupai: 5: float, maria: 12: int }: HelloBox;
+  }
+
+}

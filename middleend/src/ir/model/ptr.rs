@@ -25,7 +25,7 @@ impl<T, const N: usize> IRPointer<T, N> {
             data: PhantomData,
         }
     }
-    
+
     ///Creates a new IRPointer with the same pointer but a different length.
     pub fn with_length<const M: usize>(self) -> IRPointer<T, M> {
         IRPointer {
@@ -33,12 +33,29 @@ impl<T, const N: usize> IRPointer<T, N> {
             data: PhantomData,
         }
     }
-    
+
+    ///Returns a pointer that moves `n` values forward
+    pub fn ptr_to(&self, n: usize) -> IRPointer<T, 1> {
+        let mut out = self.clone();
+        out.set_ptr(self.ptr() + n);
+        out.with_length()
+    }
+
+    ///If the length of this Pointer is >1, then this retrieves a pointer to the last element
+    pub fn ptr_to_last(&self) -> IRPointer<T, 1> {
+        self.ptr_to(self.len() - 1)
+    }
+
+    pub fn with_runtime_length(mut self, len: usize) -> IRPointer<T, 0> {
+        self.set_length(len);
+        self.with_length()
+    }
+
     #[inline]
     pub fn has_dynamic_length(&self) -> bool {
         N == 0
     }
-    
+
     #[inline]
     ///Returns a null IRPointer
     pub fn null() -> Self {
@@ -53,19 +70,19 @@ impl<T, const N: usize> IRPointer<T, N> {
     pub unsafe fn raw(&self) -> u64 {
         self.inner
     }
-    
+
     #[inline]
     ///Sets the pointer part of the IRPointer to the provided value.
     pub fn set_ptr(&mut self, ptr: usize) {
         self.inner = (ptr << 16 | (self.len() & 0xffff)) as u64;
     }
-    
+
     #[inline]
     ///Gets the pointer part of the IRPointer, i.e. the location of the thing we are pointing to on the IR.
     pub fn ptr(&self) -> usize {
         (self.inner >> 16) as usize
     }
-    
+
     #[inline]
     ///Gets the length part of the IRPointer, i.e. how many values we have after the pointer.
     pub fn len(&self) -> usize {
@@ -75,7 +92,7 @@ impl<T, const N: usize> IRPointer<T, N> {
             N
         }
     }
-    
+
     #[inline]
     ///Increases the length part of the IRPointer by 1.
     pub fn increase_length(&mut self) {

@@ -1,21 +1,17 @@
 mod contexts;
-mod temp;
 mod helper;
 mod model;
+mod temp;
 use model::*;
 
 use frontend::hir::{
-    TypeId,
     definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
     types::TypesModule,
 };
 
-use crate::{
-    IRTypeId, IRTypes,
-};
+use crate::IRTypes;
 use model::{
-        {Instruction, Operand},
-        Label, 
+    Label, {Instruction, Operand},
 };
 use temp::TempIRData;
 
@@ -70,11 +66,18 @@ impl SlynxIR {
                 HirDeclarationKind::Object => {
                     self.insert_object_fields_for(declaration.ty, &temp, &tys);
                 }
-                HirDeclarationKind::Function { args, statements, .. } => {
+                HirDeclarationKind::Function {
+                    args, statements, ..
+                } => {
                     self.insert_function_type_for(declaration.ty, &temp, &tys);
                     let func = temp.get_function(declaration.id);
                     debug_assert!(func.len() == 1);
-                    self.initialize_function(func.with_length::<1>(), &statements, &args, &mut temp);
+                    self.initialize_function(
+                        func.with_length::<1>(),
+                        &statements,
+                        &args,
+                        &mut temp,
+                    );
                 }
                 HirDeclarationKind::ComponentDeclaration { props } => {
                     self.insert_component_fields_for(declaration.ty, &temp, &tys);

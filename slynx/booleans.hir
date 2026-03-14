@@ -1,0 +1,12 @@
+hir {
+  func is_way_bigger(n: int, m: int) -> bool
+  {
+    ret ((m: int LessThan n: int): bool LogicAnd (n: int GreaterThan (m: int Slash 2: int): int): bool): bool;
+  }
+
+  func is_bigger(n: int, m: int) -> bool
+  {
+    ret (((m: int Sub 1: int): int GreaterThan (n: int Star 2: int): int): bool LogicAnd (m: int GreaterThan 0: int): bool): bool;
+  }
+
+}
