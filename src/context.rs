@@ -296,10 +296,10 @@ impl SlynxContext {
         let mut ir = SlynxIR::new();
 
         ir.generate(hir.declarations, module);
-
         let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
         Ok(output)
     }
+
     pub fn start_compilation(self) -> Result<()> {
         let output = self.compile()?;
         output.write()?;
