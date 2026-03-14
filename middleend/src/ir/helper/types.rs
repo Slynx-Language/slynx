@@ -1,9 +1,17 @@
-use frontend::hir::{TypeId, types::{HirType, TypesModule}};
+use frontend::hir::{
+    TypeId,
+    types::{HirType, TypesModule},
+};
 
-use crate::{IRType, IRTypeId, SlynxIR, ir::{model::{Context, IRPointer}, temp::TempIRData}};
+use crate::{
+    IRType, IRTypeId, SlynxIR,
+    ir::{
+        model::{Context, IRPointer, Instruction, InstructionType, Operand, Value},
+        temp::TempIRData,
+    },
+};
 
 impl SlynxIR {
-    
     #[inline]
     ///Gets the type of the ir based on the provided `hirty`. Uses `temp` and `tymod` as auxiliary
     pub fn get_ir_type(&self, hirty: &TypeId, temp: &TempIRData, tymod: &TypesModule) -> IRTypeId {
@@ -15,9 +23,41 @@ impl SlynxIR {
             ty => temp.get_type(ty),
         }
     }
-    
-    
-    
+
+    pub fn get_operand_type(&self, operand: IRPointer<Operand, 1>, _temp: &TempIRData) -> IRTypeId {
+        match self.operands[operand.ptr()] {
+            Operand::Bool(_) => self.types.bool_type(),
+            Operand::Float(_) => self.types.float_type(),
+            Operand::Int(_) => self.types.int_type(),
+            Operand::String(_) => unimplemented!("Not implemented type for strings on operands"),
+        }
+    }
+
+    pub fn get_type_of_value(&self, value: IRPointer<Value, 1>, temp: &TempIRData) -> IRTypeId {
+        match &self.values[value.ptr()] {
+            Value::FuncArg(idx) => self.arg_types_of_context(temp.current_function())[*idx],
+            Value::Raw(operand) => self.get_operand_type(operand.clone(), temp),
+            Value::Instruction(instr) => self.get_type_of_instruction(instr.clone(), temp),
+            Value::LabelArg(_) => unimplemented!("Unimplemented type for label args"),
+        }
+    }
+
+    pub fn get_type_of_instruction(
+        &self,
+        instr: IRPointer<Instruction, 1>,
+        temp: &TempIRData,
+    ) -> IRTypeId {
+        let instr = &self.instructions[instr.ptr()];
+        match &instr.instruction_type {
+            InstructionType::Ret | InstructionType::RawValue => {
+                debug_assert!(instr.operands.len() == 1);
+
+                self.get_type_of_value(instr.operands.clone().with_length(), temp)
+            }
+            InstructionType::FunctionCall(c) => self.return_type_of_context(c.clone()),
+        }
+    }
+
     ///Creates a new blank function with no arguments and returning void. Returns its context handle
     pub fn create_blank_function(&mut self) -> IRPointer<Context> {
         let context = Context::new(self.types.create_empty_function());
@@ -25,20 +65,21 @@ impl SlynxIR {
         self.contexts.push(context);
         IRPointer::new(ptr, 0)
     }
-    
+
     ///Inserts the contents of the provided `decl` type, asserting it's the TypeId for a struct type, using both `temp` and `tys` to resolve the fields. Panics if `decl` is not a struct type.
-    pub(crate) fn insert_object_fields_for(&mut self, decl:TypeId, temp:&TempIRData, tys: &TypesModule) {
-        
+    pub(crate) fn insert_object_fields_for(
+        &mut self,
+        decl: TypeId,
+        temp: &TempIRData,
+        tys: &TypesModule,
+    ) {
         let obj_handle = temp.get_type(decl);
         let IRType::Struct(obj) = self.types.get_type(obj_handle) else {
             unreachable!();
         };
 
         let Some(HirType::Struct { fields }) = tys.get_object(&decl) else {
-            unreachable!(
-                "{:?} should map to an Object, but it doesn't",
-                decl 
-            );
+            unreachable!("{:?} should map to an Object, but it doesn't", decl);
         };
         for field in fields {
             let ty = self.get_ir_type(field, &temp, &tys);
@@ -47,9 +88,13 @@ impl SlynxIR {
         }
     }
     ///Inserts the contents of the provided `decl` type, asserting it's the TypeId for a function type, using both `temp` and `tys` to resolve the arguments and return type. Panics if `decl` is not a function type.
-    pub(crate) fn insert_function_type_for(&mut self, decl:TypeId, temp:&TempIRData, tys: &TypesModule) {
-        let HirType::Function { args, return_type } = tys.get_type(&decl)
-        else {
+    pub(crate) fn insert_function_type_for(
+        &mut self,
+        decl: TypeId,
+        temp: &TempIRData,
+        tys: &TypesModule,
+    ) {
+        let HirType::Function { args, return_type } = tys.get_type(&decl) else {
             unreachable!();
         };
         let irty_id = temp.get_type(decl);
@@ -69,19 +114,19 @@ impl SlynxIR {
     }
     /// Inserts the contents of the provided `decl` into an IR struct type asserting it's a slynx component. This is made because component can be lowered to the equivalent of a struct with methods, thus 'classes'.
     /// The thing is that this is made interanlly with the minimum of abstraction as possible, so it becomes a struct and the components as well as methods are inserted directly into the struct as fields
-    pub(crate) fn insert_component_fields_for(&mut self, decl:TypeId, temp:&TempIRData, tys: &TypesModule) {
+    pub(crate) fn insert_component_fields_for(
+        &mut self,
+        decl: TypeId,
+        temp: &TempIRData,
+        tys: &TypesModule,
+    ) {
         let obj_handle = temp.get_type(decl);
         let IRType::Struct(obj) = self.types.get_type(obj_handle) else {
             unreachable!();
         };
 
-        let Some(HirType::Component { props: ty_props }) =
-            tys.get_object(&decl)
-        else {
-            unreachable!(
-                "{:?} should map to an Object, but it doesn't",
-               decl 
-            );
+        let Some(HirType::Component { props: ty_props }) = tys.get_object(&decl) else {
+            unreachable!("{:?} should map to an Object, but it doesn't", decl);
         };
 
         for (_, _, prop) in ty_props {

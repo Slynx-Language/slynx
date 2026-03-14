@@ -27,7 +27,18 @@ impl SlynxIR {
             _ => unreachable!("Type of function should be Function on the IR"),
         }
     }
-
+    ///Returns the return type of the given context `ir`.
+    pub fn arg_types_of_context(&self, ir: IRPointer<Context, 1>) -> &[IRTypeId] {
+        let ctx = self.get_context(ir);
+        let id = ctx.ty();
+        match self.types.get_type(id) {
+            IRType::Function(func) => {
+                let func = self.types.get_function_type(func);
+                func.get_args()
+            }
+            _ => unreachable!("Type of function should be Function on the IR"),
+        }
+    }
     ///Gets the labels of the given context `ir`.
     pub fn get_labels_of(&self, ir: IRPointer<Context, 1>) -> &[Label] {
         let ptr = self.contexts[ir.ptr()].labels_ptr();

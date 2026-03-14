@@ -5,6 +5,7 @@ use super::IRPointer;
 #[derive(Debug, Clone)]
 ///A value inside the IR. Can be a function arg, a label arg or the result of a instruction
 pub enum Value {
+    Raw(IRPointer<Operand, 1>),
     Instruction(IRPointer<Instruction, 1>),
     LabelArg(usize),
     FuncArg(usize),
@@ -16,7 +17,6 @@ pub enum Operand {
     Int(i64),
     Float(f64),
     String(String),
-    Variable(Value),
 }
 
 #[derive(Debug, Clone)]
@@ -26,19 +26,21 @@ pub enum InstructionType {
     RawValue,
     ///Variant used for function calls. The `func` field is the pointer to the function context
     FunctionCall(IRPointer<Context, 1>),
+    ///Returns the operand
+    Ret,
 }
 
 #[derive(Debug, Clone)]
 ///A instruction that determines the compiler something that it should execute
 pub struct Instruction {
-    operands: IRPointer<Operand>,
-    instruction_type: InstructionType,
-    value_type: IRTypeId,
+    pub operands: IRPointer<Value>,
+    pub instruction_type: InstructionType,
+    pub value_type: IRTypeId,
 }
 
 impl Instruction {
     ///Creates a raw value instruction with the given `value` and `ty`
-    pub fn raw(value: IRPointer<Operand, 1>, ty: IRTypeId) -> Instruction {
+    pub fn raw(value: IRPointer<Value, 1>, ty: IRTypeId) -> Instruction {
         Instruction {
             operands: value.with_length::<0>(),
             instruction_type: InstructionType::RawValue,
@@ -49,12 +51,19 @@ impl Instruction {
     pub fn call(
         func: IRPointer<Context, 1>,
         func_ret: IRTypeId,
-        args: IRPointer<Operand>,
+        args: IRPointer<Value>,
     ) -> Instruction {
         Instruction {
             operands: args,
             instruction_type: InstructionType::FunctionCall(func),
             value_type: func_ret,
+        }
+    }
+    pub fn ret(value: IRPointer<Value, 1>, ty: IRTypeId) -> Self {
+        Instruction {
+            operands: value.with_length(),
+            instruction_type: InstructionType::Ret,
+            value_type: ty,
         }
     }
 }
