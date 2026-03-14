@@ -4,7 +4,7 @@ use frontend::hir::{TypeId, VariableId};
 
 use crate::{
     IRTypeId,
-    ir::model::{Context, IRPointer, IRVar},
+    ir::model::{Context, IRPointer, Label, Value},
 };
 
 ///Temporary IR Data to be able to map the HIR contents to the IR contents that are being generated. This should only live during `generate` function of
@@ -16,8 +16,12 @@ pub struct TempIRData {
     functions: HashMap<frontend::hir::DeclarationId, IRPointer<Context, 1>>,
     ///The current function being generated
     current_function: IRPointer<Context, 1>,
+    ///The current lavel that is being generated on the current function
+    current_label: IRPointer<Label, 1>,
     ///The variables on the current function
-    variables: Vec<(VariableId, IRPointer<IRVar, 1>)>,
+    variables: Vec<(VariableId, Value)>,
+    ///The arguments of the current variable ID
+    args: Vec<VariableId>,
 }
 
 impl TempIRData {
@@ -26,16 +30,10 @@ impl TempIRData {
             types_mapping: HashMap::new(),
             functions: HashMap::new(),
             current_function: IRPointer::null(),
+            current_label: IRPointer::null(),
+            args: Vec::new(),
             variables: Vec::new(),
         }
-    }
-
-    #[inline]
-    ///Gets the variable that matches the provided `id` on the current function
-    pub fn get_variable(&self, id: VariableId) -> Option<IRPointer<IRVar, 1>> {
-        self.variables
-            .iter()
-            .find_map(|p| if p.0 == id { Some(p.1.clone()) } else { None })
     }
 
     ///Maps the provided `hty`(hir type) to the provided `ity`(ir type)
@@ -69,9 +67,50 @@ impl TempIRData {
     }
 
     #[inline]
+    ///Retrieves the current label on the current function
+    pub fn current_label(&self) -> IRPointer<Label, 1> {
+        self.current_label.clone()
+    }
+    #[inline]
+    ///Retrieves the current label on the current function
+    pub fn set_current_label(&mut self, label: IRPointer<Label, 1>) {
+        self.current_label = label
+    }
+    #[inline]
+    pub fn set_function_args(&mut self, args: &[VariableId]) {
+        self.args.extend_from_slice(args);
+    }
+
+    #[inline]
     ///Sets the current function being generated and resets the variables
     pub fn set_current_function(&mut self, func: IRPointer<Context, 1>) {
         self.variables.clear();
+        self.args.clear();
         self.current_function = func;
+    }
+
+    ///Adds the given value mapped to the given `id`
+    pub fn add_variable(&mut self, id: VariableId, value: Value) {
+        self.variables.push((id, value));
+    }
+
+    #[inline]
+    ///Gets the variable that matches the provided `id` on the current function
+    pub fn get_variable(&self, id: VariableId) -> Option<Value> {
+        if let Some(var) = self
+            .variables
+            .iter()
+            .find_map(|v| if v.0 == id { Some(v.1.clone()) } else { None })
+        {
+            Some(var)
+        } else {
+            self.args.iter().enumerate().find_map(|(idx, v)| {
+                if *v == id {
+                    Some(Value::FuncArg(idx))
+                } else {
+                    None
+                }
+            })
+        }
     }
 }

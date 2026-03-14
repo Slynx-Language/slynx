@@ -299,6 +299,7 @@ impl SlynxContext {
         let mut ir = SlynxIR::new();
 
         ir.generate(hir.declarations, module);
+<<<<<<< HEAD
 
 <<<<<<< HEAD
         let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
@@ -308,12 +309,19 @@ impl SlynxContext {
     ///Compile the code on this context and writes it on the same path
     pub fn start_compilation(self) -> Result<()> {
 =======
+=======
+        println!("{ir:#?}");
+>>>>>>> 2caee7b (feat: removed var and added value instead)
         let output = CompilationOutput::new(self.entry_point.as_ref(), Vec::new());
         Ok(output)
     }
 
+<<<<<<< HEAD
     pub fn start_compilation(self ) -> Result<()> {
 >>>>>>> cb6c316 (refactor: mini refactor on code organization)
+=======
+    pub fn start_compilation(self) -> Result<()> {
+>>>>>>> 2caee7b (feat: removed var and added value instead)
         let output = self.compile()?;
         output.write()?;
         Ok(())
