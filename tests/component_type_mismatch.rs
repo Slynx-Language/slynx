@@ -1,7 +1,5 @@
 use std::{path::PathBuf, sync::Arc};
 
-use slynx::compiler::js::WebCompiler;
-
 #[test]
 fn test_component_type_mismatch_errors() {
     // SavioCodes | 2026-02-28 14:26 (America/Sao_Paulo)
@@ -11,7 +9,7 @@ fn test_component_type_mismatch_errors() {
     )))
     .unwrap();
 
-    let result = context.compile(WebCompiler::new());
+    let result = context.compile();
     assert!(
         result.is_err(),
         "Expected type checker to reject incompatible component assignment",

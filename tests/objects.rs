@@ -10,7 +10,6 @@ fn test_objects() {
             .output_path()
             .extension()
             .and_then(|ext| ext.to_str()),
-        Some("js")
+        Some("sir")
     );
-    assert!(output.ir());
 }
