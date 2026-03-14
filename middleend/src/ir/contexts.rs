@@ -6,7 +6,7 @@ use frontend::hir::{
 use crate::{
     IRTypeId, SlynxIR,
     ir::{
-        model::{Context, IRPointer, Instruction, Label, Operand, Value},
+        model::{Context, IRPointer, Instruction, InstructionType, Label, Operand, Value},
         temp::TempIRData,
     },
 };
@@ -14,43 +14,24 @@ use crate::{
 impl SlynxIR {
     ///Gets the new operands that are required to be inserted by the provided `value`. The final operand is the one with the actual value. Note that this function
     ///might add instructions to the current context since an Expression can be a complex task
-    pub fn get_operands(
+    pub fn get_operand(
         &mut self,
         value: &HirExpression,
-        temp: &mut TempIRData,
-    ) -> Option<(IRPointer<Operand>, IRTypeId)> {
+        _temp: &mut TempIRData,
+    ) -> Option<(IRPointer<Operand, 1>, IRTypeId)> {
         let out = match value.kind {
             HirExpressionKind::Bool(i) => {
                 let operand = Operand::Bool(i);
-                (
-                    self.insert_operands(&[operand]).with_runtime_length(1),
-                    self.types.bool_type(),
-                )
+                (self.insert_operands(&[operand]), self.types.bool_type())
             }
             HirExpressionKind::Int(i) => {
                 let operand = Operand::Int(i as i64);
-                (
-                    self.insert_operands(&[operand]).with_runtime_length(1),
-                    self.types.int_type(),
-                )
+                (self.insert_operands(&[operand]), self.types.int_type())
             }
             HirExpressionKind::Float(f) => {
                 let operand = Operand::Float(f as f64);
-                (
-                    self.insert_operands(&[operand]).with_runtime_length(1),
-                    self.types.float_type(),
-                )
+                (self.insert_operands(&[operand]), self.types.float_type())
             }
-
-            HirExpressionKind::Identifier(v) => {
-                let value = temp.get_variable(v)?;
-                let operand = Operand::Variable(value);
-                (
-                    self.insert_operands(&[operand]).with_runtime_length(1),
-                    self.types.int_type(),
-                ) //must replace with identifier logic
-            }
-
             _ => return None,
         };
         Some(out)
@@ -89,11 +70,10 @@ impl SlynxIR {
             HirExpressionKind::Bool(_)
             | HirExpressionKind::Float(_)
             | HirExpressionKind::Int(_) => {
-                let (operand, optype) = self.get_operands(expr, temp).unwrap();
-                let instruction = self.insert_instruction(
-                    temp.current_label(),
-                    Instruction::raw(operand.with_length(), optype),
-                );
+                let (operand, optype) = self.get_operand(expr, temp).unwrap();
+                let value = self.insert_value(Value::Raw(operand));
+                let instruction =
+                    self.insert_instruction(temp.current_label(), Instruction::raw(value, optype));
                 Value::Instruction(instruction)
             }
             HirExpressionKind::FunctionCall { name, args } => {
@@ -143,19 +123,27 @@ impl SlynxIR {
         temp: &mut TempIRData,
     ) {
         temp.set_current_function(ir.clone());
-        temp.set_function_args(args);
+        let ptr = IRPointer::new(self.values.len(), args.len());
+        for (idx, _) in args.iter().enumerate() {
+            self.insert_value(Value::FuncArg(idx));
+        }
+        temp.set_function_args(args, ptr);
         let ctx = self.get_context(ir.clone());
         let label = self.insert_label(ir.clone(), "entry");
         for statement in statements {
             match &statement.kind {
                 HirStatementKind::Variable { name, value } => {
                     let value = self.get_value_for(value, temp);
-                    temp.add_variable(*name, self.get_value(value));
+                    temp.add_variable(*name, value);
                 }
                 HirStatementKind::Assign { lhs, value } => {}
 
                 HirStatementKind::Expression { expr } => {}
-                HirStatementKind::Return { expr } => {}
+                HirStatementKind::Return { expr } => {
+                    let val = self.get_value_for(expr, temp);
+                    let ty = self.get_type_of_value(val.clone(), temp);
+                    self.insert_instruction(temp.current_label(), Instruction::ret(val, ty));
+                }
             }
         }
     }

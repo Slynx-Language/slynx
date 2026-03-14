@@ -19,7 +19,7 @@ pub struct TempIRData {
     ///The current lavel that is being generated on the current function
     current_label: IRPointer<Label, 1>,
     ///The variables on the current function
-    variables: Vec<(VariableId, Value)>,
+    variables: Vec<(VariableId, IRPointer<Value, 1>)>,
     ///The arguments of the current variable ID
     args: Vec<VariableId>,
 }
@@ -77,10 +77,17 @@ impl TempIRData {
         self.current_label = label
     }
     #[inline]
-    pub fn set_function_args(&mut self, args: &[VariableId]) {
-        self.args.extend_from_slice(args);
+    pub fn set_function_args(&mut self, args: &[VariableId], ptr: IRPointer<Value>) {
+        for (idx, arg) in args.iter().enumerate() {
+            self.add_variable(*arg, ptr.ptr_to(idx));
+        }
     }
 
+    #[inline]
+    ///Sets the current function being generated and resets the variables
+    pub fn current_function(&self) -> IRPointer<Context, 1> {
+        self.current_function.clone()
+    }
     #[inline]
     ///Sets the current function being generated and resets the variables
     pub fn set_current_function(&mut self, func: IRPointer<Context, 1>) {
@@ -90,27 +97,15 @@ impl TempIRData {
     }
 
     ///Adds the given value mapped to the given `id`
-    pub fn add_variable(&mut self, id: VariableId, value: Value) {
+    pub fn add_variable(&mut self, id: VariableId, value: IRPointer<Value, 1>) {
         self.variables.push((id, value));
     }
 
     #[inline]
     ///Gets the variable that matches the provided `id` on the current function
-    pub fn get_variable(&self, id: VariableId) -> Option<Value> {
-        if let Some(var) = self
-            .variables
+    pub fn get_variable(&self, id: VariableId) -> Option<IRPointer<Value, 1>> {
+        self.variables
             .iter()
             .find_map(|v| if v.0 == id { Some(v.1.clone()) } else { None })
-        {
-            Some(var)
-        } else {
-            self.args.iter().enumerate().find_map(|(idx, v)| {
-                if *v == id {
-                    Some(Value::FuncArg(idx))
-                } else {
-                    None
-                }
-            })
-        }
     }
 }
