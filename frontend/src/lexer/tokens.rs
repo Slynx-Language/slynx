@@ -128,6 +128,8 @@ impl Token {
                 end: pos,
                 start: pos,
             },
+        }
+    }
     pub fn comcomment(pos: usize) -> Self {
         Self {
         kind: TokenKind::CommonComent,
