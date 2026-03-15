@@ -113,11 +113,13 @@ impl std::fmt::Display for Token {
 impl Token {
     pub fn comcomment(pos: usize) -> Self {
         Self {
-        kind: TokenKind::CommonComent,
-        span: Span {
-            end: pos, 
-            start: pos,
-        },
+            kind: TokenKind::CommonComent,
+            span: Span {
+                end: pos,
+                start: pos,
+            },
+        }
+    }
     // constructor helpers for keywords; snake_case to satisfy lint
     pub fn if_token(pos: usize) -> Self {
         Self {
