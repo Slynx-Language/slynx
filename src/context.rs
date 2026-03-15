@@ -294,8 +294,10 @@ impl SlynxContext {
             Ok(module) => module,
         };
         let mut ir = SlynxIR::new();
-
-        ir.generate(hir.declarations, module)?;
+        let symbols = std::mem::take(&mut hir.symbols_module);
+        if let Err(e) = ir.generate(hir.declarations, module, symbols) {
+            return Err(color_eyre::eyre::eyre!(format!("IR Generation Error: {:?}", e)));
+        };
         let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
         Ok(output)
     }

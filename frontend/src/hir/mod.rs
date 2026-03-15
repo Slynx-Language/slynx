@@ -30,12 +30,13 @@ use common::ast::{
 
 // Re-export new ID types for convenience
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
+pub use symbols::SymbolPointer;
 
 #[derive(Debug, Default)]
 pub struct SlynxHir {
     ///The module that will keep track of all declarations on the top level
     pub declarations_module: DeclarationsModule,
-    symbols_module: SymbolsModule,
+    pub symbols_module: SymbolsModule,
     pub types_module: TypesModule,
     scope_module: ScopeModule,
 
@@ -220,13 +221,14 @@ impl SlynxHir {
                 mut body,
                 ..
             } => {
-                let (decl, tyid) = if let Some(symb) =
+                let (decl, tyid, symb) = if let Some(symb) =
                     self.symbols_module.retrieve(&name.identifier)
                     && let Some(data) = self
                         .declarations_module
                         .retrieve_declaration_data_by_name(symb)
                 {
-                    data
+                    let (decl, ty) = data;
+                    (decl, ty, *symb)
                 } else {
                     return Err(HIRError {
                         kind: HIRErrorKind::NameNotRecognized(name.identifier),
@@ -271,7 +273,7 @@ impl SlynxHir {
                     kind: HirDeclarationKind::Function {
                         statements,
                         args,
-                        name: name.to_string(),
+                        name: symb,
                     },
                     id: decl,
                     ty: tyid,

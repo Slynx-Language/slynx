@@ -6,6 +6,7 @@ pub use model::*;
 
 use frontend::hir::{
     definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
+    symbols::SymbolsModule,
     types::TypesModule,
 };
 
@@ -23,6 +24,7 @@ pub struct SlynxIR {
     operands: Vec<Operand>,
     values: Vec<Value>,
     types: IRTypes,
+    pub symbols_module: SymbolsModule,
 }
 
 impl SlynxIR {
@@ -34,10 +36,17 @@ impl SlynxIR {
             operands: Vec::new(),
             values: Vec::new(),
             types: IRTypes::new(),
+            symbols_module: SymbolsModule::new(),
         }
     }
 
-    pub fn generate(&mut self, hir: Vec<HirDeclaration>, tys: TypesModule) -> Result<(), IRError> {
+    pub fn generate(
+        &mut self,
+        hir: Vec<HirDeclaration>,
+        tys: TypesModule,
+        symbols: SymbolsModule,
+    ) -> Result<(), IRError> {
+        self.symbols_module = symbols;
         let mut temp = TempIRData::new();
         //hoist of the objects
         for declaration in &hir {

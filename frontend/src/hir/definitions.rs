@@ -1,4 +1,6 @@
-use crate::hir::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
+use crate::hir::{
+    DeclarationId, ExpressionId, PropertyId, SymbolPointer, TypeId, VariableId,
+};
 
 use common::ast::{Operator, Span};
 
@@ -28,7 +30,7 @@ pub enum HirDeclarationKind {
     Function {
         statements: Vec<HirStatement>,
         args: Vec<VariableId>, // Changed from HirId - function arguments are variables
-        name: String,
+        name: SymbolPointer,
     },
     ComponentDeclaration {
         props: Vec<ComponentMemberDeclaration>,

@@ -1,6 +1,19 @@
-object Pessoa{
-    name: str,
-    age: int,
+component Counter {
+    pub prop count: int
+    Button {
+        on_click: _ -> count
+    }
+}
+
+component Pessoa{
+    prop name: str;
+    prop age: int;
+    Text {
+        text: name + "tem" + age + "anos"
+    }
+    Counter {
+        count: age
+    }
 }
 
 component Sla {}

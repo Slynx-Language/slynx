@@ -24,7 +24,7 @@ pub fn find_main_call_args(hir: &mut SlynxHir) -> Option<&mut Vec<HirExpression>
         else {
             continue;
         };
-        if name != "main" {
+        if hir.symbols_module.get_name(*name) != "main" {
             continue;
         }
 
