@@ -24,7 +24,6 @@ pub struct SlynxIR {
     operands: Vec<Operand>,
     values: Vec<Value>,
     types: IRTypes,
-    pub symbols_module: SymbolsModule,
 }
 
 impl SlynxIR {
@@ -36,17 +35,15 @@ impl SlynxIR {
             operands: Vec::new(),
             values: Vec::new(),
             types: IRTypes::new(),
-            symbols_module: SymbolsModule::new(),
         }
     }
 
     pub fn generate(
         &mut self,
         hir: Vec<HirDeclaration>,
-        tys: TypesModule,
-        symbols: SymbolsModule,
+        tys: &TypesModule,
+        symbols: &SymbolsModule,
     ) -> Result<(), IRError> {
-        self.symbols_module = symbols;
         let mut temp = TempIRData::new();
         //hoist of the objects
         for declaration in &hir {
@@ -76,7 +73,7 @@ impl SlynxIR {
         for declaration in hir {
             match declaration.kind {
                 HirDeclarationKind::Object => {
-                    self.insert_object_fields_for(declaration.ty, &temp, &tys);
+                    self.insert_object_fields_for(declaration.ty, &temp, &tys)?;
                 }
                 HirDeclarationKind::Function {
                     args, statements, ..
@@ -92,7 +89,7 @@ impl SlynxIR {
                     )?;
                 }
                 HirDeclarationKind::ComponentDeclaration { props } => {
-                    self.insert_component_fields_for(declaration.ty, &temp, &tys);
+                    self.insert_component_fields_for(declaration.ty, &temp, &tys)?;
                     for prop in props {
                         match prop {
                             ComponentMemberDeclaration::Property { .. } => {}

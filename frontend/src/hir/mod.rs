@@ -21,7 +21,7 @@ use crate::hir::{
     error::{HIRError, HIRErrorKind},
     scopes::ScopeModule,
     symbols::SymbolsModule,
-    types::{HirType, TypesModule},
+    types::{BUILTIN_NAMES, HirType, TypesModule},
 };
 use common::ast::{
     ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberKind,
@@ -50,13 +50,15 @@ pub struct SlynxHir {
 
 impl SlynxHir {
     pub fn new() -> Self {
+        let mut symbols = SymbolsModule::new();
+        let builtins = BUILTIN_NAMES.map(|v| symbols.intern(v));
         Self {
+            symbols_module: symbols,
             scope_module: ScopeModule::new(),
             types: HashMap::new(),
             declarations: Vec::new(),
             declarations_module: DeclarationsModule::new(),
-            symbols_module: SymbolsModule::new(),
-            types_module: TypesModule::new(),
+            types_module: TypesModule::new(&builtins),
         }
     }
 

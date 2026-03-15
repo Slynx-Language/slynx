@@ -10,7 +10,7 @@ use frontend::checker::{TypeChecker, error::TypeError};
 use frontend::hir::{SlynxHir, error::HIRError};
 use frontend::lexer::{Lexer, error::LexerError};
 use frontend::parser::{Parser, error::ParseError};
-use middleend::SlynxIR;
+use middleend::{IRError, SlynxIR};
 
 #[derive(Debug)]
 ///The type of the error that was generated
@@ -275,7 +275,7 @@ impl SlynxContext {
                 None => return Err(e),
             }
         }
-        let module = match TypeChecker::check(&mut hir) {
+        let types_module = match TypeChecker::check(&mut hir) {
             Err(e) => match e.downcast_ref::<TypeError>() {
                 Some(err) => {
                     let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
@@ -294,9 +294,36 @@ impl SlynxContext {
             Ok(module) => module,
         };
         let mut ir = SlynxIR::new();
-        let symbols = std::mem::take(&mut hir.symbols_module);
-        if let Err(e) = ir.generate(hir.declarations, module, symbols) {
-            return Err(color_eyre::eyre::eyre!(format!("IR Generation Error: {:?}", e)));
+
+        if let Err(e) = ir.generate(hir.declarations, &types_module, &hir.symbols_module) {
+            match e {
+                IRError::DeclarationNotRecognized(e) => {}
+                IRError::IRTypeNotRecognized(e) => {
+                    println!("{:#?}", types_module);
+                    let Some(name) = types_module.get_type_name(&e).cloned() else {
+                        unreachable!(
+                            "Type {e:?} isnt recognized by the types module? Something wrong ain't right"
+                        )
+                    };
+                    let (line, column, _) = self.get_line_info(&self.entry_point, 0);
+                    return Err(SlynxError {
+                        line,
+                        column_start: column,
+                        ty: SlynxErrorType::Type,
+                        message: format!(
+                            "IR internal error: Type '{:?}' is not recognized by the IR",
+                            hir.symbols_module.get_name(name)
+                        ),
+                        file: self.file_name(),
+                        source_code: "Not Required. HIR -> IR error".into(),
+                    }
+                    .into());
+                }
+            }
+            return Err(color_eyre::eyre::eyre!(format!(
+                "IR Generation Error: {:?}",
+                e
+            )));
         };
         let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
         Ok(output)

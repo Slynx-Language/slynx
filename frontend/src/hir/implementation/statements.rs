@@ -62,7 +62,6 @@ impl SlynxHir {
                         .map(|inner| inner.0)
                 });
                 let rhs = self.resolve_expr(rhs, typeid)?;
-
                 let id = self.create_variable(&name, rhs.ty, false);
 
                 Ok(HirStatement {

@@ -12,7 +12,9 @@ const INFER_IDX: usize = 4;
 const GENERIC_COMPONENT_IDX: usize = 5;
 const BOOL_IDX: usize = 6;
 
-const BUILTIN_TYPES: [HirType; 7] = [
+const BUILTIN_TYPES_SIZE: usize = 7;
+
+pub const BUILTIN_TYPES: [HirType; BUILTIN_TYPES_SIZE] = [
     HirType::Int,
     HirType::Float,
     HirType::Str,
@@ -20,6 +22,15 @@ const BUILTIN_TYPES: [HirType; 7] = [
     HirType::Infer,
     HirType::GenericComponent,
     HirType::Bool,
+];
+pub const BUILTIN_NAMES: [&'static str; BUILTIN_TYPES_SIZE] = [
+    "int",
+    "float",
+    "str",
+    "void",
+    "infer",
+    "GenericComponent",
+    "bool",
 ];
 
 #[derive(Debug, Clone)]
@@ -64,6 +75,8 @@ impl BuiltinTypes {
 pub struct TypesModule {
     ///A hashmap that maps a name of a global name to its type. This is not for variables, but only for global types, such as structs, functions and components
     type_names: HashMap<SymbolPointer, TypeId>,
+    ///Maps the type ids to its their name forms
+    name_of_types: HashMap<TypeId, SymbolPointer>,
     ///Maps a variable to it's type
     pub variables: HashMap<VariableId, TypeId>,
 
@@ -71,7 +84,7 @@ pub struct TypesModule {
     builtins: BuiltinTypes,
 }
 impl TypesModule {
-    pub fn new() -> Self {
+    pub fn new(builtin_names: &[SymbolPointer; BUILTIN_TYPES_SIZE]) -> Self {
         // Keep builtin ids deterministic and fail fast if array order drifts.
         debug_assert_eq!(BOOL_IDX + 1, BUILTIN_TYPES.len());
         debug_assert!(matches!(BUILTIN_TYPES[INT_IDX], HirType::Int));
@@ -86,12 +99,17 @@ impl TypesModule {
         debug_assert!(matches!(BUILTIN_TYPES[BOOL_IDX], HirType::Bool));
 
         let builtins = BuiltinTypes::new();
-        Self {
-            types: BUILTIN_TYPES.to_vec(),
+        let mut out = Self {
+            name_of_types: HashMap::new(),
+            types: Vec::new(),
             builtins,
             type_names: HashMap::new(),
             variables: HashMap::new(),
+        };
+        for (idx, name) in builtin_names.iter().enumerate() {
+            out.insert_type(*name, BUILTIN_TYPES[idx].clone());
         }
+        out
     }
 
     pub fn int_id(&self) -> TypeId {
@@ -125,6 +143,7 @@ impl TypesModule {
         let raw = self.types.len() as u64;
         let v = TypeId::from_raw(raw);
         self.type_names.insert(name, v);
+        self.name_of_types.insert(v, name);
         self.types.push(ty);
         v
     }
@@ -160,6 +179,9 @@ impl TypesModule {
     }
     pub fn get_type(&self, id: &TypeId) -> &HirType {
         &self.types[id.as_raw() as usize]
+    }
+    pub fn get_type_name(&self, id: &TypeId) -> Option<&SymbolPointer> {
+        self.name_of_types.get(id)
     }
     pub fn get_variable(&self, id: &VariableId) -> Option<&TypeId> {
         self.variables.get(id)

@@ -132,7 +132,7 @@ impl SlynxIR {
             unreachable!();
         };
 
-        let Some(HirType::Component { props: ty_props }) = tys.get_object(&decl) else {
+        let Some(HirType::Component { props: ty_props }) = tys.get_component(&decl) else {
             unreachable!("{:?} should map to an Object, but it doesn't", decl);
         };
 

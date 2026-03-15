@@ -42,8 +42,8 @@ impl std::default::Default for SymbolsModule {
 impl std::ops::Index<SymbolPointer> for SymbolsModule {
     type Output = str;
     fn index(&self, ptr: SymbolPointer) -> &Self::Output {
-        let size = ptr.0 & 0xff;
-        let ptr = ptr.0 >> 8;
+        let size = ptr.0 & 0xffff;
+        let ptr = ptr.0 >> 16;
         unsafe { std::str::from_utf8_unchecked(&self.names.inner[ptr..ptr + size]) }
     }
 }
@@ -70,7 +70,9 @@ impl SymbolsModule {
     }
 
     pub fn get_name(&self, ptr: SymbolPointer) -> &str {
-        unsafe { str::from_utf8_unchecked(&self.names.inner[ptr.0 >> 16..ptr.0 & 0xffff]) }
+        let size = ptr.0 & 0xffff;
+        let ptr = ptr.0 >> 16;
+        unsafe { str::from_utf8_unchecked(&self.names.inner[ptr..ptr + size]) }
     }
 }
 
