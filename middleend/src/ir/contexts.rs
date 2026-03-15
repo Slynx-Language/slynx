@@ -134,11 +134,7 @@ impl SlynxIR {
             match &statement.kind {
                 HirStatementKind::Variable { name, value } => {
                     let value = self.get_value_for(value, temp);
-<<<<<<< HEAD
                     temp.add_variable(*name, value);
-=======
-                    temp.add_variable(*name, self.get_value(value));
->>>>>>> fee1b75 (feat: removed var and added value instead)
                 }
                 HirStatementKind::Assign { .. } => {}
 

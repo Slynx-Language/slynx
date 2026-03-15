@@ -2,7 +2,7 @@ mod contexts;
 mod helper;
 mod model;
 mod temp;
-use model::*;
+pub use model::*;
 
 use frontend::hir::{
     definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
@@ -10,9 +10,7 @@ use frontend::hir::{
 };
 
 use crate::{BUILTIN_TYPES, IRError, IRTypes};
-use model::{
-    Label, {Instruction, Operand},
-};
+
 use temp::TempIRData;
 
 #[derive(Debug)]

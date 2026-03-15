@@ -85,21 +85,6 @@ impl TempIRData {
     }
 
     #[inline]
-    ///Retrieves the current label on the current function
-    pub fn current_label(&self) -> IRPointer<Label, 1> {
-        self.current_label.clone()
-    }
-    #[inline]
-    ///Retrieves the current label on the current function
-    pub fn set_current_label(&mut self, label: IRPointer<Label, 1>) {
-        self.current_label = label
-    }
-    #[inline]
-    pub fn set_function_args(&mut self, args: &[VariableId]) {
-        self.args.extend_from_slice(args);
-    }
-
-    #[inline]
     ///Sets the current function being generated and resets the variables
     pub fn current_function(&self) -> IRPointer<Context, 1> {
         self.current_function.clone()
