@@ -16,6 +16,7 @@ pub enum IRType {
     F64,
     BOOL,
     VOID,
+    GenericComponent,
     Struct(IRStructId),
     Function(IRFunctionId),
 }

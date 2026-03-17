@@ -8,7 +8,7 @@ use common::ast::{ASTStatement, ASTStatementKind, Span};
 impl Parser {
     ///Parses a let Statement. Until now it's only for variable declaration, so, this only parses 'let name: t = value;' or 'let name = value;', same for mut variants
     ///Maybe, in the future, more things will be parsed.
-    ///Obs: this function should initialize right after 'let' token, and the `letstan` the span of the 'let' token
+    ///Obs: this function should initialize right after 'let' token, and the `letstan` is the span of the 'let' token
     pub fn parse_let_statement(&mut self, letspan: Span) -> Result<ASTStatement> {
         let mut mutable = false;
         if let TokenKind::Mut = self.peek()?.kind {

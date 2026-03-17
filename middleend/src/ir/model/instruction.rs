@@ -26,6 +26,24 @@ pub enum InstructionType {
     RawValue,
     ///Variant used for function calls. The `func` field is the pointer to the function context
     FunctionCall(IRPointer<Context, 1>),
+    ///Variant used for binary add. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Add,
+    ///Variant used for binary sub. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Sub,
+    ///Variant used for binary mul. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Mul,
+    ///Variant used for binary div. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Div,
+    ///Variant used for binary cmp. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Cmp,
+    ///Variant used for binary gt. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Gt,
+    ///Variant used for binary gte. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Gte,
+    ///Variant used for binary lt. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Lt,
+    ///Variant used for binary lte. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Lte,
     ///Returns the operand
     Ret,
 }
@@ -53,16 +71,80 @@ impl Instruction {
         func_ret: IRTypeId,
         args: IRPointer<Value>,
     ) -> Instruction {
-        Instruction {
+        Self {
             operands: args,
             instruction_type: InstructionType::FunctionCall(func),
             value_type: func_ret,
         }
     }
     pub fn ret(value: IRPointer<Value, 1>, ty: IRTypeId) -> Self {
-        Instruction {
+        Self {
             operands: value.with_length(),
             instruction_type: InstructionType::Ret,
+            value_type: ty,
+        }
+    }
+    pub fn add(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Add,
+            value_type: ty,
+        }
+    }
+    pub fn sub(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Sub,
+            value_type: ty,
+        }
+    }
+    pub fn mul(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Mul,
+            value_type: ty,
+        }
+    }
+
+    pub fn div(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Div,
+            value_type: ty,
+        }
+    }
+    pub fn cmp(ty: IRTypeId, values: IRPointer<Value, 2>) -> Instruction {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Cmp,
+            value_type: ty,
+        }
+    }
+    pub fn gt(ty: IRTypeId, value: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: value.with_length(),
+            instruction_type: InstructionType::Gt,
+            value_type: ty,
+        }
+    }
+    pub fn gte(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Gte,
+            value_type: ty,
+        }
+    }
+    pub fn lt(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Lt,
+            value_type: ty,
+        }
+    }
+    pub fn lte(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Lte,
             value_type: ty,
         }
     }

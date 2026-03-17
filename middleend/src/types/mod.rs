@@ -21,6 +21,7 @@ pub const BUILTIN_TYPES: &[IRType] = &[
     IRType::F64,
     IRType::BOOL,
     IRType::VOID,
+    IRType::GenericComponent,
 ];
 
 #[derive(Debug)]
@@ -81,6 +82,16 @@ impl IRTypes {
     ///Returns the void type
     pub fn void_type(&self) -> IRTypeId {
         IRTypeId(self.types.iter().position(|v| *v == IRType::VOID).unwrap())
+    }
+
+    ///Returns the generic component type
+    pub fn generic_component_type(&self) -> IRTypeId {
+        IRTypeId(
+            self.types
+                .iter()
+                .position(|v| *v == IRType::GenericComponent)
+                .unwrap(),
+        )
     }
 
     ///Creates a new empty struct and returns its type ID

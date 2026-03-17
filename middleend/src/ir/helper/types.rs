@@ -25,6 +25,7 @@ impl SlynxIR {
             ty if ty == tymod.float_id() => self.types.float_type(),
             ty if ty == tymod.bool_id() => self.types.bool_type(),
             ty if ty == tymod.void_id() => self.types.void_type(),
+            ty if ty == tymod.generic_component_id() => self.types.generic_component_type(),
             ty => temp.get_type(ty)?,
         })
     }
@@ -50,17 +51,10 @@ impl SlynxIR {
     pub fn get_type_of_instruction(
         &self,
         instr: IRPointer<Instruction, 1>,
-        temp: &TempIRData,
+        _temp: &TempIRData,
     ) -> IRTypeId {
         let instr = &self.instructions[instr.ptr()];
-        match &instr.instruction_type {
-            InstructionType::Ret | InstructionType::RawValue => {
-                debug_assert!(instr.operands.len() == 1);
-
-                self.get_type_of_value(instr.operands.clone().with_length(), temp)
-            }
-            InstructionType::FunctionCall(c) => self.return_type_of_context(c.clone()),
-        }
+        instr.value_type
     }
 
     ///Creates a new blank function with no arguments and returning void. Returns its context handle
