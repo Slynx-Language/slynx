@@ -1,4 +1,4 @@
-use crate::{IRTypeId, ir::model::Context};
+use crate::{IRTypeId, Label, ir::model::Context};
 
 use super::IRPointer;
 
@@ -44,6 +44,15 @@ pub enum InstructionType {
     Lt,
     ///Variant used for binary lte. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Lte,
+    ///A branch operation that executes the code from the provided `branch`. If the branch's got arguments the `operands` of this instruction are used as the label args
+    Br(IRPointer<Label, 1>),
+    ///Conditional branch. Takes a boolean condition and two target labels with their arguments
+    Cbr {
+        then_label: IRPointer<Label, 1>,
+        else_label: IRPointer<Label, 1>,
+        then_args: IRPointer<Value>,
+        else_args: IRPointer<Value>,
+    },
     ///Returns the operand
     Ret,
 }
@@ -146,6 +155,32 @@ impl Instruction {
             operands: values.with_length(),
             instruction_type: InstructionType::Lte,
             value_type: ty,
+        }
+    }
+    pub fn br(label: IRPointer<Label, 1>, args: IRPointer<Value>, label_ret_ty: IRTypeId) -> Self {
+        Self {
+            operands: args,
+            instruction_type: InstructionType::Br(label),
+            value_type: label_ret_ty,
+        }
+    }
+    pub fn cbr(
+        condition: IRPointer<Value, 1>,
+        then_label: IRPointer<Label, 1>,
+        else_label: IRPointer<Label, 1>,
+        then_args: IRPointer<Value>,
+        else_args: IRPointer<Value>,
+        value_ty: IRTypeId,
+    ) -> Self {
+        Self {
+            operands: condition.with_length(),
+            instruction_type: InstructionType::Cbr {
+                then_label,
+                else_label,
+                then_args,
+                else_args,
+            },
+            value_type: value_ty,
         }
     }
 }

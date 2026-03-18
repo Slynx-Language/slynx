@@ -249,6 +249,48 @@ impl SlynxIR {
                     common::Operator::LessThanOrEqual => {
                         self.get_lte_instruction(lhs_value, rhs_value, lty, temp.current_label())
                     }
+                    common::Operator::LogicAnd => {
+                        let temp_var = self.insert_value(value)
+                        let thenlabel = self.insert_label(temp.current_function(), "and_then");
+                        let elselabel = self.insert_label(temp.current_function(), "and_else");
+                        let endlabel = {
+                            let label = self.insert_label(temp.current_function(), "and_end");
+                            self.get_label_mut(endlabel).insert_arguments(&[self.types.bool_type()]);
+                            label //$end_label(bool):
+                        };
+                        let bool_type = self.types.bool_type();
+                        
+                        let instruction = self.insert_instruction(
+                            temp.current_label(),
+                            Instruction::cbr(
+                                lhs_value,
+                                thenlabel,
+                                elselabel,
+                                IRPointer::null(),
+                                IRPointer::null(),
+                                bool_type,
+                            ),
+                        ); //cbr lhs, then, else;
+                        temp.set_current_label(thenlabel);
+                        let rhs = self.get_value_for(rhs, temp)?;
+                        self.insert_instruction(
+                            temp.current_label(),
+                            Instruction::br(endlabel, rhs.with_length(), bool_type), //br and_end(rhs)
+                        );
+
+                        temp.set_current_label(elselabel);
+                        
+                        let false_value = self.insert_operands(&[Operand::Bool(false)]));
+                        let false_value = self.insert_value(Value::Raw(false_value));
+                        
+                        self.insert_instruction(temp.current_label(), Instruction::br(endlabel, false_value.with_length(), bool_type)); //br and_end(false)
+
+                        temp.set_current_label(endlabel);
+                        let value = self.get_label(endlabel).get_argument_value(0);
+                        let label_ty = self.get_label(endlabel).arguments()[0];
+                        let value = self.insert_value(value);
+                        self.insert_instruction(temp.current_label(), Instruction::ret(value, label_ty))
+                    }
                     btn => panic!("{btn:?} unimplemented"),
                 };
                 Value::Instruction(bin_instruction)

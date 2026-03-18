@@ -18,26 +18,31 @@ impl Context {
             ty,
         }
     }
-    
+
     #[inline]
     ///Returns the pointer to the labels of this context.
     pub fn labels_ptr(&self) -> IRPointer<Label> {
         self.labels.clone()
     }
-    
+
     ///Retrieves the inner type of this context
     #[inline]
     pub fn ty(&self) -> IRTypeId {
         self.ty
     }
-    
+
     ///Sets the pointer part of the labels to the provided value.
     pub fn set_ptr(&mut self, ptr: usize) {
         self.labels.set_ptr(ptr);
     }
-    
+
     ///Inserts a new label into the context, increasing the length of the labels pointer.
     pub fn insert_label(&mut self) {
         self.labels.increase_length();
+    }
+
+    ///Returns a pointer to the label at the given index
+    pub fn get_label(&self, index: usize) -> IRPointer<Label, 1> {
+        self.labels.ptr_to(index)
     }
 }
