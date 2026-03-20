@@ -79,6 +79,7 @@ impl TempIRData {
     }
     #[inline]
     pub fn set_function_args(&mut self, args: &[VariableId], ptr: IRPointer<Value>) {
+        self.variables.clear();
         for (idx, arg) in args.iter().enumerate() {
             self.add_variable(*arg, ptr.ptr_to(idx));
         }
