@@ -219,7 +219,7 @@ impl SlynxIR {
                         IRPointer::null(),
                         bool_type,
                     ),
-                ); //cbr lhs, then, else;
+                ); //cbr lhs, end, else;
                 temp.set_current_label(elselabel);
 
                 self.insert_instruction(

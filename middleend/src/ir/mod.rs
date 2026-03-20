@@ -20,14 +20,19 @@ use temp::TempIRData;
 pub struct SlynxIR {
     ///The contexts of this IR
     contexts: Vec<Context>,
+    ///The labels of this IR
     labels: Vec<Label>,
+    ///The instructions of this IR
     instructions: Vec<Instruction>,
+    ///The operands of this IR
     operands: Vec<Operand>,
+    ///The values of this IR
     values: Vec<Value>,
     types: IRTypes,
 }
 
 impl SlynxIR {
+    ///Creates a new empty IR
     pub fn new() -> Self {
         Self {
             contexts: Vec::new(),
@@ -39,6 +44,8 @@ impl SlynxIR {
         }
     }
 
+    ///Generates all the code on the IR, with types, functions, lowerings, etc, based on the provided `hir`. The `tys` is expected to be the types module used by the `hir` during all frontend process, as well as
+    ///the `symbols`, to be the symbols module used by the same `hir` during all the frontend process
     pub fn generate(
         &mut self,
         hir: Vec<HirDeclaration>,

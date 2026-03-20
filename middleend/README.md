@@ -319,6 +319,13 @@ The `@emit p0, %count` on the function, tells that `p0` should execute its `%cou
 
 ### Instructions
 
+#### Variable Operations
+
+* allocate: Allocates a variable with a given type. Follows `allocate ty`. This does not mean that the value must be allocated by the backend, just that this is what in the language is the so called 'variable'. This returns a handle 
+* write: Writes on the provided value. Follow `write ty, handle, value`, the type of the `handle` must be the same as the `ty` and `value`. The handle can be casted, and so written in a different manner
+* read: Reads the provided value as the provided `ty`. Follows `read ty, handle`..
+* reinterpret: Creates a new slot based on the provided one, reinterpreted with the given ty. Follows `reinterpret, ty, slot`. 
+
 #### Termination Operations
 
 * br: Unconditional branch. Follows `br $label(arg0, arg1, ...)` and transfers control to `$label`, binding arguments to its `lpN` parameters.
