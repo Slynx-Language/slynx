@@ -374,6 +374,6 @@ Saturing addition:
 * cmplt, compares the first value to the second one, and returns `true` if the first is less than the second one, and `false` otherwise
 * cmplte, compares the first value to the second one, and returns `true` if the first is less than or equal to the second one, and `false` otherwise
 * cmpne, compares the first value to the second one, and returns `true` if they're not equal, and `false` otherwise
-
+* negate, negates the provided value. If it's true, returns false, otherwise, returns true
 #### Idealized For The Future
 These operations are idealized to be implemented on the future and for the V1 are not being implemented. Note that since these are only IDEALIZED, they might and probably WILL change

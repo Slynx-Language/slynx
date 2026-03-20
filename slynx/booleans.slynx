@@ -2,5 +2,5 @@ func is_way_bigger(n: int, m:int):bool {
 	m < n && n > m / 2
 }
 
-func is_bigger(n:int, m:int):bool->m-1 > n * 2 && m > 0;
+func is_bigger(n:int, m:int):bool->m-1 > n * 2 || m > 0;
 
