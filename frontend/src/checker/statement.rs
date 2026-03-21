@@ -20,6 +20,7 @@ impl TypeChecker {
                 value.ty = ty;
                 self.types_module.insert_variable(*name, ty);
             }
+
             HirStatementKind::Assign { lhs, value } => {
                 let ty = self.resolve(&lhs.ty, &lhs.span)?;
                 value.ty = self.unify(&ty, &value.ty, &value.span)?;
@@ -30,7 +31,18 @@ impl TypeChecker {
                 let unify = self.unify(&expr.ty, expected, &statement.span)?;
                 expr.ty = unify;
             }
+
+            HirStatementKind::While { condition, body } => {
+                self.default_expr(condition)?;
+                let bool_id = self.types_module.bool_id();
+                condition.ty = self.unify(&condition.ty, &bool_id, &condition.span)?;
+
+                for stmt in body {
+                    self.default_statement(stmt, expected)?;
+                }
+            }
         };
+
         Ok(())
     }
 }
