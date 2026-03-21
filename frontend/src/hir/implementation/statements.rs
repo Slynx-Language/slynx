@@ -73,6 +73,23 @@ impl SlynxHir {
                     span: statement.span,
                 })
             }
+
+            ASTStatementKind::While { condition, body } => {
+                let condition = self.resolve_expr(condition, None)?;
+
+                let mut new_body = Vec::new();
+                for stmt in body {
+                    new_body.push(self.resolve_statement(stmt)?);
+                }
+
+                Ok(HirStatement {
+                    span: statement.span,
+                    kind: HirStatementKind::While {
+                        condition,
+                        body: new_body,
+                    },
+                })
+            }
         }
     }
 }
