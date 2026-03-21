@@ -77,6 +77,11 @@ pub enum HirStatementKind {
     Return {
         expr: HirExpression,
     },
+
+    While {
+    condition: HirExpression,
+    body: Vec<HirStatement>,
+},
 }
 
 #[derive(Debug)]
@@ -123,4 +128,6 @@ pub enum HirExpressionKind {
         then_branch: Vec<HirStatement>,
         else_branch: Option<Vec<HirStatement>>,
     },
+
+    
 }
