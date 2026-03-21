@@ -54,6 +54,9 @@ impl IntermediateRepr {
 
         for stmt in statements {
             match stmt.kind {
+
+                HirStatementKind::While { .. } => todo!(),
+
                 HirStatementKind::Expression { expr } => {
                     last = self.generate_expr(expr);
                 }
@@ -335,6 +338,9 @@ impl IntermediateRepr {
         self.contexts.push(ctx);
         for statement in statements {
             match statement.kind {
+                    
+                HirStatementKind::While { .. } => todo!(),
+
                 HirStatementKind::Assign { lhs, value } => {
                     self.generate_assign(lhs, value);
                 }
