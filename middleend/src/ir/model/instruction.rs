@@ -3,10 +3,19 @@ use crate::{IRTypeId, Label, ir::model::Context};
 use super::IRPointer;
 
 #[derive(Debug, Clone)]
+///A value that represents something on a slot. A slot is something on memory, anywhere, so this is practically a pointer to some value. But it's better to be
+///understood as a variable
+pub struct Slot {
+    ///The type of this slot
+    ty: IRTypeId,
+}
+
+#[derive(Debug, Clone)]
 ///A value inside the IR. Can be a function arg, a label arg or the result of a instruction
 pub enum Value {
     Raw(IRPointer<Operand, 1>),
     Instruction(IRPointer<Instruction, 1>),
+    Slot(IRPointer<Slot, 1>),
     LabelArg(usize),
     FuncArg(usize),
 }
@@ -53,6 +62,10 @@ pub enum InstructionType {
         then_args: IRPointer<Value>,
         else_args: IRPointer<Value>,
     },
+    Allocate,
+    Write,
+    Read,
+    Reinterpret,
     ///Returns the operand
     Ret,
 }
@@ -181,6 +194,14 @@ impl Instruction {
                 else_args,
             },
             value_type: value_ty,
+        }
+    }
+
+    pub fn allocate(value: IRPointer<Value, 1>, ty: IRTypeId) -> Self {
+        Self {
+            operands: value.with_length(),
+            instruction_type: InstructionType::Allocate,
+            value_type: ty,
         }
     }
 }
