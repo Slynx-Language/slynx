@@ -57,7 +57,7 @@ Slynx addresses these issues through:
 ### Installation
 
 ```bash
-git clone https://github.com/cykna/slynx.git
+git clone https://github.com/Slynx-Language/slynx.git
 cd slynx
 cargo build --release
 ```
@@ -95,18 +95,18 @@ just run hello.slx
 Here's a simple counter component demonstrating Slynx's syntax:
 
 ```slynx
-style AppText(size: int, color:int) {
-  styleprop font_family = "Sans Serif";
-  styleprop font_size = size;
-  styleprop text_color = color;
+stylesheet AppText(size: int, color:int) {
+  prop font_family = "Sans Serif";
+  prop font_size = size;
+  prop text_color = color;
 }
 
 style Rounded(pixels:int){
-  styleprop border_radius = pixels;
+  prop border_radius = pixels;
 }
 
 style RoundedCounter(color:int, round:int) inherits Rounded(round) {
-  styleprop color = color;
+  prop color = color;
 }
 
 static style GeneralText = AppText(16,0xffffff);
@@ -129,7 +129,7 @@ component Counter {
   }
 }
 
-component AlotOfCounters<N:const int > 0>{
+component AlotOfCounters<N:const uint32> where N > 0 {
   for i in 0..N do if i % 2 {
     Counter{}
   };
@@ -188,12 +188,12 @@ Legend: `[x]` Done | `[~]` In Progress | `[ ]` Planned
 - `[~]` UI-oriented component model
 - `[~]` Function definitions (focusing on Components)
 - `[~]` Numeric and string types
-- `[ ]` Boolean type
+- `[x]` Boolean type
 - `[~]` Object model
 - `[ ]` Structs
 - `[ ]` Enums
 - `[ ]` Serialization/Deserialization
-- `[ ]` Control flow model (if/match/loops)
+- `[~]` Control flow model (if/match/loops)
 - `[ ]` Error model
 
 #### Frontend Implementation
@@ -205,16 +205,15 @@ Legend: `[x]` Done | `[~]` In Progress | `[ ]` Planned
 - `[ ]` Error recovery
 
 #### Backend & IR
-- `[ ]` SSA-based IR design
+- `[~]` SSA-based IR design
 - `[ ]` Data-oriented layout (SoA by default)
-- `[~]` JavaScript backend
 - `[ ]` Runtime support (reactivity, events)
-- `[ ]` DOM/UI binding
 
 #### Tooling
 - `[~]` CONTRIBUTING.md
-- `[ ]` Language reference documentation
-- `[ ]` IR specification
+- `[~]` Language reference documentation
+- `[~]` IR specification
+~ `[~]` Language LSP
 - `[ ]` Example applications
 
 For detailed roadmap, see [ROADMAP.md](ROADMAP.md) (if exists).
