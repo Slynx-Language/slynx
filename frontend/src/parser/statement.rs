@@ -53,28 +53,24 @@ impl Parser {
         })
     }
 
-pub fn parse_while_statement(&mut self, span: Span) -> Result<ASTStatement> {
-  
-    self.set_flags(super::ParserFlags::None);
+    pub fn parse_while_statement(&mut self, span: Span) -> Result<ASTStatement> {
+        self.set_flags(super::ParserFlags::None);
 
-    // 1. condition (ex: x < 10)
-    let condition = self.parse_expression()?;
+        // 1. condition (ex: x < 10)
+        let condition = self.parse_expression()?;
 
-    // 2. body { ... }
-    let (body, block_span) = self.parse_block()?;
+        // 2. body { ... }
+        let (body, block_span) = self.parse_block()?;
 
-    // 3. AST
-    Ok(ASTStatement {
-        span: Span {
-            start: span.start,      // start "while"
-            end: block_span.end,    // end "}"
-        },
-        kind: ASTStatementKind::While {
-            condition,
-            body,
-        },
-    })
-}
+        // 3. AST
+        Ok(ASTStatement {
+            span: Span {
+                start: span.start,   // start "while"
+                end: block_span.end, // end "}"
+            },
+            kind: ASTStatementKind::While { condition, body },
+        })
+    }
 
     pub fn parse_statement(&mut self) -> Result<ASTStatement> {
         match self.peek()?.kind {
@@ -87,8 +83,6 @@ pub fn parse_while_statement(&mut self, span: Span) -> Result<ASTStatement> {
                 let span = self.eat()?.span; //Consume "While"
                 self.parse_while_statement(span)
             }
-
-            
 
             _ => {
                 let expr = self.parse_expression()?;

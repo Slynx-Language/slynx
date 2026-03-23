@@ -237,7 +237,7 @@ impl Lexer {
                             kind: TokenKind::While,
                             span,
                         },
-                        
+
                         "let" => Token {
                             kind: TokenKind::Let,
                             span,

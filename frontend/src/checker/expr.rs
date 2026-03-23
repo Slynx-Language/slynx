@@ -136,8 +136,6 @@ impl TypeChecker {
             match &mut statment.kind {
                 HirStatementKind::While { condition, body } => {
                     self.default_expr(condition)?;
-                    
-
 
                     for stmt in body {
                         self.default_statement(stmt, &return_type)?;

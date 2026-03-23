@@ -35,7 +35,6 @@ pub fn find_main_call_args(hir: &mut SlynxHir) -> Option<&mut Vec<HirExpression>
                 HirStatementKind::Return { expr } => expr,
                 HirStatementKind::Assign { value, .. } => value,
                 HirStatementKind::While { .. } => continue,
-                
             };
             let HirExpressionKind::FunctionCall { args, .. } = &mut expr.kind else {
                 continue;
