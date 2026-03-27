@@ -85,16 +85,25 @@ For `v0.0.1`, graph generation only needs a small set of node kinds:
 Suggested conceptual model:
 
 ```rust
+struct PropId(usize);
+struct ComputedValueId(usize);
+struct ChildId(usize);
+struct FieldId(usize);
+
 enum GraphNodeKind {
-    ComponentProp { prop_index: usize },
-    ComputedValue { id: usize },
-    ChildField { child_index: usize, field_index: usize },
-    SpecializedField { child_index: usize, field_index: usize },
+    ComponentProp { prop_id: PropId },
+    ComputedValue { id: ComputedValueId },
+    ChildField { child_id: ChildId, field_id: FieldId },
+    SpecializedField { child_id: ChildId, field_id: FieldId },
 }
 ```
 
 The important part is not the exact enum name, but that nodes are stable,
 addressable, and backend-agnostic.
+
+Even if the underlying storage ends up being backed by `usize`, the exposed API
+should prefer semantic wrapper types over raw integers so each identifier
+retains its meaning across future refactors.
 
 ## Edge Model
 
