@@ -13,6 +13,61 @@ use crate::hir::{
 };
 use common::ast::Span;
 impl TypeChecker {
+    fn resolve_field_access_type(
+        &mut self,
+        field_ty: &mut TypeId,
+        field_index: &mut usize,
+        span: &Span,
+    ) -> Result<TypeId> {
+        let HirType::Field(field_method) = self.types_module.get_type(field_ty).clone() else {
+            return self.resolve(field_ty, span);
+        };
+
+        match field_method {
+            FieldMethod::Type(rf, index) => {
+                *field_index = index;
+                *field_ty = self
+                    .types_module
+                    .insert_unnamed_type(HirType::Field(FieldMethod::Type(rf, index)));
+                self.resolve(field_ty, span)
+            }
+            FieldMethod::Variable(variable_id, field_name) => {
+                let object_ty = *self
+                    .types_module
+                    .get_variable(&variable_id)
+                    .ok_or(TypeError {
+                        kind: TypeErrorKind::Unrecognized,
+                        span: span.clone(),
+                    })?;
+
+                let HirType::Reference { rf, .. } =
+                    self.retrieve_reference_of(&variable_id, span)?
+                else {
+                    unreachable!();
+                };
+
+                let Some(index) = self
+                    .structs
+                    .get(&object_ty)
+                    .expect("Type should be defined")
+                    .iter()
+                    .position(|field| *field == field_name)
+                else {
+                    return Err(TypeError {
+                        kind: TypeErrorKind::Unrecognized,
+                        span: span.clone(),
+                    }
+                    .into());
+                };
+
+                *field_index = index;
+                *self.types_module.get_type_mut(field_ty) =
+                    HirType::Field(FieldMethod::Type(rf, index));
+                self.resolve(field_ty, span)
+            }
+        }
+    }
+
     fn get_function_signature(
         &self,
         declaration: DeclarationId,
@@ -147,42 +202,20 @@ impl TypeChecker {
                 HirStatementKind::Assign { lhs, value } => {
                     let refty = match self.types_module.get_type(&lhs.ty) {
                         HirType::Field(FieldMethod::Type(_, _)) => lhs.ty,
-                        HirType::Field(FieldMethod::Variable(v, name)) => {
-                            let object_ty =
-                                *self.types_module.get_variable(v).ok_or(TypeError {
-                                    kind: TypeErrorKind::Unrecognized,
-                                    span: lhs.span.clone(),
-                                })?;
-                            let HirType::Reference { rf, .. } =
-                                self.retrieve_reference_of(v, &lhs.span)?
+                        HirType::Field(FieldMethod::Variable(..)) => {
+                            let HirExpressionKind::FieldAccess {
+                                ref mut field_index,
+                                ..
+                            } = lhs.kind
                             else {
                                 unreachable!();
                             };
-                            if let Some(index) = self
-                                .structs
-                                .get(&object_ty)
-                                .expect("Type should be defined")
-                                .iter()
-                                .position(|f| f == name)
-                            {
-                                let HirExpressionKind::FieldAccess {
-                                    ref mut field_index,
-                                    ..
-                                } = lhs.kind
-                                else {
-                                    unreachable!();
-                                };
-                                *field_index = index;
-                                *self.types_module.get_type_mut(&lhs.ty) =
-                                    HirType::Field(FieldMethod::Type(rf, index));
-                                lhs.ty
-                            } else {
-                                return Err(TypeError {
-                                    kind: TypeErrorKind::Unrecognized,
-                                    span: lhs.span.clone(),
-                                }
-                                .into());
-                            }
+                            let _ = self.resolve_field_access_type(
+                                &mut lhs.ty,
+                                field_index,
+                                &lhs.span,
+                            )?;
+                            lhs.ty
                         }
                         HirType::VarReference(_) => lhs.ty,
                         _ => unreachable!(),
@@ -309,46 +342,7 @@ impl TypeChecker {
                 expr: ref mut e,
             } => {
                 self.get_type_of_expr(e)?;
-
-                match self.types_module.get_type(&expr.ty) {
-                    HirType::Field(FieldMethod::Variable(id, name)) => {
-                        let object_ty = *self.types_module.get_variable(id).ok_or(TypeError {
-                            kind: TypeErrorKind::Unrecognized,
-                            span: expr.span.clone(),
-                        })?;
-                        let HirType::Reference { rf, .. } =
-                            self.retrieve_reference_of(id, &expr.span)?
-                        else {
-                            unreachable!();
-                        };
-                        if let Some(index) = self
-                            .structs
-                            .get(&object_ty)
-                            .unwrap()
-                            .iter()
-                            .position(|field| field == name)
-                        {
-                            *field_index = index;
-                            let HirType::Struct { fields } = self.types_module.get_type(&rf) else {
-                                unreachable!()
-                            };
-                            fields[index]
-                        } else {
-                            return Err(TypeError {
-                                kind: TypeErrorKind::Unrecognized,
-                                span: expr.span.clone(),
-                            }
-                            .into());
-                        }
-                    }
-                    _ => {
-                        return Err(TypeError {
-                            kind: TypeErrorKind::Unrecognized,
-                            span: expr.span.clone(),
-                        }
-                        .into());
-                    }
-                }
+                self.resolve_field_access_type(&mut expr.ty, field_index, &expr.span)?
             }
             HirExpressionKind::Bool(_) => self.types_module.bool_id(),
             HirExpressionKind::Specialized(ref mut s) => {
