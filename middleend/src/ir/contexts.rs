@@ -195,7 +195,7 @@ impl SlynxIR {
                 temp.set_current_label(else_label);
                 if let Some(else_branch) = else_branch {
                     for (idx, instruction) in else_branch.iter().enumerate() {
-                        let value = if idx == then_branch.len() - 1
+                        let value = if idx == else_branch.len() - 1
                             && let HirStatementKind::Expression { ref expr } = instruction.kind
                         {
                             self.get_value_for(expr, temp)?

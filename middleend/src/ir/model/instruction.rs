@@ -110,7 +110,7 @@ impl Instruction {
     pub fn setfield(index: usize, target: IRPointer<Value, 2>, ty: IRTypeId) -> Self {
         Self {
             operands: target.with_length(),
-            instruction_type: InstructionType::GetField(index),
+            instruction_type: InstructionType::SetField(index),
             value_type: ty,
         }
     }
