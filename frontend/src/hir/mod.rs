@@ -215,10 +215,7 @@ impl SlynxHir {
                 self.resolve_object(name, fields, ast.span)?
             }
             ASTDeclarationKind::FuncDeclaration {
-                name,
-                args,
-                body,
-                ..
+                name, args, body, ..
             } => {
                 let (decl, tyid) = if let Some(symb) =
                     self.symbols_module.retrieve(&name.identifier)

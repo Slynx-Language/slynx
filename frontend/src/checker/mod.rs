@@ -507,8 +507,7 @@ mod tests {
             "#,
         );
 
-        let err =
-            TypeChecker::check(&mut hir).expect_err("non-void functions must return a value");
+        let err = TypeChecker::check(&mut hir).expect_err("non-void functions must return a value");
         let type_error = err
             .downcast_ref::<TypeError>()
             .expect("error should come from type checker");
@@ -537,17 +536,23 @@ mod tests {
         let main_fn = hir
             .declarations
             .iter()
-            .find(|declaration| matches!(
-                declaration.kind,
-                HirDeclarationKind::Function { ref name, .. } if name == "main"
-            ))
+            .find(|declaration| {
+                matches!(
+                    declaration.kind,
+                    HirDeclarationKind::Function { ref name, .. } if name == "main"
+                )
+            })
             .expect("main function should exist");
 
         let HirDeclarationKind::Function { statements, .. } = &main_fn.kind else {
             unreachable!();
         };
 
-        assert_eq!(statements.len(), 1, "last non-expression statement should be preserved");
+        assert_eq!(
+            statements.len(),
+            1,
+            "last non-expression statement should be preserved"
+        );
         assert!(
             matches!(statements[0].kind, HirStatementKind::Variable { .. }),
             "expected trailing let statement to stay in the body"
