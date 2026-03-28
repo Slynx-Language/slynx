@@ -54,6 +54,13 @@ impl IntermediateRepr {
 
         for stmt in statements {
             match stmt.kind {
+                HirStatementKind::While { condition, body } => {
+                    let condition = self.generate_expr(condition);
+                    let body = self.generate_block(body);
+                    self.active_context()
+                        .insert_expr(IntermediateExpr::while_loop(condition, vec![body]));
+                }
+
                 HirStatementKind::Expression { expr } => {
                     last = self.generate_expr(expr);
                 }
@@ -335,6 +342,13 @@ impl IntermediateRepr {
         self.contexts.push(ctx);
         for statement in statements {
             match statement.kind {
+                HirStatementKind::While { condition, body } => {
+                    let condition = self.generate_expr(condition);
+                    let body = self.generate_block(body);
+                    self.active_context()
+                        .insert_expr(IntermediateExpr::while_loop(condition, vec![body]));
+                }
+
                 HirStatementKind::Assign { lhs, value } => {
                     self.generate_assign(lhs, value);
                 }

@@ -134,6 +134,14 @@ impl TypeChecker {
         };
         for statment in statments {
             match &mut statment.kind {
+                HirStatementKind::While { condition, body } => {
+                    self.default_expr(condition)?;
+
+                    for stmt in body {
+                        self.default_statement(stmt, &return_type)?;
+                    }
+                }
+
                 HirStatementKind::Variable { value, .. } => {
                     value.ty = self.get_type_of_expr(value)?;
                 }

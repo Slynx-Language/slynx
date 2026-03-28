@@ -67,6 +67,11 @@ pub enum ASTStatementKind {
         rhs: ASTExpression,
     },
 
+    While {
+        condition: ASTExpression,
+        body: Vec<ASTStatement>,
+    },
+
     Expression(ASTExpression),
 }
 

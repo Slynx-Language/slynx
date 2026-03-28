@@ -9,6 +9,7 @@ pub struct Token {
 impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let result = match self {
+            Self::While => "while".to_string(),
             Self::CommonComent => "//".to_string(),
             Self::And => "&&".to_string(),
             Self::Or => "||".to_string(),
@@ -59,6 +60,7 @@ impl std::fmt::Display for TokenKind {
 
 #[derive(Debug, PartialEq)]
 pub enum TokenKind {
+    While,
     CommonComent,
     LParen,
     If,
