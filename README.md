@@ -108,6 +108,7 @@ Core project documents:
 - [RELEASING.md](RELEASING.md): how repository tags and GitHub Releases are cut
 - [CHANGELOG.md](CHANGELOG.md): repository-level changelog
 - [middleend/README.md](middleend/README.md): IR design/specification reference
+- [docs/landing-content-inventory.md](docs/landing-content-inventory.md): grounded inventory of what can already be published on the landing page
 
 Operational templates:
 
