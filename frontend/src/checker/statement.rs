@@ -33,10 +33,9 @@ impl TypeChecker {
             }
 
             HirStatementKind::While { condition, body } => {
-                self.default_expr(condition)?;
+                condition.ty = self.get_type_of_expr(condition)?;
                 let bool_id = self.types_module.bool_id();
                 condition.ty = self.unify(&condition.ty, &bool_id, &condition.span)?;
-
                 for stmt in body {
                     self.default_statement(stmt, expected)?;
                 }
