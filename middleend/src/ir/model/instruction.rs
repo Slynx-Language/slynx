@@ -39,6 +39,7 @@ pub enum InstructionType {
     ///Variant used for raw values. Their actual value is their operand
     RawValue,
     Struct,
+    Component,
     ///Variant used for function calls. The `func` field is the pointer to the function context
     FunctionCall(IRPointer<Context, 1>),
     ///Variant used for binary add. The type is determines by the `value_type` and the left and right hand side are the `operands`
@@ -307,6 +308,13 @@ impl Instruction {
         Self {
             operands: value,
             instruction_type: InstructionType::Struct,
+            value_type: ty,
+        }
+    }
+    pub fn component(ty: IRTypeId, value: IRPointer<Value>) -> Self {
+        Self {
+            operands: value,
+            instruction_type: InstructionType::Component,
             value_type: ty,
         }
     }
