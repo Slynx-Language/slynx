@@ -39,7 +39,7 @@ impl SlynxIR {
         name: TypeId,
         values: &[ComponentMemberDeclaration],
         temp: &mut TempIRData,
-    ) -> Result<IRPointer<Value>, IRError> {
+    ) -> Result<Value, IRError> {
         let mut vals = Vec::with_capacity(values.len());
         for value in values {
             match value {
@@ -49,37 +49,30 @@ impl SlynxIR {
                             "Must refactor HIR. Default values should be provided as such they were normal files"
                         );
                     };
-                    vals.push(self.get_value_for(&value, temp)?);
+                    let value = self.get_value_for(value, temp)?;
+                    let value = self.get_value(value);
+                    vals.push(value);
                 }
                 ComponentMemberDeclaration::Child { name, values, .. } => {
-                    vals.push(
-                        self.get_component_expression(*name, &values, temp)?
-                            .with_length(),
-                    );
+                    vals.push(self.get_component_expression(*name, values, temp)?);
                 }
                 _ => {
                     unimplemented!("Specialized components, not i");
                 }
             }
         }
-        let ptr = IRPointer::new(self.values.len(), vals.len());
-        for value in vals {
-            let value = self.get_value(value);
-            self.insert_value(value);
-        }
+        let vals = self.insert_values(&vals);
         let ty = temp.get_type(name)?;
         let instruction =
-            self.insert_instruction(temp.current_label(), Instruction::component(ty, ptr));
-        Ok(self
-            .insert_value(Value::Instruction(instruction))
-            .with_length())
+            self.insert_instruction(temp.current_label(), Instruction::component(ty, vals));
+        Ok(Value::Instruction(instruction))
     }
 
     pub fn initialize_component(
         &mut self,
         _: IRPointer<Component, 1>,
         props: &[ComponentMemberDeclaration],
-        _temp: &mut TempIRData,
+        temp: &mut TempIRData,
     ) -> Result<(), IRError> {
         //let component = self.get_component_mut(comp);
         for prop in props {
@@ -87,9 +80,9 @@ impl SlynxIR {
                 ComponentMemberDeclaration::Property { .. } => {
                     //already implemented on insert_component_fields
                 }
-                ComponentMemberDeclaration::Child { name, values, span } => {
-                    let component = self.get_component_mut(comp.clone());
-                    let child = self.get_component_expression(*name, values, temp);
+                ComponentMemberDeclaration::Child { name, values, .. } => {
+                    let _component = self.get_component_mut(comp.clone());
+                    let _child = self.get_component_expression(*name, values, temp);
                 }
                 ComponentMemberDeclaration::Specialized(_) => {}
             }
