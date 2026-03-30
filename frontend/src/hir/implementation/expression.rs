@@ -284,7 +284,7 @@ impl SlynxHir {
 
                 let kind = self.organized_object_fields(ty, fields, &expr.span)?;
                 Ok(HirExpression {
-                    id: ExpressionId::new(), // Changed to ExpressionId
+                    id: ExpressionId::new(),
                     ty,
                     kind,
                     span: expr.span,
@@ -294,10 +294,10 @@ impl SlynxHir {
                 let parent = self.resolve_expr(*parent, None)?;
                 let HirExpression { ref ty, .. } = parent;
                 match self.types_module.get_type(ty) {
-                    HirType::Reference { rf, .. } => {
+                    HirType::Reference { .. } => {
                         if let Some(index) = self
                             .declarations_module
-                            .retrieve_object_body(*rf)
+                            .retrieve_object_body(*ty)
                             .expect("Object should have been defined")
                             .iter()
                             .position(|struct_field| {

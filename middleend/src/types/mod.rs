@@ -62,6 +62,19 @@ impl IRTypes {
     pub fn get_component_type(&self, id: IRComponentId) -> &IRComponent {
         &self.components[id.0]
     }
+
+    ///Returns the IRTypeId of the `field_index`th field of the given struct/component type.
+    ///Panics if `ty` is not a Struct or Component, or if `field_index` is out of bounds.
+    pub fn get_field_type(&self, ty: IRTypeId, field_index: usize) -> IRTypeId {
+        match self.types[ty.0] {
+            IRType::Struct(sid) => self.structs[sid.0].get_fields()[field_index],
+            IRType::Component(cid) => self.components[cid.0].fields[field_index],
+            ref other => panic!(
+                "Expected struct or component type for field access, got {:?}",
+                other
+            ),
+        }
+    }
     ///Gets a mutable referente to the type of the function with the provided `id`
     pub fn get_function_type_mut(&mut self, id: IRFunctionId) -> &mut IRFunction {
         &mut self.functions[id.0]

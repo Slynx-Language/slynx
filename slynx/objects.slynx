@@ -7,14 +7,19 @@ object Pessoa{
     age: int,
 }
 
+func f(): Pessoa {
+    Pessoa(name: "Jorge", age: 3)
+}
+
 component Sla {}
 
-func main(): Component {
+func main(): Pessoa {
     let mut pessoa = Pessoa(
         name:"123", age: 123
     );
     pessoa.name = "Jorge";
     pessoa.age = 255;
     pessoa = Pessoa(name: "jorge", age:pessoa.age + 3);
-    Counter {}
+    pessoa.age = f().age;
+    pessoa
 }

@@ -1,5 +1,7 @@
 use common::Operator;
-use frontend::hir::definitions::{HirExpression, HirStatement, HirStatementKind};
+use frontend::hir::definitions::{
+    HirExpression, HirExpressionKind, HirStatement, HirStatementKind,
+};
 
 use crate::{
     IRError, IRPointer, IRTypeId, Instruction, Label, Operand, Slot, SlynxIR, Value,
@@ -7,6 +9,35 @@ use crate::{
 };
 
 impl SlynxIR {
+    ///Gets the slot of the provided `expr`
+    pub fn get_slot_for_place(
+        &self,
+        expr: &HirExpression,
+        temp: &TempIRData,
+    ) -> Result<(IRPointer<Value, 1>, IRTypeId), IRError> {
+        match &expr.kind {
+            HirExpressionKind::Identifier(i) => {
+                let Some(v) = temp.get_variable(*i) else {
+                    unreachable!(
+                        "Temp should have variable. The context you are looking at might be mismatched"
+                    );
+                };
+                let Value::Slot(_) = &self.get_value(v.clone()) else {
+                    unreachable!("Variable should point to some ")
+                };
+                Ok((v.clone(), self.get_type_of_value(v, temp)))
+            }
+            HirExpressionKind::FieldAccess { expr, field_index } => {
+                let (parent_slot, parent_ty) = self.get_slot_for_place(expr, temp)?;
+
+                let field_ty = self.types.get_field_type(parent_ty, *field_index);
+                Ok((parent_slot, field_ty))
+            }
+            v => unimplemented!("Couldnt get slot for {v:?}"),
+        }
+    }
+
+    ///Gets one(or more) instructions to operate with the given `statement`
     pub fn get_instruction(
         &mut self,
         statement: &HirStatement,
@@ -24,9 +55,53 @@ impl SlynxIR {
                 Ok(None)
             }
             HirStatementKind::Assign { lhs, value } => {
-                unimplemented!(
-                    "Como que implementa assing pra expressao meu deus? {lhs:?} = {value:?}"
-                )
+                let value_ptr = self.get_value_for(value, temp)?;
+
+                match &lhs.kind {
+                    HirExpressionKind::Identifier(id) => {
+                        let value_slot = temp
+                            .get_variable(*id)
+                            .expect("Variable not found for assignment");
+                        let slot = match self.get_value(value_slot) {
+                            Value::Slot(slot) => slot,
+                            other => panic!("Expected Slot value for variable, got {:?}", other),
+                        };
+                        self.write(slot, value_ptr, temp);
+                    }
+                    HirExpressionKind::FieldAccess {
+                        expr: parent,
+                        field_index,
+                    } => {
+                        let parent_value = self.get_value_for(parent, temp)?;
+                        let parent_ty = self.get_type_of_value(parent_value.clone(), temp);
+
+                        // SetField: create a new struct with the field modified
+                        self.insert_value(self.get_value(parent_value));
+                        self.insert_value(self.get_value(value_ptr));
+                        let setfield_ptr = IRPointer::<Value, 2>::new(self.values.len() - 2, 2);
+                        let setfield_instr = self.insert_instruction(
+                            temp.current_label(),
+                            Instruction::setfield(*field_index, setfield_ptr, parent_ty),
+                        );
+
+                        // If the parent was an Identifier (variable slot), write back
+                        if let HirExpressionKind::Identifier(id) = &parent.kind {
+                            let value_slot = temp
+                                .get_variable(*id)
+                                .expect("Variable not found for field write-back");
+                            let slot = match self.get_value(value_slot) {
+                                Value::Slot(slot) => slot,
+                                other => {
+                                    panic!("Expected Slot value for variable, got {:?}", other)
+                                }
+                            };
+                            let new_value = self.insert_value(Value::Instruction(setfield_instr));
+                            self.write(slot, new_value, temp);
+                        }
+                    }
+                    _ => unreachable!("LHS of assignment must be Identifier or FieldAccess"),
+                }
+                Ok(None)
             }
 
             HirStatementKind::Expression { expr } => {

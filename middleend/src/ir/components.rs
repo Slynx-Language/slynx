@@ -6,11 +6,22 @@ impl SlynxIR {
     pub fn initialize_component(
         &mut self,
         comp: IRPointer<Component, 1>,
-        _props: &[ComponentMemberDeclaration],
+        props: &[ComponentMemberDeclaration],
         _temp: &mut TempIRData,
     ) -> Result<(), IRError> {
-        let _component = self.get_component(comp);
-
+        //let component = self.get_component_mut(comp);
+        for prop in props {
+            match prop {
+                ComponentMemberDeclaration::Property {
+                    id,
+                    index,
+                    value,
+                    span,
+                } => {}
+                ComponentMemberDeclaration::Child { name, values, span } => {}
+                ComponentMemberDeclaration::Specialized(_) => {}
+            }
+        }
         Ok(())
     }
 }

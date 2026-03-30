@@ -76,6 +76,17 @@ impl TempIRData {
             .expect("For some reason the provided Function Id is not declared")
     }
     #[inline]
+    ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)
+    pub fn get_component_mut(
+        &mut self,
+        fid: frontend::hir::DeclarationId,
+    ) -> IRPointer<Component, 1> {
+        self.components
+            .get_mut(&fid)
+            .cloned()
+            .expect("For some reason the provided Function Id is not declared")
+    }
+    #[inline]
     ///Gets the IR type for the provided `ty`(hir type)
     pub fn get_type(&self, ty: TypeId) -> Result<IRTypeId, IRError> {
         if let Some(ty) = self.types_mapping.get(&ty) {
