@@ -23,6 +23,7 @@ Relevant project docs:
 - [GOVERNANCE.md](GOVERNANCE.md)
 - [RELEASING.md](RELEASING.md)
 - [middleend/README.md](middleend/README.md)
+- [docs/issue-reporting.md](docs/issue-reporting.md)
 
 ## Local Setup
 
@@ -74,6 +75,8 @@ Please open a GitHub issue with:
 - a small `.slynx` snippet when applicable
 
 The repository includes dedicated issue templates under [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE).
+
+If you are unsure how much detail to include, start with [docs/issue-reporting.md](docs/issue-reporting.md).
 
 ## Pull Request Expectations
 
