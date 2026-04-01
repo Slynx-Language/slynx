@@ -186,15 +186,27 @@ impl Lexer {
                     let mut buffer = String::new();
                     let start = idx;
                     let mut float_value = false;
-
+                    let mut last_is_underscore = false;
+                    let mut should_err = false;
                     while let Some(c) = chars.get(idx)
                         && (c.is_ascii_digit() || *c == '.' || *c == '_')
                     {
                         if *c == '.' {
                             float_value = true;
                         }
+                        if *c == '_' && last_is_underscore {
+                            should_err = true;
+                        }
+                        last_is_underscore = *c == '_';
                         buffer.push(*c);
                         idx += 1;
+                    }
+                    if should_err || buffer.ends_with("_") {
+                        return Err(LexerError::MalformedNumber {
+                            number: buffer,
+                            init: start,
+                            end: idx,
+                        });
                     }
                     idx -= 1;
                     let buffer = buffer.replace('_', "");
