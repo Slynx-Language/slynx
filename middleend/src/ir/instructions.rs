@@ -269,7 +269,11 @@ impl SlynxIR {
     ) -> IRPointer<Instruction, 1> {
         let values = self.insert_value(self.get_value(lhs));
         self.insert_value(self.get_value(rhs));
-        self.insert_instruction(label, Instruction::shr(ty, values.with_length()))
+        if self.types.is_negative_int(ty) {
+            self.insert_instruction(label, Instruction::ashr(ty, values.with_length()))
+        } else {
+            self.insert_instruction(label, Instruction::shr(ty, values.with_length()))
+        }
     }
     ///Less than the provided `lhs` and `rhs` as a binary on the provided `label`. Its idealized to be the current one
     pub fn get_shl_instruction(
