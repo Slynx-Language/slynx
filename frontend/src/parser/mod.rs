@@ -81,6 +81,10 @@ impl Parser {
         let mut out = Vec::new();
         while let Ok(token) = self.peek() {
             match &token.kind {
+                TokenKind::Alias => {
+                    let Token { span, .. } = self.eat()?;
+                    out.push(self.parse_alias(span)?);
+                }
                 TokenKind::Object => {
                     let Token { span, .. } = self.eat()?;
                     out.push(self.parse_object(span)?);
@@ -89,7 +93,6 @@ impl Parser {
                     let Token { span, .. } = self.eat()?;
                     out.push(self.parse_component(span)?)
                 }
-
                 TokenKind::Func => {
                     let Token {
                         kind: TokenKind::Func,
