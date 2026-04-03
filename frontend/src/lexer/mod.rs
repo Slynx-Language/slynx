@@ -57,6 +57,7 @@ impl Lexer {
                         Token::bitor(idx)
                     }
                 }
+                '^' => Token::xor(idx),
                 '.' => Token::dot(idx),
                 '(' => Token::lparen(idx),
                 ')' => Token::rparen(idx),
@@ -64,7 +65,10 @@ impl Lexer {
                 '}' => Token::rbrace(idx),
                 ';' => Token::semicolon(idx),
                 '<' => {
-                    if let Some('=') = chars.get(idx + 1) {
+                    if let Some('<') = chars.get(idx + 1) {
+                        idx += 1;
+                        Token::shl(idx)
+                    } else if let Some('=') = chars.get(idx + 1) {
                         idx += 1;
                         Token::lte(idx)
                     } else {
@@ -72,7 +76,10 @@ impl Lexer {
                     }
                 }
                 '>' => {
-                    if let Some('=') = chars.get(idx + 1) {
+                    if let Some('>') = chars.get(idx + 1) {
+                        idx += 1;
+                        Token::shr(idx)
+                    } else if let Some('=') = chars.get(idx + 1) {
                         idx += 1;
                         Token::gte(idx)
                     } else {

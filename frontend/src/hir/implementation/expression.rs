@@ -369,7 +369,15 @@ impl SlynxHir {
         };
         Ok(HirExpression {
             ty: match op {
-                Operator::Add | Operator::Sub | Operator::Star | Operator::Slash => lhs.ty,
+                Operator::Add
+                | Operator::Sub
+                | Operator::Star
+                | Operator::Slash
+                | Operator::RightShift
+                | Operator::LeftShift
+                | Operator::Xor
+                | Operator::And
+                | Operator::Or => lhs.ty,
                 Operator::Equals
                 | Operator::LogicAnd
                 | Operator::LogicOr

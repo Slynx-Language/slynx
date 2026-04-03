@@ -385,7 +385,7 @@ Saturing addition:
 * not: which follows `bnot value`, standds for Bit Not, executes the NOT operation on the provided `value` and returns a copy of it. The type of this operation is inferred by the type of `value`.
 * shl: which follows `shl ty, a,b` shifts to the left the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result.
 * shr: which follows `shr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the logical implementation. So if `ty` is negative(thus, bit 1 to tell so), it will not keep
-* ashr: which follows `ashr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the arithmetical implementation, so the negative bit keeps. This is the same as N / 2, for N of any int type
+* ashr: which follows `ashr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the arithmetical implementation, so the negative bit keeps. This is the same as N / 2, for N of any int type. 'A' on the start stands for 'Arithmetic'
 
 #### Logic Operations
 

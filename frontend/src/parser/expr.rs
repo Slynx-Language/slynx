@@ -304,9 +304,46 @@ impl Parser {
         Ok(lhs)
     }
 
+    ///Parses binary expressions, thus, anything that has a bit operator
+    pub fn parse_bitoperation(&mut self) -> Result<ASTExpression> {
+        let mut lhs = self.parse_additive()?;
+        while let Ok(curr) = self.peek()
+            && matches!(
+                curr.kind,
+                TokenKind::ShiftRight
+                    | TokenKind::ShiftLeft
+                    | TokenKind::BitAnd
+                    | TokenKind::BitOr
+                    | TokenKind::Xor
+            )
+        {
+            let op = match self.eat()?.kind {
+                TokenKind::ShiftRight => Operator::RightShift,
+                TokenKind::ShiftLeft => Operator::LeftShift,
+                TokenKind::BitAnd => Operator::And,
+                TokenKind::BitOr => Operator::Or,
+                TokenKind::Xor => Operator::Xor,
+                _ => unreachable!(),
+            };
+            let rhs = self.parse_bitoperation()?;
+            lhs = ASTExpression {
+                span: Span {
+                    start: lhs.span.start,
+                    end: rhs.span.end,
+                },
+                kind: ASTExpressionKind::Binary {
+                    lhs: Box::new(lhs),
+                    op,
+                    rhs: Box::new(rhs),
+                },
+            };
+        }
+        Ok(lhs)
+    }
+
     ///Parses comparison expressions, thus, anything whose value returned is a boolean
     pub fn parse_comparison(&mut self) -> Result<ASTExpression> {
-        let mut lhs = self.parse_additive()?;
+        let mut lhs = self.parse_bitoperation()?;
         while let Ok(curr) = self.peek()
             && matches!(
                 curr.kind,
@@ -321,7 +358,7 @@ impl Parser {
                 TokenKind::GtEq => Operator::GreaterThanOrEqual,
                 _ => unreachable!(),
             };
-            let rhs = self.parse_additive()?;
+            let rhs = self.parse_bitoperation()?;
             lhs = ASTExpression {
                 span: Span {
                     start: lhs.span.start,

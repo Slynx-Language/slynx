@@ -277,6 +277,70 @@ impl SlynxIR {
         self.insert_value(self.get_value(rhs));
         self.insert_instruction(label, Instruction::lte(ty, values.with_length()))
     }
+    ///Greater than the provided `lhs` and `rhs` as a binary on the provided `label`. Its idealized to be the current one
+    pub fn get_and_instruction(
+        &mut self,
+        lhs: IRPointer<Value, 1>,
+        rhs: IRPointer<Value, 1>,
+        ty: IRTypeId,
+        label: IRPointer<Label, 1>,
+    ) -> IRPointer<Instruction, 1> {
+        let values = self.insert_value(self.get_value(lhs));
+        self.insert_value(self.get_value(rhs));
+        self.insert_instruction(label, Instruction::and(ty, values.with_length()))
+    }
+    ///Greater than the provided `lhs` and `rhs` as a binary on the provided `label`. Its idealized to be the current one
+    pub fn get_or_instruction(
+        &mut self,
+        lhs: IRPointer<Value, 1>,
+        rhs: IRPointer<Value, 1>,
+        ty: IRTypeId,
+        label: IRPointer<Label, 1>,
+    ) -> IRPointer<Instruction, 1> {
+        let values = self.insert_value(self.get_value(lhs));
+        self.insert_value(self.get_value(rhs));
+        self.insert_instruction(label, Instruction::or(ty, values.with_length()))
+    }
+    ///Greater than the the provided `lhs` and `rhs` as a binary on the provided `label`. Its idealized to be the current one
+    pub fn get_shr_instruction(
+        &mut self,
+        lhs: IRPointer<Value, 1>,
+        rhs: IRPointer<Value, 1>,
+        ty: IRTypeId,
+        label: IRPointer<Label, 1>,
+    ) -> IRPointer<Instruction, 1> {
+        let values = self.insert_value(self.get_value(lhs));
+        self.insert_value(self.get_value(rhs));
+        if self.types.is_negative_int(ty) {
+            self.insert_instruction(label, Instruction::ashr(ty, values.with_length()))
+        } else {
+            self.insert_instruction(label, Instruction::shr(ty, values.with_length()))
+        }
+    }
+    ///Less than the provided `lhs` and `rhs` as a binary on the provided `label`. Its idealized to be the current one
+    pub fn get_shl_instruction(
+        &mut self,
+        lhs: IRPointer<Value, 1>,
+        rhs: IRPointer<Value, 1>,
+        ty: IRTypeId,
+        label: IRPointer<Label, 1>,
+    ) -> IRPointer<Instruction, 1> {
+        let values = self.insert_value(self.get_value(lhs));
+        self.insert_value(self.get_value(rhs));
+        self.insert_instruction(label, Instruction::shl(ty, values.with_length()))
+    }
+    ///Less than or equal the provided `lhs` and `rhs` as a binary on the provided `label`. Its idealized to be the current one
+    pub fn get_xor_instruction(
+        &mut self,
+        lhs: IRPointer<Value, 1>,
+        rhs: IRPointer<Value, 1>,
+        ty: IRTypeId,
+        label: IRPointer<Label, 1>,
+    ) -> IRPointer<Instruction, 1> {
+        let values = self.insert_value(self.get_value(lhs));
+        self.insert_value(self.get_value(rhs));
+        self.insert_instruction(label, Instruction::xor(ty, values.with_length()))
+    }
     pub fn handle_binary_expression(
         &mut self,
         lhs: &HirExpression,
@@ -290,6 +354,22 @@ impl SlynxIR {
         let _rty = self.get_type_of_value(rhs_value.clone(), temp);
 
         let bin_instruction = match op {
+            common::Operator::And => {
+                self.get_and_instruction(lhs_value, rhs_value, lty, temp.current_label())
+            }
+            common::Operator::Or => {
+                self.get_or_instruction(lhs_value, rhs_value, lty, temp.current_label())
+            }
+            common::Operator::RightShift => {
+                self.get_shr_instruction(lhs_value, rhs_value, lty, temp.current_label())
+            }
+            common::Operator::LeftShift => {
+                self.get_shl_instruction(lhs_value, rhs_value, lty, temp.current_label())
+            }
+            common::Operator::Xor => {
+                self.get_xor_instruction(lhs_value, rhs_value, lty, temp.current_label())
+            }
+
             common::Operator::Add => {
                 self.get_add_instruction(lhs_value, rhs_value, lty, temp.current_label())
             }

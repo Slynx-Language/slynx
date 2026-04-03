@@ -57,6 +57,18 @@ pub enum InstructionType {
     Lt,
     ///Variant used for binary lte. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Lte,
+    ///Variant used for binary AND. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    And,
+    ///Variant used for binary OR. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Or,
+    ///Variant used for binary RIGHT_SHIFT. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Shr,
+    ///Variant used for binary Arithmetic RIGHT_SHIFT. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    AShr,
+    ///Variant used for binary LEFT_SHIFT. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Shl,
+    ///Variant used for binary XOR. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    Xor,
     ///A branch operation that executes the code from the provided `branch`. If the branch's got arguments the `operands` of this instruction are used as the label args
     Br(IRPointer<Label, 1>),
     ///Conditional branch. Takes a boolean condition and two target labels with their arguments
@@ -130,6 +142,49 @@ impl Instruction {
         Self {
             operands: value.with_length(),
             instruction_type: InstructionType::Ret,
+            value_type: ty,
+        }
+    }
+    pub fn shr(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Shr,
+            value_type: ty,
+        }
+    }
+    pub fn ashr(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::AShr,
+            value_type: ty,
+        }
+    }
+    pub fn shl(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Shl,
+            value_type: ty,
+        }
+    }
+
+    pub fn xor(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::Xor,
+            value_type: ty,
+        }
+    }
+    pub fn and(ty: IRTypeId, values: IRPointer<Value, 2>) -> Instruction {
+        Self {
+            operands: values.with_length(),
+            instruction_type: InstructionType::And,
+            value_type: ty,
+        }
+    }
+    pub fn or(ty: IRTypeId, value: IRPointer<Value, 2>) -> Self {
+        Self {
+            operands: value.with_length(),
+            instruction_type: InstructionType::Or,
             value_type: ty,
         }
     }

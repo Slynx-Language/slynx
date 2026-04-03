@@ -44,6 +44,21 @@ impl IRTypes {
         }
     }
 
+    ///Checks if the provided `ty` is some variant of unsigned int
+    pub fn is_negative_int(&self, ty: IRTypeId) -> bool {
+        let index = self.usize_type().0;
+        if ty.0 == index {
+            let typ = self.types[ty.0];
+            typ == IRType::U8
+                || typ == IRType::U16
+                || typ == IRType::U32
+                || typ == IRType::U64
+                || typ == IRType::USIZE
+        } else {
+            false
+        }
+    }
+
     ///Retrieves the raw IR type from the provided `id`
     pub fn get_type(&self, id: IRTypeId) -> IRType {
         self.types[id.0]

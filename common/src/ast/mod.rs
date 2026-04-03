@@ -40,6 +40,11 @@ pub enum Operator {
     LessThanOrEqual,
     LogicAnd,
     LogicOr,
+    And,
+    Or,
+    RightShift,
+    LeftShift,
+    Xor,
 }
 
 #[derive(Debug)]

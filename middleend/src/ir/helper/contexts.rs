@@ -14,10 +14,9 @@ impl SlynxIR {
         &self.components[comp.ptr()]
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn get_component_mut(&mut self, comp: IRPointer<Component, 1>) -> &mut Component {
-        &mut self.components[comp.ptr()]
-    }
+    // pub(crate) fn get_component_mut(&mut self, comp: IRPointer<Component, 1>) -> &mut Component {
+    //     &mut self.components[comp.ptr()]
+    // }
 
     ///Returns the return type of the given context `ir`.
     pub fn return_type_of_context(&self, ir: IRPointer<Context, 1>) -> IRTypeId {
