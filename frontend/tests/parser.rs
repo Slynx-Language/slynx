@@ -30,7 +30,27 @@ fn function_body<'a>(declarations: &'a [ASTDeclaration], name: &str) -> &'a [AST
 
     body.as_slice()
 }
+#[test]
+fn parses_function_body_tuple() {
+    let declarations = parse_source(
+        r#"
+func main(): int {
+    let value = (1, (1,2,3));
+    value
+}
+"#,
+    );
 
+    let body = function_body(&declarations, "main");
+    assert_eq!(body.len(), 2);
+
+    let ASTStatementKind::Var { name, ty, rhs } = &body[0].kind else {
+        panic!("expected let statement");
+    };
+    assert_eq!(name, "value");
+    assert!(ty.is_none());
+    assert!(matches!(rhs.kind, ASTExpressionKind::Tuple(_)));
+}
 #[test]
 fn parses_function_body_statement_shapes() {
     let declarations = parse_source(

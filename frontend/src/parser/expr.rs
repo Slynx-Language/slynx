@@ -131,7 +131,31 @@ impl Parser {
             expr,
         })
     }
-
+    pub fn parse_tuple(&mut self) -> Result<ASTExpression> {
+        let start = self.expect(&TokenKind::LParen)?;
+        let mut itens = Vec::new();
+        let mut encontrei = false;
+        while self.peek()?.kind != TokenKind::RParen {
+            let value = self.parse_expression()?;
+            itens.push(value);
+            if self.peek()?.kind == TokenKind::Comma {
+                encontrei = true;
+                self.eat()?;
+            }
+        }
+        let end = self.expect(&TokenKind::RParen)?;
+        if !encontrei && itens.len() == 1 {
+            Ok(itens.remove(0))
+        } else {
+            Ok(ASTExpression {
+                kind: ASTExpressionKind::Tuple(itens),
+                span: Span {
+                    start: start.span.start,
+                    end: end.span.end,
+                },
+            })
+        }
+    }
     ///Parses an object expression, which follows the rule Object(field: expr, field: value)
     pub fn parse_object_expression(&mut self) -> Result<ASTExpression> {
         let name = self.parse_type()?;
@@ -232,8 +256,7 @@ impl Parser {
                     span: current.span,
                 }),
                 TokenKind::LParen => {
-                    let expr = self.parse_expression()?;
-                    self.expect(&TokenKind::RParen)?;
+                    let expr = self.parse_tuple()?;
                     Ok(expr)
                 }
 

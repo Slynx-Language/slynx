@@ -23,6 +23,11 @@ pub enum ASTExpressionKind {
     IntLiteral(i32),
     StringLiteral(String),
     FloatLiteral(f32),
+    Tuple(Vec<ASTExpression>),
+    TupleAccess {
+        tuple: Box<ASTExpression>,
+        index: usize,
+    },
     Boolean(bool),
     Binary {
         lhs: Box<ASTExpression>,

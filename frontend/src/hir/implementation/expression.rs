@@ -111,6 +111,13 @@ impl SlynxHir {
         ty: Option<TypeId>,
     ) -> Result<HirExpression> {
         match expr.kind {
+            ASTExpressionKind::Tuple(_vector) => {
+                todo!("sla2");
+            }
+            ASTExpressionKind::TupleAccess { .. } => {
+                todo!("sla");
+            }
+
             ASTExpressionKind::If {
                 condition,
                 body,
