@@ -7,6 +7,7 @@ use crate::hir::{
 };
 
 impl TypeChecker {
+    ///Sets the default value on the given `statement`
     pub(super) fn default_statement(
         &mut self,
         statement: &mut HirStatement,

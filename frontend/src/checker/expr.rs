@@ -73,6 +73,7 @@ impl TypeChecker {
         }
     }
 
+    ///Gets the signature of the provided `declaration` id expecting its a function type
     fn get_function_signature(
         &self,
         declaration: DeclarationId,
@@ -91,7 +92,7 @@ impl TypeChecker {
         };
 
         let resolved = self.types_module.get_type(&function_ty).clone();
-        let HirType::Function { args, return_type } = resolved.clone() else {
+        let HirType::Function { args, return_type } = resolved else {
             return Err(TypeError {
                 kind: TypeErrorKind::InvalidFunctionCallTarget {
                     declaration,
@@ -103,7 +104,7 @@ impl TypeChecker {
         };
         Ok((args, return_type))
     }
-
+    ///Asserts that `args` has same length as `expected_args`
     fn check_function_call_len(
         &self,
         args: &[HirExpression],
@@ -123,6 +124,7 @@ impl TypeChecker {
         Ok(())
     }
 
+    ///Resolves the provided `args` and expects the nth arg on `args` has the same type as the nth type on `expected`
     fn check_function_call_args(
         &mut self,
         args: &mut [HirExpression],
@@ -140,6 +142,7 @@ impl TypeChecker {
         Ok(())
     }
 
+    ///Defaults the provided `args` and expects the nth arg on `args` has the same type as the nth type on `expected`
     fn default_function_call_args(
         &mut self,
         args: &mut [HirExpression],
@@ -157,6 +160,7 @@ impl TypeChecker {
         Ok(())
     }
 
+    ///Tries to resolve a specialized component expression. Since specialized components are typed, no `default` might be provided.
     pub(super) fn resolve_specialized(&mut self, spec: &mut SpecializedComponent) -> Result<()> {
         match spec {
             SpecializedComponent::Text { text } => {
@@ -184,6 +188,7 @@ impl TypeChecker {
         Ok(())
     }
 
+    ///Tries to resolve the types of the provided `statments`. If not possible, it keeps the type as infer and on the next phase it will be replaced with the default fallback
     pub(super) fn resolve_statments(
         &mut self,
         statments: &mut Vec<HirStatement>,
@@ -243,6 +248,7 @@ impl TypeChecker {
         Ok(())
     }
 
+    ///Resolved the provided `fields` asserting that `ty` is a type for a struct, and the types of `fields` match the type expected by the fields of the given struct type.
     pub(super) fn resolve_object_types(
         &mut self,
         ty: &HirType,
@@ -367,6 +373,7 @@ impl TypeChecker {
         Ok(expr.ty)
     }
 
+    ///Sets the default type on the provided `expr`
     pub(super) fn default_expr(&mut self, expr: &mut HirExpression) -> Result<()> {
         match expr.kind {
             HirExpressionKind::If {

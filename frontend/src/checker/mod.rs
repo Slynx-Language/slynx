@@ -16,10 +16,14 @@ use crate::hir::{
 };
 use common::ast::Span;
 #[derive(Debug)]
+///The type checker of slynx. Slynx has 2 phases of type checking by now. The first phase is to get information about the types on all the HIR
+///and try to type them properly. Thus, the HIR might come with infers, and the type checker tries to get rid of them with their actual type. This is made with all function
+///whose got `resolve` on their names. Since the idea is for them to try to resolve the types. The second part is that, after checking all the IR, if some code could not be infered,
+///then it starts setting the default values for every of them. This is made with functions named as `default`. So every infers are get rid because the default type is provided.
 pub struct TypeChecker {
     ///A an array of declaration types
     declarations: Vec<TypeId>,
-
+    ///The types module from the HIR to be mutated
     types_module: TypesModule,
     /// The type of everything that is expected to have some
     types: HashMap<TypeId, HirType>,
@@ -303,6 +307,7 @@ impl TypeChecker {
         }
     }
 
+    ///Sets the default types on the given `decl`. This replaces the infer types on everything on the given `decl` with the correct(or default) type
     fn set_default(&mut self, decl: &mut HirDeclaration) -> Result<()> {
         match decl.kind {
             HirDeclarationKind::Object => {}

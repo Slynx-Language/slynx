@@ -103,6 +103,7 @@ impl SlynxHir {
         }
     }
 
+    /// Resolves the provided `expr` trying to infer its type, if not able, keeps as infer, and on later phases fallsback to the default value.
     /// Ty only serves to tell the type of the expression if it's needed to infer and check if it doesnt correspond
     pub fn resolve_expr(
         &mut self,
@@ -345,6 +346,7 @@ impl SlynxHir {
             }
         }
     }
+    ///Resolves the binary operation with the provided `lhs` and `rhs`.
     pub fn resolve_binary(
         &mut self,
         lhs: ASTExpression,
