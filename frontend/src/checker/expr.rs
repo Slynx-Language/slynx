@@ -1,3 +1,5 @@
+use std::num::TryFromIntError;
+
 use color_eyre::eyre::Result;
 
 use super::TypeChecker;
@@ -276,8 +278,12 @@ impl TypeChecker {
         let expected = expr.ty;
 
         let calc = match expr.kind {
-            HirExpressionKind::Tuple(_) => {
-                todo!()
+            HirExpressionKind::Tuple(ref mut fields) => {
+                let field_types = fields
+                    .iter_mut()
+                    .map(|f| self.get_type_of_expr(f))
+                    .collect::<Result<Vec<_>>>()?;
+                self.types_module.add_tuple_type(field_types)
             }
             HirExpressionKind::If {
                 ref mut condition,
@@ -379,8 +385,16 @@ impl TypeChecker {
     ///Sets the default type on the provided `expr`
     pub(super) fn default_expr(&mut self, expr: &mut HirExpression) -> Result<()> {
         match expr.kind {
-            HirExpressionKind::Tuple(_) => {
-                todo!()
+            HirExpressionKind::Tuple(ref mut fields) => {
+                let types = fields
+                    .iter_mut()
+                    .map(|f| {
+                        self.default_expr(f)?;
+                        Ok(f.ty)
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let tuple_ty = self.types_module.add_tuple_type(types);
+                expr.ty = self.unify(&tuple_ty, &expr.ty, &expr.span)?;
             }
             HirExpressionKind::If {
                 ref mut condition,

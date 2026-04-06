@@ -232,6 +232,27 @@ impl TypeChecker {
                             Ok(*a)
                         }
                     }
+                    (HirType::Tuple { fields: f1 }, HirType::Tuple { fields: f2 }) => {
+                        if f1.len() != f2.len() {
+                            Err(TypeError {
+                                kind: TypeErrorKind::IncompatibleTypes {
+                                    expected: concrete_a,
+                                    received: concrete_b,
+                                },
+                                span: span.clone(),
+                            }
+                            .into())
+                        } else {
+                            let mut new_fields = Vec::with_capacity(f1.len());
+
+                            for (t1, t2) in f1.iter().zip(f2.iter()) {
+                                let unified = self.unify(t1, t2, span)?;
+                                new_fields.push(unified);
+                            }
+
+                            Ok(self.types_module.add_tuple_type(new_fields))
+                        }
+                    }
                     (HirType::VarReference(rf1), HirType::VarReference(rf2)) => {
                         let Some(rf1) = self.types_module.get_variable(rf1).cloned() else {
                             unreachable!("Variable should have already been declared")
