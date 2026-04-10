@@ -30,17 +30,10 @@ impl Monomorphizer {
     /// to another reference) it resolves it to make the reference point to the concrete type. This only caches it for later mutability
     pub fn resolve_reference(&mut self, id: TypeId, types_module: &TypesModule) {
         let mut current = id;
-        while let HirType::Reference { rf, .. } = types_module.get_type(&current) {
-            // olha o próximo tipo
-            match types_module.get_type(rf) {
-                HirType::Reference { .. } => {
-                    current = *rf; // ainda é referência, continua
-                }
-                _ => {
-                    // próximo NÃO é referência → paramos aqui
-                    break;
-                }
-            }
+        while let HirType::Reference { rf, .. } = types_module.get_type(&current)
+            && let HirType::Reference { .. } = types_module.get_type(rf)
+        {
+            current = *rf;
         }
         if current != id {
             self.reference_cache.insert(id, current);
