@@ -6,13 +6,16 @@ use std::{
 
 use color_eyre::{Report, eyre::Result, owo_colors::OwoColorize};
 
-use frontend::checker::{TypeChecker, error::TypeError};
 use frontend::hir::{
     SlynxHir, VariableId, declarations::DeclarationsModule, error::HIRError,
     symbols::SymbolPointer, types::TypesModule,
 };
 use frontend::lexer::{Lexer, error::LexerError};
 use frontend::parser::{Parser, error::ParseError};
+use frontend::{
+    checker::{TypeChecker, error::TypeError},
+    monomorphizer::Monomorphizer,
+};
 use middleend::{IRError, SlynxIR};
 
 #[derive(Debug)]
@@ -309,7 +312,7 @@ impl SlynxContext {
                 None => return Err(e),
             }
         }
-        let types_module = match TypeChecker::check(&mut hir) {
+        let mut types_module = match TypeChecker::check(&mut hir) {
             Err(e) => match e.downcast_ref::<TypeError>() {
                 Some(err) => {
                     let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
@@ -327,6 +330,7 @@ impl SlynxContext {
             },
             Ok(module) => module,
         };
+        Monomorphizer::resolve(&mut hir, &mut types_module);
         let variable_names = hir.variable_names().clone();
         let mut ir = SlynxIR::new(hir.symbols_module);
 
