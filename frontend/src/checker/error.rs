@@ -1,17 +1,33 @@
+//! Type checking errors for the Slynx type checker.
+//!
+//! This module defines the error types used during type checking, including
+//! type mismatch errors, cyclic type errors, and component-related errors.
+
 use crate::hir::{DeclarationId, VariableId, types::HirType};
 use common::ast::Span;
 
+/// Represents the reason for an incompatible component error.
+///
+/// This enum is used to specify the specific reason why two components are
+/// incompatible, such as having a different number of properties.
 #[derive(Debug)]
 pub enum IncompatibleComponentReason {
     DifferentPropAmount { rhs: usize, lhs: usize },
 }
 
+/// Represents a type error that occurred during type checking.
+///
+/// This struct holds the type error kind and the span where the error occurred.
 #[derive(Debug)]
 pub struct TypeError {
     pub kind: TypeErrorKind,
     pub span: Span,
 }
 
+/// Represents the kind of type error that occurred.
+///
+/// This enum is used to specify the specific type error that occurred, such as
+/// a type mismatch or a cyclic type reference.
 #[derive(Debug)]
 pub enum TypeErrorKind {
     CannotCastType {
@@ -45,6 +61,10 @@ pub enum TypeErrorKind {
 }
 
 impl std::fmt::Display for TypeError {
+    /// Formats the type error as a string.
+    ///
+    /// This implementation uses the error kind to generate a human-readable error
+    /// message, including the expected and received types for type mismatch errors.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let out = match &self.kind {
             TypeErrorKind::CannotCastType { expected, received } => {
