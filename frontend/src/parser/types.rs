@@ -93,8 +93,6 @@ impl Parser {
                 },
             });
         }
-
-        // resto original inalterado
         let Token {
             kind: TokenKind::Identifier(ident),
             mut span,
