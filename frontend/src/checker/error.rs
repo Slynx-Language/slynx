@@ -40,6 +40,7 @@ pub enum TypeErrorKind {
         expected: HirType,
     },
     NotARef(VariableId, HirType),
+    NotAStruct(HirType),
     Unrecognized,
 }
 
@@ -76,6 +77,9 @@ impl std::fmt::Display for TypeError {
             TypeErrorKind::NotARef(v, ty) => format!(
                 "Variable with id {v:?} has got type {ty:?} instead was expecting to be an object"
             ),
+            TypeErrorKind::NotAStruct(t) => {
+                format!("Using type {t:?} as a Struct, even though it isn't")
+            }
             TypeErrorKind::Unrecognized => {
                 "Type checker could not resolve the requested symbol/type".to_string()
             }

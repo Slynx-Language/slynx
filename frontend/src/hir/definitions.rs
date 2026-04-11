@@ -33,6 +33,7 @@ pub enum HirDeclarationKind {
     ComponentDeclaration {
         props: Vec<ComponentMemberDeclaration>,
     },
+    Alias,
 }
 
 #[derive(Debug)]

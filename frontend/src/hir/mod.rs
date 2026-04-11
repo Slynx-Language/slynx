@@ -172,6 +172,12 @@ impl SlynxHir {
     /// Hoist the provided `ast` declaration, so no errors of undefined values because declared later may occur
     fn hoist(&mut self, ast: &ASTDeclaration) -> Result<()> {
         match &ast.kind {
+            ASTDeclarationKind::Alias { name, target } => {
+                self.symbols_module.intern(&target.identifier);
+                let symbol = self.symbols_module.intern(&name.identifier);
+                let ty = self.types_module.insert_type(symbol, HirType::Int);
+                self.declarations_module.create_declaration(symbol, ty);
+            }
             ASTDeclarationKind::ObjectDeclaration { name, fields } => {
                 self.hoist_object(name, fields)?
             }
@@ -311,6 +317,40 @@ impl SlynxHir {
                     span: ast.span,
                 });
                 self.scope_module.exit_scope();
+            }
+            ASTDeclarationKind::Alias { name, target } => {
+                let target_ty = self.get_typeid_of_name(&target.identifier, &target.span)?;
+
+                let alias_name = self.symbols_module.intern(&name.identifier);
+                let Some(alias_ty) = self.types_module.get_type_from_name_mut(&alias_name) else {
+                    return Err(HIRError {
+                        kind: HIRErrorKind::NameNotRecognized(name.identifier),
+                        span: name.span,
+                    }
+                    .into());
+                };
+                *alias_ty = HirType::Reference {
+                    rf: target_ty,
+                    generics: Vec::new(),
+                };
+                let (decl, ty) = if let Some(data) = self
+                    .declarations_module
+                    .retrieve_declaration_data_by_name(&alias_name)
+                {
+                    data
+                } else {
+                    return Err(HIRError {
+                        kind: HIRErrorKind::NameNotRecognized(name.identifier),
+                        span: name.span,
+                    }
+                    .into());
+                };
+                self.declarations.push(HirDeclaration {
+                    id: decl,
+                    kind: HirDeclarationKind::Alias,
+                    ty,
+                    span: ast.span,
+                });
             }
         }
         Ok(())

@@ -43,6 +43,7 @@ impl std::fmt::Display for TokenKind {
             Self::Func => "func".to_string(),
             Self::Pub => "pub".to_string(),
             Self::Prop => "prop".to_string(),
+            Self::Alias => "alias".to_string(),
             Self::Object => "object".to_string(),
             Self::Let => "let".to_string(),
             Self::Mut => "mut".to_string(),
@@ -122,6 +123,7 @@ pub enum TokenKind {
     Func,
     Pub,
     Prop,
+    Alias,
 
     Object,
 
