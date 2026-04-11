@@ -7,15 +7,13 @@ object Pessoa{
     age: int,
 }
 
-alias Person = Pessoa;
-
-func f(): Person {
+func f(): Pessoa {
     Pessoa(name: "Jorge", age: 3)
 }
 
 component Sla {}
 
-func main(): Person {
+func main(): Pessoa {
     let mut pessoa = Pessoa(
         name:"123", age: 123
     );

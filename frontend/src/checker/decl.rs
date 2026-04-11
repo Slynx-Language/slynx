@@ -40,7 +40,6 @@ impl TypeChecker {
                 }
                 *self.types_module.get_type_mut(&decl.ty) = HirType::Component { props: typrops };
             }
-            HirDeclarationKind::Alias => {}
         }
         Ok(())
     }

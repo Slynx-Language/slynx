@@ -289,10 +289,6 @@ impl Lexer {
                             kind: TokenKind::False,
                             span,
                         },
-                        "alias" => Token {
-                            kind: TokenKind::Alias,
-                            span,
-                        },
                         _ => Token::identifier(&buffer, start, idx),
                     }
                 }

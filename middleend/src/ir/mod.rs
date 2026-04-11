@@ -9,7 +9,7 @@ pub use model::*;
 use frontend::hir::{
     definitions::{HirDeclaration, HirDeclarationKind},
     symbols::SymbolsModule,
-    types::{HirType, TypesModule},
+    types::TypesModule,
 };
 
 use crate::{BUILTIN_TYPES, IRError, IRTypes};
@@ -67,6 +67,7 @@ impl SlynxIR {
             match &declaration.kind {
                 frontend::hir::definitions::HirDeclarationKind::Object => {
                     let out = self.types.create_empty_struct();
+
                     temp.define_type(declaration.ty, out);
                     debug_assert_eq!(
                         out.0 - BUILTIN_TYPES.len(),
@@ -85,7 +86,6 @@ impl SlynxIR {
                     temp.define_type(declaration.ty, fnc.ty);
                     temp.map_component(declaration.id, out);
                 }
-                HirDeclarationKind::Alias => {}
             }
         }
         for declaration in hir {
@@ -110,15 +110,6 @@ impl SlynxIR {
                     self.insert_component_fields_for(declaration.ty, &mut temp, tys)?;
                     let comp = temp.get_component(declaration.id);
                     self.initialize_component(comp, &props, &mut temp)?;
-                }
-                HirDeclarationKind::Alias => {
-                    let HirType::Reference { rf, .. } = tys.get_type(&declaration.ty) else {
-                        unreachable!("Declaration type of alias is always reference")
-                    };
-
-                    let t = temp.get_type(*rf)?;
-
-                    temp.define_type(declaration.ty, t);
                 }
             }
         }

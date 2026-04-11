@@ -13,18 +13,6 @@ use crate::hir::{
 };
 use common::ast::Span;
 impl TypeChecker {
-    pub fn get_struct_from_ref(&self, ty: &TypeId, span: &Span) -> Result<TypeId> {
-        match self.types_module.get_type(ty) {
-            HirType::Reference { rf, .. } => self.get_struct_from_ref(rf, span),
-            HirType::Struct { .. } => Ok(*ty),
-            v => Err(TypeError {
-                kind: TypeErrorKind::NotAStruct(v.clone()),
-                span: span.clone(),
-            }
-            .into()),
-        }
-    }
-
     /// Normalizes field access metadata so expressions and assignments resolve
     /// fields through the same checked path.
     fn resolve_field_access_type(
@@ -36,13 +24,13 @@ impl TypeChecker {
         let HirType::Field(field_method) = self.types_module.get_type(field_ty).clone() else {
             return self.resolve(field_ty, span);
         };
+
         match field_method {
             FieldMethod::Type(rf, index) => {
                 *field_index = index;
                 *field_ty = self
                     .types_module
                     .insert_unnamed_type(HirType::Field(FieldMethod::Type(rf, index)));
-                println!("{field_ty:?}");
                 self.resolve(field_ty, span)
             }
             FieldMethod::Variable(variable_id, field_name) => {
@@ -334,7 +322,6 @@ impl TypeChecker {
                 let (args, return_type) = self.get_function_signature(name, &expr.span)?;
                 self.check_function_call_len(f_args, &args, &expr.span)?;
                 self.check_function_call_args(f_args, &args)?;
-
                 return_type
             }
             HirExpressionKind::Int(_) => self.types_module.int_id(),

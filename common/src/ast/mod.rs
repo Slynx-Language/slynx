@@ -94,10 +94,6 @@ pub struct ObjectField {
 
 #[derive(Debug)]
 pub enum ASTDeclarationKind {
-    Alias {
-        name: GenericIdentifier,
-        target: GenericIdentifier,
-    },
     ObjectDeclaration {
         name: GenericIdentifier,
         fields: Vec<ObjectField>,

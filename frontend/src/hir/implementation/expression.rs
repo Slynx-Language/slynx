@@ -295,9 +295,13 @@ impl SlynxHir {
                 let parent = self.resolve_expr(*parent, None)?;
                 let HirExpression { ref ty, .. } = parent;
                 match self.types_module.get_type(ty) {
-                    HirType::Reference { rf, .. } => {
-                        if let Some(decl) = self.declarations_module.retrieve_object_body(*rf)
-                            && let Some(index) = decl.iter().position(|struct_field| {
+                    HirType::Reference { .. } => {
+                        if let Some(index) = self
+                            .declarations_module
+                            .retrieve_object_body(*ty)
+                            .expect("Object should have been defined")
+                            .iter()
+                            .position(|struct_field| {
                                 &self.symbols_module.intern(&field) == struct_field
                             })
                         {
@@ -305,25 +309,7 @@ impl SlynxHir {
                                 .types_module
                                 .insert_unnamed_type(HirType::Field(FieldMethod::Type(*ty, index)));
                             Ok(HirExpression {
-                                id: ExpressionId::new(),
-                                ty,
-                                kind: HirExpressionKind::FieldAccess {
-                                    expr: Box::new(parent),
-                                    field_index: index,
-                                },
-                                span: expr.span,
-                            })
-                        } else if let Some(decl) =
-                            self.declarations_module.retrieve_object_body(*ty)
-                            && let Some(index) = decl.iter().position(|struct_field| {
-                                &self.symbols_module.intern(&field) == struct_field
-                            })
-                        {
-                            let ty = self
-                                .types_module
-                                .insert_unnamed_type(HirType::Field(FieldMethod::Type(*ty, index)));
-                            Ok(HirExpression {
-                                id: ExpressionId::new(),
+                                id: ExpressionId::new(), // Changed to ExpressionId
                                 ty,
                                 kind: HirExpressionKind::FieldAccess {
                                     expr: Box::new(parent),
