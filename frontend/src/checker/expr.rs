@@ -1,3 +1,9 @@
+//! Type checking logic for expressions and statements.
+//!
+//! This module implements the core type-checking pass for the Slynx HIR.
+//! It handles the resolution of function bodies, component property
+//! initialization, and ensures type safety through unification.
+
 use color_eyre::eyre::Result;
 
 use super::TypeChecker;
@@ -13,6 +19,10 @@ use crate::hir::{
 };
 use common::ast::Span;
 impl TypeChecker {
+    /// Resolves the struct type from a reference type.
+    ///
+    /// This function recursively follows reference types until it finds a struct type.
+    /// If the type is not a struct, a `TypeError` is returned.
     pub fn get_struct_from_ref(&self, ty: &TypeId, span: &Span) -> Result<TypeId> {
         match self.types_module.get_type(ty) {
             HirType::Reference { rf, .. } => self.get_struct_from_ref(rf, span),
@@ -25,8 +35,10 @@ impl TypeChecker {
         }
     }
 
-    /// Normalizes field access metadata so expressions and assignments resolve
-    /// fields through the same checked path.
+    /// Resolves the type of a field access expression.
+    ///
+    /// This function resolves the type of a field access expression by following
+    /// the field method (type or variable) and updating the field index.
     fn resolve_field_access_type(
         &mut self,
         field_ty: &mut TypeId,
@@ -85,7 +97,11 @@ impl TypeChecker {
         }
     }
 
-    ///Gets the signature of the provided `declaration` id expecting its a function type
+    /// Gets the signature of the provided `declaration` id expecting its a function type.
+    ///
+    /// This function retrieves the function type from the declarations and returns
+    /// the argument types and return type. If the declaration is not a function,
+    /// a `TypeError` is returned.
     fn get_function_signature(
         &self,
         declaration: DeclarationId,
@@ -136,7 +152,10 @@ impl TypeChecker {
         Ok(())
     }
 
-    ///Resolves the provided `args` and expects the nth arg on `args` has the same type as the nth type on `expected`
+    /// Checks that `args` have the same types as `expected`.
+    ///
+    /// This function checks that each argument in `args` has a type that can be unified with
+    /// the corresponding type in `expected`. If a type mismatch occurs, a `TypeError` is returned.
     fn check_function_call_args(
         &mut self,
         args: &mut [HirExpression],
@@ -154,7 +173,10 @@ impl TypeChecker {
         Ok(())
     }
 
-    ///Defaults the provided `args` and expects the nth arg on `args` has the same type as the nth type on `expected`
+    /// Defaults the provided `args` to their expected types.
+    ///
+    /// This function defaults each argument in `args` to its expected type. If a type mismatch
+    /// occurs, a `TypeError` is returned.
     fn default_function_call_args(
         &mut self,
         args: &mut [HirExpression],
@@ -172,7 +194,11 @@ impl TypeChecker {
         Ok(())
     }
 
-    ///Tries to resolve a specialized component expression. Since specialized components are typed, no `default` might be provided.
+    /// Resolves the type of a specialized component expression.
+    ///
+    /// This function resolves the type of a specialized component expression by
+    /// updating the type of the expression and its children. If a type mismatch
+    /// occurs, a `TypeError` is returned.
     pub(super) fn resolve_specialized(&mut self, spec: &mut SpecializedComponent) -> Result<()> {
         match spec {
             SpecializedComponent::Text { text } => {
@@ -200,7 +226,11 @@ impl TypeChecker {
         Ok(())
     }
 
-    ///Tries to resolve the types of the provided `statments`. If not possible, it keeps the type as infer and on the next phase it will be replaced with the default fallback
+    /// Resolves the types of the provided `statments`.
+    ///
+    /// This function resolves the types of the provided `statments` by updating
+    /// the type of each statement and its children. If a type mismatch occurs,
+    /// a `TypeError` is returned.
     pub(super) fn resolve_statments(
         &mut self,
         statments: &mut Vec<HirStatement>,
@@ -260,7 +290,8 @@ impl TypeChecker {
         Ok(())
     }
 
-    ///Resolved the provided `fields` asserting that `ty` is a type for a struct, and the types of `fields` match the type expected by the fields of the given struct type.
+    /// Resolves the types of the provided `fields` asserting that `ty` is a type for a struct,
+    /// and the types of `fields` match the type expected by the fields of the given struct type.
     pub(super) fn resolve_object_types(
         &mut self,
         ty: &HirType,
@@ -275,6 +306,7 @@ impl TypeChecker {
         Ok(())
     }
 
+    /// Resolves the type of a reference expression, returning the type it references.
     pub fn get_type_from_ref(&self, ref_ty: TypeId) -> &HirType {
         if let HirType::Reference { rf, .. } = self.types_module.get_type(&ref_ty) {
             self.types_module.get_type(rf)
@@ -393,10 +425,14 @@ impl TypeChecker {
         Ok(expr.ty)
     }
 
-    ///Sets the default type on the provided `expr`
+    /// Sets the default type on the provided `expr`.
+    ///
+    /// This function sets the default type on the provided `expr` by recursively
+    /// defaulting each field in the tuple and collecting their types. The resulting
     pub(super) fn default_expr(&mut self, expr: &mut HirExpression) -> Result<()> {
         match expr.kind {
             HirExpressionKind::Tuple(ref mut fields) => {
+
                 let types = fields
                     .iter_mut()
                     .map(|f| {
