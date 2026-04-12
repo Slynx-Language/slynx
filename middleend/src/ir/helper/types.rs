@@ -4,7 +4,7 @@ use frontend::hir::{
 };
 
 use crate::{
-    Component, IRComponent, IRError, IRType, IRTypeId, Slot, SlynxIR,
+    Component, IRComponent, IRError, IRSpecializedComponent, IRType, IRTypeId, Slot, SlynxIR,
     ir::{
         model::{Context, IRPointer, Instruction, Operand, Value},
         temp::TempIRData,
@@ -59,6 +59,13 @@ impl SlynxIR {
         }
     }
 
+    pub fn specialized_type(&self, spec: IRPointer<IRSpecializedComponent, 1>) -> IRTypeId {
+        match self.get_specialized(spec) {
+            IRSpecializedComponent::Text(_) => self.types.specialized_text_type(),
+            IRSpecializedComponent::Div(_) => self.types.specialized_div_type(),
+        }
+    }
+
     pub fn get_type_of_value(&self, value: IRPointer<Value, 1>, temp: &TempIRData) -> IRTypeId {
         match &self.values[value.ptr()] {
             Value::FuncArg(idx) => self.arg_types_of_context(temp.current_function())[*idx],
@@ -66,6 +73,7 @@ impl SlynxIR {
             Value::Instruction(instr) => self.get_type_of_instruction(instr.clone(), temp),
             Value::LabelArg(_) => unimplemented!("Unimplemented type for label args"),
             Value::Slot(v) => self.get_slot_type(v.clone()),
+            Value::Specliazed(v) => self.specialized_type(v.clone()),
         }
     }
 
@@ -96,7 +104,7 @@ impl SlynxIR {
     }
     ///Creates a new blank component with no arguments. Returns its context handle
     pub fn create_blank_component(&mut self) -> IRPointer<Component, 1> {
-        let component = Component::new(self.types.create_empty_component());
+        let component = Component::new(self.types.create_empty_component(), IRPointer::null());
         let ptr = self.components.len();
         self.components.push(component);
         IRPointer::new(ptr, 0)

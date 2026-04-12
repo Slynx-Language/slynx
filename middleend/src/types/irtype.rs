@@ -21,6 +21,7 @@ pub enum IRType {
     VOID,
     GenericComponent,
     Tuple(IRTupleId),
+    Specialized(IRSpecializedComponentType),
     Component(IRComponentId),
     Struct(IRStructId),
     Function(IRFunctionId),

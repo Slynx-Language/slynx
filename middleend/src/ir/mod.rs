@@ -23,6 +23,7 @@ pub struct SlynxIR {
     contexts: Vec<Context>,
     ///The Components of this IR
     components: Vec<Component>,
+    specialized: Vec<IRSpecializedComponent>,
     ///The labels of this IR
     labels: Vec<Label>,
     ///The instructions of this IR
@@ -42,6 +43,7 @@ impl SlynxIR {
     pub fn new(symbols: SymbolsModule) -> Self {
         Self {
             components: Vec::new(),
+            specialized: Vec::new(),
             contexts: Vec::new(),
             labels: Vec::new(),
             instructions: Vec::new(),
@@ -106,10 +108,8 @@ impl SlynxIR {
                         &mut temp,
                     )?;
                 }
-                HirDeclarationKind::ComponentDeclaration { props } => {
-                    self.insert_component_fields_for(declaration.ty, &mut temp, tys)?;
-                    let comp = temp.get_component(declaration.id);
-                    self.initialize_component(comp, &props, &mut temp)?;
+                HirDeclarationKind::ComponentDeclaration { ref props } => {
+                    self.initialize_component(&declaration, tys, props, &mut temp)?;
                 }
                 HirDeclarationKind::Alias => {
                     let HirType::Reference { rf, .. } = tys.get_type(&declaration.ty) else {

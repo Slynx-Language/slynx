@@ -2,6 +2,12 @@ use smallvec::SmallVec;
 
 use crate::IRTypeId;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IRSpecializedComponentType {
+    Div,
+    Text,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct IRComponent {
     pub(crate) fields: SmallVec<[IRTypeId; 16]>,

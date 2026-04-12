@@ -13,8 +13,15 @@ pub struct Slot {
 }
 
 #[derive(Debug, Clone)]
+pub enum IRSpecializedComponent {
+    Text(IRPointer<Value, 1>),
+    Div(IRPointer<Value>),
+}
+
+#[derive(Debug, Clone)]
 ///A value inside the IR. Can be a function arg, a label arg or the result of a instruction
 pub enum Value {
+    Specliazed(IRPointer<IRSpecializedComponent, 1>),
     Raw(IRPointer<Operand, 1>),
     Instruction(IRPointer<Instruction, 1>),
     Slot(IRPointer<Slot, 1>),

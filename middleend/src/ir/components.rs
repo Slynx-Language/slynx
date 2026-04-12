@@ -1,39 +1,33 @@
 use frontend::hir::{
     TypeId,
-    definitions::ComponentMemberDeclaration,
+    definitions::{ComponentMemberDeclaration, HirDeclaration, SpecializedComponent},
     types::{HirType, TypesModule},
 };
 
 use crate::{
-    Component, IRError, IRPointer, IRType, Instruction, SlynxIR, Value, ir::temp::TempIRData,
+    IRError, IRPointer, IRSpecializedComponent, IRType, Instruction, SlynxIR, Value,
+    ir::temp::TempIRData,
 };
 
 impl SlynxIR {
-    /// Inserts the contents of the provided `decl` into an IR struct type asserting it's a slynx component. This is made because component can be lowered to the equivalent of a struct with methods, thus 'classes'.
-    /// The thing is that this is made interanlly with the minimum of abstraction as possible, so it becomes a struct and the components as well as methods are inserted directly into the struct as fields
-    pub(crate) fn insert_component_fields_for(
+    ///Gets a Specialized component on this ir by its provided `ptr`
+    pub fn get_specialized(
+        &self,
+        ptr: IRPointer<IRSpecializedComponent, 1>,
+    ) -> &IRSpecializedComponent {
+        &self.specialized[ptr.ptr()]
+    }
+    ///Inserts the given `specialized` component and returns its pointer(or, id)
+    pub fn insert_specialized(
         &mut self,
-        decl: TypeId,
-        temp: &mut TempIRData,
-        tys: &TypesModule,
-    ) -> Result<(), IRError> {
-        let component_type = self.get_ir_type(&decl, temp, tys)?;
-        let IRType::Component(cid) = self.types.get_type(component_type) else {
-            unreachable!("Something errored that type of component simply isnt Component on ir");
-        };
-
-        let Some(HirType::Component { props: ty_props }) = tys.get_component(&decl) else {
-            unreachable!("{:?} should map to an Component, but it doesn't", decl);
-        };
-
-        for (_, _, prop) in ty_props {
-            let ty = self.get_ir_type(prop, temp, tys)?;
-            let comp_ty = self.types.get_component_type_mut(cid);
-            comp_ty.insert_field(ty);
-        }
-        Ok(())
+        specialized: IRSpecializedComponent,
+    ) -> IRPointer<IRSpecializedComponent, 1> {
+        let ptr = IRPointer::new(self.specialized.len(), 1);
+        self.specialized.push(specialized);
+        ptr
     }
 
+    ///Gets a value to represent a component whose name(in this case, its type) is the given `name` and the values of it are `values`.
     pub fn get_component_expression(
         &mut self,
         name: TypeId,
@@ -68,25 +62,102 @@ impl SlynxIR {
         Ok(Value::Instruction(instruction))
     }
 
+    ///Initializes a component, with both its type, and expressions for children
     pub fn initialize_component(
         &mut self,
-        _: IRPointer<Component, 1>,
+        decl: &HirDeclaration,
+        tys: &TypesModule,
         props: &[ComponentMemberDeclaration],
         temp: &mut TempIRData,
     ) -> Result<(), IRError> {
-        //let component = self.get_component_mut(comp);
+        {
+            //initializes the type
+            let component_type = self.get_ir_type(&decl.ty, temp, tys)?;
+            let IRType::Component(cid) = self.types.get_type(component_type) else {
+                unreachable!(
+                    "Something errored that type of component simply isnt Component on ir"
+                );
+            };
+
+            let Some(HirType::Component { props: ty_props }) = tys.get_component(&decl.ty) else {
+                unreachable!("{:?} should map to an Component, but it doesn't", decl);
+            };
+
+            for (_, _, prop) in ty_props {
+                let ty = self.get_ir_type(prop, temp, tys)?;
+                let comp_ty = self.types.get_component_type_mut(cid);
+                comp_ty.insert_field(ty);
+            }
+        }
+
+        let mut ir_values = Vec::new();
         for prop in props {
             match prop {
-                ComponentMemberDeclaration::Property { .. } => {
-                    //already implemented on insert_component_fields
+                ComponentMemberDeclaration::Property { value: None, .. } => {}
+                ComponentMemberDeclaration::Property {
+                    value: Some(value),
+                    index,
+                    ..
+                } => {
+                    let value = self.get_value_for(value, temp)?;
+                    temp.get_component_mut(decl.id)
+                        .default_properties
+                        .push((value, *index as u8));
                 }
                 ComponentMemberDeclaration::Child { name, values, .. } => {
-                    let _component = self.get_component_mut(comp.clone());
-                    let _child = self.get_component_expression(*name, values, temp);
+                    let child = self.get_component_expression(*name, values, temp)?;
+                    ir_values.push(child);
                 }
-                ComponentMemberDeclaration::Specialized(_) => {}
+                ComponentMemberDeclaration::Specialized(a) => {
+                    let spec = self.get_specialized_component_value(a, temp)?;
+                    ir_values.push(spec);
+                }
             }
         }
         Ok(())
+    }
+
+    ///Gets a value for specialized components
+    pub fn get_specialized_component_value(
+        &mut self,
+        spec: &SpecializedComponent,
+        temp: &mut TempIRData,
+    ) -> Result<Value, IRError> {
+        let value = match spec {
+            SpecializedComponent::Text { text } => {
+                let v = self.get_value_for(text, temp)?;
+                let specialized = self.insert_specialized(IRSpecializedComponent::Text(v));
+                Value::Specliazed(specialized)
+            }
+            SpecializedComponent::Div { children } => {
+                let children = self.get_component_children(children, temp)?;
+                let children = self.insert_values(&children);
+                let specialized = self.insert_specialized(IRSpecializedComponent::Div(children));
+                Value::Specliazed(specialized)
+            }
+        };
+        Ok(value)
+    }
+
+    ///Gets the children values on the given `children` declarations. Note that this will ignore any property, if its got some
+    pub fn get_component_children(
+        &mut self,
+        children: &[ComponentMemberDeclaration],
+        temp: &mut TempIRData,
+    ) -> Result<Vec<Value>, IRError> {
+        let mut children_values = Vec::with_capacity(children.len());
+        for child in children {
+            match child {
+                ComponentMemberDeclaration::Property { .. } => {} //not handled
+                ComponentMemberDeclaration::Child { name, values, .. } => {
+                    let child = self.get_component_expression(*name, values, temp)?;
+                    children_values.push(child);
+                }
+                ComponentMemberDeclaration::Specialized(v) => {
+                    children_values.push(self.get_specialized_component_value(v, temp)?);
+                }
+            }
+        }
+        Ok(children_values)
     }
 }
