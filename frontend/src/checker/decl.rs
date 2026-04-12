@@ -1,8 +1,19 @@
-//! Type checking logic for declarations and components.
-//!
-//! This module implements the core type-checking pass for the Slynx HIR.
-//! It handles the resolution of function bodies, component property
-//! initialization, and ensures type safety through unification.
+/*!
+Type checking for top-level declarations.
+
+This module contains the logic to type-check HIR declarations:
+- Functions: type-check all statements in the function body.
+- Objects/Aliases: no-op at this stage (handled elsewhere).
+- Components: check property initializers and unify them with the declared
+  component prop types. We read the component type, perform unifications
+  locally and then write the updated component type back into the
+  `TypesModule` to avoid borrow conflicts.
+
+The implementation intentionally clones the component type's `props` before
+resolving expressions so we don't hold a long-lived borrow on the
+`TypesModule` while performing potentially mutating operations that also
+access the `TypesModule`.
+*/
 
 use color_eyre::eyre::Result;
 
@@ -13,99 +24,116 @@ use crate::hir::{
     definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
     types::HirType,
 };
+
 impl TypeChecker {
-    /// Checks a declaration and resolves its internal elements (statements or properties).
+    /// Type-check a single top-level declaration.
     ///
-    /// This function acts as the primary entry point for verifying different types of
-    /// HIR declarations:
-    ///
-    /// * **Functions**: Recursively validates all statements within the function body.
-    /// * **Components**: Resolves default properties and ensures that initial values
-    ///   are compatible with the declared property types.
+    /// For functions this resolves statements; for components it resolves
+    /// property initializers and updates the component type accordingly.
     pub(super) fn check_decl(&mut self, decl: &mut HirDeclaration) -> Result<()> {
-        match decl.kind {
-            HirDeclarationKind::Function {
-                ref mut statements, ..
-            } => {
+        match &mut decl.kind {
+            HirDeclarationKind::Function { statements, .. } => {
                 self.resolve_statments(statements, &decl.ty)?;
             }
-            HirDeclarationKind::Object => {}
 
-            HirDeclarationKind::ComponentDeclaration { ref mut props } => {
-                let HirType::Component { props: mut typrops } =
-                    self.types_module.get_type(&decl.ty).clone()
+            // Objects and aliases have no bodies to type-check at this pass.
+            HirDeclarationKind::Object => {}
+            HirDeclarationKind::Alias => {}
+
+            HirDeclarationKind::ComponentDeclaration { props } => {
+                let ty = self.types_module.get_type(&decl.ty).clone();
+                let HirType::Component {
+                    props: mut declared_props,
+                } = ty
                 else {
-                    unreachable!("Component declaration should have type component");
+                    unreachable!("Component declaration should have component HirType");
                 };
-                for prop in props {
-                    match prop {
+
+                for member in props.iter_mut() {
+                    match member {
                         ComponentMemberDeclaration::Property {
-                            index, value, span, ..
+                            index,
+                            value: maybe_expr,
+                            span,
+                            ..
                         } => {
-                            if let Some(value) = value {
-                                let index = *index;
-                                let ty = self.get_type_of_expr(value)?;
-                                typrops[index].2 = self.unify(&typrops[index].2, &ty, span)?;
+                            if let Some(expr) = maybe_expr {
+                                let expr_ty = self.get_type_of_expr(expr)?;
+
+                                declared_props[*index].2 =
+                                    self.unify(&declared_props[*index].2, &expr_ty, span)?;
                             }
                         }
-                        ComponentMemberDeclaration::Child { .. }
-                        | ComponentMemberDeclaration::Specialized(_) => {}
+
+                        ComponentMemberDeclaration::Child { .. } => {}
+
+                        ComponentMemberDeclaration::Specialized(spec) => {}
                     }
                 }
-                *self.types_module.get_type_mut(&decl.ty) = HirType::Component { props: typrops };
+
+                *self.types_module.get_type_mut(&decl.ty) = HirType::Component {
+                    props: declared_props,
+                };
             }
-            HirDeclarationKind::Alias => {}
         }
+
         Ok(())
     }
-    /// Recursively resolves component members, handling nesting and specializations.
+
+    /// Resolve and unify a list of component members against a target component type.
     ///
-    /// This method traverses a list of members (properties, children, and specializations)
-    /// binding them to a `target` (the Component's TypeId).
+    /// This function is used when checking component instances: it walks the provided
+    /// members (properties, children and specializations), resolves values and
+    /// unifies them against the `target` component's declared prop types.
     ///
-    /// # Arguments
-    /// * `values` - A mutable list of component members to be checked.
-    /// * `target` - The TypeId that serves as the context for resolution.
-    ///
-    /// # Returns
-    /// Returns the resolved `TypeId` of the component or an error if unification fails.
+    /// Returns the `target` TypeId on success.
     pub(super) fn resolve_component_members(
         &mut self,
         values: &mut Vec<ComponentMemberDeclaration>,
         target: TypeId,
     ) -> Result<TypeId> {
-        for value in values {
+        let target_ty = self.types_module.get_type(&target).clone();
+        let HirType::Component {
+            props: mut declared_props,
+        } = target_ty
+        else {
+            unreachable!("Expected component type when resolving component members");
+        };
+
+        for value in values.iter_mut() {
             match value {
                 ComponentMemberDeclaration::Specialized(spec) => {
                     self.resolve_specialized(spec)?;
                 }
+
                 ComponentMemberDeclaration::Property {
-                    index, value, span, ..
+                    index,
+                    value: maybe_expr,
+                    span,
+                    ..
                 } => {
-                    if let Some(value) = value {
-                        let ty = self.get_type_of_expr(value)?;
-                        let HirType::Component { props } =
-                            self.types_module.get_type(&target).clone()
-                        else {
-                            unreachable!(
-                                "The type received when resolving component values should be a component one"
-                            );
-                        };
-                        let ty = self.unify(&props[*index].2, &ty, span)?;
-                        let HirType::Component { props } = self.types_module.get_type_mut(&target)
-                        else {
-                            unreachable!(
-                                "The type received when resolving component values should be a component one"
-                            );
-                        };
-                        props[*index].2 = ty;
+                    if let Some(expr) = maybe_expr {
+                        let expr_ty = self.get_type_of_expr(expr)?;
+                        let unified = self.unify(&declared_props[*index].2, &expr_ty, span)?;
+
+                        declared_props[*index].2 = unified;
                     }
                 }
-                ComponentMemberDeclaration::Child { name, values, .. } => {
-                    self.resolve_component_members(values, *name)?;
+
+                ComponentMemberDeclaration::Child {
+                    name,
+                    values: child_values,
+                    ..
+                } => {
+                    self.resolve_component_members(child_values, *name)?;
                 }
             }
         }
+
+        *self.types_module.get_type_mut(&target) = HirType::Component {
+            props: declared_props,
+        };
+
         Ok(target)
     }
 }

@@ -432,7 +432,6 @@ impl TypeChecker {
     pub(super) fn default_expr(&mut self, expr: &mut HirExpression) -> Result<()> {
         match expr.kind {
             HirExpressionKind::Tuple(ref mut fields) => {
-
                 let types = fields
                     .iter_mut()
                     .map(|f| {
