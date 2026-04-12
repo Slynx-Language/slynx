@@ -1,0 +1,4 @@
+func main(): float {
+    let value = 0.;
+    value
+}
