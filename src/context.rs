@@ -353,7 +353,25 @@ impl SlynxContext {
             },
             Ok(module) => module,
         };
-        Monomorphizer::resolve(&mut hir, &mut types_module);
+        if let Err(e) = Monomorphizer::resolve(&hir, &mut types_module) {
+            match e.downcast_ref::<HIRError>() {
+                Some(err) => {
+                    let suggestion = suggestions_from_hir(err);
+                    let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
+                    let err = SlynxError {
+                        line,
+                        column_start: column,
+                        ty: SlynxErrorType::Hir,
+                        message: e.to_string(),
+                        suggestion,
+                        file: self.entry_point.to_string_lossy().to_string(),
+                        source_code: src.to_string(),
+                    };
+                    return Err(e.wrap_err(err));
+                }
+                None => return Err(e),
+            }
+        }
         let variable_names = hir.variable_names().clone();
         let mut ir = SlynxIR::new(hir.symbols_module);
 

@@ -9,7 +9,7 @@ use color_eyre::eyre::Result;
 use crate::checker::error::{IncompatibleComponentReason, TypeError, TypeErrorKind};
 
 use crate::hir::{
-    SlynxHir, TypeId, VariableId,
+    SlynxHir, TypeId,
     definitions::{HirDeclaration, HirDeclarationKind},
     symbols::SymbolPointer,
     types::{FieldMethod, HirType, TypesModule},
@@ -31,6 +31,43 @@ pub struct TypeChecker {
 }
 
 impl TypeChecker {
+    fn get_object_layout_type(&self, ty: &TypeId, span: &Span) -> Result<TypeId> {
+        let mut current = *ty;
+
+        loop {
+            match self.types_module.get_type(&current) {
+                HirType::Reference { rf, .. } => match self.types_module.get_type(rf) {
+                    HirType::Struct { .. } => return Ok(current),
+                    HirType::Reference { .. } => current = *rf,
+                    other => {
+                        return Err(TypeError {
+                            kind: TypeErrorKind::NotAStruct(other.clone()),
+                            span: span.clone(),
+                        }
+                        .into());
+                    }
+                },
+                HirType::VarReference(variable_id) => {
+                    current =
+                        self.types_module
+                            .get_variable(variable_id)
+                            .copied()
+                            .ok_or(TypeError {
+                                kind: TypeErrorKind::Unrecognized,
+                                span: span.clone(),
+                            })?;
+                }
+                other => {
+                    return Err(TypeError {
+                        kind: TypeErrorKind::NotAStruct(other.clone()),
+                        span: span.clone(),
+                    }
+                    .into());
+                }
+            }
+        }
+    }
+
     /// Checks the types of the provided `hir` and mutates them if needed. Any that could not be inferred but, yet is valid, is
     /// at the end, returned as it's default type. Returns the type module to be used on the next steps
     pub fn check(hir: &mut SlynxHir) -> Result<TypesModule> {
@@ -65,24 +102,6 @@ impl TypeChecker {
         self.types.insert(id, ty);
     }
 
-    /// Returns a reference to a struct based on the provided `id` which is expected to be the id of a VarReference type.
-    /// This returns a reference type to an object type.
-    fn retrieve_reference_of(&self, id: &VariableId, span: &Span) -> Result<HirType, TypeError> {
-        if let Some(v) = self.types_module.get_variable(id) {
-            let ty = self.types_module.get_type(v);
-            match ty {
-                HirType::Reference { .. } => Ok(ty.clone()),
-                HirType::VarReference(id) => self.retrieve_reference_of(id, span),
-                _ => Err(TypeError {
-                    kind: TypeErrorKind::NotARef(*id, ty.clone()),
-                    span: span.clone(),
-                }),
-            }
-        } else {
-            unreachable!("Type should have been determined");
-        }
-    }
-
     /// Resolves recursively the names of the types. If A -> B, B -> int; then we assume that A -> int
     fn resolve(&mut self, ty: &TypeId, span: &Span) -> Result<TypeId> {
         let referedty = self.types_module.get_type(ty).clone();
@@ -104,17 +123,15 @@ impl TypeChecker {
                 }
             }
             HirType::Field(FieldMethod::Variable(var_id, n)) => {
-                let HirType::Reference { rf, .. } = self.retrieve_reference_of(&var_id, span)?
-                else {
-                    unreachable!();
-                };
                 let object_ty = *self.types_module.get_variable(&var_id).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
                     span: span.clone(),
                 })?;
-
-                let concrete_type = self.types_module.get_type(&rf);
-                let s_fields = self.structs.get(&object_ty).ok_or(TypeError {
+                let layout_ty = self.get_object_layout_type(&object_ty, span)?;
+                let concrete_type = self
+                    .types_module
+                    .get_type(&self.get_struct_from_ref(&object_ty, span)?);
+                let s_fields = self.structs.get(&layout_ty).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
                     span: span.clone(),
                 })?;
@@ -640,5 +657,29 @@ mod tests {
             "expected IncompatibleTypes, got {:?}",
             type_error.kind
         );
+    }
+
+    #[test]
+    fn resolves_field_access_for_variables_typed_via_alias() {
+        let mut hir = load_hir_from_source(
+            r#"
+            object Person {
+                age: int,
+            }
+
+            alias PersonAlias = Person;
+
+            func make_person(): PersonAlias {
+                Person(age: 22)
+            }
+
+            func main(): int {
+                let person = make_person();
+                person.age
+            }
+            "#,
+        );
+
+        TypeChecker::check(&mut hir).expect("field access should resolve through aliases");
     }
 }
