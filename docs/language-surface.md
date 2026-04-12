@@ -3,9 +3,10 @@
 This document describes the language surface that is currently supported on the
 `main` branch of `Slynx-Language/slynx`.
 
-It is intentionally scoped to what the repository can already lex, parse, and
-type-check today. It should be safe to reuse this document on the landing page
-or docs site without marketing unfinished features as already available.
+It is intentionally scoped to what the repository can already lex, parse,
+lower into HIR, and type-check today. It should be safe to reuse this document
+on the landing page or docs site without marketing unfinished features as
+already available.
 
 ## Status
 
@@ -16,8 +17,9 @@ It does **not** try to document:
 - slot syntax as implemented code;
 - reactive graph lowering as implemented code;
 - generics as a finished language feature;
+- tuple access or tuple destructuring as implemented code;
 - a stable public CLI workflow;
-- a stable backend/output contract beyond the current `.sir` output.
+- a stable backend or IR contract beyond the current debug-style dumps.
 
 For design-only topics, see:
 
@@ -27,11 +29,12 @@ For design-only topics, see:
 
 ## Top-Level Declarations
 
-The current parser accepts three top-level declaration kinds:
+The current parser accepts four top-level declaration kinds:
 
 - `object`
 - `component`
 - `func`
+- `alias`
 
 Example:
 
@@ -40,6 +43,8 @@ object Person {
     name: str,
     age: int,
 }
+
+alias PersonRef = Person;
 
 component Profile {
     Text {
@@ -91,6 +96,7 @@ Inside function bodies, the current frontend supports:
 - immutable `let`;
 - mutable `let mut`;
 - assignment;
+- `while`;
 - expression statements.
 
 Example:
@@ -121,6 +127,80 @@ func main(): int {
 }
 ```
 
+### While
+
+`while` is now part of the grounded frontend surface on `main`.
+
+Example:
+
+```slynx
+func main(): void {
+    let mut x = 0;
+    while x < 10 {
+        x = x + 1;
+    }
+}
+```
+
+Notes:
+
+- the condition is type-checked as `bool`;
+- statements inside the body are also type-checked;
+- this document only claims the current frontend support, not a finalized
+  runtime/backend contract.
+
+## Types, Aliases, and Tuples
+
+The current surface includes built-in types such as `int`, `float`, `bool`,
+`str`, `void`, and `Component`, plus named object/component types declared in
+source.
+
+### Aliases
+
+Top-level aliases use `alias`:
+
+```slynx
+object Person {
+    age: int,
+}
+
+alias PersonAlias = Person;
+
+func main(): PersonAlias {
+    Person(age: 22)
+}
+```
+
+This is already part of the parser/HIR/checker pipeline on `main`.
+
+### Tuple Types
+
+Tuple types use parentheses:
+
+```slynx
+func pair(): (int, str) {
+    (1, "ok")
+}
+```
+
+The empty tuple type is also recognized as `()`.
+
+### Tuple Literals
+
+Tuple literals are currently parsed, lowered, and type-checked:
+
+```slynx
+func pair(): ((int, str), float) {
+    ((1, "jorge"), 1.0)
+}
+```
+
+Important limitation:
+
+- tuple access such as `value.0` is **not** implemented as finished behavior on
+  `main` yet;
+- tuple destructuring should also be treated as unfinished.
+
 ## Expressions
 
 The current surface includes:
@@ -131,6 +211,7 @@ The current surface includes:
 - boolean literals;
 - identifiers;
 - function calls;
+- tuple literals;
 - object expressions;
 - component expressions;
 - field access;
@@ -146,9 +227,12 @@ let s = "hello";
 let ok = true;
 ```
 
+Numeric separators are also accepted in numeric literals today, as long as the
+placement is valid for the lexer.
+
 ### Function Calls
 
-Function calls use parentheses and now accept zero or more arguments.
+Function calls use parentheses and accept zero or more arguments.
 
 ```slynx
 func ping(): int -> 0;
@@ -161,7 +245,8 @@ func main(): int {
 
 ### Binary Expressions
 
-The current parser supports arithmetic, comparison, and logical operators.
+The current parser supports arithmetic, comparison, logical, and bitwise binary
+operators.
 
 Examples already covered by the codebase include:
 
@@ -176,6 +261,11 @@ Examples already covered by the codebase include:
 - `<=`
 - `&&`
 - `||`
+- `&`
+- `|`
+- `^`
+- `<<`
+- `>>`
 
 Example:
 
@@ -290,12 +380,13 @@ func main(): int -> 0;
 These topics are still being discussed or implemented and should not be read as
 finished language surface:
 
-- `while` as a fully merged feature on `main`;
 - slot syntax as implemented code;
+- tuple access or tuple destructuring;
 - final child representation in the IR;
 - reactive graph lowering;
 - generic-specialized component lowering;
-- finalized backend semantics.
+- finalized backend semantics;
+- a polished CLI workflow for dump generation.
 
 ## Practical Reading
 
@@ -307,3 +398,5 @@ start here:
 - [slynx/functioncall.slynx](../slynx/functioncall.slynx)
 - [slynx/objects.slynx](../slynx/objects.slynx)
 - [slynx/If.slynx](../slynx/If.slynx)
+- [slynx/while.slynx](../slynx/while.slynx)
+- [slynx/tuplas.sly](../slynx/tuplas.sly)

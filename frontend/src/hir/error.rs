@@ -14,6 +14,16 @@ pub enum HIRErrorKind {
     TypeNotRecognized(String),
     NameNotRecognized(String),
     NameAlreadyDefined(String),
+    InvalidFieldAccessTarget {
+        ty: HirType,
+    },
+    InvalidTupleAccessTarget {
+        ty: HirType,
+    },
+    InvalidTupleIndex {
+        index: usize,
+        length: usize,
+    },
     InvalidBinaryExpression {
         lhs: Box<HirExpression>,
         rhs: Box<HirExpression>,
@@ -69,6 +79,17 @@ impl std::fmt::Display for HIRError {
             }
             HIRErrorKind::TypeNotRecognized(name) => {
                 format!("Type with name '{name}' is was not defined previously")
+            }
+            HIRErrorKind::InvalidFieldAccessTarget { ty } => {
+                format!("Type '{ty:?}' does not support field-style access")
+            }
+            HIRErrorKind::InvalidTupleAccessTarget { ty } => {
+                format!("Type '{ty:?}' does not support tuple-style access")
+            }
+            HIRErrorKind::InvalidTupleIndex { index, length } => {
+                format!(
+                    "Tuple index {index} is out of bounds. The tuple only exposes {length} fields"
+                )
             }
             HIRErrorKind::InvalidBinaryExpression { .. } => "Invalid binary expression".to_string(),
             HIRErrorKind::PropertyNotVisible { prop_name } => {

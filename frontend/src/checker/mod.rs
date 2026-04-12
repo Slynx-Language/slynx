@@ -86,6 +86,37 @@ impl TypeChecker {
         }
     }
 
+    fn resolve_tuple_index_type(
+        &mut self,
+        ty: &TypeId,
+        index: usize,
+        span: &Span,
+    ) -> Result<TypeId> {
+        // Tuple access stays explicit all the way to the checker so numeric
+        // postfixes never get confused with object field lookups.
+        let resolved_ty = self.resolve(ty, span)?;
+        let HirType::Tuple { fields } = self.types_module.get_type(&resolved_ty).clone() else {
+            return Err(TypeError {
+                kind: TypeErrorKind::InvalidTupleAccessTarget {
+                    received: self.types_module.get_type(&resolved_ty).clone(),
+                },
+                span: span.clone(),
+            }
+            .into());
+        };
+
+        fields.get(index).copied().ok_or(
+            TypeError {
+                kind: TypeErrorKind::InvalidTupleIndex {
+                    index,
+                    length: fields.len(),
+                },
+                span: span.clone(),
+            }
+            .into(),
+        )
+    }
+
     /// Checks the types of the provided `hir` and mutates them if needed. Any that could not be inferred but, yet is valid, is
     /// at the end, returned as it's default type. Returns the type module to be used on the next steps
     pub fn check(hir: &mut SlynxHir) -> Result<TypesModule> {
@@ -139,6 +170,9 @@ impl TypeChecker {
                     }
                     .into())
                 }
+            }
+            HirType::Field(FieldMethod::Tuple(rf, index)) => {
+                self.resolve_tuple_index_type(&rf, index, span)
             }
             HirType::Field(FieldMethod::Variable(var_id, n)) => {
                 let object_ty = *self.types_module.get_variable(&var_id).ok_or(TypeError {
@@ -699,5 +733,91 @@ mod tests {
         );
 
         TypeChecker::check(&mut hir).expect("field access should resolve through aliases");
+    }
+
+    #[test]
+    fn resolves_tuple_access_for_tuple_variables() {
+        let mut hir = load_hir_from_source(
+            r#"
+            func main(): int {
+                let pair = (10, 20);
+                pair.0
+            }
+            "#,
+        );
+
+        TypeChecker::check(&mut hir).expect("tuple access should resolve through the checker");
+    }
+
+    #[test]
+    fn resolves_named_field_access_after_tuple_access() {
+        let mut hir = load_hir_from_source(
+            r#"
+            object Person {
+                age: int,
+            }
+
+            func main(): int {
+                let pair = (Person(age: 22), "ok");
+                pair.0.age
+            }
+            "#,
+        );
+
+        TypeChecker::check(&mut hir)
+            .expect("named field access after tuple access should resolve cleanly");
+    }
+
+    #[test]
+    fn rejects_tuple_access_with_invalid_index() {
+        let mut hir = load_hir_from_source(
+            r#"
+            func main(): int {
+                let pair = (10, 20);
+                pair.2
+            }
+            "#,
+        );
+
+        let err =
+            TypeChecker::check(&mut hir).expect_err("tuple accesses should reject invalid indexes");
+        let type_error = err
+            .downcast_ref::<TypeError>()
+            .expect("error should come from type checker");
+
+        match &type_error.kind {
+            TypeErrorKind::InvalidTupleIndex { index, length } => {
+                assert_eq!(*index, 2);
+                assert_eq!(*length, 2);
+            }
+            other => panic!("expected InvalidTupleIndex, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_tuple_access_on_non_tuple_values() {
+        let mut hir = load_hir_from_source(
+            r#"
+            func main(): int {
+                let value = 10;
+                value.0
+            }
+            "#,
+        );
+
+        let err =
+            TypeChecker::check(&mut hir).expect_err("non-tuples should reject tuple-style access");
+        let type_error = err
+            .downcast_ref::<TypeError>()
+            .expect("error should come from type checker");
+
+        assert!(
+            matches!(
+                type_error.kind,
+                TypeErrorKind::InvalidTupleAccessTarget { .. }
+            ),
+            "expected InvalidTupleAccessTarget, got {:?}",
+            type_error.kind
+        );
     }
 }

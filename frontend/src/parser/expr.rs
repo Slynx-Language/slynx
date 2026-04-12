@@ -276,12 +276,21 @@ impl Parser {
                 )),
             }?
         };
-        if let TokenKind::Dot = self.peek()?.kind {
+
+        self.parse_postfix_chain(expr)
+    }
+
+    fn parse_postfix_chain(&mut self, mut expr: ASTExpression) -> Result<ASTExpression> {
+        // Keep postfix parsing iterative so tuple access and chained field access
+        // share the same code path.
+        while let Ok(token) = self.peek()
+            && token.kind == TokenKind::Dot
+        {
             self.eat()?;
-            self.parse_dot_postfix(expr)
-        } else {
-            Ok(expr)
+            expr = self.parse_dot_postfix(expr)?;
         }
+
+        Ok(expr)
     }
 
     /// Parses multiplicative expressions, which consist of primary expressions combined with multiplication '*' or division '/' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a primary expression, and then repeatedly checking for multiplicative operators and parsing the right-hand side (RHS) as another primary expression until no more multiplicative operators are found.
@@ -445,6 +454,18 @@ impl Parser {
                 kind: ASTExpressionKind::FieldAccess {
                     parent: Box::new(prefix),
                     field,
+                },
+            }),
+            TokenKind::Int(index) if index >= 0 => Ok(ASTExpression {
+                span: Span {
+                    start: prefix.span.start,
+                    end: current.span.end,
+                },
+                // Tuple access is represented explicitly in the AST so later
+                // phases can decide how to normalize it.
+                kind: ASTExpressionKind::TupleAccess {
+                    tuple: Box::new(prefix),
+                    index: index as usize,
                 },
             }),
             _ => Err(ParseError::UnexpectedToken(current, "A field access".to_string()).into()),

@@ -14,8 +14,8 @@ Slynx is still experimental and under active design.
 What is true on the current `main` branch:
 
 - the workspace is library-first; there is no official CLI binary target in `main` right now
-- the root crate can lex, parse, build HIR, run type checking, and lower source files into `IntermediateRepr`
-- the root library can write the current IR output to a sibling `.sir` file
+- the root crate can lex, parse, build HIR, run type checking, resolve the current alias surface, and lower source files into `SlynxIR`
+- the root library can write the default `.sir` output and can expose `.hir` / `.ir` dumps through `SlynxContext::build_stages()`
 - sample `.slynx` sources live under [`slynx/`](slynx)
 - the IR design is still evolving, and the design reference in [`middleend/README.md`](middleend/README.md) is broader than what `main` emits today
 
@@ -25,17 +25,18 @@ The repository is currently split into these crates:
 
 - [`common/`](common): shared AST types and common language data structures
 - [`frontend/`](frontend): lexer, parser, HIR generation, and type checking
-- [`middleend/`](middleend): `IntermediateRepr` and IR/lowering work
+- [`middleend/`](middleend): `SlynxIR` and IR/lowering work
 - [`src/`](src): root library glue (`SlynxContext`, compile helpers, error presentation)
 
 ## What Exists Today
 
 The current codebase already includes:
 
-- lexical analysis and parsing for core language constructs such as functions, objects, components, and basic control flow
+- lexical analysis and parsing for core language constructs such as functions, objects, components, aliases, tuple literals/types, and control flow such as `if` and `while`
 - HIR generation and name resolution
-- type checking and type inference for the current supported surface
-- lowering to the current `IntermediateRepr`
+- type checking, type inference, and monomorphization for the current supported alias surface
+- library entry points for compiling to IR or inspecting HIR/IR dumps before writing output
+- lowering to the current `SlynxIR`
 - CI, release, governance, and contribution documentation
 
 The current repository does **not** ship an official backend crate or an official CLI binary on `main`.
@@ -72,11 +73,41 @@ fn main() -> color_eyre::eyre::Result<()> {
 }
 ```
 
-If you want to write the current IR output to disk, use `slynx::compile_code(...)` or `SlynxContext::start_compilation(...)`. The output is written next to the input file with the `.sir` extension.
+If you want to inspect intermediate dumps before writing output, the root context also exposes stage building:
 
-## Example Source
+```rust
+use std::{path::PathBuf, sync::Arc};
 
-A small sample that matches the current repository syntax lives in [`slynx/component.slynx`](slynx/component.slynx):
+fn main() -> color_eyre::eyre::Result<()> {
+    let context = slynx::SlynxContext::new(Arc::new(PathBuf::from("slynx/booleans.slynx")))?;
+    let stages = context.build_stages()?;
+
+    println!("{}", stages.hir_text());
+    stages.write_hir()?;
+    stages.write_ir()?;
+
+    let output = stages.into_output();
+    output.write()?;
+    Ok(())
+}
+```
+
+Today:
+
+- `compile_code(...)` and `SlynxContext::start_compilation(...)` write the default sibling `.sir` file
+- `build_stages()` lets callers inspect or persist `.hir` and `.ir` dumps through the library API
+- there is still no polished CLI workflow for dump generation on `main`
+
+## Example Sources
+
+Real samples that match the current repository syntax live under [`slynx/`](slynx), for example:
+
+- [`slynx/component.slynx`](slynx/component.slynx): basic component construction
+- [`slynx/objects.slynx`](slynx/objects.slynx): object construction and field mutation
+- [`slynx/while.slynx`](slynx/while.slynx): `while` loops
+- [`slynx/functioncall.slynx`](slynx/functioncall.slynx): typed function calls
+
+One small component example:
 
 ```slynx
 

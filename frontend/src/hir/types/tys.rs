@@ -22,6 +22,9 @@ pub enum FieldMethod {
     ///This is the same of the `type` variant, but since the provided `id` is the id of some variable whose type may be a Reference to a type, or
     ///a reference to another variable that references a type, we must store the field being accessed and check it on the type checker
     Variable(VariableId, SymbolPointer),
+    ///Tuple accesses carry their numeric index from the parser so later phases
+    /// can validate bounds without confusing them with named object fields.
+    Tuple(TypeId, usize),
 }
 
 #[derive(Debug, Clone)]

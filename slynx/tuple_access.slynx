@@ -1,0 +1,8 @@
+object Person {
+    age: int,
+}
+
+func main(): int {
+    let pair = (Person(age: 22), "ok");
+    pair.0.age
+}

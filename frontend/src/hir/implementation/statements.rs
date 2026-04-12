@@ -12,6 +12,9 @@ impl SlynxHir {
             ASTExpressionKind::FieldAccess { parent, .. } => {
                 self.check_existance(parent)?;
             }
+            ASTExpressionKind::TupleAccess { tuple, .. } => {
+                self.check_existance(tuple)?;
+            }
             ASTExpressionKind::Identifier(name) => {
                 self.get_variable(name, &expr.span)?;
             }

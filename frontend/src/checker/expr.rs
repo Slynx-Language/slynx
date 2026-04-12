@@ -56,6 +56,13 @@ impl TypeChecker {
                     .insert_unnamed_type(HirType::Field(FieldMethod::Type(rf, index)));
                 self.resolve(field_ty, span)
             }
+            FieldMethod::Tuple(rf, index) => {
+                *field_index = index;
+                *field_ty = self
+                    .types_module
+                    .insert_unnamed_type(HirType::Field(FieldMethod::Tuple(rf, index)));
+                self.resolve(field_ty, span)
+            }
             FieldMethod::Variable(variable_id, field_name) => {
                 // Field accesses first enter the checker attached to the source
                 // variable name. Resolve that symbolic access once and rewrite it
@@ -302,6 +309,28 @@ impl TypeChecker {
                 HirStatementKind::Expression { expr } => {
                     expr.ty = self.get_type_of_expr(expr)?;
                 }
+                HirStatementKind::Assign { lhs, value } => {
+                    let refty = match self.types_module.get_type(&lhs.ty) {
+                        HirType::Field(FieldMethod::Type(_, _))
+                        | HirType::Field(FieldMethod::Tuple(_, _)) => lhs.ty,
+                        HirType::Field(FieldMethod::Variable(..)) => {
+                            let HirExpressionKind::FieldAccess {
+                                ref mut field_index,
+                                ..
+                            } = lhs.kind
+                            else {
+                                unreachable!();
+                            };
+                            let _ = self.resolve_field_access_type(
+                                &mut lhs.ty,
+                                field_index,
+                                &lhs.span,
+                            )?;
+                            lhs.ty
+                        }
+                        HirType::VarReference(_) => lhs.ty,
+                        _ => unreachable!(),
+                    };
 
                 HirStatementKind::Assign { lhs, value } => {
                     self.resolve_statement_assign(lhs, value, span)?

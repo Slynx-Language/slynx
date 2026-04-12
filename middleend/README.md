@@ -10,9 +10,10 @@ This file mixes current behavior and planned IR design.
 
 What is true today:
 
-- the current `main` branch lowers source into `IntermediateRepr`
-- the root crate currently writes `.sir` output using Rust debug-style serialization
+- the current `main` branch lowers source into `SlynxIR`
+- the root crate writes `.sir` output by default and can also expose `.hir` / `.ir` dumps through `SlynxContext::build_stages()`
 - not every construct documented below is emitted by the current codebase yet
+- the current textual dump format is still Rust debug-style output, not a stable versioned public contract
 - when this document and the code disagree about present behavior, treat the code as the source of truth and this file as the target shape the project is moving toward
 
 The long-term goal is an SSA-oriented, strongly typed IR that tells a downstream compiler what to do without forcing a single runtime strategy.
@@ -59,7 +60,9 @@ object S {
 }
 ```
 
-Tuples(WIP) use the same method, so a tuple in slynx denotated by
+Tuple literals and tuple types now exist in the frontend surface, but tuple-specific
+IR behavior is still being worked out. The intended representation uses the same
+method, so a tuple in slynx denotated by
 ```slynx
 object T(int,float);
 ```

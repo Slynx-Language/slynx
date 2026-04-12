@@ -103,6 +103,109 @@ impl SlynxHir {
         }
     }
 
+    fn resolve_tuple_access_type(&self, ty: TypeId, index: usize, span: &Span) -> Result<TypeId> {
+        // Follow the shape of the parent expression until we reach the concrete
+        // tuple type that owns the requested index.
+        let current_ty = self.types_module.get_type(&ty).clone();
+        match current_ty {
+            HirType::VarReference(variable_id) => {
+                let variable_ty = *self
+                    .types_module
+                    .get_variable(&variable_id)
+                    .expect("variable type should exist before tuple access lowering");
+                self.resolve_tuple_access_type(variable_ty, index, span)
+            }
+            HirType::Field(field_method) => {
+                let field_ty = self.resolve_field_method_type(&field_method, span)?;
+                self.resolve_tuple_access_type(field_ty, index, span)
+            }
+            HirType::Reference { rf, .. } => self.resolve_tuple_access_type(rf, index, span),
+            HirType::Tuple { fields } => fields.get(index).copied().ok_or(
+                HIRError {
+                    kind: HIRErrorKind::InvalidTupleIndex {
+                        index,
+                        length: fields.len(),
+                    },
+                    span: span.clone(),
+                }
+                .into(),
+            ),
+            other => Err(HIRError {
+                kind: HIRErrorKind::InvalidTupleAccessTarget { ty: other },
+                span: span.clone(),
+            }
+            .into()),
+        }
+    }
+
+    fn resolve_field_method_type(&self, field_method: &FieldMethod, span: &Span) -> Result<TypeId> {
+        match field_method {
+            FieldMethod::Type(rf, index) => {
+                let object_ref = self.resolve_object_reference_type(*rf, span)?;
+                let HirType::Struct { fields } = self.get_type_from_ref(object_ref).clone() else {
+                    unreachable!("object layouts should always resolve to structs");
+                };
+                Ok(fields[*index])
+            }
+            FieldMethod::Variable(variable_id, field_name) => {
+                let variable_ty = *self
+                    .types_module
+                    .get_variable(variable_id)
+                    .expect("variable type should exist before field access lowering");
+                let object_ref = self.resolve_object_reference_type(variable_ty, span)?;
+                let Some(layout) = self.declarations_module.retrieve_object_body(object_ref) else {
+                    unreachable!("object reference should carry a layout");
+                };
+                let HirType::Struct { fields } = self.get_type_from_ref(object_ref).clone() else {
+                    unreachable!("object layouts should always resolve to structs");
+                };
+                let Some(index) = layout.iter().position(|field| field == field_name) else {
+                    return Err(HIRError {
+                        kind: HIRErrorKind::PropertyNotRecognized {
+                            prop_names: vec![self.symbols_module[*field_name].to_string()],
+                        },
+                        span: span.clone(),
+                    }
+                    .into());
+                };
+                Ok(fields[index])
+            }
+            FieldMethod::Tuple(rf, index) => self.resolve_tuple_access_type(*rf, *index, span),
+        }
+    }
+
+    fn resolve_object_reference_type(&self, ty: TypeId, span: &Span) -> Result<TypeId> {
+        // Chained accesses can arrive here through variables, aliases, or
+        // previous field accesses, so normalize them into the object reference
+        // that actually owns the named layout.
+        let current_ty = self.types_module.get_type(&ty).clone();
+        match current_ty {
+            HirType::VarReference(variable_id) => {
+                let variable_ty = *self
+                    .types_module
+                    .get_variable(&variable_id)
+                    .expect("variable type should exist before field access lowering");
+                self.resolve_object_reference_type(variable_ty, span)
+            }
+            HirType::Field(field_method) => {
+                let field_ty = self.resolve_field_method_type(&field_method, span)?;
+                self.resolve_object_reference_type(field_ty, span)
+            }
+            HirType::Reference { rf, .. } => {
+                if self.declarations_module.retrieve_object_body(ty).is_some() {
+                    Ok(ty)
+                } else {
+                    self.resolve_object_reference_type(rf, span)
+                }
+            }
+            other => Err(HIRError {
+                kind: HIRErrorKind::InvalidFieldAccessTarget { ty: other },
+                span: span.clone(),
+            }
+            .into()),
+        }
+    }
+
     /// Resolves the provided `expr` trying to infer its type, if not able, keeps as infer, and on later phases fallsback to the default value.
     /// Ty only serves to tell the type of the expression if it's needed to infer and check if it doesnt correspond
     pub fn resolve_expr(
@@ -130,8 +233,23 @@ impl SlynxHir {
                     span: expr.span,
                 })
             }
-            ASTExpressionKind::TupleAccess { .. } => {
-                todo!("sla");
+            ASTExpressionKind::TupleAccess { tuple, index } => {
+                let tuple = self.resolve_expr(*tuple, None)?;
+                let tuple_field_ty = self.types_module.insert_unnamed_type(HirType::Field(
+                    // Keep tuple accesses distinct from object fields so later
+                    // phases can reject numeric access on non-tuples.
+                    FieldMethod::Tuple(tuple.ty, index),
+                ));
+
+                Ok(HirExpression {
+                    id: ExpressionId::new(),
+                    ty: tuple_field_ty,
+                    kind: HirExpressionKind::FieldAccess {
+                        expr: Box::new(tuple),
+                        field_index: index,
+                    },
+                    span: expr.span,
+                })
             }
 
             ASTExpressionKind::If {
@@ -378,7 +496,43 @@ impl SlynxHir {
                             span: expr.span,
                         })
                     }
-                    u => unreachable!("{u:?}"),
+                    HirType::Field(_) => {
+                        let object_ref = self.resolve_object_reference_type(*ty, &expr.span)?;
+                        let Some(layout) =
+                            self.declarations_module.retrieve_object_body(object_ref)
+                        else {
+                            unreachable!("object reference should carry a layout");
+                        };
+                        if let Some(index) = layout.iter().position(|struct_field| {
+                            &self.symbols_module.intern(&field) == struct_field
+                        }) {
+                            let field_ty = self.types_module.insert_unnamed_type(HirType::Field(
+                                FieldMethod::Type(object_ref, index),
+                            ));
+                            Ok(HirExpression {
+                                id: ExpressionId::new(),
+                                ty: field_ty,
+                                kind: HirExpressionKind::FieldAccess {
+                                    expr: Box::new(parent),
+                                    field_index: index,
+                                },
+                                span: expr.span,
+                            })
+                        } else {
+                            Err(HIRError {
+                                kind: HIRErrorKind::PropertyNotRecognized {
+                                    prop_names: vec![field],
+                                },
+                                span: expr.span,
+                            }
+                            .into())
+                        }
+                    }
+                    u => Err(HIRError {
+                        kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u.clone() },
+                        span: expr.span,
+                    }
+                    .into()),
                 }
             }
         }

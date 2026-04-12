@@ -51,6 +51,66 @@ func main(): int {
     assert!(ty.is_none());
     assert!(matches!(rhs.kind, ASTExpressionKind::Tuple(_)));
 }
+
+#[test]
+fn parses_tuple_access_from_tuple_literal() {
+    let declarations = parse_source(
+        r#"
+func main(): int {
+    let value = (1, 2).0;
+    value
+}
+"#,
+    );
+
+    let body = function_body(&declarations, "main");
+    assert_eq!(body.len(), 2);
+
+    let ASTStatementKind::Var { rhs, .. } = &body[0].kind else {
+        panic!("expected let statement");
+    };
+
+    let ASTExpressionKind::TupleAccess { tuple, index } = &rhs.kind else {
+        panic!("expected tuple access");
+    };
+
+    assert_eq!(*index, 0);
+    assert!(matches!(tuple.kind, ASTExpressionKind::Tuple(_)));
+}
+
+#[test]
+fn parses_chained_tuple_and_field_access() {
+    let declarations = parse_source(
+        r#"
+object Person {
+    age: int,
+}
+
+func main(): int {
+    let value = (Person(age: 22), "ok");
+    value.0.age
+}
+"#,
+    );
+
+    let body = function_body(&declarations, "main");
+    assert_eq!(body.len(), 2);
+
+    let ASTStatementKind::Expression(expr) = &body[1].kind else {
+        panic!("expected trailing expression");
+    };
+
+    let ASTExpressionKind::FieldAccess { parent, field } = &expr.kind else {
+        panic!("expected outer field access");
+    };
+    assert_eq!(field, "age");
+
+    let ASTExpressionKind::TupleAccess { tuple, index } = &parent.kind else {
+        panic!("expected tuple access before named field access");
+    };
+    assert_eq!(*index, 0);
+    assert!(matches!(&tuple.kind, ASTExpressionKind::Identifier(name) if name == "value"));
+}
 #[test]
 fn parses_function_body_statement_shapes() {
     let declarations = parse_source(

@@ -193,16 +193,64 @@ impl Lexer {
                     let mut buffer = String::new();
                     let start = idx;
                     let mut float_value = false;
-                    while let Some(c) = chars.get(idx)
-                        && (c.is_ascii_digit() || *c == '.')
-                    {
-                        if *c == '.' {
-                            float_value = true;
+                    let mut last_is_underscore = false;
+                    let mut last_is_dot = false;
+                    let mut should_err = false;
+                    while let Some(c) = chars.get(idx) {
+                        if c.is_ascii_digit() {
+                            last_is_dot = false;
+                            last_is_underscore = false;
+                            buffer.push(*c);
+                            idx += 1;
+                            continue;
                         }
-                        buffer.push(*c);
-                        idx += 1;
+
+                        if *c == '_' {
+                            if last_is_underscore || last_is_dot {
+                                should_err = true;
+                            }
+                            last_is_dot = false;
+                            last_is_underscore = true;
+                            buffer.push(*c);
+                            idx += 1;
+                            continue;
+                        }
+
+                        if *c == '.' {
+                            let next = chars.get(idx + 1);
+                            if !float_value && matches!(next, Some(next) if next.is_ascii_digit()) {
+                                // Only keep '.' inside a number when it actually starts
+                                // the fractional part of a float literal.
+                                float_value = true;
+                                if last_is_underscore {
+                                    should_err = true;
+                                }
+                                last_is_dot = true;
+                                last_is_underscore = false;
+                                buffer.push(*c);
+                                idx += 1;
+                                continue;
+                            }
+
+                            if matches!(next, Some('.') | Some('_')) {
+                                should_err = true;
+                                buffer.push(*c);
+                                idx += 1;
+                            }
+                            break;
+                        }
+
+                        break;
+                    }
+                    if should_err || buffer.ends_with('_') || buffer.ends_with('.') {
+                        return Err(LexerError::MalformedNumber {
+                            number: buffer,
+                            init: start,
+                            end: idx,
+                        });
                     }
                     idx -= 1;
+                    let buffer = buffer.replace('_', "");
                     if float_value {
                         match buffer.parse::<f32>() {
                             Ok(value) => Token::float(value, start, idx),
@@ -310,5 +358,50 @@ impl Lexer {
             stream: out,
             new_lines: lines,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Lexer, error::LexerError, tokens::TokenKind};
+
+    #[test]
+    fn lexes_tuple_access_index_as_a_standalone_integer() {
+        let tokens = Lexer::tokenize("pair.0.age")
+            .expect("tuple access should keep the numeric index separate from dots");
+        let kinds = tokens
+            .stream
+            .into_iter()
+            .map(|token| token.kind)
+            .collect::<Vec<_>>();
+
+        assert!(matches!(kinds[0], TokenKind::Identifier(ref name) if name == "pair"));
+        assert!(matches!(kinds[1], TokenKind::Dot));
+        assert!(matches!(kinds[2], TokenKind::Int(0)));
+        assert!(matches!(kinds[3], TokenKind::Dot));
+        assert!(matches!(kinds[4], TokenKind::Identifier(ref name) if name == "age"));
+    }
+
+    #[test]
+    fn rejects_double_dot_number_patterns() {
+        let err = Lexer::tokenize("4..0").expect_err("double-dot numerics should stay malformed");
+
+        assert!(
+            matches!(err, LexerError::MalformedNumber { .. }),
+            "expected malformed number, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_numeric_separators_adjacent_to_decimal_points() {
+        for source in ["1._0", "1_.0"] {
+            let err = Lexer::tokenize(source)
+                .expect_err("numeric separators next to decimal points should be malformed");
+
+            assert!(
+                matches!(err, LexerError::MalformedNumber { .. }),
+                "expected malformed number for {source}, got {err:?}"
+            );
+        }
     }
 }

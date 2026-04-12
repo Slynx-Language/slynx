@@ -44,6 +44,13 @@ pub enum TypeErrorKind {
         expected: HirType,
         received: HirType,
     },
+    InvalidTupleAccessTarget {
+        received: HirType,
+    },
+    InvalidTupleIndex {
+        index: usize,
+        length: usize,
+    },
     InvalidFuncallArgLength {
         expected_length: usize,
         received_length: usize,
@@ -79,6 +86,14 @@ impl std::fmt::Display for TypeError {
             TypeErrorKind::IncompatibleTypes { expected, received } => format!(
                 "Incompatible types. Was expecting to receive type '{expected:?}' instead got type '{received:?}'"
             ),
+            TypeErrorKind::InvalidTupleAccessTarget { received } => {
+                format!("Type '{received:?}' does not support tuple-style access")
+            }
+            TypeErrorKind::InvalidTupleIndex { index, length } => {
+                format!(
+                    "Tuple index {index} is out of bounds. The tuple only exposes {length} fields"
+                )
+            }
             TypeErrorKind::InvalidFuncallArgLength {
                 expected_length,
                 received_length,

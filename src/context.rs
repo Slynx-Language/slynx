@@ -63,6 +63,13 @@ pub struct CompilationOutput {
     ir: SlynxIR,
 }
 
+#[derive(Debug)]
+pub struct CompilationStages {
+    entry_point: PathBuf,
+    hir_dump: String,
+    ir: SlynxIR,
+}
+
 impl CompilationOutput {
     ///Creates a new compilation output with the provided `ir`. Writes the `ir` in its textual format on the provided `entry_point` with extension of `sir`
     fn new(entry_point: &Path, ir: SlynxIR) -> Self {
@@ -86,6 +93,42 @@ impl CompilationOutput {
     pub fn write(&self) -> Result<()> {
         std::fs::write(&self.output_path, format!("{:#?}", self.ir))?;
         Ok(())
+    }
+}
+
+impl CompilationStages {
+    fn new(entry_point: &Path, hir_dump: String, ir: SlynxIR) -> Self {
+        Self {
+            entry_point: entry_point.to_path_buf(),
+            hir_dump,
+            ir,
+        }
+    }
+
+    pub fn hir_text(&self) -> &str {
+        &self.hir_dump
+    }
+
+    pub fn ir_text(&self) -> String {
+        format!("{:#?}", self.ir)
+    }
+
+    pub fn dump_path(&self, extension: &str) -> PathBuf {
+        self.entry_point.with_extension(extension)
+    }
+
+    pub fn write_hir(&self) -> Result<()> {
+        std::fs::write(self.dump_path("hir"), self.hir_text())?;
+        Ok(())
+    }
+
+    pub fn write_ir(&self) -> Result<()> {
+        std::fs::write(self.dump_path("ir"), self.ir_text())?;
+        Ok(())
+    }
+
+    pub fn into_output(self) -> CompilationOutput {
+        CompilationOutput::new(&self.entry_point, self.ir)
     }
 }
 
@@ -260,8 +303,9 @@ impl SlynxContext {
         }
     }
 
-    ///Compiles the code from the current contexts and returns the compilation result including the IR
-    pub fn compile(self) -> Result<CompilationOutput> {
+    ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
+    ///before materializing the default `.sir` output.
+    pub fn build_stages(self) -> Result<CompilationStages> {
         let stream = match Lexer::tokenize(self.get_entry_point_source()) {
             Ok(value) => value,
             Err(e) => {
@@ -393,6 +437,7 @@ impl SlynxContext {
                 None => return Err(e),
             }
         }
+        let hir_dump = format_hir_dump(&hir, &types_module);
         let variable_names = hir.variable_names().clone();
         let mut ir = SlynxIR::new(hir.symbols_module);
 
@@ -407,8 +452,17 @@ impl SlynxContext {
                 )
                 .into());
         };
-        let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
-        Ok(output)
+        Ok(CompilationStages::new(
+            self.entry_point.as_ref(),
+            hir_dump,
+            ir,
+        ))
+    }
+
+    ///Compiles the code from the current contexts and returns the compilation result including the IR
+    pub fn compile(self) -> Result<CompilationOutput> {
+        let stages = self.build_stages()?;
+        Ok(stages.into_output())
     }
 
     pub fn start_compilation(self) -> Result<()> {
@@ -416,6 +470,16 @@ impl SlynxContext {
         output.write()?;
         Ok(())
     }
+}
+
+fn format_hir_dump(hir: &SlynxHir, types_module: &TypesModule) -> String {
+    format!(
+        "HIR Declarations:\n{:#?}\n\nDeclarations Module:\n{:#?}\n\nTypes Module:\n{:#?}\n\nVariable Names:\n{:#?}",
+        hir.declarations,
+        hir.declarations_module,
+        types_module,
+        hir.variable_names()
+    )
 }
 
 fn format_ir_generation_error(
