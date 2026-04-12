@@ -1,6 +1,6 @@
 use common::ast::Span;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
@@ -64,7 +64,7 @@ impl std::fmt::Display for TokenKind {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind {
     While,
     CommonComent,

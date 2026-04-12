@@ -1,5 +1,8 @@
 use super::Parser;
-use crate::lexer::tokens::{Token, TokenKind};
+use crate::{
+    lexer::tokens::{Token, TokenKind},
+    parser::error::ParseError,
+};
 use color_eyre::eyre::Result;
 use common::{ASTDeclaration, ASTDeclarationKind, Span, ast::GenericIdentifier};
 impl Parser {
@@ -47,6 +50,49 @@ impl Parser {
 
     ///Parses a type.
     pub fn parse_type(&mut self) -> Result<GenericIdentifier> {
+        let token = self.peek()?;
+        let start_span = token.span.clone();
+
+        if let TokenKind::LParen = &token.kind {
+            self.eat()?;
+            if let TokenKind::RParen = self.peek()?.kind {
+                let end_span = self.eat()?.span;
+                return Ok(GenericIdentifier {
+                    identifier: "()".to_string(),
+                    generic: None,
+                    span: Span {
+                        start: start_span.start,
+                        end: end_span.end,
+                    },
+                });
+            }
+            let mut types = Vec::new();
+            loop {
+                types.push(self.parse_type()?);
+                match self.peek()?.kind {
+                    TokenKind::Comma => {
+                        self.eat()?;
+                    }
+                    TokenKind::RParen => break,
+                    _ => {
+                        return Err(ParseError::UnexpectedToken(
+                            self.eat()?,
+                            "expected ',' or ')' in tuple type".into(),
+                        )
+                        .into());
+                    }
+                }
+            }
+            let end_span = self.eat()?.span;
+            return Ok(GenericIdentifier {
+                identifier: "tuple".to_string(),
+                generic: Some(types),
+                span: Span {
+                    start: start_span.start,
+                    end: end_span.end,
+                },
+            });
+        }
         let Token {
             kind: TokenKind::Identifier(ident),
             mut span,

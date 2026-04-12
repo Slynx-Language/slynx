@@ -84,32 +84,26 @@ pub struct TypesModule {
 }
 impl TypesModule {
     pub fn new(builtin_names: &[SymbolPointer; BUILTIN_TYPES_SIZE]) -> Self {
-        // Keep builtin ids deterministic and fail fast if array order drifts.
-        debug_assert_eq!(BUILTIN_TYPES_SIZE, BUILTIN_TYPES.len());
-        debug_assert!(matches!(BUILTIN_TYPES[INT_IDX], HirType::Int));
-        debug_assert!(matches!(BUILTIN_TYPES[FLOAT_IDX], HirType::Float));
-        debug_assert!(matches!(BUILTIN_TYPES[STR_IDX], HirType::Str));
-        debug_assert!(matches!(BUILTIN_TYPES[VOID_IDX], HirType::Void));
-        debug_assert!(matches!(BUILTIN_TYPES[INFER_IDX], HirType::Infer));
-        debug_assert!(matches!(
-            BUILTIN_TYPES[GENERIC_COMPONENT_IDX],
-            HirType::GenericComponent
-        ));
-        debug_assert!(matches!(BUILTIN_TYPES[BOOL_IDX], HirType::Bool));
-
-        let builtins = BuiltinTypes::new();
-        let mut out = Self {
-            name_of_types: HashMap::new(),
-            types: Vec::new(),
-            builtins,
-            type_names: HashMap::new(),
-            variables: HashMap::new(),
-        };
-        for (idx, name) in builtin_names.iter().enumerate() {
-            out.insert_type(*name, BUILTIN_TYPES[idx].clone());
+        let mut types = Vec::with_capacity(BUILTIN_TYPES_SIZE);
+        let mut type_names = HashMap::new();
+        let mut name_of_types = HashMap::new();
+        for ty in BUILTIN_TYPES.iter() {
+            types.push(ty.clone());
         }
-        out
+        for (idx, name_symbol) in builtin_names.iter().enumerate() {
+            let id = TypeId::from_raw(idx as u64);
+            type_names.insert(*name_symbol, id);
+            name_of_types.insert(id, *name_symbol);
+        }
+        Self {
+            type_names,
+            name_of_types,
+            variables: HashMap::new(),
+            types,
+            builtins: BuiltinTypes::new(),
+        }
     }
+
     pub fn add_tuple_type(&mut self, fields: Vec<TypeId>) -> TypeId {
         self.insert_unnamed_type(HirType::Tuple { fields })
     }

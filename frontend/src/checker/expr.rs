@@ -54,7 +54,6 @@ impl TypeChecker {
                 *field_ty = self
                     .types_module
                     .insert_unnamed_type(HirType::Field(FieldMethod::Type(rf, index)));
-                println!("{field_ty:?}");
                 self.resolve(field_ty, span)
             }
             FieldMethod::Variable(variable_id, field_name) => {
@@ -68,16 +67,11 @@ impl TypeChecker {
                         kind: TypeErrorKind::Unrecognized,
                         span: span.clone(),
                     })?;
-
-                let HirType::Reference { rf, .. } =
-                    self.retrieve_reference_of(&variable_id, span)?
-                else {
-                    unreachable!();
-                };
+                let layout_ty = self.get_object_layout_type(&object_ty, span)?;
 
                 let Some(index) = self
                     .structs
-                    .get(&object_ty)
+                    .get(&layout_ty)
                     .expect("Type should be defined")
                     .iter()
                     .position(|field| *field == field_name)
@@ -91,7 +85,7 @@ impl TypeChecker {
 
                 *field_index = index;
                 *self.types_module.get_type_mut(field_ty) =
-                    HirType::Field(FieldMethod::Type(rf, index));
+                    HirType::Field(FieldMethod::Type(object_ty, index));
                 self.resolve(field_ty, span)
             }
         }

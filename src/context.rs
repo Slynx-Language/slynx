@@ -165,6 +165,25 @@ impl SlynxContext {
         Ok(())
     }
 
+    fn char_index_to_byte_offset(source: &str, char_index: usize) -> usize {
+        if char_index == 0 {
+            return 0;
+        }
+
+        source
+            .char_indices()
+            .nth(char_index)
+            .map(|(offset, _)| offset)
+            .unwrap_or(source.len())
+    }
+
+    fn entry_point_eof_index(&self) -> usize {
+        self.get_entry_point_source()
+            .chars()
+            .count()
+            .saturating_sub(1)
+    }
+
     ///Based on the provided `index`, which is the index of a char on the source code of `path`, returns the line where it's located on the file of the provided `path`.
     ///This will return its line and the column and the line containing the error
     pub fn get_line_info(&self, path: &Arc<PathBuf>, index: usize) -> (usize, usize, &str) {
@@ -176,28 +195,32 @@ impl SlynxContext {
             .files
             .get(path)
             .expect("Path should be provided on the context");
-        match lines.binary_search(&index) {
-            Ok(v) => (
-                v,
-                index - lines[v],
-                &source[lines[index - lines[v]]..lines[v + 1]],
-            ),
-            Err(e) => (
-                e + 1,
-                {
-                    let mut column = index.saturating_sub(lines[e.saturating_sub(1)]);
-                    if column == 0 {
-                        column = index + 1;
-                    }
-                    column
-                },
-                if e == 0 {
-                    &source[0..lines[e]]
-                } else {
-                    &source[lines[e - 1] + 1..lines[e]]
-                },
-            ),
+        if source.is_empty() {
+            return (1, 1, "");
         }
+
+        let char_len = source.chars().count();
+        let clamped_index = index.min(char_len.saturating_sub(1));
+        let line_idx = match lines.binary_search(&clamped_index) {
+            Ok(line) | Err(line) => line,
+        };
+
+        let line_start_char = if line_idx == 0 {
+            0
+        } else {
+            lines[line_idx - 1] + 1
+        };
+        let line_end_char = if line_idx < lines.len() {
+            lines[line_idx]
+        } else {
+            char_len
+        };
+
+        let start = Self::char_index_to_byte_offset(source, line_start_char);
+        let end = Self::char_index_to_byte_offset(source, line_end_char);
+        let column = clamped_index.saturating_sub(line_start_char) + 1;
+
+        (line_idx + 1, column, &source[start..end])
     }
 
     ///The name of the file this context is parsing
@@ -294,10 +317,8 @@ impl SlynxContext {
                     }
                     Some(err @ ParseError::UnexpectedEndOfInput) => {
                         let suggestion = suggestions_from_parser(err);
-                        let (line, column, src) = self.get_line_info(
-                            &self.entry_point,
-                            self.lines.get(&self.entry_point).unwrap().len().max(1) - 1,
-                        );
+                        let (line, column, src) =
+                            self.get_line_info(&self.entry_point, self.entry_point_eof_index());
                         let err = SlynxError {
                             line,
                             ty: SlynxErrorType::Parser,
@@ -353,7 +374,25 @@ impl SlynxContext {
             },
             Ok(module) => module,
         };
-        Monomorphizer::resolve(&mut hir, &mut types_module);
+        if let Err(e) = Monomorphizer::resolve(&hir, &mut types_module) {
+            match e.downcast_ref::<HIRError>() {
+                Some(err) => {
+                    let suggestion = suggestions_from_hir(err);
+                    let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
+                    let err = SlynxError {
+                        line,
+                        column_start: column,
+                        ty: SlynxErrorType::Hir,
+                        message: e.to_string(),
+                        suggestion,
+                        file: self.entry_point.to_string_lossy().to_string(),
+                        source_code: src.to_string(),
+                    };
+                    return Err(e.wrap_err(err));
+                }
+                None => return Err(e),
+            }
+        }
         let variable_names = hir.variable_names().clone();
         let mut ir = SlynxIR::new(hir.symbols_module);
 
@@ -434,6 +473,7 @@ fn format_ir_generation_error(
 
 #[cfg(test)]
 mod tests {
+    use super::SlynxContext;
     use super::format_ir_generation_error;
     use frontend::hir::{
         DeclarationId, VariableId,
@@ -442,7 +482,35 @@ mod tests {
         types::{BUILTIN_NAMES, HirType, TypesModule},
     };
     use middleend::{IRError, SlynxIR};
-    use std::collections::HashMap;
+    use std::{
+        collections::HashMap,
+        fs,
+        path::PathBuf,
+        sync::Arc,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn temp_context(source: &str, name: &str) -> (SlynxContext, Arc<PathBuf>, PathBuf) {
+        let mut dir = std::env::temp_dir();
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after unix epoch")
+            .as_nanos();
+        dir.push(format!(
+            "slynx-context-{name}-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).expect("temp dir should be created");
+
+        let path = Arc::new(dir.join("input.slynx"));
+        fs::write(path.as_ref(), source).expect("temp source should be written");
+
+        (
+            SlynxContext::new(path.clone()).expect("context should be created"),
+            path,
+            dir,
+        )
+    }
 
     #[test]
     fn formats_variable_ir_errors_with_source_names() {
@@ -548,5 +616,61 @@ mod tests {
             ),
             "IR internal error: declaration id 9 is not recognized by the IR"
         );
+    }
+
+    #[test]
+    fn get_line_info_handles_single_line_sources_without_trailing_newline() {
+        let (context, path, dir) = temp_context("func main(): int {", "single-line");
+
+        let (line, column, source) = context.get_line_info(&path, 5);
+
+        assert_eq!(line, 1);
+        assert_eq!(column, 6);
+        assert_eq!(source, "func main(): int {");
+
+        fs::remove_dir_all(dir).expect("temp dir should be removed");
+    }
+
+    #[test]
+    fn get_line_info_handles_last_line_without_trailing_newline() {
+        let source = "func main(): int {\n    let value = 1;\n    value";
+        let (context, path, dir) = temp_context(source, "last-line");
+
+        let last_line_start = source.rfind('\n').expect("last line should exist") + 1;
+        let value_index = source[..last_line_start].chars().count() + 4;
+        let (line, column, line_source) = context.get_line_info(&path, value_index);
+
+        assert_eq!(line, 3);
+        assert_eq!(column, 5);
+        assert_eq!(line_source, "    value");
+
+        fs::remove_dir_all(dir).expect("temp dir should be removed");
+    }
+
+    #[test]
+    fn get_line_info_supports_non_ascii_columns_without_panicking() {
+        let source = "a\u{00E7}\u{00E3}o\n\u{03B2}";
+        let (context, path, dir) = temp_context(source, "utf8");
+
+        let (line, column, line_source) = context.get_line_info(&path, 2);
+
+        assert_eq!(line, 1);
+        assert_eq!(column, 3);
+        assert_eq!(line_source, "a\u{00E7}\u{00E3}o");
+
+        fs::remove_dir_all(dir).expect("temp dir should be removed");
+    }
+
+    #[test]
+    fn get_line_info_handles_empty_sources() {
+        let (context, path, dir) = temp_context("", "empty");
+
+        let (line, column, line_source) = context.get_line_info(&path, 0);
+
+        assert_eq!(line, 1);
+        assert_eq!(column, 1);
+        assert_eq!(line_source, "");
+
+        fs::remove_dir_all(dir).expect("temp dir should be removed");
     }
 }

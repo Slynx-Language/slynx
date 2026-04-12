@@ -108,14 +108,14 @@ impl SlynxHir {
         let args = {
             let mut vec = Vec::with_capacity(args.len());
             for arg in args {
-                let (id, _) = self.retrieve_information_of_type(&arg.kind.identifier, &arg.span)?;
+                let id = self.get_typeid_of_generic(&arg.kind)?;
                 vec.push(id);
             }
             vec
         };
         let func_ty = HirType::Function {
             args,
-            return_type: self.get_typeid_of_name(&return_type.identifier, &return_type.span)?,
+            return_type: self.get_typeid_of_generic(return_type)?,
         };
         let symbol = self.symbols_module.intern(&name.identifier);
         let id = self.define_type(symbol, func_ty);

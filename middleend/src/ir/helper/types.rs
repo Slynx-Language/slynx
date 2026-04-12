@@ -15,7 +15,7 @@ impl SlynxIR {
     #[inline]
     ///Gets the type of the ir based on the provided `hirty`. Uses `temp` and `tymod` as auxiliary
     pub fn get_ir_type(
-        &self,
+        &mut self,
         hirty: &TypeId,
         temp: &TempIRData,
         tymod: &TypesModule,
@@ -27,7 +27,22 @@ impl SlynxIR {
             ty if ty == tymod.void_id() => self.types.void_type(),
             ty if ty == tymod.str_id() => self.types.str_type(),
             ty if ty == tymod.generic_component_id() => self.types.generic_component_type(),
-            ty => temp.get_type(ty)?,
+            ty => {
+                if let Ok(mapped) = temp.get_type(ty) {
+                    return Ok(mapped);
+                }
+                match tymod.get_type(&ty) {
+                    HirType::Tuple { fields } => {
+                        let fields = fields.clone();
+                        let ir_fields = fields
+                            .iter()
+                            .map(|f| self.get_ir_type(f, temp, tymod))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        self.types.create_or_get_tuple(ir_fields)
+                    }
+                    _ => return Err(IRError::IRTypeNotRecognized(ty)),
+                }
+            }
         })
     }
 

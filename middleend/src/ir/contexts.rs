@@ -83,7 +83,7 @@ impl SlynxIR {
                     .collect::<Vec<_>>();
                 let values_ptr = self.insert_values(&values);
 
-                let ty = self.types.create_tuple(element_types);
+                let ty = self.types.create_or_get_tuple(element_types);
                 Value::StructLiteral(ty, values_ptr)
             }
             HirExpressionKind::StringLiteral(v) => {

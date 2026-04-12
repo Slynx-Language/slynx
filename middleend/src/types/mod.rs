@@ -31,7 +31,7 @@ pub const BUILTIN_TYPES: &[IRType] = &[
 #[derive(Debug, Default)]
 pub struct IRTypes {
     types: Vec<IRType>,
-    tuples: Vec<IRTuple>,
+
     structs: Vec<IRStruct>,
     functions: Vec<IRFunction>,
     components: Vec<IRComponent>,
@@ -44,7 +44,6 @@ impl IRTypes {
             structs: Vec::new(),
             functions: Vec::new(),
             components: Vec::new(),
-            tuples: Vec::new(),
         }
     }
 
@@ -171,12 +170,25 @@ impl IRTypes {
         self.types.push(IRType::Function(IRFunctionId(fout)));
         IRTypeId(out)
     }
-    ///Creates a new tuple type with the given elements and returns its type ID.
-    pub fn create_tuple(&mut self, elements: Vec<IRTypeId>) -> IRTypeId {
-        let tout = self.tuples.len();
-        self.tuples.push(IRTuple { elements });
-        let out = self.types.len();
-        self.types.push(IRType::Tuple(IRTupleId(tout)));
-        IRTypeId(out)
+    pub fn create_or_get_tuple(&mut self, elements: Vec<IRTypeId>) -> IRTypeId {
+        for (i, strukt) in self.structs.iter().enumerate() {
+            if strukt.get_fields() == elements {
+                return IRTypeId(
+                    self.types
+                        .iter()
+                        .position(|t| matches!(t, IRType::Struct(id) if id.0 == i))
+                        .unwrap(),
+                );
+            }
+        }
+        let mut s = IRStruct::new();
+        for field in elements {
+            s.insert_field(field);
+        }
+        let sid = IRStructId(self.structs.len());
+        self.structs.push(s);
+        let tid = IRTypeId(self.types.len());
+        self.types.push(IRType::Struct(sid));
+        tid
     }
 }

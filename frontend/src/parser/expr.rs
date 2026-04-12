@@ -132,14 +132,13 @@ impl Parser {
         })
     }
     ///Parses a tuple expression, which follows the rule (expr, expr, expr) or ()
-    pub fn parse_tuple(&mut self) -> Result<ASTExpression> {
-        let start = self.expect(&TokenKind::LParen)?;
+    pub fn parse_tuple(&mut self, start_span: &Span) -> Result<ASTExpression> {
         if self.peek()?.kind == TokenKind::RParen {
             let end = self.eat()?;
             return Ok(ASTExpression {
                 kind: ASTExpressionKind::Tuple(vec![]),
                 span: Span {
-                    start: start.span.start,
+                    start: start_span.start,
                     end: end.span.end,
                 },
             });
@@ -152,19 +151,17 @@ impl Parser {
         }
         self.expect(&TokenKind::Comma)?;
         let mut itens = vec![first];
-
         while self.peek()?.kind != TokenKind::RParen {
             itens.push(self.parse_expression()?);
             if self.peek()?.kind == TokenKind::Comma {
                 self.eat()?;
             }
         }
-
         let end = self.expect(&TokenKind::RParen)?;
         Ok(ASTExpression {
             kind: ASTExpressionKind::Tuple(itens),
             span: Span {
-                start: start.span.start,
+                start: start_span.start,
                 end: end.span.end,
             },
         })
@@ -269,7 +266,7 @@ impl Parser {
                     span: current.span,
                 }),
                 TokenKind::LParen => {
-                    let expr = self.parse_tuple()?;
+                    let expr = self.parse_tuple(&current.span)?;
                     Ok(expr)
                 }
 

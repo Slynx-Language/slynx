@@ -1,0 +1,276 @@
+SlynxIR {
+    contexts: [
+        Context {
+            labels: IRPointer {
+                inner: 1,
+                data: PhantomData<middleend::ir::model::label::Label>,
+            },
+            ty: IRTypeId(
+                16,
+            ),
+        },
+    ],
+    components: [],
+    labels: [
+        Label {
+            instruction: IRPointer {
+                inner: 4,
+                data: PhantomData<middleend::ir::model::instruction::Instruction>,
+            },
+            arguments: [],
+        },
+    ],
+    instructions: [
+        Instruction {
+            operands: IRPointer {
+                inner: 1,
+                data: PhantomData<middleend::ir::model::instruction::Value>,
+            },
+            instruction_type: RawValue,
+            value_type: IRTypeId(
+                4,
+            ),
+        },
+        Instruction {
+            operands: IRPointer {
+                inner: 131073,
+                data: PhantomData<middleend::ir::model::instruction::Value>,
+            },
+            instruction_type: RawValue,
+            value_type: IRTypeId(
+                4,
+            ),
+        },
+        Instruction {
+            operands: IRPointer {
+                inner: 458753,
+                data: PhantomData<middleend::ir::model::instruction::Value>,
+            },
+            instruction_type: RawValue,
+            value_type: IRTypeId(
+                4,
+            ),
+        },
+        Instruction {
+            operands: IRPointer {
+                inner: 720897,
+                data: PhantomData<middleend::ir::model::instruction::Value>,
+            },
+            instruction_type: Ret,
+            value_type: IRTypeId(
+                18,
+            ),
+        },
+    ],
+    operands: [
+        Int(
+            1,
+        ),
+        Int(
+            1,
+        ),
+        Int(
+            1,
+        ),
+    ],
+    values: [
+        Raw(
+            IRPointer {
+                inner: 1,
+                data: PhantomData<middleend::ir::model::instruction::Operand>,
+            },
+        ),
+        Instruction(
+            IRPointer {
+                inner: 1,
+                data: PhantomData<middleend::ir::model::instruction::Instruction>,
+            },
+        ),
+        Raw(
+            IRPointer {
+                inner: 65537,
+                data: PhantomData<middleend::ir::model::instruction::Operand>,
+            },
+        ),
+        Instruction(
+            IRPointer {
+                inner: 65538,
+                data: PhantomData<middleend::ir::model::instruction::Instruction>,
+            },
+        ),
+        Instruction(
+            IRPointer {
+                inner: 1,
+                data: PhantomData<middleend::ir::model::instruction::Instruction>,
+            },
+        ),
+        Instruction(
+            IRPointer {
+                inner: 65538,
+                data: PhantomData<middleend::ir::model::instruction::Instruction>,
+            },
+        ),
+        StructLiteral(
+            IRTypeId(
+                17,
+            ),
+            IRPointer {
+                inner: 262146,
+                data: PhantomData<middleend::ir::model::instruction::Value>,
+            },
+        ),
+        Raw(
+            IRPointer {
+                inner: 131073,
+                data: PhantomData<middleend::ir::model::instruction::Operand>,
+            },
+        ),
+        Instruction(
+            IRPointer {
+                inner: 131075,
+                data: PhantomData<middleend::ir::model::instruction::Instruction>,
+            },
+        ),
+        StructLiteral(
+            IRTypeId(
+                17,
+            ),
+            IRPointer {
+                inner: 262146,
+                data: PhantomData<middleend::ir::model::instruction::Value>,
+            },
+        ),
+        Instruction(
+            IRPointer {
+                inner: 131075,
+                data: PhantomData<middleend::ir::model::instruction::Instruction>,
+            },
+        ),
+        StructLiteral(
+            IRTypeId(
+                18,
+            ),
+            IRPointer {
+                inner: 589826,
+                data: PhantomData<middleend::ir::model::instruction::Value>,
+            },
+        ),
+    ],
+    slots: [],
+    types: IRTypes {
+        types: [
+            I8,
+            U8,
+            I16,
+            U16,
+            I32,
+            U32,
+            I64,
+            U64,
+            ISIZE,
+            USIZE,
+            F32,
+            F64,
+            STR,
+            BOOL,
+            VOID,
+            GenericComponent,
+            Function(
+                IRFunctionId(
+                    0,
+                ),
+            ),
+            Struct(
+                IRStructId(
+                    0,
+                ),
+            ),
+            Struct(
+                IRStructId(
+                    1,
+                ),
+            ),
+        ],
+        structs: [
+            IRStruct {
+                fields: [
+                    IRTypeId(
+                        4,
+                    ),
+                    IRTypeId(
+                        4,
+                    ),
+                ],
+            },
+            IRStruct {
+                fields: [
+                    IRTypeId(
+                        17,
+                    ),
+                    IRTypeId(
+                        4,
+                    ),
+                ],
+            },
+        ],
+        functions: [
+            IRFunction {
+                args: [],
+                ret: IRTypeId(
+                    18,
+                ),
+            },
+        ],
+        components: [],
+    },
+    strings: SymbolsModule {
+        names: InternalizedString {
+            inner: [
+                105,
+                110,
+                116,
+                102,
+                108,
+                111,
+                97,
+                116,
+                115,
+                116,
+                114,
+                118,
+                111,
+                105,
+                100,
+                105,
+                110,
+                102,
+                101,
+                114,
+                71,
+                101,
+                110,
+                101,
+                114,
+                105,
+                99,
+                67,
+                111,
+                109,
+                112,
+                111,
+                110,
+                101,
+                110,
+                116,
+                98,
+                111,
+                111,
+                108,
+                109,
+                97,
+                105,
+                110,
+            ],
+        },
+    }Ok(()),
+}
