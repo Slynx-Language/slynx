@@ -243,3 +243,24 @@ func main(): int {
     assert!(error.contains("Unexpected token"));
     assert!(error.contains("'let'"));
 }
+
+#[test]
+fn parses_trailing_dot_float_literal() {
+    let declarations = parse_source(
+        r#"
+func main(): float {
+    let value = 0.;
+    value
+}
+"#,
+    );
+
+    let body = function_body(&declarations, "main");
+    assert_eq!(body.len(), 2);
+
+    let ASTStatementKind::Var { rhs, .. } = &body[0].kind else {
+        panic!("expected let statement");
+    };
+
+    assert!(matches!(rhs.kind, ASTExpressionKind::FloatLiteral(value) if value == 0.0));
+}
