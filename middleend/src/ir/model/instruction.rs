@@ -22,6 +22,7 @@ pub enum IRSpecializedComponent {
 ///A value inside the IR. Can be a function arg, a label arg or the result of a instruction
 pub enum Value {
     Specliazed(IRPointer<IRSpecializedComponent, 1>),
+    StructLiteral(IRTypeId, IRPointer<Value>),
     Raw(IRPointer<Operand, 1>),
     Instruction(IRPointer<Instruction, 1>),
     Slot(IRPointer<Slot, 1>),

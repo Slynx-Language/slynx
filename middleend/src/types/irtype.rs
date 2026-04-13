@@ -1,4 +1,7 @@
-use crate::{IRComponentId, IRStructId, IRTupleId, types::functions::IRFunctionId};
+use crate::{
+    IRComponentId, IRSpecializedComponentType, IRStructId, IRTupleId,
+    types::functions::IRFunctionId,
+};
 
 /// Logical identifier for a type inside IR type storage.
 ///

@@ -73,6 +73,7 @@ impl SlynxIR {
             Value::Instruction(instr) => self.get_type_of_instruction(instr.clone(), temp),
             Value::LabelArg(_) => unimplemented!("Unimplemented type for label args"),
             Value::Slot(v) => self.get_slot_type(v.clone()),
+            Value::StructLiteral(t, _) => *t,
             Value::Specliazed(v) => self.specialized_type(v.clone()),
         }
     }
