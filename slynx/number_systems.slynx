@@ -1,0 +1,5 @@
+func main() : Component{
+   let x = 0x2A + 0x2b;
+   let y = 0b0110 + 0b1010;
+   let z = 0o071 + 0o172;
+}

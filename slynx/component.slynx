@@ -1,32 +1,19 @@
 
-component Header {
-    Div {
-        Icon {
-            src: "https://github.icon.this.url.does_not_exist.com"
-        }
-    }
-}
 
-component Footer {
-    Div {
-        Text {text: "Footer of page"}
-    }
-}
-
-component Main {
-    Div {
-        Text {text: "Main Part"}
-    }
-}
-
-component Website {
-    Div {
-        Header {}
-        Main {}
-        Footer {}
-    }
+component HelloBox {
+	pub prop seupai:float;
+	pub prop maria = 0;
+	
+	Div {
+		Text {
+			text: maria
+		}
+	}
 }
 
 func main(): Component {
-    Website {}
+	HelloBox {
+		seupai: 5.0
+		maria: 12
+	}
 }

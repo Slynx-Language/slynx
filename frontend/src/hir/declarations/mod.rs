@@ -53,10 +53,6 @@ impl DeclarationsModule {
         self.declaration_types[id.as_raw() as usize]
     }
 
-    pub fn try_retrieve_declaration_type(&self, id: DeclarationId) -> Option<TypeId> {
-        self.declaration_types.get(id.as_raw() as usize).copied()
-    }
-
     ///Retrieves the body of the object with provided `id`
     pub fn retrieve_object_body(&self, id: TypeId) -> Option<&[SymbolPointer]> {
         self.objects.get(&id).map(|v| &**v)

@@ -8,4 +8,3 @@ name = "common"
 path = "src/lib.rs"
 
 [dependencies]
-rart = "0.3.1"

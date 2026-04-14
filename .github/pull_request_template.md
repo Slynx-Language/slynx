@@ -1,38 +1,33 @@
-## Summary
+## Description
+Brief description of what this PR does.
 
-Briefly describe the change and why it exists.
+## Type of Change
+- [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] New feature (non-breaking change which adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Documentation update
 
-## Scope
+## Changes Made
+- Change 1
+- Change 2
+- Change 3
 
-- what changed
-- what did not change
-- any follow-up left for later
-
-## Validation
-
-List the commands, tests, or manual checks you ran.
-
-```bash
-# example
-cargo test
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-```
-
-## Documentation Impact
-
-- [ ] No documentation changes were needed
-- [ ] I updated the relevant documentation
+## Testing
+How has this been tested?
+- [ ] Unit tests
+- [ ] Integration tests
+- [ ] Manual testing
 
 ## Checklist
-
-- [ ] My change is focused and reviewable
-- [ ] I performed a self-review
-- [ ] I added comments only where they help explain non-obvious logic
-- [ ] I added or updated tests when applicable
-- [ ] I ran the validation listed above
-- [ ] I used the existing issue/PR templates where applicable
+- [ ] My code follows the style guidelines of this project
+- [ ] I have performed a self-review of my own code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have made corresponding changes to the documentation
+- [ ] My changes generate no new warnings
+- [ ] I have added tests that prove my fix is effective or that my feature works
+- [ ] New and existing unit tests pass locally with my changes
+- [ ] I have run `cargo fmt`
+- [ ] I have run `cargo clippy`
 
 ## Related Issues
-
 Closes #(issue number)

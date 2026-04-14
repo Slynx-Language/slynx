@@ -1,6 +1,6 @@
 use common::ast::Span;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
@@ -9,13 +9,13 @@ pub struct Token {
 impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let result = match self {
-            Self::While => "while".to_string(),
             Self::CommonComent => "//".to_string(),
             Self::And => "&&".to_string(),
             Self::Or => "||".to_string(),
-
+            Self::BitAnd => "&".to_string(),
             Self::If => "if".to_string(),
             Self::Else => "else".to_string(),
+            Self::BitOr => "|".to_string(),
             Self::Dot => ".".to_string(),
             Self::LParen => "(".to_string(),
             Self::RParen => ")".to_string(),
@@ -43,18 +43,11 @@ impl std::fmt::Display for TokenKind {
             Self::Func => "func".to_string(),
             Self::Pub => "pub".to_string(),
             Self::Prop => "prop".to_string(),
-            Self::Alias => "alias".to_string(),
             Self::Object => "object".to_string(),
             Self::Let => "let".to_string(),
             Self::Mut => "mut".to_string(),
             Self::True => "true".to_string(),
             Self::False => "false".to_string(),
-            Self::ShiftRight => "<<".to_string(),
-            Self::ShiftLeft => ">>".to_string(),
-            Self::Xor => "^".to_string(),
-            Self::BitAnd => "&".to_string(),
-            Self::BitOr => "|".to_string(),
-            Self::BitNot => "~".to_string(),
             Self::Float(value) => value.to_string(),
             Self::Int(value) => value.to_string(),
             Self::String(value) => value.to_string(),
@@ -64,9 +57,8 @@ impl std::fmt::Display for TokenKind {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum TokenKind {
-    While,
     CommonComent,
     LParen,
     If,
@@ -75,61 +67,39 @@ pub enum TokenKind {
     LBrace,
     RBrace,
     SemiColon,
-
-    ShiftRight,
-    ShiftLeft,
-    Xor,
-    BitAnd,
-    BitOr,
-    BitNot,
-
     Lt,
     LtEq,
-
     Gt,
     GtEq,
-
     Eq,
     EqEq,
-
     Plus,
     PlusEq,
-
     Sub,
     SubEq,
-
     Star,
     StarEq,
-
     Slash,
     SlashEq,
-
     And,
     Or,
-
+    BitAnd,
+    BitOr,
     Arrow,
-
     Comma,
-
     Colon,
-
     Dot,
     Float(f32),
     Int(i32),
     String(String),
     Identifier(String),
-
     Component,
     Func,
     Pub,
     Prop,
-    Alias,
-
     Object,
-
     Let,
     Mut,
-
     True,
     False,
 }
@@ -169,44 +139,6 @@ impl Token {
             },
         }
     }
-    pub fn shr(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::ShiftRight,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn shl(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::ShiftLeft,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-
-    pub fn xor(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Xor,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn bitnot(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::BitNot,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-
     pub fn bitor(pos: usize) -> Self {
         Self {
             kind: TokenKind::BitOr,

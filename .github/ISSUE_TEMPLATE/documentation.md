@@ -1,42 +1,33 @@
 ---
 name: Documentation
-about: Propose or improve documentation, specifications, onboarding, or project conventions
-title: "[DOCS] "
+about: Propose or improve documentation, specifications, or conventions
+title: "[DOCUMENTATION]"
 labels: documentation
-assignees: ""
+assignees: ''
+
 ---
 
-## Summary
+## Documentation Request
 
 Describe what documentation should be added, updated, or clarified.
 
-## Problem
+## Context / Motivation
 
-What is currently missing, outdated, confusing, or misleading?
+Why is this documentation needed?  
+What problem does the lack (or current state) of documentation cause?
 
-## Affected Document(s)
+## Scope
 
-List the file(s) or section(s) involved when possible.
+What should this documentation cover?
+- Naming conventions
+- Language specification
+- Syntax rules
+- Type system
+- Internal architecture
+- Contribution guidelines
+- Other:
 
-- `README.md`
-- `CONTRIBUTING.md`
-- `middleend/README.md`
-- other:
+## Proposed Content
 
-## Intended Audience
-
-Who is this documentation for?
-
-- [ ] new contributors
-- [ ] maintainers
-- [ ] backend/compiler authors
-- [ ] language users
-- [ ] community/moderation
-
-## Proposed Direction
-
-Outline the content or improvement you think would help.
-
-## Extra Context
-
-Add links, examples, related PRs/issues, or screenshots here.
+Outline what should be documented.
+If applicable, include sections, rules, or examples.

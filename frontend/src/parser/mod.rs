@@ -81,10 +81,6 @@ impl Parser {
         let mut out = Vec::new();
         while let Ok(token) = self.peek() {
             match &token.kind {
-                TokenKind::Alias => {
-                    let Token { span, .. } = self.eat()?;
-                    out.push(self.parse_alias(span)?);
-                }
                 TokenKind::Object => {
                     let Token { span, .. } = self.eat()?;
                     out.push(self.parse_object(span)?);
@@ -93,6 +89,7 @@ impl Parser {
                     let Token { span, .. } = self.eat()?;
                     out.push(self.parse_component(span)?)
                 }
+
                 TokenKind::Func => {
                     let Token {
                         kind: TokenKind::Func,
@@ -106,9 +103,8 @@ impl Parser {
                 _ => {
                     return Err(ParseError::UnexpectedToken(
                         self.eat()?,
-                        "a function, component, object or alias declaration".to_owned(),
-                    )
-                    .into());
+                        "Either a macro name(a name terminated by '!' such as 'js!'), 'Component' or 'Func'".to_string(),
+                    ).into());
                 }
             }
         }

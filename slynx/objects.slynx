@@ -1,27 +1,16 @@
-component Counter {
-    pub prop count: int;
-}
-
 object Pessoa{
     name: str,
     age: int,
 }
 
-alias Person = Pessoa;
-
-func f(): Person {
-    Pessoa(name: "Jorge", age: 3)
-}
-
 component Sla {}
 
-func main(): Person {
+func main(): Component {
     let mut pessoa = Pessoa(
         name:"123", age: 123
     );
     pessoa.name = "Jorge";
     pessoa.age = 255;
     pessoa = Pessoa(name: "jorge", age:pessoa.age + 3);
-    pessoa.age = f().age;
-    pessoa
+    Sla{}
 }

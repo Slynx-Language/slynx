@@ -29,12 +29,6 @@ pub enum IntermediateExprKind {
     Int(i32),
     Float(f32),
     StringLiteral(StringHandle),
-
-    While {
-        condition: ValueId,
-        body: Vec<ValueId>,
-    },
-
     Struct {
         id: TyId,
         exprs: Vec<ValueId>,
@@ -82,13 +76,6 @@ impl IntermediateExpr {
             }),
         }
     }
-
-    pub fn while_loop(condition: ValueId, body: Vec<ValueId>) -> Self {
-        Self {
-            kind: IntermediateExprKind::While { condition, body },
-        }
-    }
-
     ///Creates a native `rect` component with the provided `children`
     pub fn native_rect(children: Vec<ValueId>, props: Vec<Option<ValueId>>) -> Self {
         Self {

@@ -7,7 +7,7 @@ use crate::hir::{
     types::HirType,
 };
 
-use common::ast::{GenericIdentifier, Span};
+use common::ast::Span;
 //file specific to implement things related to name resolution
 impl SlynxHir {
     pub fn insert_name(&mut self, name: &str) -> super::symbols::SymbolPointer {
@@ -62,13 +62,11 @@ impl SlynxHir {
     pub fn get_typeid_of_name(&self, name: &str, span: &Span) -> Result<TypeId> {
         match name {
             "Component" => Ok(self.types_module.generic_component_id()),
-            "()" => Ok(self.types_module.void_id()),
             "void" => Ok(self.types_module.void_id()),
             "bool" => Ok(self.types_module.bool_id()),
             "int" => Ok(self.types_module.int_id()),
             "float" => Ok(self.types_module.float_id()),
             "str" => Ok(self.types_module.str_id()),
-
             _ => {
                 let temp = self
                     .symbols_module
@@ -85,57 +83,13 @@ impl SlynxHir {
         }
     }
 
-    pub fn get_typeid_of_generic(&mut self, gener: &GenericIdentifier) -> Result<TypeId> {
-        match gener.identifier.as_str() {
-            "tuple" => {
-                if let Some(types) = &gener.generic {
-                    let mut fields = Vec::with_capacity(types.len());
-                    for t in types {
-                        fields.push(self.get_typeid_of_generic(t)?);
-                    }
-                    Ok(self.types_module.add_tuple_type(fields))
-                } else {
-                    Err(HIRError {
-                        kind: HIRErrorKind::NameNotRecognized(gener.identifier.clone()),
-                        span: gener.span.clone(),
-                    }
-                    .into())
-                }
-            }
-            "()" => Ok(self.types_module.void_id()),
-            _ => {
-                if let Some(gens) = &gener.generic {
-                    let gen_ids = {
-                        let mut tmp = Vec::with_capacity(gens.len());
-                        for g in gens {
-                            tmp.push(self.get_typeid_of_generic(g)?);
-                        }
-                        tmp
-                    };
-                    let base_id = self.get_typeid_of_name(&gener.identifier, &gener.span)?;
-                    Ok(self.types_module.insert_unnamed_type(HirType::Reference {
-                        rf: base_id,
-                        generics: gen_ids,
-                    }))
-                } else {
-                    self.get_typeid_of_name(&gener.identifier, &gener.span)
-                }
-            }
-        }
-    }
-
     ///Creates a new variable with the provided `name` on the current scope and returns its id
     pub fn create_variable(&mut self, name: &str, ty: TypeId, mutable: bool) -> VariableId {
         let ptr = self.symbols_module.intern(name);
         let v = VariableId::new();
         self.scope_module.insert_name(ptr, v, mutable);
         self.types_module.insert_variable(v, ty);
-        self.variable_names.insert(v, ptr);
         v
-    }
-
-    pub fn variable_names(&self) -> &std::collections::HashMap<VariableId, SymbolPointer> {
-        &self.variable_names
     }
     ///Tries to retrieve a variable with the provided `name` on the current active scope
     pub fn get_variable(&mut self, name: &str, span: &Span) -> Result<&VariableId> {

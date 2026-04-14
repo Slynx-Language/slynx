@@ -12,9 +12,6 @@ impl SlynxHir {
             ASTExpressionKind::FieldAccess { parent, .. } => {
                 self.check_existance(parent)?;
             }
-            ASTExpressionKind::TupleAccess { tuple, .. } => {
-                self.check_existance(tuple)?;
-            }
             ASTExpressionKind::Identifier(name) => {
                 self.get_variable(name, &expr.span)?;
             }
@@ -65,6 +62,7 @@ impl SlynxHir {
                         .map(|inner| inner.0)
                 });
                 let rhs = self.resolve_expr(rhs, typeid)?;
+
                 let id = self.create_variable(&name, rhs.ty, false);
 
                 Ok(HirStatement {
@@ -73,23 +71,6 @@ impl SlynxHir {
                         value: rhs,
                     },
                     span: statement.span,
-                })
-            }
-
-            ASTStatementKind::While { condition, body } => {
-                let condition = self.resolve_expr(condition, None)?;
-
-                let mut new_body = Vec::new();
-                for stmt in body {
-                    new_body.push(self.resolve_statement(stmt)?);
-                }
-
-                Ok(HirStatement {
-                    span: statement.span,
-                    kind: HirStatementKind::While {
-                        condition,
-                        body: new_body,
-                    },
                 })
             }
         }

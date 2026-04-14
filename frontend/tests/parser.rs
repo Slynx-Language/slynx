@@ -30,87 +30,7 @@ fn function_body<'a>(declarations: &'a [ASTDeclaration], name: &str) -> &'a [AST
 
     body.as_slice()
 }
-#[test]
-fn parses_function_body_tuple() {
-    let declarations = parse_source(
-        r#"
-func main(): int {
-    let value = (1, (1,2,3));
-    value
-}
-"#,
-    );
 
-    let body = function_body(&declarations, "main");
-    assert_eq!(body.len(), 2);
-
-    let ASTStatementKind::Var { name, ty, rhs } = &body[0].kind else {
-        panic!("expected let statement");
-    };
-    assert_eq!(name, "value");
-    assert!(ty.is_none());
-    assert!(matches!(rhs.kind, ASTExpressionKind::Tuple(_)));
-}
-
-#[test]
-fn parses_tuple_access_from_tuple_literal() {
-    let declarations = parse_source(
-        r#"
-func main(): int {
-    let value = (1, 2).0;
-    value
-}
-"#,
-    );
-
-    let body = function_body(&declarations, "main");
-    assert_eq!(body.len(), 2);
-
-    let ASTStatementKind::Var { rhs, .. } = &body[0].kind else {
-        panic!("expected let statement");
-    };
-
-    let ASTExpressionKind::TupleAccess { tuple, index } = &rhs.kind else {
-        panic!("expected tuple access");
-    };
-
-    assert_eq!(*index, 0);
-    assert!(matches!(tuple.kind, ASTExpressionKind::Tuple(_)));
-}
-
-#[test]
-fn parses_chained_tuple_and_field_access() {
-    let declarations = parse_source(
-        r#"
-object Person {
-    age: int,
-}
-
-func main(): int {
-    let value = (Person(age: 22), "ok");
-    value.0.age
-}
-"#,
-    );
-
-    let body = function_body(&declarations, "main");
-    assert_eq!(body.len(), 2);
-
-    let ASTStatementKind::Expression(expr) = &body[1].kind else {
-        panic!("expected trailing expression");
-    };
-
-    let ASTExpressionKind::FieldAccess { parent, field } = &expr.kind else {
-        panic!("expected outer field access");
-    };
-    assert_eq!(field, "age");
-
-    let ASTExpressionKind::TupleAccess { tuple, index } = &parent.kind else {
-        panic!("expected tuple access before named field access");
-    };
-    assert_eq!(*index, 0);
-    assert!(matches!(&tuple.kind, ASTExpressionKind::Identifier(name) if name == "value"));
-}
 #[test]
 fn parses_function_body_statement_shapes() {
     let declarations = parse_source(
@@ -190,34 +110,6 @@ func main(arg: int): int -> sum(arg, 2);
     assert_eq!(args.len(), 2);
     assert!(matches!(&args[0].kind, ASTExpressionKind::Identifier(arg) if arg == "arg"));
     assert!(matches!(args[1].kind, ASTExpressionKind::IntLiteral(2)));
-}
-
-#[test]
-fn parses_function_call_without_arguments() {
-    let declarations = parse_source(
-        r#"
-func main(): int {
-    noop();
-    0
-}
-"#,
-    );
-
-    let body = function_body(&declarations, "main");
-    assert_eq!(body.len(), 2);
-
-    let ASTStatementKind::Expression(expr) = &body[0].kind else {
-        panic!("expected function call statement");
-    };
-    let ASTExpressionKind::FunctionCall { name, args } = &expr.kind else {
-        panic!("expected function call");
-    };
-
-    assert_eq!(name.identifier, "noop");
-    assert!(
-        args.is_empty(),
-        "zero-argument calls should parse with no args"
-    );
 }
 
 #[test]

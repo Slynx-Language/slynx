@@ -1,8 +1,0 @@
-blank_issues_enabled: true
-contact_links:
-  - name: Issue Reporting Guide
-    url: https://github.com/Slynx-Language/slynx/blob/main/docs/issue-reporting.md
-    about: Read this before opening a bug report, feature request, docs issue, or design discussion.
-  - name: Project Discussions
-    url: https://github.com/Slynx-Language/slynx/discussions
-    about: Use GitHub Discussions for broader conversation that is not ready to become an actionable issue yet.

@@ -1,26 +1,8 @@
 use super::Parser;
-use crate::{
-    lexer::tokens::{Token, TokenKind},
-    parser::error::ParseError,
-};
+use crate::lexer::tokens::{Token, TokenKind};
 use color_eyre::eyre::Result;
-use common::{ASTDeclaration, ASTDeclarationKind, Span, ast::GenericIdentifier};
+use common::ast::GenericIdentifier;
 impl Parser {
-    ///Parses an alias declaration which follows `alias ty = AnotherType`
-    pub fn parse_alias(&mut self, init: Span) -> Result<ASTDeclaration> {
-        let name = self.parse_type()?;
-        self.expect(&TokenKind::Eq)?;
-        let target = self.parse_type()?;
-        self.expect(&TokenKind::SemiColon)?;
-        Ok(ASTDeclaration {
-            span: Span {
-                start: init.start,
-                end: target.span.end,
-            },
-            kind: ASTDeclarationKind::Alias { name, target },
-        })
-    }
-
     ///Looking from where this function initializes, check is this is a generic one.
     ///Note that this will only work when the function initializes on something like: N<...
     ///the '...' is what this function will check. It won't eat anything, just look ahead.
@@ -50,49 +32,6 @@ impl Parser {
 
     ///Parses a type.
     pub fn parse_type(&mut self) -> Result<GenericIdentifier> {
-        let token = self.peek()?;
-        let start_span = token.span.clone();
-
-        if let TokenKind::LParen = &token.kind {
-            self.eat()?;
-            if let TokenKind::RParen = self.peek()?.kind {
-                let end_span = self.eat()?.span;
-                return Ok(GenericIdentifier {
-                    identifier: "()".to_string(),
-                    generic: None,
-                    span: Span {
-                        start: start_span.start,
-                        end: end_span.end,
-                    },
-                });
-            }
-            let mut types = Vec::new();
-            loop {
-                types.push(self.parse_type()?);
-                match self.peek()?.kind {
-                    TokenKind::Comma => {
-                        self.eat()?;
-                    }
-                    TokenKind::RParen => break,
-                    _ => {
-                        return Err(ParseError::UnexpectedToken(
-                            self.eat()?,
-                            "expected ',' or ')' in tuple type".into(),
-                        )
-                        .into());
-                    }
-                }
-            }
-            let end_span = self.eat()?.span;
-            return Ok(GenericIdentifier {
-                identifier: "tuple".to_string(),
-                generic: Some(types),
-                span: Span {
-                    start: start_span.start,
-                    end: end_span.end,
-                },
-            });
-        }
         let Token {
             kind: TokenKind::Identifier(ident),
             mut span,

@@ -40,11 +40,6 @@ pub enum Operator {
     LessThanOrEqual,
     LogicAnd,
     LogicOr,
-    And,
-    Or,
-    RightShift,
-    LeftShift,
-    Xor,
 }
 
 #[derive(Debug)]
@@ -72,11 +67,6 @@ pub enum ASTStatementKind {
         rhs: ASTExpression,
     },
 
-    While {
-        condition: ASTExpression,
-        body: Vec<ASTStatement>,
-    },
-
     Expression(ASTExpression),
 }
 
@@ -94,10 +84,6 @@ pub struct ObjectField {
 
 #[derive(Debug)]
 pub enum ASTDeclarationKind {
-    Alias {
-        name: GenericIdentifier,
-        target: GenericIdentifier,
-    },
     ObjectDeclaration {
         name: GenericIdentifier,
         fields: Vec<ObjectField>,

@@ -24,7 +24,7 @@ pub fn find_main_call_args(hir: &mut SlynxHir) -> Option<&mut Vec<HirExpression>
         else {
             continue;
         };
-        if hir.symbols_module.get_name(*name) != "main" {
+        if name != "main" {
             continue;
         }
 
@@ -34,7 +34,6 @@ pub fn find_main_call_args(hir: &mut SlynxHir) -> Option<&mut Vec<HirExpression>
                 HirStatementKind::Expression { expr } => expr,
                 HirStatementKind::Return { expr } => expr,
                 HirStatementKind::Assign { value, .. } => value,
-                HirStatementKind::While { .. } => continue,
             };
             let HirExpressionKind::FunctionCall { args, .. } = &mut expr.kind else {
                 continue;

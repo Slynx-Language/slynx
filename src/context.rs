@@ -6,22 +6,12 @@ use std::{
 
 use color_eyre::{Report, eyre::Result, owo_colors::OwoColorize};
 
-use frontend::hir::{
-    SlynxHir, VariableId, declarations::DeclarationsModule, error::HIRError,
-    symbols::SymbolPointer, types::TypesModule,
-};
+use frontend::checker::{TypeChecker, error::TypeError};
+use frontend::hir::{SlynxHir, error::HIRError};
 use frontend::lexer::{Lexer, error::LexerError};
 use frontend::parser::{Parser, error::ParseError};
-use frontend::{
-    checker::{TypeChecker, error::TypeError},
-    monomorphizer::Monomorphizer,
-};
-use middleend::{IRError, SlynxIR};
+use middleend::IntermediateRepr;
 
-use crate::err::{
-    SlynxSuggestion, suggestions_from_hir, suggestions_from_ir, suggestions_from_lexer,
-    suggestions_from_parser, suggestions_from_type_error,
-};
 #[derive(Debug)]
 ///The type of the error that was generated
 pub enum SlynxErrorType {
@@ -53,26 +43,18 @@ pub struct SlynxError {
     ///The file path the error occuried
     file: String,
     source_code: String,
-    suggestion: Vec<SlynxSuggestion>,
 }
 impl std::error::Error for SlynxError {}
 
 #[derive(Debug)]
 pub struct CompilationOutput {
     output_path: PathBuf,
-    ir: SlynxIR,
-}
-
-#[derive(Debug)]
-pub struct CompilationStages {
-    entry_point: PathBuf,
-    hir_dump: String,
-    ir: SlynxIR,
+    ir: IntermediateRepr,
 }
 
 impl CompilationOutput {
     ///Creates a new compilation output with the provided `ir`. Writes the `ir` in its textual format on the provided `entry_point` with extension of `sir`
-    fn new(entry_point: &Path, ir: SlynxIR) -> Self {
+    fn new(entry_point: &Path, ir: IntermediateRepr) -> Self {
         Self {
             output_path: entry_point.with_extension("sir"),
             ir,
@@ -80,7 +62,7 @@ impl CompilationOutput {
     }
 
     ///Consumes and retrieves the IR of this compilation output
-    pub fn ir(self) -> SlynxIR {
+    pub fn ir(self) -> IntermediateRepr {
         self.ir
     }
 
@@ -93,42 +75,6 @@ impl CompilationOutput {
     pub fn write(&self) -> Result<()> {
         std::fs::write(&self.output_path, format!("{:#?}", self.ir))?;
         Ok(())
-    }
-}
-
-impl CompilationStages {
-    fn new(entry_point: &Path, hir_dump: String, ir: SlynxIR) -> Self {
-        Self {
-            entry_point: entry_point.to_path_buf(),
-            hir_dump,
-            ir,
-        }
-    }
-
-    pub fn hir_text(&self) -> &str {
-        &self.hir_dump
-    }
-
-    pub fn ir_text(&self) -> String {
-        format!("{:#?}", self.ir)
-    }
-
-    pub fn dump_path(&self, extension: &str) -> PathBuf {
-        self.entry_point.with_extension(extension)
-    }
-
-    pub fn write_hir(&self) -> Result<()> {
-        std::fs::write(self.dump_path("hir"), self.hir_text())?;
-        Ok(())
-    }
-
-    pub fn write_ir(&self) -> Result<()> {
-        std::fs::write(self.dump_path("ir"), self.ir_text())?;
-        Ok(())
-    }
-
-    pub fn into_output(self) -> CompilationOutput {
-        CompilationOutput::new(&self.entry_point, self.ir)
     }
 }
 
@@ -158,11 +104,7 @@ impl std::fmt::Display for SlynxError {
             self.file.bold()
         )?;
         writeln!(f, "{}", error_with_data)?;
-        writeln!(f, "{}", error_points)?;
-        for suggestion in self.suggestion.iter() {
-            writeln!(f, "-->{}", suggestion)?;
-        }
-        writeln!(f)
+        writeln!(f, "{}", error_points)
     }
 }
 
@@ -208,25 +150,6 @@ impl SlynxContext {
         Ok(())
     }
 
-    fn char_index_to_byte_offset(source: &str, char_index: usize) -> usize {
-        if char_index == 0 {
-            return 0;
-        }
-
-        source
-            .char_indices()
-            .nth(char_index)
-            .map(|(offset, _)| offset)
-            .unwrap_or(source.len())
-    }
-
-    fn entry_point_eof_index(&self) -> usize {
-        self.get_entry_point_source()
-            .chars()
-            .count()
-            .saturating_sub(1)
-    }
-
     ///Based on the provided `index`, which is the index of a char on the source code of `path`, returns the line where it's located on the file of the provided `path`.
     ///This will return its line and the column and the line containing the error
     pub fn get_line_info(&self, path: &Arc<PathBuf>, index: usize) -> (usize, usize, &str) {
@@ -238,32 +161,28 @@ impl SlynxContext {
             .files
             .get(path)
             .expect("Path should be provided on the context");
-        if source.is_empty() {
-            return (1, 1, "");
+        match lines.binary_search(&index) {
+            Ok(v) => (
+                v,
+                index - lines[v],
+                &source[lines[index - lines[v]]..lines[v + 1]],
+            ),
+            Err(e) => (
+                e + 1,
+                {
+                    let mut column = index.saturating_sub(lines[e.saturating_sub(1)]);
+                    if column == 0 {
+                        column = index + 1;
+                    }
+                    column
+                },
+                if e == 0 {
+                    &source[0..lines[e]]
+                } else {
+                    &source[lines[e - 1] + 1..lines[e]]
+                },
+            ),
         }
-
-        let char_len = source.chars().count();
-        let clamped_index = index.min(char_len.saturating_sub(1));
-        let line_idx = match lines.binary_search(&clamped_index) {
-            Ok(line) | Err(line) => line,
-        };
-
-        let line_start_char = if line_idx == 0 {
-            0
-        } else {
-            lines[line_idx - 1] + 1
-        };
-        let line_end_char = if line_idx < lines.len() {
-            lines[line_idx]
-        } else {
-            char_len
-        };
-
-        let start = Self::char_index_to_byte_offset(source, line_start_char);
-        let end = Self::char_index_to_byte_offset(source, line_end_char);
-        let column = clamped_index.saturating_sub(line_start_char) + 1;
-
-        (line_idx + 1, column, &source[start..end])
     }
 
     ///The name of the file this context is parsing
@@ -271,105 +190,65 @@ impl SlynxContext {
         self.entry_point.to_string_lossy().to_string()
     }
 
-    fn build_ir_generation_error(
-        &self,
-        error: &IRError,
-        ir: &SlynxIR,
-        variable_names: &HashMap<VariableId, SymbolPointer>,
-        types_module: &TypesModule,
-        declarations_module: &DeclarationsModule,
-    ) -> SlynxError {
-        let source_code = self
-            .get_entry_point_source()
-            .lines()
-            .next()
-            .unwrap_or("Internal IR generation error")
-            .to_string();
-
-        SlynxError {
-            line: 1,
-            column_start: 1,
-            ty: SlynxErrorType::Compilation,
-            message: format_ir_generation_error(
-                error,
-                ir,
-                variable_names,
-                types_module,
-                declarations_module,
-            ),
-            file: self.file_name(),
-            suggestion: suggestions_from_ir(error),
-            source_code,
-        }
-    }
-
-    ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
-    ///before materializing the default `.sir` output.
-    pub fn build_stages(self) -> Result<CompilationStages> {
+    ///Compiles the code from the current contexts and returns the compilation result including the IR
+    pub fn compile(self) -> Result<CompilationOutput> {
         let stream = match Lexer::tokenize(self.get_entry_point_source()) {
             Ok(value) => value,
-            Err(e) => {
-                let suggestion = suggestions_from_lexer(&e);
-                match e {
-                    LexerError::MalformedNumber { init, .. } => {
-                        let (line, column, src) = self.get_line_info(&self.entry_point, init);
-                        let err = SlynxError {
-                            line,
-                            ty: SlynxErrorType::Lexer,
-                            column_start: column,
-                            message: e.to_string(),
-                            suggestion,
-                            file: self.entry_point.to_string_lossy().to_string(),
-                            source_code: src.to_string(),
-                        };
-                        return Err(Report::new(err));
-                    }
-                    LexerError::UnrecognizedChar { index, .. } => {
-                        let (line, column, src) = self.get_line_info(&self.entry_point, index);
-                        let err = SlynxError {
-                            line,
-                            ty: SlynxErrorType::Lexer,
-                            column_start: column,
-                            message: e.to_string(),
-                            suggestion,
-                            file: self.entry_point.to_string_lossy().to_string(),
-                            source_code: src.to_string(),
-                        };
-                        return Err(Report::new(err));
-                    }
+            Err(e) => match e {
+                LexerError::MalformedNumber { init, .. } => {
+                    let (line, column, src) = self.get_line_info(&self.entry_point, init);
+                    let err = SlynxError {
+                        line,
+                        ty: SlynxErrorType::Lexer,
+                        column_start: column,
+                        message: e.to_string(),
+                        file: self.entry_point.to_string_lossy().to_string(),
+                        source_code: src.to_string(),
+                    };
+                    return Err(Report::new(err));
                 }
-            }
+                LexerError::UnrecognizedChar { index, .. } => {
+                    let (line, column, src) = self.get_line_info(&self.entry_point, index);
+                    let err = SlynxError {
+                        line,
+                        ty: SlynxErrorType::Lexer,
+                        column_start: column,
+                        message: e.to_string(),
+                        file: self.entry_point.to_string_lossy().to_string(),
+                        source_code: src.to_string(),
+                    };
+                    return Err(Report::new(err));
+                }
+            },
         };
         let decls = match Parser::new(stream).parse_declarations() {
             Ok(v) => v,
             Err(e) => {
                 return match e.downcast_ref::<ParseError>() {
-                    Some(err @ ParseError::UnexpectedToken(token, _)) => {
+                    Some(ref err @ ParseError::UnexpectedToken(token, _)) => {
                         let (line, column, src) =
                             self.get_line_info(&self.entry_point, token.span.start);
-                        let suggestion = suggestions_from_parser(err);
                         let err = SlynxError {
                             line,
                             ty: SlynxErrorType::Parser,
                             column_start: column,
                             message: err.to_string(),
                             file: self.file_name(),
-                            suggestion,
                             source_code: src.to_string(),
                         };
                         Err(e.wrap_err(err))
                     }
-                    Some(err @ ParseError::UnexpectedEndOfInput) => {
-                        let suggestion = suggestions_from_parser(err);
-                        let (line, column, src) =
-                            self.get_line_info(&self.entry_point, self.entry_point_eof_index());
+                    Some(ParseError::UnexpectedEndOfInput) => {
+                        let (line, column, src) = self.get_line_info(
+                            &self.entry_point,
+                            self.lines.get(&self.entry_point).unwrap().len().max(1) - 1,
+                        );
                         let err = SlynxError {
                             line,
                             ty: SlynxErrorType::Parser,
                             column_start: column,
                             message: e.to_string(),
                             file: self.file_name(),
-                            suggestion,
                             source_code: src.to_string(),
                         };
                         Err(e.wrap_err(err))
@@ -382,14 +261,12 @@ impl SlynxContext {
         if let Err(e) = hir.generate(decls) {
             match e.downcast_ref::<HIRError>() {
                 Some(err) => {
-                    let suggestion = suggestions_from_hir(err);
                     let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
                     let err = SlynxError {
                         line,
                         column_start: column,
                         ty: SlynxErrorType::Hir,
                         message: e.to_string(),
-                        suggestion,
                         file: self.entry_point.to_string_lossy().to_string(),
                         source_code: src.to_string(),
                     };
@@ -398,15 +275,13 @@ impl SlynxContext {
                 None => return Err(e),
             }
         }
-        let mut types_module = match TypeChecker::check(&mut hir) {
+        let module = match TypeChecker::check(&mut hir) {
             Err(e) => match e.downcast_ref::<TypeError>() {
                 Some(err) => {
-                    let suggestion = suggestions_from_type_error(err);
                     let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
                     let err = SlynxError {
                         line,
                         column_start: column,
-                        suggestion,
                         ty: SlynxErrorType::Type,
                         message: e.to_string(),
                         file: self.file_name(),
@@ -418,323 +293,18 @@ impl SlynxContext {
             },
             Ok(module) => module,
         };
-        if let Err(e) = Monomorphizer::resolve(&hir, &mut types_module) {
-            match e.downcast_ref::<HIRError>() {
-                Some(err) => {
-                    let suggestion = suggestions_from_hir(err);
-                    let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
-                    let err = SlynxError {
-                        line,
-                        column_start: column,
-                        ty: SlynxErrorType::Hir,
-                        message: e.to_string(),
-                        suggestion,
-                        file: self.entry_point.to_string_lossy().to_string(),
-                        source_code: src.to_string(),
-                    };
-                    return Err(e.wrap_err(err));
-                }
-                None => return Err(e),
-            }
-        }
-        let hir_dump = format_hir_dump(&hir, &types_module);
-        let variable_names = hir.variable_names().clone();
-        let mut ir = SlynxIR::new(hir.symbols_module);
+        let mut ir = IntermediateRepr::new();
 
-        if let Err(e) = ir.generate(hir.declarations, &types_module) {
-            return Err(self
-                .build_ir_generation_error(
-                    &e,
-                    &ir,
-                    &variable_names,
-                    &types_module,
-                    &hir.declarations_module,
-                )
-                .into());
-        };
-        Ok(CompilationStages::new(
-            self.entry_point.as_ref(),
-            hir_dump,
-            ir,
-        ))
+        ir.generate(hir.declarations, module);
+
+        let output = CompilationOutput::new(self.entry_point.as_ref(), ir);
+        Ok(output)
     }
 
-    ///Compiles the code from the current contexts and returns the compilation result including the IR
-    pub fn compile(self) -> Result<CompilationOutput> {
-        let stages = self.build_stages()?;
-        Ok(stages.into_output())
-    }
-
+    ///Compile the code on this context and writes it on the same path
     pub fn start_compilation(self) -> Result<()> {
         let output = self.compile()?;
         output.write()?;
         Ok(())
-    }
-}
-
-fn format_hir_dump(hir: &SlynxHir, types_module: &TypesModule) -> String {
-    format!(
-        "HIR Declarations:\n{:#?}\n\nDeclarations Module:\n{:#?}\n\nTypes Module:\n{:#?}\n\nVariable Names:\n{:#?}",
-        hir.declarations,
-        hir.declarations_module,
-        types_module,
-        hir.variable_names()
-    )
-}
-
-fn format_ir_generation_error(
-    error: &IRError,
-    ir: &SlynxIR,
-    variable_names: &HashMap<VariableId, SymbolPointer>,
-    types_module: &TypesModule,
-    declarations_module: &DeclarationsModule,
-) -> String {
-    match error {
-        IRError::UnrecognizedVariable(id) => {
-            if let Some(name) = variable_names
-                .get(id)
-                .copied()
-                .map(|symbol| ir.string_pool().get_name(symbol))
-            {
-                format!("IR internal error: variable '{name}' is not recognized by the IR")
-            } else {
-                format!(
-                    "IR internal error: variable id {} is not recognized by the IR",
-                    id.as_raw()
-                )
-            }
-        }
-        IRError::DeclarationNotRecognized(id) => {
-            if let Some(name) = declarations_module
-                .try_retrieve_declaration_type(*id)
-                .and_then(|ty| types_module.get_type_name(&ty).copied())
-                .map(|symbol| ir.string_pool().get_name(symbol))
-            {
-                format!("IR internal error: declaration '{name}' is not recognized by the IR")
-            } else {
-                format!(
-                    "IR internal error: declaration id {} is not recognized by the IR",
-                    id.as_raw()
-                )
-            }
-        }
-        IRError::IRTypeNotRecognized(id) => {
-            if let Some(name) = types_module
-                .get_type_name(id)
-                .copied()
-                .map(|symbol| ir.string_pool().get_name(symbol))
-            {
-                format!("IR internal error: type '{name}' is not recognized by the IR")
-            } else {
-                format!(
-                    "IR internal error: type id {} is not recognized by the IR",
-                    id.as_raw()
-                )
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::SlynxContext;
-    use super::format_ir_generation_error;
-    use frontend::hir::{
-        DeclarationId, VariableId,
-        declarations::DeclarationsModule,
-        symbols::SymbolsModule,
-        types::{BUILTIN_NAMES, HirType, TypesModule},
-    };
-    use middleend::{IRError, SlynxIR};
-    use std::{
-        collections::HashMap,
-        fs,
-        path::PathBuf,
-        sync::Arc,
-        time::{SystemTime, UNIX_EPOCH},
-    };
-
-    fn temp_context(source: &str, name: &str) -> (SlynxContext, Arc<PathBuf>, PathBuf) {
-        let mut dir = std::env::temp_dir();
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock should be after unix epoch")
-            .as_nanos();
-        dir.push(format!(
-            "slynx-context-{name}-{}-{nonce}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&dir).expect("temp dir should be created");
-
-        let path = Arc::new(dir.join("input.slynx"));
-        fs::write(path.as_ref(), source).expect("temp source should be written");
-
-        (
-            SlynxContext::new(path.clone()).expect("context should be created"),
-            path,
-            dir,
-        )
-    }
-
-    #[test]
-    fn formats_variable_ir_errors_with_source_names() {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|name| symbols.intern(name));
-        let variable_name = symbols.intern("count");
-        let mut types = TypesModule::new(&builtins);
-        let mut variable_names = HashMap::new();
-        let declarations = DeclarationsModule::new();
-        let ir = SlynxIR::new(symbols);
-
-        let variable = VariableId::from_raw(77);
-        types.insert_variable(variable, types.int_id());
-        variable_names.insert(variable, variable_name);
-
-        assert_eq!(
-            format_ir_generation_error(
-                &IRError::UnrecognizedVariable(variable),
-                &ir,
-                &variable_names,
-                &types,
-                &declarations
-            ),
-            "IR internal error: variable 'count' is not recognized by the IR"
-        );
-    }
-
-    #[test]
-    fn formats_declaration_ir_errors_with_source_names() {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|name| symbols.intern(name));
-        let declaration_name = symbols.intern("Bordered");
-        let mut types = TypesModule::new(&builtins);
-        let variable_names = HashMap::new();
-        let mut declarations = DeclarationsModule::new();
-        let ir = SlynxIR::new(symbols);
-
-        let ty = types.insert_type(declaration_name, HirType::Component { props: Vec::new() });
-        let declaration = declarations.create_declaration(declaration_name, ty);
-
-        assert_eq!(
-            format_ir_generation_error(
-                &IRError::DeclarationNotRecognized(declaration),
-                &ir,
-                &variable_names,
-                &types,
-                &declarations
-            ),
-            "IR internal error: declaration 'Bordered' is not recognized by the IR"
-        );
-    }
-
-    #[test]
-    fn formats_type_ir_errors_with_source_names() {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|name| symbols.intern(name));
-        let type_name = symbols.intern("User");
-        let mut types = TypesModule::new(&builtins);
-        let variable_names = HashMap::new();
-        let declarations = DeclarationsModule::new();
-        let ir = SlynxIR::new(symbols);
-
-        let ty = types.insert_type(type_name, HirType::Struct { fields: Vec::new() });
-
-        assert_eq!(
-            format_ir_generation_error(
-                &IRError::IRTypeNotRecognized(ty),
-                &ir,
-                &variable_names,
-                &types,
-                &declarations
-            ),
-            "IR internal error: type 'User' is not recognized by the IR"
-        );
-    }
-
-    #[test]
-    fn falls_back_to_ids_when_names_are_missing() {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|name| symbols.intern(name));
-        let types = TypesModule::new(&builtins);
-        let variable_names = HashMap::new();
-        let declarations = DeclarationsModule::new();
-        let ir = SlynxIR::new(symbols);
-
-        assert_eq!(
-            format_ir_generation_error(
-                &IRError::UnrecognizedVariable(VariableId::from_raw(5)),
-                &ir,
-                &variable_names,
-                &types,
-                &declarations
-            ),
-            "IR internal error: variable id 5 is not recognized by the IR"
-        );
-        assert_eq!(
-            format_ir_generation_error(
-                &IRError::DeclarationNotRecognized(DeclarationId::from_raw(9)),
-                &ir,
-                &variable_names,
-                &types,
-                &declarations
-            ),
-            "IR internal error: declaration id 9 is not recognized by the IR"
-        );
-    }
-
-    #[test]
-    fn get_line_info_handles_single_line_sources_without_trailing_newline() {
-        let (context, path, dir) = temp_context("func main(): int {", "single-line");
-
-        let (line, column, source) = context.get_line_info(&path, 5);
-
-        assert_eq!(line, 1);
-        assert_eq!(column, 6);
-        assert_eq!(source, "func main(): int {");
-
-        fs::remove_dir_all(dir).expect("temp dir should be removed");
-    }
-
-    #[test]
-    fn get_line_info_handles_last_line_without_trailing_newline() {
-        let source = "func main(): int {\n    let value = 1;\n    value";
-        let (context, path, dir) = temp_context(source, "last-line");
-
-        let last_line_start = source.rfind('\n').expect("last line should exist") + 1;
-        let value_index = source[..last_line_start].chars().count() + 4;
-        let (line, column, line_source) = context.get_line_info(&path, value_index);
-
-        assert_eq!(line, 3);
-        assert_eq!(column, 5);
-        assert_eq!(line_source, "    value");
-
-        fs::remove_dir_all(dir).expect("temp dir should be removed");
-    }
-
-    #[test]
-    fn get_line_info_supports_non_ascii_columns_without_panicking() {
-        let source = "a\u{00E7}\u{00E3}o\n\u{03B2}";
-        let (context, path, dir) = temp_context(source, "utf8");
-
-        let (line, column, line_source) = context.get_line_info(&path, 2);
-
-        assert_eq!(line, 1);
-        assert_eq!(column, 3);
-        assert_eq!(line_source, "a\u{00E7}\u{00E3}o");
-
-        fs::remove_dir_all(dir).expect("temp dir should be removed");
-    }
-
-    #[test]
-    fn get_line_info_handles_empty_sources() {
-        let (context, path, dir) = temp_context("", "empty");
-
-        let (line, column, line_source) = context.get_line_info(&path, 0);
-
-        assert_eq!(line, 1);
-        assert_eq!(column, 1);
-        assert_eq!(line_source, "");
-
-        fs::remove_dir_all(dir).expect("temp dir should be removed");
     }
 }

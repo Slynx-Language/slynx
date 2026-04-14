@@ -11,9 +11,8 @@ const VOID_IDX: usize = 3;
 const INFER_IDX: usize = 4;
 const GENERIC_COMPONENT_IDX: usize = 5;
 const BOOL_IDX: usize = 6;
-const BUILTIN_TYPES_SIZE: usize = 7;
 
-pub const BUILTIN_TYPES: [HirType; BUILTIN_TYPES_SIZE] = [
+const BUILTIN_TYPES: [HirType; 7] = [
     HirType::Int,
     HirType::Float,
     HirType::Str,
@@ -21,15 +20,6 @@ pub const BUILTIN_TYPES: [HirType; BUILTIN_TYPES_SIZE] = [
     HirType::Infer,
     HirType::GenericComponent,
     HirType::Bool,
-];
-pub const BUILTIN_NAMES: [&str; BUILTIN_TYPES_SIZE] = [
-    "int",
-    "float",
-    "str",
-    "void",
-    "infer",
-    "GenericComponent",
-    "bool",
 ];
 
 #[derive(Debug, Clone)]
@@ -74,8 +64,6 @@ impl BuiltinTypes {
 pub struct TypesModule {
     ///A hashmap that maps a name of a global name to its type. This is not for variables, but only for global types, such as structs, functions and components
     type_names: HashMap<SymbolPointer, TypeId>,
-    ///Maps the type ids to its their name forms
-    name_of_types: HashMap<TypeId, SymbolPointer>,
     ///Maps a variable to it's type
     pub variables: HashMap<VariableId, TypeId>,
 
@@ -83,30 +71,29 @@ pub struct TypesModule {
     builtins: BuiltinTypes,
 }
 impl TypesModule {
-    pub fn new(builtin_names: &[SymbolPointer; BUILTIN_TYPES_SIZE]) -> Self {
-        let mut types = Vec::with_capacity(BUILTIN_TYPES_SIZE);
-        let mut type_names = HashMap::new();
-        let mut name_of_types = HashMap::new();
-        for ty in BUILTIN_TYPES.iter() {
-            types.push(ty.clone());
-        }
-        for (idx, name_symbol) in builtin_names.iter().enumerate() {
-            let id = TypeId::from_raw(idx as u64);
-            type_names.insert(*name_symbol, id);
-            name_of_types.insert(id, *name_symbol);
-        }
+    pub fn new() -> Self {
+        // Keep builtin ids deterministic and fail fast if array order drifts.
+        debug_assert_eq!(BOOL_IDX + 1, BUILTIN_TYPES.len());
+        debug_assert!(matches!(BUILTIN_TYPES[INT_IDX], HirType::Int));
+        debug_assert!(matches!(BUILTIN_TYPES[FLOAT_IDX], HirType::Float));
+        debug_assert!(matches!(BUILTIN_TYPES[STR_IDX], HirType::Str));
+        debug_assert!(matches!(BUILTIN_TYPES[VOID_IDX], HirType::Void));
+        debug_assert!(matches!(BUILTIN_TYPES[INFER_IDX], HirType::Infer));
+        debug_assert!(matches!(
+            BUILTIN_TYPES[GENERIC_COMPONENT_IDX],
+            HirType::GenericComponent
+        ));
+        debug_assert!(matches!(BUILTIN_TYPES[BOOL_IDX], HirType::Bool));
+
+        let builtins = BuiltinTypes::new();
         Self {
-            type_names,
-            name_of_types,
+            types: BUILTIN_TYPES.to_vec(),
+            builtins,
+            type_names: HashMap::new(),
             variables: HashMap::new(),
-            types,
-            builtins: BuiltinTypes::new(),
         }
     }
 
-    pub fn add_tuple_type(&mut self, fields: Vec<TypeId>) -> TypeId {
-        self.insert_unnamed_type(HirType::Tuple { fields })
-    }
     pub fn int_id(&self) -> TypeId {
         self.builtins.int
     }
@@ -138,27 +125,8 @@ impl TypesModule {
         let raw = self.types.len() as u64;
         let v = TypeId::from_raw(raw);
         self.type_names.insert(name, v);
-        self.name_of_types.insert(v, name);
         self.types.push(ty);
         v
-    }
-
-    ///Returns the inner object from the provided `ty`, returns None if the type is not a object
-    pub fn get_object(&self, ty: &TypeId) -> Option<&HirType> {
-        match self.get_type(ty) {
-            v @ HirType::Struct { .. } => Some(v),
-            HirType::Reference { rf, .. } => self.get_object(rf),
-            _ => None,
-        }
-    }
-
-    ///Returns the inner component from the provided `ty`, returns None if the type is not a object
-    pub fn get_component(&self, ty: &TypeId) -> Option<&HirType> {
-        match self.get_type(ty) {
-            v @ HirType::Component { .. } => Some(v),
-            HirType::Reference { rf, .. } => self.get_object(rf),
-            _ => None,
-        }
     }
 
     ///Simply inserts the provided `ty` inside this module. Doesn't map it to anything
@@ -174,9 +142,6 @@ impl TypesModule {
     }
     pub fn get_type(&self, id: &TypeId) -> &HirType {
         &self.types[id.as_raw() as usize]
-    }
-    pub fn get_type_name(&self, id: &TypeId) -> Option<&SymbolPointer> {
-        self.name_of_types.get(id)
     }
     pub fn get_variable(&self, id: &VariableId) -> Option<&TypeId> {
         self.variables.get(id)

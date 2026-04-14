@@ -14,19 +14,6 @@ impl Parser {
 
         self.expect(&TokenKind::LParen)?;
         let mut params = Vec::new();
-        if self.peek()?.kind == TokenKind::RParen {
-            let Token { span: last, .. } = self.expect(&TokenKind::RParen)?;
-            return Ok(ASTExpression {
-                span: Span {
-                    start: identifier.span.start,
-                    end: last.end,
-                },
-                kind: ASTExpressionKind::FunctionCall {
-                    name: identifier,
-                    args: params,
-                },
-            });
-        }
         loop {
             let param = self.parse_expression()?;
             params.push(param);
@@ -131,41 +118,7 @@ impl Parser {
             expr,
         })
     }
-    ///Parses a tuple expression, which follows the rule (expr, expr, expr) or ()
-    pub fn parse_tuple(&mut self, start_span: &Span) -> Result<ASTExpression> {
-        if self.peek()?.kind == TokenKind::RParen {
-            let end = self.eat()?;
-            return Ok(ASTExpression {
-                kind: ASTExpressionKind::Tuple(vec![]),
-                span: Span {
-                    start: start_span.start,
-                    end: end.span.end,
-                },
-            });
-        }
 
-        let first = self.parse_expression()?;
-        if self.peek()?.kind == TokenKind::RParen {
-            let _ = self.eat()?;
-            return Ok(first);
-        }
-        self.expect(&TokenKind::Comma)?;
-        let mut itens = vec![first];
-        while self.peek()?.kind != TokenKind::RParen {
-            itens.push(self.parse_expression()?);
-            if self.peek()?.kind == TokenKind::Comma {
-                self.eat()?;
-            }
-        }
-        let end = self.expect(&TokenKind::RParen)?;
-        Ok(ASTExpression {
-            kind: ASTExpressionKind::Tuple(itens),
-            span: Span {
-                start: start_span.start,
-                end: end.span.end,
-            },
-        })
-    }
     ///Parses an object expression, which follows the rule Object(field: expr, field: value)
     pub fn parse_object_expression(&mut self) -> Result<ASTExpression> {
         let name = self.parse_type()?;
@@ -266,7 +219,8 @@ impl Parser {
                     span: current.span,
                 }),
                 TokenKind::LParen => {
-                    let expr = self.parse_tuple(&current.span)?;
+                    let expr = self.parse_expression()?;
+                    self.expect(&TokenKind::RParen)?;
                     Ok(expr)
                 }
 
@@ -276,21 +230,12 @@ impl Parser {
                 )),
             }?
         };
-
-        self.parse_postfix_chain(expr)
-    }
-
-    fn parse_postfix_chain(&mut self, mut expr: ASTExpression) -> Result<ASTExpression> {
-        // Keep postfix parsing iterative so tuple access and chained field access
-        // share the same code path.
-        while let Ok(token) = self.peek()
-            && token.kind == TokenKind::Dot
-        {
+        if let TokenKind::Dot = self.peek()?.kind {
             self.eat()?;
-            expr = self.parse_dot_postfix(expr)?;
+            self.parse_dot_postfix(expr)
+        } else {
+            Ok(expr)
         }
-
-        Ok(expr)
     }
 
     /// Parses multiplicative expressions, which consist of primary expressions combined with multiplication '*' or division '/' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a primary expression, and then repeatedly checking for multiplicative operators and parsing the right-hand side (RHS) as another primary expression until no more multiplicative operators are found.
@@ -346,46 +291,9 @@ impl Parser {
         Ok(lhs)
     }
 
-    ///Parses binary expressions, thus, anything that has a bit operator
-    pub fn parse_bitoperation(&mut self) -> Result<ASTExpression> {
-        let mut lhs = self.parse_additive()?;
-        while let Ok(curr) = self.peek()
-            && matches!(
-                curr.kind,
-                TokenKind::ShiftRight
-                    | TokenKind::ShiftLeft
-                    | TokenKind::BitAnd
-                    | TokenKind::BitOr
-                    | TokenKind::Xor
-            )
-        {
-            let op = match self.eat()?.kind {
-                TokenKind::ShiftRight => Operator::RightShift,
-                TokenKind::ShiftLeft => Operator::LeftShift,
-                TokenKind::BitAnd => Operator::And,
-                TokenKind::BitOr => Operator::Or,
-                TokenKind::Xor => Operator::Xor,
-                _ => unreachable!(),
-            };
-            let rhs = self.parse_bitoperation()?;
-            lhs = ASTExpression {
-                span: Span {
-                    start: lhs.span.start,
-                    end: rhs.span.end,
-                },
-                kind: ASTExpressionKind::Binary {
-                    lhs: Box::new(lhs),
-                    op,
-                    rhs: Box::new(rhs),
-                },
-            };
-        }
-        Ok(lhs)
-    }
-
     ///Parses comparison expressions, thus, anything whose value returned is a boolean
     pub fn parse_comparison(&mut self) -> Result<ASTExpression> {
-        let mut lhs = self.parse_bitoperation()?;
+        let mut lhs = self.parse_additive()?;
         while let Ok(curr) = self.peek()
             && matches!(
                 curr.kind,
@@ -400,7 +308,7 @@ impl Parser {
                 TokenKind::GtEq => Operator::GreaterThanOrEqual,
                 _ => unreachable!(),
             };
-            let rhs = self.parse_bitoperation()?;
+            let rhs = self.parse_additive()?;
             lhs = ASTExpression {
                 span: Span {
                     start: lhs.span.start,
@@ -454,18 +362,6 @@ impl Parser {
                 kind: ASTExpressionKind::FieldAccess {
                     parent: Box::new(prefix),
                     field,
-                },
-            }),
-            TokenKind::Int(index) if index >= 0 => Ok(ASTExpression {
-                span: Span {
-                    start: prefix.span.start,
-                    end: current.span.end,
-                },
-                // Tuple access is represented explicitly in the AST so later
-                // phases can decide how to normalize it.
-                kind: ASTExpressionKind::TupleAccess {
-                    tuple: Box::new(prefix),
-                    index: index as usize,
                 },
             }),
             _ => Err(ParseError::UnexpectedToken(current, "A field access".to_string()).into()),

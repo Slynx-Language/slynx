@@ -21,7 +21,7 @@ use crate::hir::{
     error::{HIRError, HIRErrorKind},
     scopes::ScopeModule,
     symbols::SymbolsModule,
-    types::{BUILTIN_NAMES, HirType, TypesModule},
+    types::{HirType, TypesModule},
 };
 use common::ast::{
     ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberKind,
@@ -30,21 +30,18 @@ use common::ast::{
 
 // Re-export new ID types for convenience
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
-pub use symbols::SymbolPointer;
 
 #[derive(Debug, Default)]
 pub struct SlynxHir {
     ///The module that will keep track of all declarations on the top level
     pub declarations_module: DeclarationsModule,
-    pub symbols_module: SymbolsModule,
+    symbols_module: SymbolsModule,
     pub types_module: TypesModule,
     scope_module: ScopeModule,
 
     /// Maps the types of top level things on the current scope to their types.
     /// An example is functions, which contain an HirType.
     types: HashMap<TypeId, HirType>,
-    /// Tracks the original source-level symbol for each variable id.
-    variable_names: HashMap<VariableId, SymbolPointer>,
 
     /// The scopes of this HIR. On the final it's expected to have only one, which is the global one
     pub declarations: Vec<HirDeclaration>,
@@ -52,16 +49,13 @@ pub struct SlynxHir {
 
 impl SlynxHir {
     pub fn new() -> Self {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|v| symbols.intern(v));
         Self {
-            symbols_module: symbols,
             scope_module: ScopeModule::new(),
             types: HashMap::new(),
-            variable_names: HashMap::new(),
             declarations: Vec::new(),
             declarations_module: DeclarationsModule::new(),
-            types_module: TypesModule::new(&builtins),
+            symbols_module: SymbolsModule::new(),
+            types_module: TypesModule::new(),
         }
     }
 
@@ -172,12 +166,6 @@ impl SlynxHir {
     /// Hoist the provided `ast` declaration, so no errors of undefined values because declared later may occur
     fn hoist(&mut self, ast: &ASTDeclaration) -> Result<()> {
         match &ast.kind {
-            ASTDeclarationKind::Alias { name, target } => {
-                self.symbols_module.intern(&target.identifier);
-                let symbol = self.symbols_module.intern(&name.identifier);
-                let ty = self.types_module.insert_type(symbol, HirType::Int);
-                self.declarations_module.create_declaration(symbol, ty);
-            }
             ASTDeclarationKind::ObjectDeclaration { name, fields } => {
                 self.hoist_object(name, fields)?
             }
@@ -227,16 +215,18 @@ impl SlynxHir {
                 self.resolve_object(name, fields, ast.span)?
             }
             ASTDeclarationKind::FuncDeclaration {
-                name, args, body, ..
+                name,
+                args,
+                mut body,
+                ..
             } => {
-                let (decl, tyid, symb) = if let Some(symb) =
+                let (decl, tyid) = if let Some(symb) =
                     self.symbols_module.retrieve(&name.identifier)
                     && let Some(data) = self
                         .declarations_module
                         .retrieve_declaration_data_by_name(symb)
                 {
-                    let (decl, ty) = data;
-                    (decl, ty, *symb)
+                    data
                 } else {
                     return Err(HIRError {
                         kind: HIRErrorKind::NameNotRecognized(name.identifier),
@@ -259,31 +249,29 @@ impl SlynxHir {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                let mut statements = Vec::with_capacity(body.len());
-                let body_len = body.len();
-                for (index, statement) in body.into_iter().enumerate() {
-                    let is_last = index + 1 == body_len;
-                    match statement {
-                        // The last expression in a function body becomes the implicit return.
-                        common::ast::ASTStatement {
-                            kind: ASTStatementKind::Expression(expr),
-                            ..
-                        } if is_last => {
-                            let expr = self.resolve_expr(expr, None)?;
-                            statements.push(HirStatement {
-                                span: expr.span.clone(),
-                                kind: HirStatementKind::Return { expr },
-                            });
-                        }
-                        statement => statements.push(self.resolve_statement(statement)?),
+                let statements = if let Some(last) = body.pop() {
+                    let mut statements = body
+                        .into_iter()
+                        .map(|ast| self.resolve_statement(ast))
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    if let ASTStatementKind::Expression(expr) = last.kind {
+                        let expr = self.resolve_expr(expr, None)?;
+                        statements.push(HirStatement {
+                            span: expr.span.clone(),
+                            kind: HirStatementKind::Return { expr },
+                        });
                     }
-                }
+                    statements
+                } else {
+                    Vec::new()
+                };
 
                 self.declarations.push(HirDeclaration {
                     kind: HirDeclarationKind::Function {
                         statements,
                         args,
-                        name: symb,
+                        name: name.to_string(),
                     },
                     id: decl,
                     ty: tyid,
@@ -317,40 +305,6 @@ impl SlynxHir {
                     span: ast.span,
                 });
                 self.scope_module.exit_scope();
-            }
-            ASTDeclarationKind::Alias { name, target } => {
-                let target_ty = self.get_typeid_of_name(&target.identifier, &target.span)?;
-
-                let alias_name = self.symbols_module.intern(&name.identifier);
-                let Some(alias_ty) = self.types_module.get_type_from_name_mut(&alias_name) else {
-                    return Err(HIRError {
-                        kind: HIRErrorKind::NameNotRecognized(name.identifier),
-                        span: name.span,
-                    }
-                    .into());
-                };
-                *alias_ty = HirType::Reference {
-                    rf: target_ty,
-                    generics: Vec::new(),
-                };
-                let (decl, ty) = if let Some(data) = self
-                    .declarations_module
-                    .retrieve_declaration_data_by_name(&alias_name)
-                {
-                    data
-                } else {
-                    return Err(HIRError {
-                        kind: HIRErrorKind::NameNotRecognized(name.identifier),
-                        span: name.span,
-                    }
-                    .into());
-                };
-                self.declarations.push(HirDeclaration {
-                    id: decl,
-                    kind: HirDeclarationKind::Alias,
-                    ty,
-                    span: ast.span,
-                });
             }
         }
         Ok(())

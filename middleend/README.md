@@ -1,25 +1,9 @@
 # Slynx IR
-
-This document describes the intended textual form and semantics of the Slynx IR.
-It should be read as a design/specification reference for the middleend and for
-future downstream compilers.
-
-## Status of This Document
-
-This file mixes current behavior and planned IR design.
-
-What is true today:
-
-- the current `main` branch lowers source into `SlynxIR`
-- the root crate writes `.sir` output by default and can also expose `.hir` / `.ir` dumps through `SlynxContext::build_stages()`
-- not every construct documented below is emitted by the current codebase yet
-- the current textual dump format is still Rust debug-style output, not a stable versioned public contract
-- when this document and the code disagree about present behavior, treat the code as the source of truth and this file as the target shape the project is moving toward
-
-The long-term goal is an SSA-oriented, strongly typed IR that tells a downstream compiler what to do without forcing a single runtime strategy.
-
-For the stage that extracts reactive dependencies before linearization/IR
-lowering, see [docs/reactive-graph-generation.md](docs/reactive-graph-generation.md).
+This IR is is intended to be used by underlying compilers, the language compiles down to JS only as a prove of concept, to show that it's possible to use this IR and compile to any target. Note that for so, this IR
+tells what the backend compiling it should do instead of how, even though the language is a bit opinionated about the 'how'(mainly due to DOD).
+First of all the IR follows SSA and is extremely typed.
+The IR has got the concept of 'contexts' that are anything able to be run, this means a struct isn't a context, because it by itself cannot execute code, but a method or a function are, as well as components that can have code
+to be run, such as the reactivity model.
 
 ## Syntax
 
@@ -35,16 +19,18 @@ Primitive scalar types used by this IR:
 
 `usize` means target-native pointer-sized unsigned integer when the backend supports it.
 If a backend has no native `usize` representation, it must treat `usize` as `u64`.
-The same idea is used for `isize`, if a backend has no native `isize` representation, then it's represented as a `i64`.
+The same idea is used for `isize`, if the backend has no isize representation, then it's represented as a `i64`
 
 Text and byte-oriented primitive types:
 
 * `str`: immutable UTF-8 string handle type
+* `bytes`: immutable byte-sequence handle type
 
 Language-level aliases currently used in examples:
 
 * `int` maps to an integer primitive selected by the frontend/lowering stage which is idealized to be i32
 * `float` maps to a floating primitive selected by the frontend/lowering stage which is idealized to be f32
+
 
 ### Structs
 The IR has implementation of operations primitives. The syntax for the deffinition of a struct can be the following:
@@ -60,9 +46,7 @@ object S {
 }
 ```
 
-Tuple literals and tuple types now exist in the frontend surface, but tuple-specific
-IR behavior is still being worked out. The intended representation uses the same
-method, so a tuple in slynx denotated by
+Tuples(WIP) use the same method, so a tuple in slynx denotated by
 ```slynx
 object T(int,float);
 ```
@@ -336,13 +320,6 @@ The `@emit p0, %count` on the function, tells that `p0` should execute its `%cou
 
 ### Instructions
 
-#### Variable Operations
-
-* allocate: Allocates a variable with a given type. Follows `allocate ty`. This does not mean that the value must be allocated by the backend, just that this is what in the language is the so called 'variable'. This returns a handle 
-* write: Writes on the provided value. Follow `write ty, handle, value`, the type of the `handle` must be the same as the `ty` and `value`. The handle can be casted, and so written in a different manner
-* read: Reads the provided value as the provided `ty`. Follows `read ty, handle`..
-* reinterpret: Creates a new slot based on the provided one, reinterpreted with the given ty. Follows `reinterpret, ty, slot`. 
-
 #### Termination Operations
 
 * br: Unconditional branch. Follows `br $label(arg0, arg1, ...)` and transfers control to `$label`, binding arguments to its `lpN` parameters.
@@ -388,7 +365,7 @@ Saturing addition:
 * not: which follows `bnot value`, standds for Bit Not, executes the NOT operation on the provided `value` and returns a copy of it. The type of this operation is inferred by the type of `value`.
 * shl: which follows `shl ty, a,b` shifts to the left the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result.
 * shr: which follows `shr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the logical implementation. So if `ty` is negative(thus, bit 1 to tell so), it will not keep
-* ashr: which follows `ashr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the arithmetical implementation, so the negative bit keeps. This is the same as N / 2, for N of any int type. 'A' on the start stands for 'Arithmetic'
+* ashr: which follows `ashr ty, a,b` shifts to the right the value of `a` by `b` bits. Asserts their type is the same as `ty` and returns the saturing result. This is the arithmetical implementation, so the negative bit keeps. This is the same as N / 2, for N of any int type
 
 #### Logic Operations
 
@@ -398,6 +375,6 @@ Saturing addition:
 * cmplt, compares the first value to the second one, and returns `true` if the first is less than the second one, and `false` otherwise
 * cmplte, compares the first value to the second one, and returns `true` if the first is less than or equal to the second one, and `false` otherwise
 * cmpne, compares the first value to the second one, and returns `true` if they're not equal, and `false` otherwise
-* negate, negates the provided value. If it's true, returns false, otherwise, returns true
+
 #### Idealized For The Future
 These operations are idealized to be implemented on the future and for the V1 are not being implemented. Note that since these are only IDEALIZED, they might and probably WILL change

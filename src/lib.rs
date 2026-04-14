@@ -7,11 +7,12 @@ pub use frontend::hir;
 pub use frontend::lexer;
 pub use frontend::parser;
 
-pub mod err;
-pub use err::*;
+pub use middleend::IntermediateRepr;
 
-pub use middleend;
-use middleend::*;
+use middleend::intermediate::{
+    context::IntermediateContext, expr::IntermediateExpr, id::ContextHandle,
+    node::IntermediateInstruction,
+};
 
 ///A trait to define how to compile the Slynx IR
 pub trait SlynxCompiler {
@@ -24,24 +25,26 @@ pub trait SlynxCompiler {
     ///is the handle of the current compiling context
     fn compile_instructions(
         &mut self,
-        instructions: &[middleend::Instruction],
-        ctx: IRPointer<Context>,
-        ir: &SlynxIR,
+        instructions: &[IntermediateInstruction],
+        ctx: &IntermediateContext,
+        ir: &IntermediateRepr,
+        handle: ContextHandle,
     ) -> Vec<Self::StatementType>;
 
     ///Compiles the provided `expr` using the given `ctx` and `ir`. The provided `handle` is the handle
     ///of the context of compiler itself, instead of the IR
     fn compile_expression(
         &mut self,
-        expr: IRPointer<Value, 1>,
-        ctx: IRPointer<Context>,
-        ir: &SlynxIR,
+        expr: &IntermediateExpr,
+        ctx: &IntermediateContext,
+        ir: &IntermediateRepr,
+        handle: ContextHandle,
     ) -> Self::ExpressionType;
     ///Starts compiling the provided `ir` and returns its result in bytes
-    fn compile(self, ir: SlynxIR) -> Vec<u8>;
+    fn compile(self, ir: IntermediateRepr) -> Vec<u8>;
 }
 
-///Compiels the provided `slynx` code from the provided `path` and writes the slynx IR textual form into the same `path` but with extension `sir`
+///Compiels the provided `slynx` code from the provided `path` and writes the slynx IR into the same `path` but with extension `sir`. The IR in this phase is not human readable, but instead, made for computers to read
 pub fn compile_code(path: PathBuf) -> color_eyre::eyre::Result<()> {
     let context = SlynxContext::new(Arc::new(path))?;
     let output = context.compile()?;
@@ -50,7 +53,7 @@ pub fn compile_code(path: PathBuf) -> color_eyre::eyre::Result<()> {
 }
 
 ///Compiels the provided `slynx` code from the provided `path` and returns the compiled slynx IR
-pub fn compile_to_ir(path: PathBuf) -> color_eyre::eyre::Result<SlynxIR> {
+pub fn compile_to_ir(path: PathBuf) -> color_eyre::eyre::Result<IntermediateRepr> {
     let context = SlynxContext::new(Arc::new(path))?;
     let output = context.compile()?;
     Ok(output.ir())
