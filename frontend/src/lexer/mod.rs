@@ -196,6 +196,52 @@ impl Lexer {
                     let mut last_is_underscore = false;
                     let mut last_is_dot = false;
                     let mut should_err = false;
+                    let mut hex_value = false;
+                    let mut binary_value = false;
+                    let mut radix = 0;
+                    let mut octal_value = false;
+
+
+                    if let Some('0') = chars.get(idx) {
+                        match chars.get(idx + 1) {
+                            Some('x') => {
+                                radix += 16;
+                                idx += 2;
+                                hex_value = true;
+                                while let Some(c) = chars.get(idx)
+                                    && (c.is_ascii_hexdigit())
+                                {
+                                    buffer.push(*c);
+                                    idx += 1;
+                                }
+                            }
+                            Some('b') => {
+                                binary_value = true;
+                                radix += 2;
+                                idx += 2;
+                                while let Some(c) = chars.get(idx)
+                                    && (*c == '0' || *c == '1')
+                                {
+                                    buffer.push(*c);
+                                    idx += 1;
+                                }
+                            }
+                            Some('o') => {
+                                octal_value = true;
+                                radix += 8;
+                                idx += 2;
+                                while let Some(c) = chars.get(idx)
+                                    && (c.is_digit(radix))
+                                {
+                                    buffer.push(*c);
+                                    idx += 1;
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                    
+                    if !hex_value && !binary_value && !octal_value {
                     while let Some(c) = chars.get(idx) {
                         if c.is_ascii_digit() {
                             last_is_dot = false;
@@ -242,6 +288,7 @@ impl Lexer {
 
                         break;
                     }
+                }
                     if should_err || buffer.ends_with('_') || buffer.ends_with('.') {
                         return Err(LexerError::MalformedNumber {
                             number: buffer,
@@ -249,9 +296,24 @@ impl Lexer {
                             end: idx,
                         });
                     }
+
                     idx -= 1;
                     let buffer = buffer.replace('_', "");
-                    if float_value {
+                    if hex_value || binary_value || octal_value {
+                        let decimal_value = i32::from_str_radix(&buffer, radix);
+
+                        match decimal_value {
+                            Ok(value) => Token::int(value, start, idx),
+                            Err(_) => {
+                                return Err(LexerError::MalformedNumber {
+                                    number: buffer,
+                                    init: start,
+                                    end: idx,
+                                });
+                            }
+                        }
+                    }
+                    else if float_value {
                         match buffer.parse::<f32>() {
                             Ok(value) => Token::float(value, start, idx),
                             Err(_) => {
