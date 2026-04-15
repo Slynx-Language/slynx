@@ -34,8 +34,9 @@ impl SlynxIR {
         &self.values[ptr.range()]
     }
 
-    ///Retrieves a `instruction` array that is pointed by the given ptr. The given `ptr` is a pointer to the valid instructions(mapped ones) a label has
-    pub fn get_instructions_by_pointer(
+    ///Retrieves all the instructions that are pointer by the given `ptr`, since its the same as **instruction, this returns a vector containing the instructions returned by each
+    ///pointer
+    pub fn get_multiple_instructions(
         &self,
         ptr: IRPointer<IRPointer<Instruction>>,
     ) -> Vec<&[Instruction]> {
@@ -45,6 +46,11 @@ impl SlynxIR {
             out.push(&self.instructions[ptr.range()]);
         }
         out
+    }
+
+    ///Retriueves the instructions pointed by the given `ptr`
+    pub fn get_instruction_by_pointer(&self, ptr: IRPointer<Instruction>) -> &[Instruction] {
+        &self.instructions[ptr.range()]
     }
 
     #[inline]
