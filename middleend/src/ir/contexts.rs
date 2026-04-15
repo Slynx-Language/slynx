@@ -87,17 +87,22 @@ impl SlynxIR {
                 let instruction = self.insert_instruction(
                     temp.current_label(),
                     Instruction::raw(value, self.types.str_type()),
+                    false,
                 );
-                Value::Instruction(instruction)
+                let ptr = self.dereference_instruction_ptr(instruction);
+                Value::Instruction(ptr.with_length())
             }
             HirExpressionKind::Bool(_)
             | HirExpressionKind::Float(_)
             | HirExpressionKind::Int(_) => {
                 let (operand, optype) = self.get_operand(expr, temp).unwrap();
                 let value = self.insert_value(Value::Raw(operand));
-                let instruction =
-                    self.insert_instruction(temp.current_label(), Instruction::raw(value, optype));
-                Value::Instruction(instruction)
+                let instruction = self.insert_instruction(
+                    temp.current_label(),
+                    Instruction::raw(value, optype),
+                    false,
+                );
+                Value::Instruction(self.dereference_instruction_ptr(instruction).with_length())
             }
             HirExpressionKind::FunctionCall { name, args } => {
                 let func = {
@@ -118,9 +123,12 @@ impl SlynxIR {
                     self.operands.push(op);
                 }
                 let ptr = IRPointer::new(ptr, operands.len());
-                let instruction = self
-                    .insert_instruction(temp.current_label(), Instruction::call(func, ret_ty, ptr));
-                Value::Instruction(instruction)
+                let instruction = self.insert_instruction(
+                    temp.current_label(),
+                    Instruction::call(func, ret_ty, ptr),
+                    false,
+                );
+                Value::Instruction(self.dereference_instruction_ptr(instruction).with_length())
             }
             HirExpressionKind::Binary { lhs, op, rhs } => {
                 self.handle_binary_expression(lhs, rhs, op, temp)?
@@ -149,8 +157,9 @@ impl SlynxIR {
                 let strts = self.insert_instruction(
                     temp.current_label(),
                     Instruction::struct_literal(ty, values),
+                    false,
                 );
-                Value::Instruction(strts)
+                Value::Instruction(self.dereference_instruction_ptr(strts).with_length())
             }
             HirExpressionKind::FieldAccess { expr, field_index } => {
                 let value = self.get_value_for(expr, temp)?;
@@ -158,8 +167,9 @@ impl SlynxIR {
                 let i = self.insert_instruction(
                     temp.current_label(),
                     Instruction::getfield(*field_index, value, ty),
+                    false,
                 );
-                Value::Instruction(i)
+                Value::Instruction(self.dereference_instruction_ptr(i).with_length())
             }
             HirExpressionKind::Component { name, values } => {
                 self.get_component_expression(*name, values, temp)?
@@ -189,6 +199,7 @@ impl SlynxIR {
                         IRPointer::null(),
                         self.get_type_of_value(value, temp),
                     ),
+                    true,
                 );
                 temp.set_current_label(then_label);
                 for (idx, instruction) in then_branch.iter().enumerate() {
@@ -206,6 +217,7 @@ impl SlynxIR {
                     self.insert_instruction(
                         temp.current_label(),
                         Instruction::br(end_label.clone(), value.with_length(), ty),
+                        true,
                     );
                 }
                 if let Some(else_branch) = else_branch {
@@ -225,6 +237,7 @@ impl SlynxIR {
                         self.insert_instruction(
                             temp.current_label(),
                             Instruction::br(end_label.clone(), value.with_length(), ty),
+                            true,
                         );
                     }
                 }

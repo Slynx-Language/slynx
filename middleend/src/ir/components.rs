@@ -57,8 +57,12 @@ impl SlynxIR {
         }
         let vals = self.insert_values(&vals);
         let ty = temp.get_type(name)?;
-        let instruction =
-            self.insert_instruction(temp.current_label(), Instruction::component(ty, vals));
+        let instruction = self.insert_instruction(
+            temp.current_label(),
+            Instruction::component(ty, vals),
+            false,
+        );
+        let instruction = self.dereference_instruction_ptr(instruction).with_length();
         Ok(Value::Instruction(instruction))
     }
 

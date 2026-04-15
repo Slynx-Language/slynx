@@ -1,4 +1,9 @@
-use crate::{Context, IRPointer, IRTypes, Instruction, Label, Operand, SlynxIR, Value};
+use either::Either::{Left, Right};
+
+use crate::{
+    Context, IRPointer, IRTypes, Instruction, Label, Operand, SlynxIR, Value,
+    ir::instructions::InstructionPtr,
+};
 
 impl SlynxIR {
     pub fn contexts(&self) -> &[Context] {
@@ -29,8 +34,24 @@ impl SlynxIR {
         &self.values[ptr.range()]
     }
 
-    ///Retrieves a `instruction` array that is pointed by the given ptr
-    pub fn get_instructions_by_pointer(&self, ptr: IRPointer<Instruction>) -> &[Instruction] {
-        &self.instructions[ptr.range()]
+    ///Retrieves a `instruction` array that is pointed by the given ptr. The given `ptr` is a pointer to the valid instructions(mapped ones) a label has
+    pub fn get_instructions_by_pointer(
+        &self,
+        ptr: IRPointer<IRPointer<Instruction>>,
+    ) -> Vec<&[Instruction]> {
+        let ptrs = &self.instruction_pointers[ptr.range()];
+        let mut out = Vec::with_capacity(ptrs.len());
+        for ptr in ptrs {
+            out.push(&self.instructions[ptr.range()]);
+        }
+        out
+    }
+
+    #[inline]
+    pub fn dereference_instruction_ptr(&self, ptr: InstructionPtr) -> IRPointer<Instruction> {
+        match ptr {
+            Left(ptr) => self.instruction_pointers[ptr.ptr()].clone(),
+            Right(e) => e,
+        }
     }
 }
