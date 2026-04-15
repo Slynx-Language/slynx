@@ -9,34 +9,6 @@ use crate::{
 };
 
 impl SlynxIR {
-    ///Gets the slot of the provided `expr`
-    pub(crate) fn get_slot_for_place(
-        &self,
-        expr: &HirExpression,
-        temp: &TempIRData,
-    ) -> Result<(IRPointer<Value, 1>, IRTypeId), IRError> {
-        match &expr.kind {
-            HirExpressionKind::Identifier(i) => {
-                let Some(v) = temp.get_variable(*i) else {
-                    unreachable!(
-                        "Temp should have variable. The context you are looking at might be mismatched"
-                    );
-                };
-                let Value::Slot(_) = &self.get_value(v.clone()) else {
-                    unreachable!("Variable should point to some ")
-                };
-                Ok((v.clone(), self.get_type_of_value(v, temp)))
-            }
-            HirExpressionKind::FieldAccess { expr, field_index } => {
-                let (parent_slot, parent_ty) = self.get_slot_for_place(expr, temp)?;
-
-                let field_ty = self.types.get_field_type(parent_ty, *field_index);
-                Ok((parent_slot, field_ty))
-            }
-            v => unimplemented!("Couldnt get slot for {v:?}"),
-        }
-    }
-
     ///Gets one(or more) instructions to operate with the given `statement`
     pub(crate) fn get_instruction(
         &mut self,
