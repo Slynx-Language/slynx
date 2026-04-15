@@ -1,3 +1,4 @@
+mod api;
 mod components;
 mod contexts;
 mod helper;
@@ -56,25 +57,6 @@ impl SlynxIR {
             types: IRTypes::new(),
             strings: symbols,
         }
-    }
-
-    pub fn contexts(&self) -> &[Context] {
-        &self.contexts
-    }
-
-    pub fn get_context_labels(&self, ctx: &Context) -> &[Label] {
-        let ptr = ctx.labels_ptr();
-        &self.labels[ptr.range()]
-    }
-
-    pub fn get_label_instructions(&self, label: &Label) -> &[Instruction] {
-        let ptr = label.instruction();
-        &self.instructions[ptr.range()]
-    }
-
-    ///Retrieves the inner struct that manages the types on the IR
-    pub fn ir_types(&self) -> &IRTypes {
-        &self.types
     }
 
     ///Returns a reference to the string pool

@@ -119,6 +119,7 @@ impl<T, const N: usize> IRPointer<T, N> {
     }
 
     #[inline]
+    ///Retrieves the ranges this pointer goes to. The range is the same as `ptr..ptr+len`
     pub fn range(&self) -> Range<usize> {
         self.ptr()..self.ptr() + self.len()
     }
