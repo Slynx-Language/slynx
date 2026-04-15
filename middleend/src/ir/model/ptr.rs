@@ -2,7 +2,7 @@ use std::{marker::PhantomData, ops::Range};
 
 ///A Pointer to something on the IR. This is a logical pointer composed by 48 bits(higher bits) that determine where the thing we are pointing to is located on the IR, and a length of 16bits to know how much of it we have as well.
 ///Think of this as a slice, but instead of containing data on the actual memory, it takes on the contents of the IR
-#[derive(Debug)]
+#[derive(Debug, Copy)]
 pub struct IRPointer<T, const N: usize = 0> {
     inner: u64,
     data: PhantomData<T>,
@@ -33,7 +33,8 @@ impl<T, const N: usize> IRPointer<T, N> {
     }
 
     ///Creates a new IRPointer with the same pointer but a different length.
-    pub fn with_length<const M: usize>(self) -> IRPointer<T, M> {
+    pub fn with_length<const M: usize>(mut self) -> IRPointer<T, M> {
+        self.set_length(M);
         IRPointer {
             inner: self.inner,
             data: PhantomData,

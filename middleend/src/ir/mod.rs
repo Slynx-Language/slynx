@@ -13,7 +13,7 @@ use frontend::hir::{
     types::{HirType, TypesModule},
 };
 
-use crate::{BUILTIN_TYPES, IRError, IRType, IRTypes};
+use crate::{BUILTIN_TYPES, IRError, IRTypes};
 
 use temp::TempIRData;
 
