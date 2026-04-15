@@ -34,7 +34,9 @@ impl<T, const N: usize> IRPointer<T, N> {
 
     ///Creates a new IRPointer with the same pointer but a different length.
     pub fn with_length<const M: usize>(mut self) -> IRPointer<T, M> {
-        self.set_length(M);
+        if M != 0 {
+            self.set_length(M)
+        };
         IRPointer {
             inner: self.inner,
             data: PhantomData,
