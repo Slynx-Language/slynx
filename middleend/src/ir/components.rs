@@ -11,7 +11,7 @@ use crate::{
 
 impl SlynxIR {
     ///Gets a Specialized component on this ir by its provided `ptr`
-    pub fn get_specialized(
+    pub(crate) fn get_specialized(
         &self,
         ptr: IRPointer<IRSpecializedComponent, 1>,
     ) -> &IRSpecializedComponent {
