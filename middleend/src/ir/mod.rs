@@ -15,7 +15,7 @@ use frontend::hir::{
     types::{HirType, TypesModule},
 };
 
-use crate::{BUILTIN_TYPES, IRError, IRTypes};
+use crate::{BUILTIN_TYPES, IRError, IRType, IRTypes};
 
 use temp::TempIRData;
 
@@ -70,6 +70,11 @@ impl SlynxIR {
     pub fn get_label_instructions(&self, label: &Label) -> &[Instruction] {
         let ptr = label.instruction();
         &self.instructions[ptr.range()]
+    }
+
+    ///Retrieves the inner struct that manages the types on the IR
+    pub fn ir_types(&self) -> &IRTypes {
+        &self.types
     }
 
     ///Returns a reference to the string pool
