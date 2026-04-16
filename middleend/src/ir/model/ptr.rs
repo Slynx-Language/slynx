@@ -2,11 +2,13 @@ use std::{hash::Hash, marker::PhantomData, ops::Range};
 
 ///A Pointer to something on the IR. This is a logical pointer composed by 48 bits(higher bits) that determine where the thing we are pointing to is located on the IR, and a length of 16bits to know how much of it we have as well.
 ///Think of this as a slice, but instead of containing data on the actual memory, it takes on the contents of the IR
-#[derive(Debug, Copy)]
+#[derive(Debug)]
 pub struct IRPointer<T, const N: usize = 0> {
     inner: u64,
     data: PhantomData<T>,
 }
+
+impl<T, const N: usize> Copy for IRPointer<T, N> {}
 
 impl<T, const N: usize> Hash for IRPointer<T, N> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
