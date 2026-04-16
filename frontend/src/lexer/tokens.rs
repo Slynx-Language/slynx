@@ -9,6 +9,7 @@ pub struct Token {
 impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let result = match self {
+            Self::Enum => "enum".to_string(),
             Self::While => "while".to_string(),
             Self::CommonComent => "//".to_string(),
             Self::And => "&&".to_string(),
@@ -124,6 +125,7 @@ pub enum TokenKind {
     Pub,
     Prop,
     Alias,
+    Enum,
 
     Object,
 
@@ -141,6 +143,15 @@ impl std::fmt::Display for Token {
 }
 
 impl Token {
+    pub fn enum_token(pos: usize) -> Self {
+        Self {
+            kind: TokenKind::Enum,
+            span: Span {
+                end: pos,
+                start: pos,
+            }
+        }
+    }
     pub fn comcomment(pos: usize) -> Self {
         Self {
             kind: TokenKind::CommonComent,
