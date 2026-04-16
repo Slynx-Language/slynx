@@ -262,9 +262,12 @@ impl SlynxIR {
         temp.set_current_function(ir.clone());
 
         {
-            let ptr = self.get_next_label_ptr().with_length();
-            self.get_context_mut(ir).set_label_ptr(ptr);
             let label = self.insert_label(ir.clone(), "entry");
+            self.get_context_mut(ir).set_label_ptr(label.with_length()); //must do so because this gets the next avaible position to labels
+            let next_instruction = self.get_next_mapeable_instruction_ptr();
+            let mut ptr = next_instruction.with_length();
+            ptr.set_length(ptr.len() - 1);
+            self.get_label_mut(label).set_instructions_pointer(ptr);
             temp.set_current_label(label);
         }
         let ptr = IRPointer::new(self.values.len(), args.len());
@@ -276,6 +279,7 @@ impl SlynxIR {
         for statement in statements {
             self.get_instruction(statement, temp)?;
         }
+
         Ok(())
     }
 }

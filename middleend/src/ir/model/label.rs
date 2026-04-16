@@ -33,9 +33,15 @@ impl Label {
 
     #[inline]
     ///Returns the label's instruction pointer
-    pub fn instruction(&self) -> IRPointer<IRPointer<Instruction>> {
-        self.instruction.clone()
+    pub fn instructions(&self) -> IRPointer<IRPointer<Instruction>> {
+        self.instruction
     }
+
+    #[inline]
+    pub fn set_instructions_pointer(&mut self, ptr: IRPointer<IRPointer<Instruction>>) {
+        self.instruction = ptr;
+    }
+
     #[inline]
     ///Inserts an instruction into the label's instruction list
     pub fn insert_instruction(&mut self) {

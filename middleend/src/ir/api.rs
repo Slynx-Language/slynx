@@ -16,7 +16,7 @@ impl SlynxIR {
     }
 
     pub fn get_label_instructions(&self, label: &Label) -> Vec<&[Instruction]> {
-        let ptr = label.instruction();
+        let ptr = label.instructions();
         self.get_multiple_instructions(ptr)
     }
 
@@ -24,7 +24,7 @@ impl SlynxIR {
         &self,
         label: &Label,
     ) -> Vec<(&[Instruction], IRPointer<Instruction>)> {
-        let ptr = label.instruction();
+        let ptr = label.instructions();
         self.get_multiple_instructions_and_ptrs(ptr)
     }
     ///Retrieves the inner struct that manages the types on the IR
