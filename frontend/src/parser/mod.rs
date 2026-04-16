@@ -6,6 +6,7 @@ mod functions;
 pub mod objects;
 mod statement;
 mod types;
+mod enums;
 use color_eyre::eyre::{Report, Result};
 
 use crate::lexer::{
