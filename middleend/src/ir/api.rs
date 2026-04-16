@@ -20,6 +20,13 @@ impl SlynxIR {
         self.get_multiple_instructions(ptr)
     }
 
+    pub fn get_label_instructions_with_ptrs(
+        &self,
+        label: &Label,
+    ) -> Vec<(&[Instruction], IRPointer<Instruction>)> {
+        let ptr = label.instruction();
+        self.get_multiple_instructions_and_ptrs(ptr)
+    }
     ///Retrieves the inner struct that manages the types on the IR
     pub fn ir_types(&self) -> &IRTypes {
         &self.types
@@ -47,7 +54,19 @@ impl SlynxIR {
         }
         out
     }
-
+    ///Retrieves all the instructions that are pointer by the given `ptr`, since its the same as **instruction, this returns a vector containing the instructions returned by each
+    ///pointer
+    pub fn get_multiple_instructions_and_ptrs(
+        &self,
+        ptr: IRPointer<IRPointer<Instruction>>,
+    ) -> Vec<(&[Instruction], IRPointer<Instruction>)> {
+        let ptrs = &self.instruction_pointers[ptr.range()];
+        let mut out = Vec::with_capacity(ptrs.len());
+        for ptr in ptrs {
+            out.push((&self.instructions[ptr.range()], *ptr));
+        }
+        out
+    }
     ///Retriueves the instructions pointed by the given `ptr`
     pub fn get_instruction_by_pointer(&self, ptr: IRPointer<Instruction>) -> &[Instruction] {
         &self.instructions[ptr.range()]
