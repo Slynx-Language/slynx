@@ -292,7 +292,10 @@ impl SlynxIR {
         temp: &mut TempIRData,
     ) -> Result<(), IRError> {
         temp.set_current_function(ir.clone());
+
         {
+            let ptr = self.get_next_label_ptr().with_length();
+            self.get_context_mut(ir).set_label_ptr(ptr);
             let label = self.insert_label(ir.clone(), "entry");
             temp.set_current_label(label);
         }

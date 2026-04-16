@@ -11,6 +11,12 @@ impl SlynxIR {
     pub(crate) fn get_context(&self, ctx: IRPointer<Context, 1>) -> &Context {
         &self.contexts[ctx.ptr()]
     }
+    #[inline]
+    ///Retrieves the context from its provided `ctx`
+    pub(crate) fn get_context_mut(&mut self, ctx: IRPointer<Context, 1>) -> &mut Context {
+        &mut self.contexts[ctx.ptr()]
+    }
+
     ///Retrieves the component from its provided `comp`
     pub(crate) fn get_component(&self, comp: IRPointer<Component, 1>) -> &Component {
         &self.components[comp.ptr()]
@@ -44,6 +50,11 @@ impl SlynxIR {
             _ => unreachable!("Type of function should be Function on the IR"),
         }
     }
+
+    pub fn get_next_label_ptr(&self) -> IRPointer<Label, 1> {
+        IRPointer::new(self.labels.len(), 1)
+    }
+
     ///Gets the labels of the given context `ir`.
     pub fn get_labels_of(&self, ir: IRPointer<Context, 1>) -> &[Label] {
         let ptr = self.contexts[ir.ptr()].labels_ptr();

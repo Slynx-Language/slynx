@@ -40,6 +40,11 @@ impl Context {
         self.labels.set_ptr(ptr);
     }
 
+    ///Sets the label pointer to be the given `ptr`
+    pub fn set_label_ptr(&mut self, ptr: IRPointer<Label>) {
+        self.labels = ptr;
+    }
+
     ///Inserts a new label into the context, increasing the length of the labels pointer.
     pub fn insert_label(&mut self) {
         self.labels.increase_length();
