@@ -96,32 +96,21 @@ impl SlynxIR {
                         let parent_ty = self.get_type_of_value(parent_value.clone(), temp);
 
                         // SetField: create a new struct with the field modified
-                        self.insert_value(self.get_value(parent_value));
-                        self.insert_value(self.get_value(value_ptr));
-                        let setfield_ptr = IRPointer::<Value, 2>::new(self.values.len() - 2, 2);
-                        let setfield_instr = self.insert_instruction(
+
+                        let values_ptr = {
+                            let parent = self.get_value(parent_value);
+                            let value = self.get_value(value_ptr);
+                            self.insert_values(&[parent, value])
+                        };
+                        self.insert_instruction(
                             temp.current_label(),
-                            Instruction::setfield(*field_index, setfield_ptr, parent_ty),
+                            Instruction::setfield(
+                                *field_index,
+                                values_ptr.with_length(),
+                                parent_ty,
+                            ),
                             true,
                         );
-                        let setfield_instr = self
-                            .dereference_instruction_ptr(setfield_instr)
-                            .with_length();
-
-                        // If the parent was an Identifier (variable slot), write back
-                        if let HirExpressionKind::Identifier(id) = &parent.kind {
-                            let value_slot = temp
-                                .get_variable(*id)
-                                .expect("Variable not found for field write-back");
-                            let slot = match self.get_value(value_slot) {
-                                Value::Slot(slot) => slot,
-                                other => {
-                                    panic!("Expected Slot value for variable, got {:?}", other)
-                                }
-                            };
-                            let new_value = self.insert_value(Value::Instruction(setfield_instr));
-                            self.write(slot, new_value, temp);
-                        }
                     }
                     _ => unreachable!("LHS of assignment must be Identifier or FieldAccess"),
                 }
