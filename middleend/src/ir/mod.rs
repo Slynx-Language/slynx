@@ -35,6 +35,7 @@ pub struct SlynxIR {
     ///The values of this IR
     values: Vec<Value>,
     slots: Vec<Slot>,
+    instruction_to_slot: Vec<SlotPointer>,
     types: IRTypes,
     ///Pool of interned strings, accessed via StringHandle indices
     strings: SymbolsModule,
@@ -54,6 +55,7 @@ impl SlynxIR {
             values: Vec::new(),
             slots: Vec::new(),
             types: IRTypes::new(),
+            instruction_to_slot: Vec::new(),
             strings: symbols,
         }
     }

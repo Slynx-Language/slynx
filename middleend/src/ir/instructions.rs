@@ -515,7 +515,7 @@ impl SlynxIR {
         let ptr = self.slots.len();
         self.slots.push(Slot { ty });
         let out = IRPointer::new(ptr, 1);
-        let _ = self.insert_instruction(temp.current_label(), Instruction::allocate(ty), true);
+        let _ = self.insert_instruction(temp.current_label(), Instruction::allocate(out, ty), true);
 
         (self.insert_value(Value::Slot(out.clone())), out)
     }
