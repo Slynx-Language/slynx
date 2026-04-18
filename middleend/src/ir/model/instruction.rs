@@ -4,7 +4,7 @@ use crate::{IRTypeId, Label, ir::model::Context};
 
 use super::IRPointer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 ///A value that represents something on a slot. A slot is something on memory, anywhere, so this is practically a pointer to some value. But it's better to be
 ///understood as a variable
 pub struct Slot {
@@ -13,8 +13,15 @@ pub struct Slot {
 }
 
 #[derive(Debug, Clone)]
+pub enum IRSpecializedComponent {
+    Text(IRPointer<Value, 1>),
+    Div(IRPointer<Value>),
+}
+
+#[derive(Debug, Clone)]
 ///A value inside the IR. Can be a function arg, a label arg or the result of a instruction
 pub enum Value {
+    Specliazed(IRPointer<IRSpecializedComponent, 1>),
     StructLiteral(IRTypeId, IRPointer<Value>),
     Raw(IRPointer<Operand, 1>),
     Instruction(IRPointer<Instruction, 1>),
@@ -37,6 +44,8 @@ pub enum Operand {
 pub enum InstructionType {
     ///Variant used for raw values. Their actual value is their operand
     RawValue,
+    Struct,
+    Component,
     ///Variant used for function calls. The `func` field is the pointer to the function context
     FunctionCall(IRPointer<Context, 1>),
     ///Variant used for binary add. The type is determines by the `value_type` and the left and right hand side are the `operands`
@@ -78,7 +87,7 @@ pub enum InstructionType {
         then_args: IRPointer<Value>,
         else_args: IRPointer<Value>,
     },
-    Allocate,
+    Allocate(IRPointer<Slot, 1>),
     Write(IRPointer<Slot, 1>),
     Read,
     Reinterpret,
@@ -279,10 +288,10 @@ impl Instruction {
         }
     }
 
-    pub fn allocate(ty: IRTypeId) -> Self {
+    pub fn allocate(slot: IRPointer<Slot, 1>, ty: IRTypeId) -> Self {
         Self {
             operands: IRPointer::null(),
-            instruction_type: InstructionType::Allocate,
+            instruction_type: InstructionType::Allocate(slot),
             value_type: ty,
         }
     }
@@ -297,6 +306,21 @@ impl Instruction {
         Self {
             operands: value.with_length(),
             instruction_type: InstructionType::Read,
+            value_type: ty,
+        }
+    }
+
+    pub fn struct_literal(ty: IRTypeId, value: IRPointer<Value>) -> Self {
+        Self {
+            operands: value,
+            instruction_type: InstructionType::Struct,
+            value_type: ty,
+        }
+    }
+    pub fn component(ty: IRTypeId, value: IRPointer<Value>) -> Self {
+        Self {
+            operands: value,
+            instruction_type: InstructionType::Component,
             value_type: ty,
         }
     }

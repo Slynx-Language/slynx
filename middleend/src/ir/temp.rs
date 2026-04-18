@@ -1,11 +1,19 @@
 use std::collections::HashMap;
 
 use frontend::hir::{TypeId, VariableId};
+use smallvec::SmallVec;
 
 use crate::{
     Component, IRError, IRTypeId,
     ir::model::{Context, IRPointer, Label, Value},
 };
+
+///Data to save Component information, such as its IRPointer, and values for the default fields
+pub struct TempComponentData {
+    pub ptr: IRPointer<Component, 1>,
+    ///Vector mapping the Nth field -> Default value, of this component. Its u8 because, seriously no one is going to make a component with more than 255 properties
+    pub default_properties: SmallVec<[(IRPointer<Value, 1>, u8); 4]>,
+}
 
 ///Temporary IR Data to be able to map the HIR contents to the IR contents that are being generated. This should only live during `generate` function of
 /// slynx ir
@@ -15,7 +23,7 @@ pub struct TempIRData {
     ///Maps HIR functions to IR functions
     functions: HashMap<frontend::hir::DeclarationId, IRPointer<Context, 1>>,
     ///Maps HIR components to IR functions
-    components: HashMap<frontend::hir::DeclarationId, IRPointer<Component, 1>>,
+    components: HashMap<frontend::hir::DeclarationId, TempComponentData>,
     ///The current function being generated
     current_function: IRPointer<Context, 1>,
     ///The current lavel that is being generated on the current function
@@ -57,32 +65,37 @@ impl TempIRData {
         fid: frontend::hir::DeclarationId,
         comp: IRPointer<Component, 1>,
     ) {
-        self.components.insert(fid, comp);
+        self.components.insert(
+            fid,
+            TempComponentData {
+                ptr: comp,
+                default_properties: SmallVec::new(),
+            },
+        );
+    }
+    #[inline]
+    ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)
+    pub fn get_component(&self, fid: frontend::hir::DeclarationId) -> &TempComponentData {
+        self.components
+            .get(&fid)
+            .expect("For some reason the provided Function Id is not declared")
+    }
+
+    #[inline]
+    ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)
+    pub fn get_component_mut(
+        &mut self,
+        fid: frontend::hir::DeclarationId,
+    ) -> &mut TempComponentData {
+        self.components
+            .get_mut(&fid)
+            .expect("For some reason the provided Function Id is not declared")
     }
     #[inline]
     ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)
     pub fn get_function(&self, fid: frontend::hir::DeclarationId) -> IRPointer<Context, 1> {
         self.functions
             .get(&fid)
-            .cloned()
-            .expect("For some reason the provided Function Id is not declared")
-    }
-    #[inline]
-    ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)
-    pub fn get_component(&self, fid: frontend::hir::DeclarationId) -> IRPointer<Component, 1> {
-        self.components
-            .get(&fid)
-            .cloned()
-            .expect("For some reason the provided Function Id is not declared")
-    }
-    #[inline]
-    ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)
-    pub fn get_component_mut(
-        &mut self,
-        fid: frontend::hir::DeclarationId,
-    ) -> IRPointer<Component, 1> {
-        self.components
-            .get_mut(&fid)
             .cloned()
             .expect("For some reason the provided Function Id is not declared")
     }

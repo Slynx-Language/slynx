@@ -1,22 +1,25 @@
+use common::SymbolPointer;
 use smallvec::SmallVec;
 
 use crate::{IRTypeId, Value};
 
 use super::{IRPointer, instruction::Instruction};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 ///A label is a named 'piece' of block that has got instructions and can be used to determine values
 pub struct Label {
-    ///The instructions this label has got. The max limit due to the IRPointer is about 65k instructions per label
-    instruction: IRPointer<Instruction>,
+    name: SymbolPointer,
+    ///The instructions this label has got. The max limit due to the IRPointer is about 65k instructions per label. The idea is that, the label will filter only the values that must be read
+    instruction: IRPointer<IRPointer<Instruction>>,
     ///Type of the arguments
     arguments: SmallVec<[IRTypeId; 2]>,
 }
 
 impl Label {
     ///Creates a new empty label
-    pub fn new() -> Self {
+    pub fn new(name: SymbolPointer) -> Self {
         Self {
+            name,
             instruction: IRPointer::null(),
             arguments: SmallVec::new(),
         }
@@ -30,9 +33,15 @@ impl Label {
 
     #[inline]
     ///Returns the label's instruction pointer
-    pub fn instruction(&self) -> IRPointer<Instruction> {
-        self.instruction.clone()
+    pub fn instructions(&self) -> IRPointer<IRPointer<Instruction>> {
+        self.instruction
     }
+
+    #[inline]
+    pub fn set_instructions_pointer(&mut self, ptr: IRPointer<IRPointer<Instruction>>) {
+        self.instruction = ptr;
+    }
+
     #[inline]
     ///Inserts an instruction into the label's instruction list
     pub fn insert_instruction(&mut self) {
@@ -55,5 +64,10 @@ impl Label {
     pub fn get_argument_value(&self, index: usize) -> Value {
         debug_assert!(index < self.arguments.len());
         Value::LabelArg(index)
+    }
+
+    ///Gets the name of this label
+    pub fn name(&self) -> SymbolPointer {
+        self.name
     }
 }

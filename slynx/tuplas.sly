@@ -1,4 +1,4 @@
 
-func main (): ((int, str), float){
-    ((1,"jorge"), 1.0)
+func main (): float{
+    ((1,"jorge"), 1.0).1
 }

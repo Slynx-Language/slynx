@@ -1,5 +1,7 @@
+use common::SymbolPointer;
+
 use crate::{
-    Component, IRType, IRTypeId, SlynxIR,
+    Component, IRType, IRTypeId, Instruction, SlynxIR,
     ir::model::{Context, IRPointer, Label, Value},
 };
 
@@ -9,6 +11,12 @@ impl SlynxIR {
     pub(crate) fn get_context(&self, ctx: IRPointer<Context, 1>) -> &Context {
         &self.contexts[ctx.ptr()]
     }
+    #[inline]
+    ///Retrieves the context from its provided `ctx`
+    pub(crate) fn get_context_mut(&mut self, ctx: IRPointer<Context, 1>) -> &mut Context {
+        &mut self.contexts[ctx.ptr()]
+    }
+
     ///Retrieves the component from its provided `comp`
     pub(crate) fn get_component(&self, comp: IRPointer<Component, 1>) -> &Component {
         &self.components[comp.ptr()]
@@ -30,6 +38,7 @@ impl SlynxIR {
             _ => unreachable!("Type of function should be Function on the IR"),
         }
     }
+
     ///Returns the return type of the given context `ir`.
     pub fn arg_types_of_context(&self, ir: IRPointer<Context, 1>) -> &[IRTypeId] {
         let ctx = self.get_context(ir);
@@ -42,29 +51,39 @@ impl SlynxIR {
             _ => unreachable!("Type of function should be Function on the IR"),
         }
     }
+
+    ///Retrieves the next label pointer
+    pub fn get_next_label_ptr(&self) -> IRPointer<Label, 1> {
+        IRPointer::new(self.labels.len(), 1)
+    }
+    ///Retrieves the next label pointer
+    pub fn get_next_mapeable_instruction_ptr(&self) -> IRPointer<IRPointer<Instruction>, 1> {
+        IRPointer::new(self.instruction_pointers.len(), 1)
+    }
     ///Gets the labels of the given context `ir`.
     pub fn get_labels_of(&self, ir: IRPointer<Context, 1>) -> &[Label] {
         let ptr = self.contexts[ir.ptr()].labels_ptr();
-        &self.labels[ptr.ptr()..ptr.len()]
+        &self.labels[ptr.range()]
     }
 
     ///Gets the labels of the given context `ir`.
     pub fn get_labels_mut_of(&mut self, ir: IRPointer<Context, 1>) -> &mut [Label] {
         let ptr = self.contexts[ir.ptr()].labels_ptr();
-        &mut self.labels[ptr.ptr()..ptr.len()]
+        &mut self.labels[ptr.range()]
     }
 
     ///Creates a new label and returns its pointer.
-    pub(self) fn create_label(&mut self) -> IRPointer<Label, 1> {
+    fn create_label(&mut self, name: SymbolPointer) -> IRPointer<Label, 1> {
         let ptr = self.labels.len();
-        self.labels.push(Label::new());
+        self.labels.push(Label::new(name));
         IRPointer::new(ptr, 1)
     }
 
     ///Inserts a new label into the given context and returns its pointer. Determines for the label to have the provided `label` name.
-    pub fn insert_label(&mut self, ir: IRPointer<Context, 1>, _label: &str) -> IRPointer<Label, 1> {
+    pub fn insert_label(&mut self, ir: IRPointer<Context, 1>, label: &str) -> IRPointer<Label, 1> {
         self.contexts[ir.ptr()].insert_label(); //this just increases the label count on the context
-        self.create_label()
+        let name = self.strings.intern(label);
+        self.create_label(name)
     }
 
     pub fn insert_values(&mut self, value: &[Value]) -> IRPointer<Value> {

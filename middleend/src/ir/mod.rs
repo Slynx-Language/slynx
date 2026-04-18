@@ -1,3 +1,4 @@
+mod api;
 mod components;
 mod contexts;
 mod helper;
@@ -23,10 +24,12 @@ pub struct SlynxIR {
     contexts: Vec<Context>,
     ///The Components of this IR
     components: Vec<Component>,
+    specialized: Vec<IRSpecializedComponent>,
     ///The labels of this IR
     labels: Vec<Label>,
     ///The instructions of this IR
     instructions: Vec<Instruction>,
+    instruction_pointers: Vec<IRPointer<Instruction>>,
     ///The operands of this IR
     operands: Vec<Operand>,
     ///The values of this IR
@@ -42,9 +45,11 @@ impl SlynxIR {
     pub fn new(symbols: SymbolsModule) -> Self {
         Self {
             components: Vec::new(),
+            specialized: Vec::new(),
             contexts: Vec::new(),
             labels: Vec::new(),
             instructions: Vec::new(),
+            instruction_pointers: Vec::new(),
             operands: Vec::new(),
             values: Vec::new(),
             slots: Vec::new(),
@@ -73,8 +78,8 @@ impl SlynxIR {
                         declaration.id.as_raw() as usize
                     );
                 }
-                frontend::hir::definitions::HirDeclarationKind::Function { .. } => {
-                    let out = self.create_blank_function().with_length();
+                frontend::hir::definitions::HirDeclarationKind::Function { name, .. } => {
+                    let out = self.create_blank_function(*name).with_length();
                     let ctx = self.get_context(out.clone());
                     temp.define_type(declaration.ty, ctx.ty());
                     temp.map_function(declaration.id, out.with_length());
@@ -106,10 +111,8 @@ impl SlynxIR {
                         &mut temp,
                     )?;
                 }
-                HirDeclarationKind::ComponentDeclaration { props } => {
-                    self.insert_component_fields_for(declaration.ty, &mut temp, tys)?;
-                    let comp = temp.get_component(declaration.id);
-                    self.initialize_component(comp, &props, &mut temp)?;
+                HirDeclarationKind::ComponentDeclaration { ref props } => {
+                    self.initialize_component(&declaration, tys, props, &mut temp)?;
                 }
                 HirDeclarationKind::Alias => {
                     let HirType::Reference { rf, .. } = tys.get_type(&declaration.ty) else {

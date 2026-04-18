@@ -26,6 +26,8 @@ pub const BUILTIN_TYPES: &[IRType] = &[
     IRType::BOOL,
     IRType::VOID,
     IRType::GenericComponent,
+    IRType::Specialized(IRSpecializedComponentType::Div),
+    IRType::Specialized(IRSpecializedComponentType::Text),
 ];
 
 #[derive(Debug, Default)]
@@ -106,46 +108,58 @@ impl IRTypes {
     pub fn get_component_type_mut(&mut self, id: IRComponentId) -> &mut IRComponent {
         &mut self.components[id.0]
     }
+
+    #[inline]
+    fn find_type_index(&self, ty: IRType) -> Option<IRTypeId> {
+        self.types.iter().position(|v| *v == ty).map(IRTypeId)
+    }
+
     ///Returns the int type
     pub fn int_type(&self) -> IRTypeId {
-        IRTypeId(self.types.iter().position(|v| *v == IRType::I32).unwrap())
+        self.find_type_index(IRType::I32).unwrap()
     }
 
     ///Returns the float type
     pub fn float_type(&self) -> IRTypeId {
-        IRTypeId(self.types.iter().position(|v| *v == IRType::F32).unwrap())
+        self.find_type_index(IRType::F32).unwrap()
     }
 
     ///Returns the bool type
     pub fn bool_type(&self) -> IRTypeId {
-        IRTypeId(self.types.iter().position(|v| *v == IRType::BOOL).unwrap())
+        self.find_type_index(IRType::BOOL).unwrap()
     }
 
     ///Returns the void type
     pub fn void_type(&self) -> IRTypeId {
-        IRTypeId(self.types.iter().position(|v| *v == IRType::VOID).unwrap())
+        self.find_type_index(IRType::VOID).unwrap()
     }
 
     ///Returns the str type
     pub fn str_type(&self) -> IRTypeId {
-        IRTypeId(self.types.iter().position(|v| *v == IRType::STR).unwrap())
+        self.find_type_index(IRType::STR).unwrap()
     }
 
     ///Returns the usize type
     pub fn usize_type(&self) -> IRTypeId {
-        IRTypeId(self.types.iter().position(|v| *v == IRType::USIZE).unwrap())
+        self.find_type_index(IRType::USIZE).unwrap()
     }
 
     ///Returns the generic component type
     pub fn generic_component_type(&self) -> IRTypeId {
-        IRTypeId(
-            self.types
-                .iter()
-                .position(|v| *v == IRType::GenericComponent)
-                .unwrap(),
-        )
+        self.find_type_index(IRType::GenericComponent).unwrap()
     }
 
+    ///Returns the usize type
+    pub fn specialized_div_type(&self) -> IRTypeId {
+        self.find_type_index(IRType::Specialized(IRSpecializedComponentType::Div))
+            .unwrap()
+    }
+
+    ///Returns the generic component type
+    pub fn specialized_text_type(&self) -> IRTypeId {
+        self.find_type_index(IRType::Specialized(IRSpecializedComponentType::Text))
+            .unwrap()
+    }
     ///Creates a new empty struct and returns its type ID
     pub fn create_empty_struct(&mut self) -> IRTypeId {
         let sout = self.structs.len();

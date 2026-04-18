@@ -14,7 +14,7 @@ use crate::{
 impl SlynxIR {
     ///Gets the new operands that are required to be inserted by the provided `value`. The final operand is the one with the actual value. Note that this function
     ///might add instructions to the current context since an Expression can be a complex task
-    pub fn get_operand(
+    pub(crate) fn get_operand(
         &mut self,
         value: &HirExpression,
         _temp: &mut TempIRData,
@@ -37,15 +37,8 @@ impl SlynxIR {
         Some(out)
     }
 
-    pub fn insert_dynamic_operands(&mut self, operands: &[Operand]) -> IRPointer<Operand, 0> {
-        let ptr = self.operands.len();
-        let out = IRPointer::new(ptr, operands.len());
-        self.operands.extend_from_slice(operands);
-        out
-    }
-
     ///Inserts a slice of operands into the IR and returns a pointer to the first operand.
-    pub fn insert_operands<const N: usize>(
+    pub(crate) fn insert_operands<const N: usize>(
         &mut self,
         operands: &[Operand; N],
     ) -> IRPointer<Operand, N> {
@@ -56,12 +49,12 @@ impl SlynxIR {
     }
 
     ///Gets a value based on its `ptr`
-    pub fn get_value(&self, ptr: IRPointer<Value, 1>) -> Value {
+    pub(crate) fn get_value(&self, ptr: IRPointer<Value, 1>) -> Value {
         self.values[ptr.ptr()].clone()
     }
 
     ///Returns an instruction pointer for the given expression.
-    pub fn get_value_for(
+    pub(crate) fn get_value_for(
         &mut self,
         expr: &HirExpression,
         temp: &mut TempIRData,
@@ -94,17 +87,22 @@ impl SlynxIR {
                 let instruction = self.insert_instruction(
                     temp.current_label(),
                     Instruction::raw(value, self.types.str_type()),
+                    false,
                 );
-                Value::Instruction(instruction)
+                let ptr = self.dereference_instruction_ptr(instruction);
+                Value::Instruction(ptr.with_length())
             }
             HirExpressionKind::Bool(_)
             | HirExpressionKind::Float(_)
             | HirExpressionKind::Int(_) => {
                 let (operand, optype) = self.get_operand(expr, temp).unwrap();
                 let value = self.insert_value(Value::Raw(operand));
-                let instruction =
-                    self.insert_instruction(temp.current_label(), Instruction::raw(value, optype));
-                Value::Instruction(instruction)
+                let instruction = self.insert_instruction(
+                    temp.current_label(),
+                    Instruction::raw(value, optype),
+                    false,
+                );
+                Value::Instruction(self.dereference_instruction_ptr(instruction).with_length())
             }
             HirExpressionKind::FunctionCall { name, args } => {
                 let func = {
@@ -120,14 +118,13 @@ impl SlynxIR {
                     operands.push(value);
                 }
                 let ptr = self.operands.len();
-                for operand in operands.iter() {
-                    let op = self.operands[operand.ptr()].clone();
-                    self.operands.push(op);
-                }
                 let ptr = IRPointer::new(ptr, operands.len());
-                let instruction = self
-                    .insert_instruction(temp.current_label(), Instruction::call(func, ret_ty, ptr));
-                Value::Instruction(instruction)
+                let instruction = self.insert_instruction(
+                    temp.current_label(),
+                    Instruction::call(func, ret_ty, ptr),
+                    false,
+                );
+                Value::Instruction(self.dereference_instruction_ptr(instruction).with_length())
             }
             HirExpressionKind::Binary { lhs, op, rhs } => {
                 self.handle_binary_expression(lhs, rhs, op, temp)?
@@ -153,7 +150,12 @@ impl SlynxIR {
                             .collect::<Vec<_>>(),
                     )
                 };
-                Value::StructLiteral(ty, values)
+                let strts = self.insert_instruction(
+                    temp.current_label(),
+                    Instruction::struct_literal(ty, values),
+                    false,
+                );
+                Value::Instruction(self.dereference_instruction_ptr(strts).with_length())
             }
             HirExpressionKind::FieldAccess { expr, field_index } => {
                 let value = self.get_value_for(expr, temp)?;
@@ -161,11 +163,12 @@ impl SlynxIR {
                 let i = self.insert_instruction(
                     temp.current_label(),
                     Instruction::getfield(*field_index, value, ty),
+                    false,
                 );
-                Value::Instruction(i)
+                Value::Instruction(self.dereference_instruction_ptr(i).with_length())
             }
-            HirExpressionKind::Component { .. } => {
-                unimplemented!("Component expression is not implemented");
+            HirExpressionKind::Component { name, values } => {
+                self.get_component_expression(*name, values, temp)?
             }
             HirExpressionKind::If {
                 condition,
@@ -192,6 +195,7 @@ impl SlynxIR {
                         IRPointer::null(),
                         self.get_type_of_value(value, temp),
                     ),
+                    true,
                 );
                 temp.set_current_label(then_label);
                 for (idx, instruction) in then_branch.iter().enumerate() {
@@ -209,6 +213,7 @@ impl SlynxIR {
                     self.insert_instruction(
                         temp.current_label(),
                         Instruction::br(end_label.clone(), value.with_length(), ty),
+                        true,
                     );
                 }
                 if let Some(else_branch) = else_branch {
@@ -228,6 +233,7 @@ impl SlynxIR {
                         self.insert_instruction(
                             temp.current_label(),
                             Instruction::br(end_label.clone(), value.with_length(), ty),
+                            true,
                         );
                     }
                 }
@@ -242,7 +248,7 @@ impl SlynxIR {
         Ok(self.insert_value(value))
     }
 
-    pub fn initialize_function(
+    pub(crate) fn initialize_function(
         &mut self,
         ir: IRPointer<Context, 1>,
         statements: &[HirStatement],
@@ -250,8 +256,14 @@ impl SlynxIR {
         temp: &mut TempIRData,
     ) -> Result<(), IRError> {
         temp.set_current_function(ir.clone());
+
         {
             let label = self.insert_label(ir.clone(), "entry");
+            self.get_context_mut(ir).set_label_ptr(label.with_length()); //must do so because this gets the next avaible position to labels
+            let next_instruction = self.get_next_mapeable_instruction_ptr();
+            let mut ptr = next_instruction.with_length();
+            ptr.set_length(ptr.len() - 1);
+            self.get_label_mut(label).set_instructions_pointer(ptr);
             temp.set_current_label(label);
         }
         let ptr = IRPointer::new(self.values.len(), args.len());
@@ -263,6 +275,7 @@ impl SlynxIR {
         for statement in statements {
             self.get_instruction(statement, temp)?;
         }
+
         Ok(())
     }
 }

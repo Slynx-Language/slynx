@@ -1,4 +1,7 @@
-use crate::{IRComponentId, IRStructId, IRTupleId, types::functions::IRFunctionId};
+use crate::{
+    IRComponentId, IRSpecializedComponentType, IRStructId, IRTupleId,
+    types::functions::IRFunctionId,
+};
 
 /// Logical identifier for a type inside IR type storage.
 ///
@@ -21,6 +24,7 @@ pub enum IRType {
     VOID,
     GenericComponent,
     Tuple(IRTupleId),
+    Specialized(IRSpecializedComponentType),
     Component(IRComponentId),
     Struct(IRStructId),
     Function(IRFunctionId),
