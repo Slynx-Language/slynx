@@ -5,15 +5,6 @@ use crate::{IRTypeId, Label, ir::model::Context};
 use super::IRPointer;
 
 #[derive(Debug, Clone, Copy)]
-///A logical pointer that points a instruction to its slot
-pub struct SlotPointer {
-    ///The instruction that generated the slot
-    instruction: IRPointer<Instruction, 1>,
-    ///The slot generated
-    slot: IRPointer<Slot, 1>,
-}
-
-#[derive(Debug, Clone, Copy)]
 ///A value that represents something on a slot. A slot is something on memory, anywhere, so this is practically a pointer to some value. But it's better to be
 ///understood as a variable
 pub struct Slot {
