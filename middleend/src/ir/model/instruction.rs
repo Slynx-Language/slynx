@@ -4,7 +4,16 @@ use crate::{IRTypeId, Label, ir::model::Context};
 
 use super::IRPointer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
+///A logical pointer that points a instruction to its slot
+pub struct SlotPointer {
+    ///The instruction that generated the slot
+    instruction: IRPointer<Instruction, 1>,
+    ///The slot generated
+    slot: IRPointer<Slot, 1>,
+}
+
+#[derive(Debug, Clone, Copy)]
 ///A value that represents something on a slot. A slot is something on memory, anywhere, so this is practically a pointer to some value. But it's better to be
 ///understood as a variable
 pub struct Slot {
@@ -89,7 +98,7 @@ pub enum InstructionType {
         then_args: IRPointer<Value>,
         else_args: IRPointer<Value>,
     },
-    Allocate,
+    Allocate(IRPointer<Slot, 1>),
     Write(IRPointer<Slot, 1>),
     Read,
     Reinterpret,
@@ -290,10 +299,10 @@ impl Instruction {
         }
     }
 
-    pub fn allocate(ty: IRTypeId) -> Self {
+    pub fn allocate(slot: IRPointer<Slot, 1>, ty: IRTypeId) -> Self {
         Self {
             operands: IRPointer::null(),
-            instruction_type: InstructionType::Allocate,
+            instruction_type: InstructionType::Allocate(slot),
             value_type: ty,
         }
     }
