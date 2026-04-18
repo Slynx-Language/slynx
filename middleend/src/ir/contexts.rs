@@ -156,10 +156,6 @@ impl SlynxIR {
                     operands.push(value);
                 }
                 let ptr = self.operands.len();
-                for operand in operands.iter() {
-                    let op = self.operands[operand.ptr()].clone();
-                    self.operands.push(op);
-                }
                 let ptr = IRPointer::new(ptr, operands.len());
                 let instruction = self.insert_instruction(
                     temp.current_label(),
