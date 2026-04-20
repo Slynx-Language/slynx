@@ -411,7 +411,7 @@ impl TypeChecker {
                 }
                 self.ensure_function_returns(statements, return_type, &decl.span)?;
             }
-            HirDeclarationKind::ComponentDeclaration { ref mut props } => {
+            HirDeclarationKind::ComponentDeclaration { ref mut props, .. } => {
                 self.resolve_component_members(props, decl.ty)?;
             }
             HirDeclarationKind::Alias => {}

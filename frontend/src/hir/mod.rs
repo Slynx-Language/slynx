@@ -293,12 +293,10 @@ impl SlynxHir {
             }
             ASTDeclarationKind::ComponentDeclaration { members, name } => {
                 self.scope_module.enter_scope();
-
-                let (decl, ty) = if let Some(symbol) =
-                    self.symbols_module.retrieve(&name.identifier)
-                    && let Some(data) = self
-                        .declarations_module
-                        .retrieve_declaration_data_by_name(symbol)
+                let symbol = self.symbols_module.intern(&name.identifier);
+                let (decl, ty) = if let Some(data) = self
+                    .declarations_module
+                    .retrieve_declaration_data_by_name(&symbol)
                 {
                     data
                 } else {
@@ -312,7 +310,10 @@ impl SlynxHir {
                 let defs = self.resolve_component_defs(members)?;
                 self.declarations.push(HirDeclaration {
                     id: decl,
-                    kind: HirDeclarationKind::ComponentDeclaration { props: defs },
+                    kind: HirDeclarationKind::ComponentDeclaration {
+                        props: defs,
+                        name: symbol,
+                    },
                     ty,
                     span: ast.span,
                 });

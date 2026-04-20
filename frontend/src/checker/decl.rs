@@ -40,7 +40,7 @@ impl TypeChecker {
             HirDeclarationKind::Object => {}
             HirDeclarationKind::Alias => {}
 
-            HirDeclarationKind::ComponentDeclaration { props } => {
+            HirDeclarationKind::ComponentDeclaration { props, .. } => {
                 let ty = self.types_module.get_type(&decl.ty).clone();
                 let HirType::Component {
                     props: mut declared_props,

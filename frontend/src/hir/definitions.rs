@@ -31,6 +31,7 @@ pub enum HirDeclarationKind {
         name: SymbolPointer,
     },
     ComponentDeclaration {
+        name: SymbolPointer,
         props: Vec<ComponentMemberDeclaration>,
     },
     Alias,

@@ -87,8 +87,8 @@ impl SlynxIR {
                     temp.define_type(declaration.ty, ctx.ty());
                     temp.map_function(declaration.id, out.with_length());
                 }
-                HirDeclarationKind::ComponentDeclaration { .. } => {
-                    let out = self.create_blank_component();
+                HirDeclarationKind::ComponentDeclaration { name, .. } => {
+                    let out = self.create_blank_component(*name);
                     let fnc = self.get_component(out.clone());
                     temp.define_type(declaration.ty, fnc.ty);
                     temp.map_component(declaration.id, out);
@@ -114,7 +114,7 @@ impl SlynxIR {
                         &mut temp,
                     )?;
                 }
-                HirDeclarationKind::ComponentDeclaration { ref props } => {
+                HirDeclarationKind::ComponentDeclaration { ref props, .. } => {
                     self.initialize_component(&declaration, tys, props, &mut temp)?;
                 }
                 HirDeclarationKind::Alias => {
