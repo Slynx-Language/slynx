@@ -1,13 +1,17 @@
 use either::Either::{Left, Right};
 
 use crate::{
-    Context, IRPointer, IRTypes, Instruction, Label, Operand, SlynxIR, Value,
+    Component, Context, IRPointer, IRTypes, Instruction, Label, Operand, SlynxIR, Value,
     ir::instructions::InstructionPtr,
 };
 
 impl SlynxIR {
     pub fn contexts(&self) -> &[Context] {
         &self.contexts
+    }
+
+    pub fn components(&self) -> &[Component] {
+        &self.components
     }
 
     pub fn get_context_labels(&self, ctx: &Context) -> &[Label] {
@@ -42,7 +46,7 @@ impl SlynxIR {
     }
 
     ///Retrieves all the instructions that are pointer by the given `ptr`, since its the same as **instruction, this returns a vector containing the instructions returned by each
-    ///pointer
+    ///pointer**
     pub fn get_multiple_instructions(
         &self,
         ptr: IRPointer<IRPointer<Instruction>>,
