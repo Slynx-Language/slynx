@@ -31,6 +31,7 @@ These files are the main factual references for landing-page content:
 - [RELEASING.md](../RELEASING.md): release/tag process
 - [CHANGELOG.md](../CHANGELOG.md): release history
 - [middleend/README.md](../middleend/README.md): middleend and IR design reference
+- [docs/reactivity-model.md](reactivity-model.md): ownership-first reactivity model spec
 - [middleend/docs/reactive-graph-generation.md](../middleend/docs/reactive-graph-generation.md):
   reactive graph generation spec
 - [docs/component-slots.md](component-slots.md): slot model spec for the first implementation
@@ -197,7 +198,30 @@ Do not present as fully implemented:
 - the full IR surface described in `middleend/README.md`
 - every operation/example in that document as if it already exists in the codebase
 
-### 2. Reactive Graph Generation
+### 2. Reactivity Ownership Model
+
+Status: `Spec / Design`
+
+Safe framing:
+
+- the repository contains a design proposal for ownership-first component
+  reactivity;
+- it separates owned state, bound inputs, upward events/commands, style
+  derivation, and animation concerns;
+- it is intended to guide frontend, graph, and IR work before the runtime model
+  is finalized.
+
+Evidence:
+
+- [docs/reactivity-model.md](reactivity-model.md)
+
+Do not present as implemented:
+
+- finished component reactivity on `main`;
+- finalized event syntax;
+- finalized style/animation language features.
+
+### 3. Reactive Graph Generation
 
 Status: `Spec / Design`
 
@@ -215,7 +239,7 @@ Do not present as implemented:
 - reactive graph lowering as a finished compiler pass
 - final graph-driven IR generation on `main`
 
-### 3. Component Slots
+### 4. Component Slots
 
 Status: `Spec / Design`
 
@@ -316,6 +340,7 @@ If the team wants to move quickly without inventing content, this order is the s
 3. add a small API-reference page for the current root helpers
 4. add a clearly labeled "Design Docs" section for:
    - [middleend/README.md](../middleend/README.md)
+   - [docs/reactivity-model.md](reactivity-model.md)
    - [middleend/docs/reactive-graph-generation.md](../middleend/docs/reactive-graph-generation.md)
    - [docs/component-slots.md](component-slots.md)
 5. leave unfinished or speculative features out of the marketing copy until they land on `main`

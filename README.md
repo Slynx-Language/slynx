@@ -155,6 +155,7 @@ Core project documents:
 - [CHANGELOG.md](CHANGELOG.md): repository-level changelog
 - [docs/language-surface.md](docs/language-surface.md): grounded overview of the current language syntax and constructs
 - [docs/first-slynx-file.md](docs/first-slynx-file.md): short tutorial-style example for new contributors
+- [docs/reactivity-model.md](docs/reactivity-model.md): ownership-first reactivity design direction for components, style, and events
 - [middleend/README.md](middleend/README.md): IR design/specification reference
 - [docs/issue-reporting.md](docs/issue-reporting.md): guide for opening clear, actionable issues
 - [docs/landing-content-inventory.md](docs/landing-content-inventory.md): grounded inventory of what can already be published on the landing page

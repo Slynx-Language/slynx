@@ -4,6 +4,11 @@ This document specifies the stage that builds Slynx's reactive dependency graph
 for a component. It intentionally stops at graph generation.
 Linearization and IR lowering are left as separate phases.
 
+This document assumes the ownership-first semantics described in
+[`../../docs/reactivity-model.md`](../../docs/reactivity-model.md).
+In particular, this stage is meant to model derived value dependencies and
+downward propagation, not hidden cross-component mutation.
+
 ## Goal
 
 The graph generation stage extracts reactive dependencies from a typed component
@@ -16,6 +21,9 @@ definition and produces a generic graph representation that later phases can:
 The graph itself should stay generic enough to be reused by future compiler
 features and tooling. The IR should only consume the graph output; it should not
 own the dependency discovery logic.
+
+For the first implementation, upward event/command requests should stay explicit
+instead of being encoded as if they were ordinary data-dependency edges.
 
 ## Placement In The Pipeline
 
@@ -52,6 +60,9 @@ The stage needs:
 - the component prop list, including default values when present;
 - the typed expressions used by child properties and reactive updates;
 - the field index/type metadata for child components and specialized nodes.
+
+It should not require backend-specific event transport details in order to
+build the value-dependency graph.
 
 ## Outputs
 
@@ -192,10 +203,16 @@ Each independently triggerable update should become its own edge.
 If two child fields both depend on `count`, they become two edges.
 If one target depends on `count |> f`, that transformation belongs to that edge.
 
+For the first ownership-focused model, this means value updates and derivations.
+It does not mean "any possible cross-component reaction" should become a graph
+edge.
+
 ### 4. No Lowering During Generation
 
 This stage should not emit IR instructions and should not decide label/block
 layout. It only builds the dependency graph.
+
+Event/command transport for upward requests remains a separate concern.
 
 ### 5. Cycle Detection Is Mandatory
 

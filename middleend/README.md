@@ -18,6 +18,9 @@ What is true today:
 
 The long-term goal is an SSA-oriented, strongly typed IR that tells a downstream compiler what to do without forcing a single runtime strategy.
 
+For the ownership-first component reactivity direction that should guide graph
+generation and event lowering, see [../docs/reactivity-model.md](../docs/reactivity-model.md).
+
 For the stage that extracts reactive dependencies before linearization/IR
 lowering, see [docs/reactive-graph-generation.md](docs/reactive-graph-generation.md).
 
@@ -317,7 +320,7 @@ Differently of default values, special values are primitives that are expected t
 
 ### UI Operations
 Anything on the IR that initializes with '@' and is being used as an instruction, is an specific UI Operation, which determine what the UI itself should do. If being used as a value, then it's the visual reference to a handle of some internal string
-On Components, @binds are way to determine which value on the component should update which dependency. On the %Counter example above, we had
+On Components, @binds are a way to determine which value on the component should update which dependency. On the %Counter example above, we had
 
 ```
 @bind %count -> field #t0, 0;
@@ -326,6 +329,11 @@ On Components, @binds are way to determine which value on the component should u
 
 which means that, on %count update, it updates with the new value, the value of the field 0 of #t0. For the field 0 of #t1, it updates it using `%count |> f`, which means that the value of `call f, %count`, is used as the new value.
 The `@emit p0, %count` on the function, tells that `p0` should execute its `%count` binds. And after executing them, send a re-render with @rerender.
+
+For the first ownership-focused reactivity model, `@bind` should be read as
+downward/derived value propagation, not as hidden mutation of data owned by
+another component boundary. Cross-boundary update requests should stay explicit
+through event-like operations.
 
 * @bind: which follows `@bind %property |> func -> value`, means that on update of `%property` inside the component we are defining, updates the provided `value`
 * @emit: which follows `@emit Component, %property`, means that it should execute the binds related to `%property` of the provided `Component`

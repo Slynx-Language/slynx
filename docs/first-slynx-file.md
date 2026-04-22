@@ -193,5 +193,6 @@ It does **not** document as finished:
 ## Where To Go Next
 
 - [docs/language-surface.md](language-surface.md)
+- [docs/reactivity-model.md](reactivity-model.md)
 - [README.md](../README.md)
 - [middleend/README.md](../middleend/README.md)

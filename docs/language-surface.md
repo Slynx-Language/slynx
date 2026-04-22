@@ -23,6 +23,7 @@ It does **not** try to document:
 
 For design-only topics, see:
 
+- [docs/reactivity-model.md](reactivity-model.md)
 - [docs/component-slots.md](component-slots.md)
 - [middleend/docs/reactive-graph-generation.md](../middleend/docs/reactive-graph-generation.md)
 - [middleend/docs/linerize-the-graph.md](../middleend/docs/linerize-the-graph.md)
