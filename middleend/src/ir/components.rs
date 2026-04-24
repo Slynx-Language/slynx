@@ -1,17 +1,16 @@
 use frontend::hir::{
-    TypeId,
     definitions::{ComponentMemberDeclaration, HirDeclaration, SpecializedComponent},
     types::HirType,
 };
 
 use crate::{
-    IRError, IRPointer, IRSpecializedComponent, IRType, Instruction, SlynxIR, Value,
-    ir::temp::TempIRData,
+    ir::temp::TempIRData, IRError, IRPointer, IRSpecializedComponent, IRType, Instruction, SlynxIR,
+    Value,
 };
 
 impl SlynxIR {
     ///Gets a Specialized component on this ir by its provided `ptr`
-    pub(crate) fn get_specialized(
+    pub fn get_specialized(
         &self,
         ptr: IRPointer<IRSpecializedComponent, 1>,
     ) -> &IRSpecializedComponent {
