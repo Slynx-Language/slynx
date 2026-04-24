@@ -33,4 +33,9 @@ impl IRComponent {
     pub fn name(&self) -> SymbolPointer {
         self.name
     }
+
+    #[inline]
+    pub fn fields(&self) -> &[IRTypeId] {
+        &self.fields
+    }
 }

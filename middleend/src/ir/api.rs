@@ -1,11 +1,19 @@
 use either::Either::{Left, Right};
 
 use crate::{
-    Component, Context, IRPointer, IRTypes, Instruction, Label, Operand, SlynxIR, Value,
-    ir::instructions::InstructionPtr,
+    Component, Context, ControlFlowGraph, IRPointer, IRTypes, Instruction, Label, Operand, SlynxIR,
+    Value, ir::instructions::InstructionPtr,
 };
 
 impl SlynxIR {
+    pub fn generate_context_cfg(&self, context: &Context) -> ControlFlowGraph {
+        let labels = self.get_context_labels(context);
+        let mut initial = ControlFlowGraph::new();
+        for label in labels {}
+
+        initial
+    }
+
     pub fn contexts(&self) -> &[Context] {
         &self.contexts
     }

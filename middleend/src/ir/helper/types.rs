@@ -5,7 +5,8 @@ use frontend::hir::{
 };
 
 use crate::{
-    Component, IRComponent, IRError, IRSpecializedComponent, IRType, IRTypeId, Slot, SlynxIR,
+    Component, IRComponent, IRError, IRSpecializedComponent, IRType, IRTypeId, Label, Slot,
+    SlynxIR,
     ir::{
         model::{Context, IRPointer, Instruction, Operand, Value},
         temp::TempIRData,
