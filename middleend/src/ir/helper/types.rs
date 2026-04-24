@@ -5,7 +5,8 @@ use frontend::hir::{
 };
 
 use crate::{
-    Component, IRComponent, IRError, IRSpecializedComponent, IRType, IRTypeId, Slot, SlynxIR,
+    Component, IRComponent, IRError, IRSpecializedComponent, IRType, IRTypeId, Label, Slot,
+    SlynxIR,
     ir::{
         model::{Context, IRPointer, Instruction, Operand, Value},
         temp::TempIRData,
@@ -72,7 +73,7 @@ impl SlynxIR {
             Value::FuncArg(idx) => self.arg_types_of_context(temp.current_function())[*idx],
             Value::Raw(operand) => self.get_operand_type(operand.clone(), temp),
             Value::Instruction(instr) => self.get_type_of_instruction(instr.clone(), temp),
-            Value::LabelArg(_) => unimplemented!("Unimplemented type for label args"),
+            Value::LabelArg(index) => self.get_label(temp.current_label()).arguments()[*index],
             Value::Slot(v) => self.get_slot_type(v.clone()),
             Value::StructLiteral(t, _) => *t,
             Value::Specliazed(v) => self.specialized_type(v.clone()),
