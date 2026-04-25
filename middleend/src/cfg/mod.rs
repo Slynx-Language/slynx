@@ -46,6 +46,9 @@ impl ControlFlowGraph {
         let mut queue = VecDeque::new();
         queue.push_back(label_ptr);
         while let Some(current) = queue.pop_front() {
+            if label_to_node.contains_key(&current) {
+                continue;
+            }
             let label = ir.get_label(current);
             if let Some((successors, kinds)) = Self::get_sucessors_of(label, ir) {
                 let index = graph.add_node(BasicBlock::new(current, successors.clone()));
