@@ -65,9 +65,9 @@ impl SlynxIR {
             }
 
             HirStatementKind::Variable { name, value } => {
-                let value = self.get_value_for(value, temp)?;
-                let vty = self.get_type_of_value(value.clone(), temp);
+                let vty = self.get_ir_type(&value.ty, temp)?;
                 let (slotvalue, slotptr) = self.allocate(vty, temp);
+                let value = self.get_value_for(value, temp)?;
 
                 self.write(slotptr.clone(), value.clone(), temp);
 

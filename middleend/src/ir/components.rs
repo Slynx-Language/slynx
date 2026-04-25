@@ -1,12 +1,12 @@
 use frontend::hir::{
-    definitions::{ComponentMemberDeclaration, HirDeclaration, SpecializedComponent},
-    types::{HirType, TypesModule},
     TypeId,
+    definitions::{ComponentMemberDeclaration, HirDeclaration, SpecializedComponent},
+    types::HirType,
 };
 
 use crate::{
-    ir::temp::TempIRData, IRError, IRPointer, IRSpecializedComponent, IRType, Instruction, SlynxIR,
-    Value,
+    IRError, IRPointer, IRSpecializedComponent, IRType, Instruction, SlynxIR, Value,
+    ir::temp::TempIRData,
 };
 
 impl SlynxIR {
@@ -70,25 +70,26 @@ impl SlynxIR {
     pub(crate) fn initialize_component(
         &mut self,
         decl: &HirDeclaration,
-        tys: &TypesModule,
         props: &[ComponentMemberDeclaration],
         temp: &mut TempIRData,
     ) -> Result<(), IRError> {
         {
             //initializes the type
-            let component_type = self.get_ir_type(&decl.ty, temp, tys)?;
+            let component_type = self.get_ir_type(&decl.ty, temp)?;
             let IRType::Component(cid) = self.types.get_type(component_type) else {
                 unreachable!(
                     "Something errored that type of component simply isnt Component on ir"
                 );
             };
 
-            let Some(HirType::Component { props: ty_props }) = tys.get_component(&decl.ty) else {
+            let Some(HirType::Component { props: ty_props }) =
+                temp.types_module().get_component(&decl.ty)
+            else {
                 unreachable!("{:?} should map to an Component, but it doesn't", decl);
             };
 
             for (_, _, prop) in ty_props {
-                let ty = self.get_ir_type(prop, temp, tys)?;
+                let ty = self.get_ir_type(prop, temp)?;
                 let comp_ty = self.types.get_component_type_mut(cid);
                 comp_ty.insert_field(ty);
             }

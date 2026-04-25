@@ -1,8 +1,5 @@
 use common::SymbolPointer;
-use frontend::hir::{
-    TypeId,
-    types::{HirType, TypesModule},
-};
+use frontend::hir::{TypeId, types::HirType};
 
 use crate::{
     Component, IRComponent, IRError, IRSpecializedComponent, IRType, IRTypeId, Label, Slot,
@@ -16,12 +13,8 @@ use crate::{
 impl SlynxIR {
     #[inline]
     ///Gets the type of the ir based on the provided `hirty`. Uses `temp` and `tymod` as auxiliary
-    pub fn get_ir_type(
-        &mut self,
-        hirty: &TypeId,
-        temp: &TempIRData,
-        tymod: &TypesModule,
-    ) -> Result<IRTypeId, IRError> {
+    pub fn get_ir_type(&mut self, hirty: &TypeId, temp: &TempIRData) -> Result<IRTypeId, IRError> {
+        let tymod = temp.types_module();
         Ok(match *hirty {
             ty if ty == tymod.int_id() => self.types.int_type(),
             ty if ty == tymod.float_id() => self.types.float_type(),
@@ -38,11 +31,17 @@ impl SlynxIR {
                         let fields = fields.clone();
                         let ir_fields = fields
                             .iter()
-                            .map(|f| self.get_ir_type(f, temp, tymod))
+                            .map(|f| self.get_ir_type(f, temp))
                             .collect::<Result<Vec<_>, _>>()?;
                         self.types.create_or_get_tuple(ir_fields)
                     }
-                    _ => return Err(IRError::IRTypeNotRecognized(ty)),
+                    HirType::Reference { rf, .. } => {
+                        let rf = *rf;
+                        return self.get_ir_type(&rf, temp);
+                    }
+                    other => {
+                        return Err(IRError::IRTypeNotRecognized(ty));
+                    }
                 }
             }
         })
@@ -117,18 +116,16 @@ impl SlynxIR {
         &mut self,
         decl: TypeId,
         temp: &TempIRData,
-        tys: &TypesModule,
     ) -> Result<(), IRError> {
         let obj_handle = temp.get_type(decl)?;
         let IRType::Struct(obj) = self.types.get_type(obj_handle) else {
             unreachable!();
         };
-
-        let Some(HirType::Struct { fields }) = tys.get_object(&decl) else {
+        let Some(HirType::Struct { fields }) = temp.types_module().get_object(&decl) else {
             unreachable!("{:?} should map to an Object, but it doesn't", decl);
         };
         for field in fields {
-            let ty = self.get_ir_type(field, temp, tys)?;
+            let ty = self.get_ir_type(field, temp)?;
             let obj_ty = self.types.get_object_type_mut(obj);
             obj_ty.insert_field(ty);
         }
@@ -139,9 +136,8 @@ impl SlynxIR {
         &mut self,
         decl: TypeId,
         temp: &TempIRData,
-        tys: &TypesModule,
     ) -> Result<(), IRError> {
-        let HirType::Function { args, return_type } = tys.get_type(&decl) else {
+        let HirType::Function { args, return_type } = temp.types_module().get_type(&decl) else {
             unreachable!();
         };
         let irty_id = temp.get_type(decl)?;
@@ -151,10 +147,10 @@ impl SlynxIR {
 
         let mut extended_args = Vec::with_capacity(args.len());
         for arg in args {
-            let arg_ty = self.get_ir_type(arg, temp, tys)?;
+            let arg_ty = self.get_ir_type(arg, temp)?;
             extended_args.push(arg_ty);
         }
-        let ret = self.get_ir_type(return_type, temp, tys)?;
+        let ret = self.get_ir_type(return_type, temp)?;
         let ty = self.types.get_function_type_mut(func_tyid);
         ty.insert_arg_types(&extended_args);
         ty.set_return_type(ret);

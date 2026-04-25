@@ -65,14 +65,22 @@ impl SlynxIR {
 
     ///Generates all the code on the IR, with types, functions, lowerings, etc, based on the provided `hir`. The `tys` is expected to be the types module used by the `hir` during all frontend process, as well as
     ///the `symbols`, to be the symbols module used by the same `hir` during all the frontend process
-    pub fn generate(&mut self, hir: Vec<HirDeclaration>, tys: &TypesModule) -> Result<(), IRError> {
-        let mut temp = TempIRData::new();
+    pub fn generate<'a>(
+        &mut self,
+        hir: Vec<HirDeclaration>,
+        tys: &'a TypesModule,
+    ) -> Result<(), IRError> {
+        let mut temp = TempIRData::new(tys);
         //hoist of the objects
         for declaration in &hir {
             match &declaration.kind {
                 frontend::hir::definitions::HirDeclarationKind::Object => {
                     let out = self.types.create_empty_struct();
                     temp.define_type(declaration.ty, out);
+                    // Also map the inner unnamed Struct TypeId (the `rf` of the Reference)
+                    if let HirType::Reference { rf, .. } = tys.get_type(&declaration.ty) {
+                        temp.define_type(*rf, out);
+                    }
                     debug_assert_eq!(
                         out.0 - BUILTIN_TYPES.len(),
                         declaration.id.as_raw() as usize
@@ -96,12 +104,12 @@ impl SlynxIR {
         for declaration in hir {
             match declaration.kind {
                 HirDeclarationKind::Object => {
-                    self.insert_object_fields_for(declaration.ty, &temp, tys)?;
+                    self.insert_object_fields_for(declaration.ty, &temp)?;
                 }
                 HirDeclarationKind::Function {
                     args, statements, ..
                 } => {
-                    self.insert_function_type_for(declaration.ty, &temp, tys)?;
+                    self.insert_function_type_for(declaration.ty, &temp)?;
                     let func = temp.get_function(declaration.id);
                     debug_assert!(func.len() == 1);
                     self.initialize_function(
@@ -112,10 +120,12 @@ impl SlynxIR {
                     )?;
                 }
                 HirDeclarationKind::ComponentDeclaration { ref props, .. } => {
-                    self.initialize_component(&declaration, tys, props, &mut temp)?;
+                    self.initialize_component(&declaration, props, &mut temp)?;
                 }
                 HirDeclarationKind::Alias => {
-                    let HirType::Reference { rf, .. } = tys.get_type(&declaration.ty) else {
+                    let HirType::Reference { rf, .. } =
+                        temp.types_module().get_type(&declaration.ty)
+                    else {
                         unreachable!("Declaration type of alias is always reference")
                     };
 

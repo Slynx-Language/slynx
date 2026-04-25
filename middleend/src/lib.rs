@@ -6,3 +6,4 @@ pub use types::*;
 pub mod ir;
 pub use error::*;
 pub use ir::*;
+pub use petgraph;

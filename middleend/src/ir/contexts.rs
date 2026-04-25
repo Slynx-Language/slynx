@@ -176,32 +176,40 @@ impl SlynxIR {
                 else_branch,
             } => {
                 let value = self.get_value_for(condition, temp)?;
-                let then_label = self.insert_label(temp.current_function(), "then_label");
-                let else_label = self.insert_label(temp.current_function(), "else_label");
-                let end_label = {
-                    let label = self.insert_label(temp.current_function(), "end_label");
-                    let v = self.get_type_of_value(value.clone(), temp);
-                    self.get_label_mut(label.clone()).add_argument(v);
-                    label
-                };
+                let then_label_ptr = self.get_next_label_ptr();
+                let else_label_ptr = IRPointer::new(then_label_ptr.ptr() + 1, 1);
+                let end_label_ptr = IRPointer::new(then_label_ptr.ptr() + 2, 1);
 
                 self.insert_instruction(
                     temp.current_label(),
                     Instruction::cbr(
                         value.clone(),
-                        then_label.clone(),
-                        else_label.clone(),
+                        then_label_ptr.clone(),
+                        else_label_ptr.clone(),
                         IRPointer::null(),
                         IRPointer::null(),
-                        self.get_type_of_value(value, temp),
+                        self.get_type_of_value(value.clone(), temp),
                     ),
                     true,
                 );
+
+                let then_label = self.insert_label(temp.current_function(), "then_label");
+                debug_assert_eq!(then_label, then_label_ptr);
+                let else_label = self.insert_label(temp.current_function(), "else_label");
+                debug_assert_eq!(else_label, else_label_ptr);
+                let end_label = {
+                    let label = self.insert_label(temp.current_function(), "end_label");
+                    debug_assert_eq!(label, end_label_ptr);
+                    let v = self.get_type_of_value(value.clone(), temp);
+                    self.get_label_mut(label.clone()).add_argument(v);
+                    label
+                };
                 temp.set_current_label(then_label);
                 for (idx, instruction) in then_branch.iter().enumerate() {
                     let value = if idx == then_branch.len() - 1
                         && let HirStatementKind::Expression { ref expr } = instruction.kind
                     {
+                        //last value of block
                         self.get_value_for(expr, temp)?
                     } else {
                         self.get_instruction(instruction, temp)?;

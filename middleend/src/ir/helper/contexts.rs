@@ -83,7 +83,14 @@ impl SlynxIR {
     pub fn insert_label(&mut self, ir: IRPointer<Context, 1>, label: &str) -> IRPointer<Label, 1> {
         self.contexts[ir.ptr()].insert_label(); //this just increases the label count on the context
         let name = self.strings.intern(label);
-        self.create_label(name)
+        let label_ptr = self.create_label(name);
+        // Initialize the instruction pointer offset to the current end of instruction_pointers,
+        // so instructions inserted later are correctly attributed to this label.
+        let next = self.get_next_mapeable_instruction_ptr();
+        let mut ptr = next.with_length();
+        ptr.set_length(ptr.len() - 1);
+        self.get_label_mut(label_ptr).set_instructions_pointer(ptr);
+        label_ptr
     }
 
     pub fn insert_values(&mut self, value: &[Value]) -> IRPointer<Value> {

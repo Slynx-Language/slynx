@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use frontend::hir::{TypeId, VariableId};
+use frontend::hir::{TypeId, VariableId, types::TypesModule};
 use smallvec::SmallVec;
 
 use crate::{
@@ -17,7 +17,8 @@ pub struct TempComponentData {
 
 ///Temporary IR Data to be able to map the HIR contents to the IR contents that are being generated. This should only live during `generate` function of
 /// slynx ir
-pub struct TempIRData {
+pub struct TempIRData<'a> {
+    types_module: &'a TypesModule,
     ///Maps HIR types to IR types
     types_mapping: HashMap<TypeId, IRTypeId>,
     ///Maps HIR functions to IR functions
@@ -34,9 +35,10 @@ pub struct TempIRData {
     args: Vec<VariableId>,
 }
 
-impl TempIRData {
-    pub fn new() -> Self {
+impl<'a> TempIRData<'a> {
+    pub fn new(types_module: &'a TypesModule) -> Self {
         Self {
+            types_module,
             types_mapping: HashMap::new(),
             functions: HashMap::new(),
             current_function: IRPointer::null(),
@@ -45,6 +47,11 @@ impl TempIRData {
             args: Vec::new(),
             variables: Vec::new(),
         }
+    }
+
+    #[inline]
+    pub fn types_module(&self) -> &TypesModule {
+        &self.types_module
     }
 
     ///Maps the provided `hty`(hir type) to the provided `ity`(ir type)
