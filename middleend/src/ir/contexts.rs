@@ -6,12 +6,50 @@ use frontend::hir::{
 use crate::{
     IRError, IRTypeId, SlynxIR,
     ir::{
-        model::{Context, IRPointer, Instruction, Operand, Value},
+        model::{Context, IRPointer, Instruction, Label, Operand, Value},
         temp::TempIRData,
     },
 };
 
 impl SlynxIR {
+    fn lower_if_branch(
+        &mut self,
+        branch: &[HirStatement],
+        end_label: IRPointer<Label, 1>,
+        temp: &mut TempIRData,
+    ) -> Result<Option<IRTypeId>, IRError> {
+        for (idx, statement) in branch.iter().enumerate() {
+            if idx == branch.len() - 1
+                && let HirStatementKind::Expression { ref expr } = statement.kind
+            {
+                let value = self.get_value_for(expr, temp)?;
+                let ty = self.get_type_of_value(value.clone(), temp);
+
+                // The merge label carries the value produced by each branch.
+                // Its argument type is the branch result type, not the condition type.
+                if self.get_label(end_label.clone()).arguments().is_empty() {
+                    self.get_label_mut(end_label.clone()).add_argument(ty);
+                }
+
+                self.insert_instruction(
+                    temp.current_label(),
+                    Instruction::br(end_label, value.with_length(), ty),
+                );
+                return Ok(Some(ty));
+            }
+
+            if self.get_instruction(statement, temp)?.is_some() {
+                return Ok(None);
+            }
+        }
+
+        self.insert_instruction(
+            temp.current_label(),
+            Instruction::br(end_label, IRPointer::null(), self.types.void_type()),
+        );
+        Ok(None)
+    }
+
     ///Gets the new operands that are required to be inserted by the provided `value`. The final operand is the one with the actual value. Note that this function
     ///might add instructions to the current context since an Expression can be a complex task
     pub fn get_operand(
@@ -175,12 +213,8 @@ impl SlynxIR {
                 let value = self.get_value_for(condition, temp)?;
                 let then_label = self.insert_label(temp.current_function(), "then_label");
                 let else_label = self.insert_label(temp.current_function(), "else_label");
-                let end_label = {
-                    let label = self.insert_label(temp.current_function(), "end_label");
-                    let v = self.get_type_of_value(value.clone(), temp);
-                    self.get_label_mut(label.clone()).add_argument(v);
-                    label
-                };
+                let end_label = self.insert_label(temp.current_function(), "end_label");
+                let condition_ty = self.get_type_of_value(value.clone(), temp);
 
                 self.insert_instruction(
                     temp.current_label(),
@@ -190,50 +224,23 @@ impl SlynxIR {
                         else_label.clone(),
                         IRPointer::null(),
                         IRPointer::null(),
-                        self.get_type_of_value(value, temp),
+                        condition_ty,
                     ),
                 );
                 temp.set_current_label(then_label);
-                for (idx, instruction) in then_branch.iter().enumerate() {
-                    let value = if idx == then_branch.len() - 1
-                        && let HirStatementKind::Expression { ref expr } = instruction.kind
-                    {
-                        self.get_value_for(expr, temp)?
-                    } else {
-                        self.get_instruction(instruction, temp)?;
-                        continue;
-                    };
+                self.lower_if_branch(then_branch, end_label.clone(), temp)?;
 
-                    let ty = self.get_type_of_value(value.clone(), temp);
+                temp.set_current_label(else_label);
+                let else_branch = else_branch.as_deref().unwrap_or(&[]);
+                self.lower_if_branch(else_branch, end_label.clone(), temp)?;
 
-                    self.insert_instruction(
-                        temp.current_label(),
-                        Instruction::br(end_label.clone(), value.with_length(), ty),
-                    );
-                }
-                if let Some(else_branch) = else_branch {
-                    temp.set_current_label(else_label);
-                    for (idx, instruction) in else_branch.iter().enumerate() {
-                        let value = if idx == else_branch.len() - 1
-                            && let HirStatementKind::Expression { ref expr } = instruction.kind
-                        {
-                            self.get_value_for(expr, temp)?
-                        } else {
-                            self.get_instruction(instruction, temp)?;
-                            continue;
-                        };
-
-                        let ty = self.get_type_of_value(value.clone(), temp);
-
-                        self.insert_instruction(
-                            temp.current_label(),
-                            Instruction::br(end_label.clone(), value.with_length(), ty),
-                        );
-                    }
-                }
                 temp.set_current_label(end_label.clone());
                 let end_label = self.get_label(end_label);
-                end_label.get_argument_value(0)
+                if end_label.arguments().is_empty() {
+                    Value::Void
+                } else {
+                    end_label.get_argument_value(0)
+                }
             }
             HirExpressionKind::Specialized(_) => {
                 unimplemented!("Not implemented IR for specialized components");

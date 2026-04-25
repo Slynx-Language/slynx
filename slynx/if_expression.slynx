@@ -1,0 +1,10 @@
+func main(): int {
+    let b = true;
+    let a = if b {
+        5
+    } else {
+        3
+    };
+
+    a
+}

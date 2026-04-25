@@ -15,6 +15,7 @@ pub struct Slot {
 #[derive(Debug, Clone)]
 ///A value inside the IR. Can be a function arg, a label arg or the result of a instruction
 pub enum Value {
+    Void,
     StructLiteral(IRTypeId, IRPointer<Value>),
     Raw(IRPointer<Operand, 1>),
     Instruction(IRPointer<Instruction, 1>),

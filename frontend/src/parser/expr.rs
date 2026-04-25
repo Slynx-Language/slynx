@@ -211,7 +211,7 @@ impl Parser {
                     Ok(None)
                 }
             }
-            TokenKind::LBrace => {
+            TokenKind::LBrace if self.component_expr_enabled() => {
                 let component = self.parse_component_expr()?;
                 Ok(Some(ASTExpression {
                     span: component.span.clone(),

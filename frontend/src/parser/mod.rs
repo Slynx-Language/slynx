@@ -22,6 +22,7 @@ pub enum ParserFlags {
 }
 pub struct Parser {
     flags: ParserFlags,
+    component_expr_enabled: bool,
     stream: TokenStream,
 }
 
@@ -31,6 +32,7 @@ impl Parser {
         Parser {
             stream,
             flags: ParserFlags::None,
+            component_expr_enabled: true,
         }
     }
 
@@ -120,6 +122,22 @@ impl Parser {
     pub fn set_flags(&mut self, flag: ParserFlags) {
         self.flags = flag;
     }
+
+    pub fn component_expr_enabled(&self) -> bool {
+        self.component_expr_enabled
+    }
+
+    pub fn parse_without_component_expr<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> Result<T> {
+        let previous = self.component_expr_enabled;
+        self.component_expr_enabled = false;
+        let result = parse(self);
+        self.component_expr_enabled = previous;
+        result
+    }
+
     pub fn finish_current_parse(&mut self) -> Result<(), Report> {
         if self.flags == ParserFlags::RequireSemicolon {
             self.expect(&TokenKind::SemiColon)?;

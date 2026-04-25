@@ -111,6 +111,34 @@ func main(): int {
     assert_eq!(*index, 0);
     assert!(matches!(&tuple.kind, ASTExpressionKind::Identifier(name) if name == "value"));
 }
+
+#[test]
+fn parses_identifier_condition_before_if_block() {
+    let declarations = parse_source(
+        r#"
+func main(): int {
+    let flag = true;
+    let value = if flag {
+        flag
+    } else {
+        false
+    };
+    0
+}
+"#,
+    );
+
+    let body = function_body(&declarations, "main");
+    let ASTStatementKind::Var { rhs, .. } = &body[1].kind else {
+        panic!("expected let statement");
+    };
+
+    let ASTExpressionKind::If { condition, .. } = &rhs.kind else {
+        panic!("expected if expression");
+    };
+    assert!(matches!(&condition.kind, ASTExpressionKind::Identifier(name) if name == "flag"));
+}
+
 #[test]
 fn parses_function_body_statement_shapes() {
     let declarations = parse_source(

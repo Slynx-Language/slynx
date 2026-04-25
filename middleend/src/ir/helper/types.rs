@@ -61,10 +61,11 @@ impl SlynxIR {
 
     pub fn get_type_of_value(&self, value: IRPointer<Value, 1>, temp: &TempIRData) -> IRTypeId {
         match &self.values[value.ptr()] {
+            Value::Void => self.types.void_type(),
             Value::FuncArg(idx) => self.arg_types_of_context(temp.current_function())[*idx],
             Value::Raw(operand) => self.get_operand_type(operand.clone(), temp),
             Value::Instruction(instr) => self.get_type_of_instruction(instr.clone(), temp),
-            Value::LabelArg(_) => unimplemented!("Unimplemented type for label args"),
+            Value::LabelArg(idx) => self.get_label(temp.current_label()).arguments()[*idx],
             Value::Slot(v) => self.get_slot_type(v.clone()),
             Value::StructLiteral(ir, _) => *ir,
         }
