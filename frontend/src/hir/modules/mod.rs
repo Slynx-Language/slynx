@@ -1,7 +1,7 @@
 use common::{ObjectField, Span, SymbolPointer, SymbolsModule};
 
 use crate::hir::{
-    DeclarationId, SlynxHir, TypeId, VariableId,
+    DeclarationId, Result, SlynxHir, TypeId, VariableId,
     error::HIRError,
     model::HirType,
     modules::{
@@ -119,8 +119,10 @@ impl HirModules {
 }
 
 impl HirModules {
-    pub fn find_type_by_name(&mut self, name: &str) -> Option<&TypeId> {
+    pub fn find_type_by_name(&mut self, name: &str, span: &Span) -> Result<&TypeId> {
         let name = self.symbols_resolver.intern(name);
-        self.types_module.get_id(&name)
+        self.types_module
+            .get_id(&name)
+            .ok_or(HIRError::name_unrecognized(name, *span))
     }
 }

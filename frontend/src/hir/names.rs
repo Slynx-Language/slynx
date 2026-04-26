@@ -39,12 +39,7 @@ impl SlynxHir {
             "int" => Ok(self.int32_type()),
             "float" => Ok(self.float32_type()),
             "str" => Ok(self.str_type()),
-
-            _ => {
-                let name = self.symbols_module.intern(name);
-                let temp = self.types_module.get_id(&name).cloned();
-                temp.ok_or(HIRError::name_unrecognized(name, *span).into())
-            }
+            _ => self.modules.find_type_by_name(&name, span).cloned(),
         }
     }
 
