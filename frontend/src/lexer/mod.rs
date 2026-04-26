@@ -201,7 +201,6 @@ impl Lexer {
                     let mut radix = 0;
                     let mut octal_value = false;
 
-
                     if let Some('0') = chars.get(idx) {
                         match chars.get(idx + 1) {
                             Some('x') => {
@@ -242,53 +241,55 @@ impl Lexer {
                     }
 
                     if !hex_value && !binary_value && !octal_value {
-                    while let Some(c) = chars.get(idx) {
-                        if c.is_ascii_digit() {
-                            last_is_dot = false;
-                            last_is_underscore = false;
-                            buffer.push(*c);
-                            idx += 1;
-                            continue;
-                        }
-
-                        if *c == '_' {
-                            if last_is_underscore || last_is_dot {
-                                should_err = true;
-                            }
-                            last_is_dot = false;
-                            last_is_underscore = true;
-                            buffer.push(*c);
-                            idx += 1;
-                            continue;
-                        }
-
-                        if *c == '.' {
-                            let next = chars.get(idx + 1);
-                            if !float_value && matches!(next, Some(next) if next.is_ascii_digit()) {
-                                // Only keep '.' inside a number when it actually starts
-                                // the fractional part of a float literal.
-                                float_value = true;
-                                if last_is_underscore {
-                                    should_err = true;
-                                }
-                                last_is_dot = true;
+                        while let Some(c) = chars.get(idx) {
+                            if c.is_ascii_digit() {
+                                last_is_dot = false;
                                 last_is_underscore = false;
                                 buffer.push(*c);
                                 idx += 1;
                                 continue;
                             }
 
-                            if matches!(next, Some('.') | Some('_')) {
-                                should_err = true;
+                            if *c == '_' {
+                                if last_is_underscore || last_is_dot {
+                                    should_err = true;
+                                }
+                                last_is_dot = false;
+                                last_is_underscore = true;
                                 buffer.push(*c);
                                 idx += 1;
+                                continue;
                             }
+
+                            if *c == '.' {
+                                let next = chars.get(idx + 1);
+                                if !float_value
+                                    && matches!(next, Some(next) if next.is_ascii_digit())
+                                {
+                                    // Only keep '.' inside a number when it actually starts
+                                    // the fractional part of a float literal.
+                                    float_value = true;
+                                    if last_is_underscore {
+                                        should_err = true;
+                                    }
+                                    last_is_dot = true;
+                                    last_is_underscore = false;
+                                    buffer.push(*c);
+                                    idx += 1;
+                                    continue;
+                                }
+
+                                if matches!(next, Some('.') | Some('_')) {
+                                    should_err = true;
+                                    buffer.push(*c);
+                                    idx += 1;
+                                }
+                                break;
+                            }
+
                             break;
                         }
-
-                        break;
                     }
-                }
                     if should_err || buffer.ends_with('_') || buffer.ends_with('.') {
                         return Err(LexerError::MalformedNumber {
                             number: buffer,
@@ -312,8 +313,7 @@ impl Lexer {
                                 });
                             }
                         }
-                    }
-                    else if float_value {
+                    } else if float_value {
                         match buffer.parse::<f32>() {
                             Ok(value) => Token::float(value, start, idx),
                             Err(_) => {
