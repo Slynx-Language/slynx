@@ -32,3 +32,13 @@ pub enum HirStatementKind {
         body: Vec<HirStatement>,
     },
 }
+
+impl HirStatement {
+    ///Creates a new return statment
+    pub fn new_return(expr: HirExpression, span: Span) -> Self {
+        Self {
+            kind: HirStatementKind::Return { expr },
+            span,
+        }
+    }
+}

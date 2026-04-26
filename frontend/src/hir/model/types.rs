@@ -40,6 +40,16 @@ impl ComponentProperty {
     pub fn new_private(name: String, ty: TypeId) -> Self {
         Self::new(VisibilityModifier::Private, name, ty)
     }
+
+    pub fn visibility(&self) -> &VisibilityModifier {
+        &self.0
+    }
+    pub fn name(&self) -> &str {
+        &self.1
+    }
+    pub fn prop_type(&self) -> &TypeId {
+        &self.2
+    }
 }
 
 #[derive(Debug, Clone)]

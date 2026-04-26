@@ -2,11 +2,13 @@ use crate::hir::{
     PropertyId, Result, SlynxHir,
     error::{HIRError, HIRErrorKind},
     model::{
-        ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirDeclarationKind, HirType,
+        ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirDeclarationKind,
+        HirStatement, HirType,
     },
 };
-use common::ast::{
-    ComponentMember, ComponentMemberKind, GenericIdentifier, ObjectField, Span, TypedName,
+use common::{
+    ASTStatement, ASTStatementKind,
+    ast::{ComponentMember, ComponentMemberKind, GenericIdentifier, ObjectField, Span, TypedName},
 };
 
 impl SlynxHir {
@@ -87,6 +89,57 @@ impl SlynxHir {
         Ok(())
     }
 
+    pub fn resolve_function(
+        &mut self,
+        name: &GenericIdentifier,
+        args: &Vec<TypedName>,
+        body: Vec<ASTStatement>,
+        span: &Span,
+    ) -> Result<()> {
+        let symbol = self.modules.intern_name(&name.identifier);
+        let Some((decl, tyid)) = self.modules.get_declaration_by_name(&symbol) else {
+            return Err(HIRError::name_unrecognized(symbol, name.span).into());
+        };
+
+        self.modules.enter_scope();
+
+        let args = args
+            .into_iter()
+            .map(|arg| {
+                match self.retrieve_information_of_type(&arg.kind.identifier, &arg.kind.span) {
+                    Ok((ty, _)) => Ok(self.create_variable(&arg.name, ty, false)),
+                    Err(e) => Err(e),
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let body_len = body.len();
+
+        let statements = body
+            .into_iter()
+            .enumerate()
+            .map(|(index, statement)| {
+                let is_last = index + 1 == body.len();
+                match statement {
+                    // The last expression in a function body becomes the implicit return.
+                    common::ast::ASTStatement {
+                        kind: ASTStatementKind::Expression(expr),
+                        ..
+                    } if is_last => {
+                        let expr = self.resolve_expr(expr, None)?;
+                        HirStatement::new_return(expr, expr.span)
+                    }
+                    statement => self.resolve_statement(statement)?,
+                }
+            })
+            .collect();
+
+        self.declarations.push(HirDeclaration::new_function(
+            statements, args, symbol, *span, decl, tyid,
+        ));
+        self.modules.exit_scope();
+        Ok(())
+    }
     pub fn hoist_component(
         &mut self,
         name: &GenericIdentifier,

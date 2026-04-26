@@ -73,18 +73,17 @@ impl SlynxHir {
                     rhs,
                     span,
                 } => {
-                    let t = self.types_module.get_type(&ty);
-                    let HirType::Component { props } = t else {
+                    let HirType::Component { props } = self.get_type(&ty) else {
                         unreachable!("The type should be a component instead");
                     };
                     let interned_name = self.modules.intern_name(&prop_name);
                     let index = props
                         .iter()
-                        .position(|prop| prop.1 == prop_name)
+                        .position(|prop| prop.name() == prop_name)
                         .ok_or(HIRError::name_unrecognized(interned_name, span))?;
 
                     if matches!(
-                        props[index].0,
+                        props[index].visibility(),
                         VisibilityModifier::Private | VisibilityModifier::ChildrenPublic
                     ) {
                         return Err(HIRError::not_visible_property(interned_name, span).into());
@@ -92,7 +91,7 @@ impl SlynxHir {
                     ComponentMemberDeclaration::Property {
                         id: PropertyId::new(), // Changed to PropertyId
                         index,
-                        value: Some(self.resolve_expr(rhs, Some(props[index].2))?),
+                        value: Some(self.resolve_expr(rhs, Some(*props[index].prop_type()))?),
                         span,
                     }
                 }
@@ -150,73 +149,11 @@ impl SlynxHir {
             }
             ASTDeclarationKind::FuncDeclaration {
                 name, args, body, ..
-            } => {
-                let symbol = self.symbols_module.intern(&name.identifier);
-                let (decl, tyid) = if let Some(data) = self
-                    .declarations_module
-                    .retrieve_declaration_data_by_name(&symbol)
-                {
-                    let (decl, ty) = data;
-                    (decl, ty)
-                } else {
-                    return Err(HIRError::name_unrecognized(symbol, name.span).into());
-                };
-
-                self.scope_module.enter_scope();
-
-                let args = args
-                    .into_iter()
-                    .map(|arg| {
-                        match self
-                            .retrieve_information_of_type(&arg.kind.identifier, &arg.kind.span)
-                        {
-                            Ok((ty, _)) => Ok(self.create_variable(&arg.name, ty, false)),
-                            Err(e) => Err(e),
-                        }
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-
-                let mut statements = Vec::with_capacity(body.len());
-                let body_len = body.len();
-                for (index, statement) in body.into_iter().enumerate() {
-                    let is_last = index + 1 == body_len;
-                    match statement {
-                        // The last expression in a function body becomes the implicit return.
-                        common::ast::ASTStatement {
-                            kind: ASTStatementKind::Expression(expr),
-                            ..
-                        } if is_last => {
-                            let expr = self.resolve_expr(expr, None)?;
-                            statements.push(HirStatement {
-                                span: expr.span.clone(),
-                                kind: HirStatementKind::Return { expr },
-                            });
-                        }
-                        statement => statements.push(self.resolve_statement(statement)?),
-                    }
-                }
-
-                self.declarations.push(HirDeclaration {
-                    kind: HirDeclarationKind::Function {
-                        statements,
-                        args,
-                        name: symbol,
-                    },
-                    id: decl,
-                    ty: tyid,
-                    span: ast.span,
-                });
-                self.scope_module.exit_scope();
-            }
+            } => self.resolve_function(&name, &args, body, &ast.span)?,
             ASTDeclarationKind::ComponentDeclaration { members, name } => {
-                self.scope_module.enter_scope();
-                let symbol = self.symbols_module.intern(&name.identifier);
-                let (decl, ty) = if let Some(data) = self
-                    .declarations_module
-                    .retrieve_declaration_data_by_name(&symbol)
-                {
-                    data
-                } else {
+                self.modules.enter_scope();
+                let symbol = self.modules.intern_name(&name.identifier);
+                let Some((decl, ty)) = self.modules.get_declaration_by_name(&symbol) else {
                     return Err(HIRError::name_unrecognized(symbol, ast.span).into());
                 };
 
@@ -230,7 +167,7 @@ impl SlynxHir {
                     ty,
                     span: ast.span,
                 });
-                self.scope_module.exit_scope();
+                self.modules.exit_scope();
             }
             ASTDeclarationKind::Alias { name, target } => {
                 let target_ty = self.get_typeid_of_name(&target.identifier, &target.span)?;

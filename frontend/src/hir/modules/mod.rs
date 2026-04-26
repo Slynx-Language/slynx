@@ -6,7 +6,7 @@ use crate::hir::{
     model::HirType,
     modules::{
         declarations::DeclarationsModule,
-        scopes::ScopeModule,
+        scopes::{HIRScope, ScopeModule},
         symbols::SymbolsResolver,
         types::{BUILTIN_NAMES, TypesModule},
     },
@@ -69,7 +69,7 @@ impl HirModules {
         mutable: bool,
         ty: super::TypeId,
         span: &Span,
-    ) -> Result<VariableId, HIRError> {
+    ) -> Result<VariableId> {
         if let Some(_) = self.scope_module.retrieve_name(&name) {
             Err(HIRError::already_defined(name, *span))
         } else {
@@ -116,8 +116,27 @@ impl HirModules {
         let ty = self.types_module.insert_type(name, HirType::new_ref(ty));
         self.declarations_module.create_object(name, ty, def_fields);
     }
+    ///Retrieves the declaration ID and type based on the given `symbol`
+    pub fn get_declaration_by_name(
+        &self,
+        symbol: &SymbolPointer,
+    ) -> Option<(DeclarationId, TypeId)> {
+        self.declarations_module
+            .retrieve_declaration_data_by_name(symbol)
+    }
 }
 
+//specific for scopes
+impl HirModules {
+    pub fn enter_scope(&mut self) -> &mut HIRScope {
+        self.scope_module.enter_scope()
+    }
+    pub fn exit_scope(&mut self) -> &mut HIRScope {
+        self.scope_module.enter_scope()
+    }
+}
+
+//specific for types
 impl HirModules {
     pub fn find_type_by_name(&mut self, name: &str, span: &Span) -> Result<&TypeId> {
         let name = self.symbols_resolver.intern(name);

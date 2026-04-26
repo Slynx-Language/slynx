@@ -56,3 +56,25 @@ pub enum ComponentMemberDeclaration {
     },
     Specialized(SpecializedComponent),
 }
+
+impl HirDeclaration {
+    pub fn new_function(
+        statements: Vec<HirStatement>,
+        args: Vec<VariableId>,
+        name: SymbolPointer,
+        span: Span,
+        id: DeclarationId,
+        ty: TypeId,
+    ) -> Self {
+        Self {
+            kind: HirDeclarationKind::Function {
+                statements,
+                args,
+                name,
+            },
+            span,
+            id,
+            ty,
+        }
+    }
+}
