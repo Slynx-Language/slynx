@@ -3,8 +3,8 @@ use common::{ComponentExpression, ComponentMemberValue, Span};
 
 use crate::hir::{
     Result, SlynxHir,
-    definitions::{ComponentMemberDeclaration, SpecializedComponent},
     error::{HIRError, HIRErrorKind},
+    model::{ComponentMemberDeclaration, SpecializedComponent},
 };
 
 impl SlynxHir {

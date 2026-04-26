@@ -1,29 +1,28 @@
 use crate::hir::{
     Result, SlynxHir, TypeId, VariableId,
     error::{HIRError, InvalidTypeReason},
-    symbols::SymbolPointer,
-    types::HirType,
+    model::HirType,
 };
 
-use common::ast::{GenericIdentifier, Span};
+use common::{
+    SymbolPointer,
+    ast::{GenericIdentifier, Span},
+};
 //file specific to implement things related to name resolution
 impl SlynxHir {
-    pub fn insert_name(&mut self, name: &str) -> super::symbols::SymbolPointer {
-        self.symbols_module.intern(name)
-    }
     ///Retrieves the pointer(simply a symbol) of the provided `name`.
     pub fn get_symbol_of(&self, name: &str) -> Option<SymbolPointer> {
-        self.symbols_module.retrieve(name).cloned()
+        self.modules.retrieve_symbol(name)
     }
 
     ///Since when a object is defined, its generated as an unnamed type, and has got a reference to it, this retrieves the inner layout of the object
     pub fn get_object_type_from_name(&mut self, name: &str, span: &Span) -> Result<&HirType> {
-        let name_symbol = self.symbols_module.intern(name);
+        let name_symbol = self.modules.intern_name(name);
 
-        if let Some(ref_id) = self.types_module.get_id(&name_symbol)
-            && let HirType::Reference { rf, .. } = self.types_module.get_type(ref_id)
+        if let Some(ref_id) = self.modules.types_module.get_id(&name_symbol)
+            && let HirType::Reference { rf, .. } = self.modules.types_module.get_type(ref_id)
         {
-            Ok(self.types_module.get_type(rf))
+            Ok(self.modules.types_module.get_type(rf))
         } else {
             Err(
                 HIRError::invalid_type(name_symbol, InvalidTypeReason::IncorrectUsage, *span)
@@ -34,12 +33,12 @@ impl SlynxHir {
 
     pub fn get_typeid_of_name(&mut self, name: &str, span: &Span) -> Result<TypeId> {
         match name {
-            "Component" => Ok(self.types_module.generic_component_id()),
-            "()" | "void" => Ok(self.types_module.void_id()),
-            "bool" => Ok(self.types_module.bool_id()),
-            "int" => Ok(self.types_module.int_id()),
-            "float" => Ok(self.types_module.float_id()),
-            "str" => Ok(self.types_module.str_id()),
+            "Component" => Ok(self.component_type()),
+            "()" | "void" => Ok(self.void_type()),
+            "bool" => Ok(self.bool_type()),
+            "int" => Ok(self.int32_type()),
+            "float" => Ok(self.float32_type()),
+            "str" => Ok(self.str_type()),
 
             _ => {
                 let name = self.symbols_module.intern(name);

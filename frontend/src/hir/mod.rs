@@ -1,4 +1,5 @@
 pub mod error;
+mod helpers;
 pub mod id;
 mod implementation;
 pub mod model;
@@ -8,18 +9,18 @@ pub mod names;
 use std::collections::HashMap;
 
 use crate::hir::{
-    definitions::{
-        ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirStatement,
-        HirStatementKind,
-    },
     error::HIRError,
-    modules::{HirModules, types::HirType},
+    model::{
+        ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirStatement,
+        HirStatementKind, HirType,
+    },
+    modules::HirModules,
 };
 use common::{
     SymbolPointer,
     ast::{
-        ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberKind,
-        ComponentMemberValue, Span, VisibilityModifier,
+        ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberValue,
+        VisibilityModifier,
     },
 };
 
@@ -122,13 +123,11 @@ impl SlynxHir {
     fn hoist(&mut self, ast: &ASTDeclaration) -> Result<()> {
         match &ast.kind {
             ASTDeclarationKind::Alias { name, target } => {
-                self.symbols_module.intern(&target.identifier);
-                let symbol = self.symbols_module.intern(&name.identifier);
-                let ty = self.types_module.insert_type(symbol, HirType::Int);
-                self.declarations_module.create_declaration(symbol, ty);
+                self.modules
+                    .create_alias(&target.identifier, &name.identifier);
             }
             ASTDeclarationKind::ObjectDeclaration { name, fields } => {
-                self.hoist_object(name, fields)?
+                self.modules.create_object(&name.identifier, fields)
             }
 
             ASTDeclarationKind::FuncDeclaration {
@@ -138,33 +137,7 @@ impl SlynxHir {
                 ..
             } => self.hoist_function(name, args, return_type)?,
             ASTDeclarationKind::ComponentDeclaration { name, members, .. } => {
-                let props = {
-                    let mut out = Vec::with_capacity(members.len());
-                    for member in members {
-                        match &member.kind {
-                            ComponentMemberKind::Property {
-                                name, modifier, ty, ..
-                            } => {
-                                out.push((
-                                    modifier.clone(),
-                                    name.clone(),
-                                    if let Some(generic) = ty {
-                                        self.get_typeid_of_name(&generic.identifier, &member.span)?
-                                    } else {
-                                        self.types_module.infer_id()
-                                    },
-                                ));
-                            }
-                            ComponentMemberKind::Child(_) => {}
-                        }
-                    }
-                    out
-                };
-                let symbol = self.symbols_module.intern(&name.identifier);
-                let tyid = self
-                    .types_module
-                    .insert_type(symbol, HirType::Component { props });
-                self.declarations_module.create_declaration(symbol, tyid);
+                self.hoist_component(name, members)?
             }
         }
         Ok(())

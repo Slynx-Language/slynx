@@ -1,8 +1,9 @@
 use crate::hir::{
     PropertyId, Result, SlynxHir,
-    definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
     error::{HIRError, HIRErrorKind},
-    types::HirType,
+    model::{
+        ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirDeclarationKind, HirType,
+    },
 };
 use common::ast::{
     ComponentMember, ComponentMemberKind, GenericIdentifier, ObjectField, Span, TypedName,
@@ -41,7 +42,7 @@ impl SlynxHir {
             }
             out
         };
-        let identifier_symbol = self.symbols_module.intern(&name.identifier);
+        let identifier_symbol = self.modules.intern_name(&name.identifier);
         let (decl, declty) = if let Some(data) = self
             .declarations_module
             .retrieve_declaration_data_by_name(&identifier_symbol)
@@ -69,53 +70,46 @@ impl SlynxHir {
         Ok(())
     }
 
-    pub fn hoist_object(
-        &mut self,
-        name: &GenericIdentifier,
-        obj_fields: &[ObjectField],
-    ) -> Result<()> {
-        let name = self.symbols_module.intern(&name.identifier);
-        let def_fields = obj_fields
-            .iter()
-            .map(|f| self.symbols_module.intern(&f.name.name))
-            .collect();
-        let ty = self.types_module.insert_unnamed_type(HirType::Struct {
-            fields: { Vec::new() },
-        });
-
-        let ty = self.define_type(
-            name,
-            HirType::Reference {
-                rf: ty,
-                generics: Vec::new(),
-            },
-        );
-
-        self.declarations_module.create_object(name, ty, def_fields);
-        Ok(())
-    }
-
     pub fn hoist_function(
         &mut self,
         name: &GenericIdentifier,
         args: &Vec<TypedName>,
         return_type: &GenericIdentifier,
     ) -> Result<()> {
-        let args = {
-            let mut vec = Vec::with_capacity(args.len());
-            for arg in args {
-                let id = self.get_typeid_of_generic(&arg.kind)?;
-                vec.push(id);
-            }
-            vec
-        };
-        let func_ty = HirType::Function {
-            args,
-            return_type: self.get_typeid_of_generic(return_type)?,
-        };
-        let symbol = self.symbols_module.intern(&name.identifier);
-        let id = self.define_type(symbol, func_ty);
-        self.create_declaration(&name.identifier, id);
+        let args = args
+            .iter()
+            .map(|arg| self.get_typeid_of_generic(&arg.kind))
+            .collect::<Result<Vec<_>>>()?;
+        let return_type = self.get_typeid_of_generic(return_type)?;
+        self.modules
+            .create_declaration(&name.identifier, HirType::new_function(args, return_type));
+
+        Ok(())
+    }
+
+    pub fn hoist_component(
+        &mut self,
+        name: &GenericIdentifier,
+        members: &[ComponentMember],
+    ) -> Result<()> {
+        let props = members
+            .iter()
+            .filter_map(|member| match &member.kind {
+                ComponentMemberKind::Property {
+                    name, modifier, ty, ..
+                } => {
+                    let ty = match ty {
+                        Some(generic) => self.get_typeid_of_name(&generic.identifier, &member.span),
+                        _ => Ok(self.infer_type()),
+                    };
+                    Some(ty.map(|ty| ComponentProperty::new(modifier.clone(), name.clone(), ty)))
+                }
+                ComponentMemberKind::Child(_) => None,
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        self.modules
+            .create_declaration(&name.identifier, HirType::new_component(props));
         Ok(())
     }
 
@@ -132,7 +126,7 @@ impl SlynxHir {
                         self.retrieve_information_of_type(&ty.identifier, &ty.span)?
                             .0
                     } else {
-                        self.types_module.infer_id()
+                        self.infer_type()
                     };
 
                     out.push(ComponentMemberDeclaration::Property {

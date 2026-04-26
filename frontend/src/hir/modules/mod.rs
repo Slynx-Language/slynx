@@ -1,16 +1,13 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
-
-use common::{Span, SymbolPointer, SymbolsModule};
+use common::{ObjectField, Span, SymbolPointer, SymbolsModule};
 
 use crate::hir::{
-    VariableId,
+    DeclarationId, SlynxHir, TypeId, VariableId,
     error::HIRError,
+    model::HirType,
     modules::{
         declarations::DeclarationsModule,
         scopes::ScopeModule,
+        symbols::SymbolsResolver,
         types::{BUILTIN_NAMES, TypesModule},
     },
 };
@@ -19,34 +16,6 @@ pub mod declarations;
 pub mod scopes;
 pub mod symbols;
 pub mod types;
-
-#[derive(Debug, Default)]
-pub struct SymbolsResolver {
-    module: SymbolsModule,
-    /// Tracks the original source-level symbol for each variable id.
-    variable_names: HashMap<VariableId, SymbolPointer>,
-}
-
-impl Deref for SymbolsResolver {
-    type Target = SymbolsModule;
-    fn deref(&self) -> &Self::Target {
-        &self.module
-    }
-}
-impl DerefMut for SymbolsResolver {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.module
-    }
-}
-
-impl SymbolsResolver {
-    pub fn new(module: SymbolsModule) -> Self {
-        Self {
-            module,
-            variable_names: HashMap::new(),
-        }
-    }
-}
 
 #[derive(Debug, Default)]
 ///A Modules object to handle with creation of symbols, declarations, types, scopes, etc.
@@ -58,6 +27,7 @@ pub struct HirModules {
     pub scope_module: ScopeModule,
 }
 
+//specific for naming
 impl HirModules {
     pub fn new() -> Self {
         let mut symbols = SymbolsModule::new();
@@ -74,7 +44,10 @@ impl HirModules {
     pub fn intern_name(&mut self, s: &str) -> SymbolPointer {
         self.symbols_resolver.intern(s)
     }
-
+    ///Retrieves the symbol pointer for the given `s` if it exists, thus, was internalized
+    pub fn retrieve_symbol(&self, s: &str) -> Option<SymbolPointer> {
+        self.symbols_resolver.retrieve(s).cloned()
+    }
     ///Finds some variable based on the given `name`. Checks all the scopes that are there currently
     pub fn find_variable(&self, name: SymbolPointer) -> Option<VariableId> {
         let mut idx = self.scope_module.len() - 1;
@@ -103,8 +76,51 @@ impl HirModules {
             let v = VariableId::new();
             self.scope_module.insert_name(name, v, mutable);
             self.types_module.insert_variable(v, ty);
-            self.symbols_resolver.variable_names.insert(v, name);
+            self.symbols_resolver.register_variable(v, name);
             Ok(v)
         }
+    }
+}
+
+//specific for declarations
+impl HirModules {
+    ///Creates an type alias with the given `name`. Its initial type is `infer`. Because of hoisting, and so, the type this refers to might be defined after it
+    pub fn create_alias(&mut self, target: &str, name: &str) {
+        self.symbols_resolver.intern(&target);
+        let symbol = self.symbols_resolver.intern(&name);
+        let ty = self.types_module.insert_type(symbol, HirType::Infer);
+        self.declarations_module.create_declaration(symbol, ty);
+    }
+
+    ///Creates a new declaration with the given `name` and `ty`. returns its symbol, type id, and declaration id.
+    pub fn create_declaration(
+        &mut self,
+        name: &str,
+        ty: HirType,
+    ) -> (SymbolPointer, TypeId, DeclarationId) {
+        let symbol = self.symbols_resolver.intern(&name);
+        let tyid = self.types_module.insert_type(symbol, ty);
+        let decl_id = self.declarations_module.create_declaration(symbol, tyid);
+        (symbol, tyid, decl_id)
+    }
+
+    pub fn create_object(&mut self, name: &str, fields: &[ObjectField]) {
+        let name = self.symbols_resolver.intern(&name);
+        let def_fields = fields
+            .iter()
+            .map(|f| self.symbols_resolver.intern(&f.name.name))
+            .collect();
+        let ty = self
+            .types_module
+            .insert_unnamed_type(HirType::new_struct(Vec::new()));
+        let ty = self.types_module.insert_type(name, HirType::new_ref(ty));
+        self.declarations_module.create_object(name, ty, def_fields);
+    }
+}
+
+impl HirModules {
+    pub fn find_type_by_name(&mut self, name: &str) -> Option<&TypeId> {
+        let name = self.symbols_resolver.intern(name);
+        self.types_module.get_id(&name)
     }
 }

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 /// Since declarations are avaible only on the top level this is being implemented by thinking in so
 #[derive(Debug, Default)]
 pub struct DeclarationsModule {
-    decls: HashMap<SymbolPointer, DeclarationId>,
+    decls: HashMap<DeclarationId, SymbolPointer>,
     ///The types of the declarations. Use a vec because we can access the type based on the inner value of the ID
     declaration_types: Vec<TypeId>,
     pub objects: HashMap<TypeId, Vec<SymbolPointer>>,
@@ -23,7 +23,7 @@ impl DeclarationsModule {
     }
     pub fn create_declaration(&mut self, name: SymbolPointer, ty: TypeId) -> DeclarationId {
         let id = DeclarationId::from_raw(self.declaration_types.len() as u64);
-        self.decls.insert(name, id);
+        self.decls.insert(id, name);
         self.declaration_types.push(ty);
         id
     }
@@ -35,7 +35,7 @@ impl DeclarationsModule {
         fields: Vec<SymbolPointer>,
     ) -> DeclarationId {
         let id = DeclarationId::from_raw(self.declaration_types.len() as u64);
-        self.decls.insert(name, id);
+        self.decls.insert(id, name);
         self.declaration_types.push(ty);
         self.objects.insert(ty, fields);
         id
@@ -47,8 +47,9 @@ impl DeclarationsModule {
         symbol: &SymbolPointer,
     ) -> Option<(DeclarationId, TypeId)> {
         self.decls
-            .get(symbol)
-            .map(|decl| (*decl, self.declaration_types[decl.as_raw() as usize]))
+            .iter()
+            .find(|v| v.1 == symbol)
+            .map(|(decl, _)| (*decl, self.declaration_types[decl.as_raw() as usize]))
     }
 
     pub fn retrieve_declaration_type(&self, id: DeclarationId) -> TypeId {
