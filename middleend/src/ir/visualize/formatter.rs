@@ -237,6 +237,7 @@ impl<'a> Formatter<'a> {
                 }
             }
             Value::StructLiteral(..) => format!("%lit{}", ptr.ptr()),
+            Value::Void => "void".to_string(),
         }
     }
 
