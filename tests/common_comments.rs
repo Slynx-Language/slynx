@@ -3,7 +3,8 @@ use std::{path::PathBuf, sync::Arc};
 #[test]
 fn test_common_comments() {
     let context =
-        slynx::SlynxContext::new(Arc::new(PathBuf::from("slynx/common_comments.slynx"))).unwrap();
+        slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/common_comments.slynx")))
+            .unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(

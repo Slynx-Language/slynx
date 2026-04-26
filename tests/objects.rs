@@ -2,7 +2,8 @@ use std::{path::PathBuf, sync::Arc};
 
 #[test]
 fn test_objects() {
-    let context = slynx::SlynxContext::new(Arc::new(PathBuf::from("slynx/objects.slynx"))).unwrap();
+    let context =
+        slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/objects.slynx"))).unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(

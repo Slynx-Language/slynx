@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 #[test]
 fn test_variables() {
     let context =
-        slynx::SlynxContext::new(Arc::new(PathBuf::from("slynx/booleans.slynx"))).unwrap();
+        slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/booleans.slynx"))).unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(

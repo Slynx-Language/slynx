@@ -13,7 +13,7 @@ use frontend::{
 
 #[test]
 fn typechecker_rejects_function_call_with_extra_arg() {
-    let mut hir = common::load_hir("slynx/functioncall.slynx");
+    let mut hir = common::load_hir("examples/functioncall.slynx");
     let args = common::find_main_call_args(&mut hir)
         .expect("expected to find a function call inside main");
     let template = args.first().expect("call should have at least one arg");
