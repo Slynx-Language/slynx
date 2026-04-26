@@ -51,7 +51,7 @@ impl ScopeModule {
     }
 
     ///Retrieves how many scopes there are
-    pub fn len(&mut self) -> usize {
+    pub fn len(&self) -> usize {
         self.scopes.len()
     }
 

@@ -1,4 +1,6 @@
-use crate::hir::{DeclarationId, TypeId, symbols::SymbolPointer};
+use common::SymbolPointer;
+
+use crate::hir::{DeclarationId, TypeId};
 use std::collections::HashMap;
 
 /// A top level module that keeps track of all the declarations on the Hir.

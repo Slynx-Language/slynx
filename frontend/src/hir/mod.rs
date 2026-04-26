@@ -1,7 +1,7 @@
-pub mod definitions;
 pub mod error;
 pub mod id;
 mod implementation;
+pub mod model;
 pub mod modules;
 pub mod names;
 
@@ -13,22 +13,16 @@ use crate::hir::{
         HirStatementKind,
     },
     error::HIRError,
-    modules::{
-        HirModules,
-        declarations::DeclarationsModule,
-        scopes::ScopeModule,
-        types::{BUILTIN_NAMES, HirType, TypesModule},
-    },
+    modules::{HirModules, types::HirType},
 };
 use common::{
-    SymbolPointer, SymbolsModule,
+    SymbolPointer,
     ast::{
         ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberKind,
         ComponentMemberValue, Span, VisibilityModifier,
     },
 };
 
-// Re-export new ID types for convenience
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
 
 pub type Result<T> = std::result::Result<T, HIRError>;
@@ -39,8 +33,6 @@ pub struct SlynxHir {
     /// Maps the types of top level things on the current scope to their types.
     /// An example is functions, which contain an HirType.
     types: HashMap<TypeId, HirType>,
-    /// Tracks the original source-level symbol for each variable id.
-    variable_names: HashMap<VariableId, SymbolPointer>,
 
     /// The scopes of this HIR. On the final it's expected to have only one, which is the global one
     pub declarations: Vec<HirDeclaration>,
@@ -51,7 +43,6 @@ impl SlynxHir {
         Self {
             modules: HirModules::new(),
             types: HashMap::new(),
-            variable_names: HashMap::new(),
             declarations: Vec::new(),
         }
     }
@@ -65,22 +56,6 @@ impl SlynxHir {
             self.resolve(ast)?;
         }
         Ok(())
-    }
-
-    /// Retrieves the id of the variable with the provided `name` going from the global scope, to the most internal one
-    pub fn retrieve_variable_id(&mut self, name: &str, span: &Span) -> Result<VariableId> {
-        let symbol = self.symbols_module.intern(name);
-        let mut idx = self.scope_module.len() - 1;
-        while idx != 0 {
-            let scope = &self.scope_module[idx];
-
-            let Some(id) = scope.retrieve_name(&symbol) else {
-                idx -= 1;
-                continue;
-            };
-            return Ok(*id);
-        }
-        Err(HIRError::name_unrecognized(symbol, *span).into())
     }
 
     /// Resolves the provided values on a component. The `ty` is the type of the component we are resolving it
@@ -101,7 +76,7 @@ impl SlynxHir {
                     let HirType::Component { props } = t else {
                         unreachable!("The type should be a component instead");
                     };
-                    let interned_name = self.symbols_module.intern(&prop_name);
+                    let interned_name = self.modules.intern_name(&prop_name);
                     let index = props
                         .iter()
                         .position(|prop| prop.1 == prop_name)

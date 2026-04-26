@@ -125,6 +125,12 @@ impl HIRError {
             span,
         }
     }
+    pub fn already_defined(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::NameAlreadyDefined(name),
+            span,
+        }
+    }
 }
 
 #[derive(Debug)]
