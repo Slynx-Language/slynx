@@ -1,8 +1,41 @@
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut, Index, IndexMut},
+};
 
-use crate::hir::scopes::scope::HIRScope;
+use common::SymbolPointer;
 
-mod scope;
+use crate::hir::VariableId;
+
+#[derive(Debug)]
+pub struct HIRScope {
+    ///A map to a name to an id. This can be used to save variables for example
+    names: HashMap<SymbolPointer, VariableId>,
+    mutables: Vec<VariableId>,
+}
+
+impl HIRScope {
+    pub fn new() -> Self {
+        Self {
+            mutables: Vec::new(),
+            names: HashMap::new(),
+        }
+    }
+
+    ///Inserts the provided `symbol` on this scope
+    pub fn insert_name(&mut self, symbol: SymbolPointer, var: VariableId, mutable: bool) {
+        self.names.insert(symbol, var);
+        if mutable {
+            self.mutables.push(var);
+        }
+    }
+
+    ///Retrieves the id of the provided `name` on the scope
+    pub fn retrieve_name(&self, name: &SymbolPointer) -> Option<&VariableId> {
+        self.names.get(name)
+    }
+}
+
 #[derive(Debug, Default)]
 ///A module made with the intent of managing data inside scopes. Note that everything on this scope will have affect on the last defined scope.
 ///So when entering a new scope, it means all functions will have effect on this new scope. This struct always derefs to the last active scope

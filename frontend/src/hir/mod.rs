@@ -1,45 +1,41 @@
-pub mod declarations;
 pub mod definitions;
 pub mod error;
-pub mod id; // New module for specific IDs
+pub mod id;
 mod implementation;
+pub mod modules;
 pub mod names;
-mod scopes;
-pub mod symbols;
-pub mod types;
 
 use std::collections::HashMap;
 
 use crate::hir::{
-    declarations::DeclarationsModule,
     definitions::{
         ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirStatement,
         HirStatementKind,
     },
-    error::{HIRError, HIRErrorKind},
-    scopes::ScopeModule,
-    symbols::SymbolsModule,
-    types::{BUILTIN_NAMES, HirType, TypesModule},
+    error::HIRError,
+    modules::{
+        HirModules,
+        declarations::DeclarationsModule,
+        scopes::ScopeModule,
+        types::{BUILTIN_NAMES, HirType, TypesModule},
+    },
 };
-use common::ast::{
-    ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberKind,
-    ComponentMemberValue, Span, VisibilityModifier,
+use common::{
+    SymbolPointer, SymbolsModule,
+    ast::{
+        ASTDeclaration, ASTDeclarationKind, ASTStatementKind, ComponentMemberKind,
+        ComponentMemberValue, Span, VisibilityModifier,
+    },
 };
 
 // Re-export new ID types for convenience
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
-pub use symbols::SymbolPointer;
 
 pub type Result<T> = std::result::Result<T, HIRError>;
 
 #[derive(Debug, Default)]
 pub struct SlynxHir {
-    ///The module that will keep track of all declarations on the top level
-    pub declarations_module: DeclarationsModule,
-    pub symbols_module: SymbolsModule,
-    pub types_module: TypesModule,
-    scope_module: ScopeModule,
-
+    modules: HirModules,
     /// Maps the types of top level things on the current scope to their types.
     /// An example is functions, which contain an HirType.
     types: HashMap<TypeId, HirType>,
@@ -52,16 +48,11 @@ pub struct SlynxHir {
 
 impl SlynxHir {
     pub fn new() -> Self {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|v| symbols.intern(v));
         Self {
-            symbols_module: symbols,
-            scope_module: ScopeModule::new(),
+            modules: HirModules::new(),
             types: HashMap::new(),
             variable_names: HashMap::new(),
             declarations: Vec::new(),
-            declarations_module: DeclarationsModule::new(),
-            types_module: TypesModule::new(&builtins),
         }
     }
 
