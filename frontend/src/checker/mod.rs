@@ -28,7 +28,7 @@ use common::SymbolPointer;
 use crate::checker::error::{IncompatibleComponentReason, TypeError, TypeErrorKind};
 
 use crate::hir::model::{ComponentProperty, HirStatement, HirStatementKind};
-use crate::hir::modules::types::TypesModule;
+use crate::hir::modules::TypesModule;
 use crate::hir::{
     SlynxHir, TypeId,
     model::{FieldMethod, HirDeclaration, HirDeclarationKind, HirType},
@@ -466,7 +466,9 @@ mod tests {
         checker::error::{TypeError, TypeErrorKind},
         hir::{
             ExpressionId, SlynxHir,
-            model::{HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind},
+            model::{
+                HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind, HirType,
+            },
         },
         lexer::Lexer,
         parser::Parser,
@@ -621,7 +623,7 @@ mod tests {
         match &type_error.kind {
             TypeErrorKind::MissingReturnValue { expected } => {
                 assert!(
-                    matches!(expected, crate::hir::types::HirType::Int),
+                    matches!(expected, HirType::Int),
                     "expected missing int return, got {expected:?}"
                 );
             }
@@ -639,7 +641,8 @@ mod tests {
             "#,
         );
         let main_symbol = hir
-            .symbols_module
+            .modules
+            .symbols_resolver
             .retrieve("main")
             .copied()
             .expect("main symbol should exist");

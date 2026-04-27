@@ -1,7 +1,7 @@
 use common::{ASTExpression, ASTExpressionKind, Span};
 use frontend::hir::{
     SlynxHir,
-    types::{FieldMethod, HirType},
+    model::{FieldMethod, HirExpressionKind, HirType},
 };
 
 fn generate_hir(kind: ASTExpressionKind) -> ASTExpression {
@@ -20,12 +20,12 @@ fn test_hir_tuple() {
     assert!(result.is_ok(), "err in tuple hir: {:?}", result);
     let tuple_hir = result.unwrap();
     match tuple_hir.kind {
-        frontend::hir::definitions::HirExpressionKind::Tuple(ref elements) => {
+        frontend::hir::model::HirExpressionKind::Tuple(ref elements) => {
             assert_eq!(elements.len(), 2);
         }
         _ => panic!("expected HirExpressionKind::Tuple"),
     }
-    match hir.types_module.get_type(&tuple_hir.ty) {
+    match hir.modules.types_module.get_type(&tuple_hir.ty) {
         HirType::Tuple { fields } => {
             assert_eq!(fields.len(), 2);
         }
@@ -48,20 +48,17 @@ fn test_hir_tuple_access_lowers_to_field_access() {
     let tuple_access = result.unwrap();
 
     match tuple_access.kind {
-        frontend::hir::definitions::HirExpressionKind::FieldAccess {
+        HirExpressionKind::FieldAccess {
             ref expr,
             field_index,
         } => {
             assert_eq!(field_index, 1);
-            assert!(matches!(
-                expr.kind,
-                frontend::hir::definitions::HirExpressionKind::Tuple(_)
-            ));
+            assert!(matches!(expr.kind, HirExpressionKind::Tuple(_)));
         }
         _ => panic!("expected HirExpressionKind::FieldAccess"),
     }
 
-    match hir.types_module.get_type(&tuple_access.ty) {
+    match hir.modules.types_module.get_type(&tuple_access.ty) {
         HirType::Field(FieldMethod::Tuple(_, index)) => {
             assert_eq!(*index, 1);
         }

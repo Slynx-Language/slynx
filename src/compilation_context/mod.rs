@@ -7,10 +7,11 @@ use std::{
 
 use color_eyre::{eyre::Result, owo_colors::OwoColorize};
 
+use common::SymbolPointer;
 use frontend::{
     hir::{
-        SlynxHir, VariableId, declarations::DeclarationsModule, symbols::SymbolPointer,
-        types::TypesModule,
+        SlynxHir, VariableId,
+        modules::{DeclarationsModule, TypesModule},
     },
     lexer::Lexer,
     parser::Parser,
@@ -313,8 +314,8 @@ impl SlynxContext {
             return Err(self.handle_hir_error(&hir, &e));
         }
         let hir_dump = format_hir_dump(&hir, &types_module);
-        let variable_names = hir.variable_names().clone();
-        let mut ir = SlynxIR::new(hir.symbols_module);
+        let variable_names = hir.modules.symbols_resolver.variables().clone();
+        let mut ir = SlynxIR::new(hir.modules.symbols_resolver.get_symbols_module());
 
         if let Err(e) = ir.generate(hir.declarations, &types_module) {
             return Err(self
@@ -323,7 +324,7 @@ impl SlynxContext {
                     &ir,
                     &variable_names,
                     &types_module,
-                    &hir.declarations_module,
+                    &hir.modules.declarations_module,
                 )
                 .into());
         };
@@ -351,9 +352,9 @@ fn format_hir_dump(hir: &SlynxHir, types_module: &TypesModule) -> String {
     format!(
         "HIR Declarations:\n{:#?}\n\nDeclarations Module:\n{:#?}\n\nTypes Module:\n{:#?}\n\nVariable Names:\n{:#?}",
         hir.declarations,
-        hir.declarations_module,
+        hir.modules.types_module,
         types_module,
-        hir.variable_names()
+        hir.modules.symbols_resolver.variables()
     )
 }
 
@@ -414,11 +415,11 @@ fn format_ir_generation_error(
 mod tests {
     use super::SlynxContext;
     use super::format_ir_generation_error;
+    use frontend::hir::modules::BUILTIN_NAMES;
     use frontend::hir::{
         DeclarationId, VariableId,
-        declarations::DeclarationsModule,
-        symbols::SymbolsModule,
-        types::{BUILTIN_NAMES, HirType, TypesModule},
+        model::HirType,
+        modules::{DeclarationsModule, SymbolsModule, TypesModule},
     };
     use middleend::{IRError, SlynxIR};
     use std::{

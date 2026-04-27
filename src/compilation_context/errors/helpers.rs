@@ -146,7 +146,7 @@ pub fn suggestions_from_hir(hir: &crate::hir::SlynxHir, err: &HIRError) -> Vec<S
     match &err.kind {
         HIRErrorKind::NameAlreadyDefined(name) => {
             vec![SlynxSuggestion::NameAlreadyDefined(
-                hir.symbols_module.get_name(*name).to_string(),
+                hir.get_name(*name).to_string(),
             )]
         }
         _ => vec![],

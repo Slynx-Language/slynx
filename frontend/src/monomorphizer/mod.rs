@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::hir::{
-    Result, SlynxHir, TypeId, error::HIRError, model::HirType, modules::types::TypesModule,
-};
+use crate::hir::{Result, SlynxHir, TypeId, error::HIRError, model::HirType, modules::TypesModule};
 
 ///A struct that handles all the monomorphization on the code
 pub struct Monomorphizer {
@@ -91,7 +89,7 @@ mod tests {
             .expect_err("cyclic aliases should fail during monomorphization");
 
         match &err.kind {
-            HIRErrorKind::RecursiveType { ty } => assert_eq!(ty, "A"),
+            HIRErrorKind::RecursiveType { ty } => assert_eq!(*ty, hir.modules.intern_name("A")),
             other => panic!("expected RecursiveType, got {other:?}"),
         }
     }

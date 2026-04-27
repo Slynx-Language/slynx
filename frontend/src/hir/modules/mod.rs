@@ -1,21 +1,15 @@
-use common::{ObjectField, Span, SymbolPointer, SymbolsModule};
+use common::{ObjectField, Span};
 
-use crate::hir::{
-    DeclarationId, Result, TypeId, VariableId,
-    error::HIRError,
-    model::HirType,
-    modules::{
-        declarations::DeclarationsModule,
-        scopes::{HIRScope, ScopeModule},
-        symbols::SymbolsResolver,
-        types::{BUILTIN_NAMES, TypesModule},
-    },
-};
+use crate::hir::{DeclarationId, Result, TypeId, VariableId, error::HIRError, model::HirType};
 
-pub mod declarations;
-pub mod scopes;
-pub mod symbols;
-pub mod types;
+mod declarations;
+mod scopes;
+mod symbols;
+mod types;
+pub use declarations::*;
+pub use scopes::*;
+pub use symbols::*;
+pub use types::*;
 
 #[derive(Debug, Default)]
 ///A Modules object to handle with creation of symbols, declarations, types, scopes, etc.

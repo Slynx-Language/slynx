@@ -12,7 +12,7 @@ pub use visualize::*;
 
 use frontend::hir::{
     model::{HirDeclaration, HirDeclarationKind, HirType},
-    modules::types::TypesModule,
+    modules::TypesModule,
 };
 
 use crate::{BUILTIN_TYPES, IRError, IRTypes};

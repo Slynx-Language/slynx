@@ -7,7 +7,7 @@ use frontend::{
     },
     hir::{
         ExpressionId,
-        definitions::{HirExpression, HirExpressionKind},
+        model::{HirExpression, HirExpressionKind},
     },
 };
 

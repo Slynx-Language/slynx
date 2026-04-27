@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use common::SymbolPointer;
-use frontend::hir::{VariableId, declarations::DeclarationsModule, types::TypesModule};
+use frontend::hir::{
+    VariableId,
+    modules::{DeclarationsModule, TypesModule},
+};
 use middleend::{IRError, SlynxIR};
 
 use crate::{

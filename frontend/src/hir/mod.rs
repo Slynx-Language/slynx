@@ -24,7 +24,7 @@ pub type Result<T> = std::result::Result<T, HIRError>;
 
 #[derive(Debug, Default)]
 pub struct SlynxHir {
-    pub(crate) modules: HirModules,
+    pub modules: HirModules,
     /// Maps the types of top level things on the current scope to their types.
     /// An example is functions, which contain an HirType.
     types: HashMap<TypeId, HirType>,

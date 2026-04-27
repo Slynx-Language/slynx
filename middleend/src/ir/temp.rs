@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use frontend::hir::{TypeId, VariableId, modules::types::TypesModule};
+use frontend::hir::{TypeId, VariableId, modules::TypesModule};
 use smallvec::SmallVec;
 
 use crate::{

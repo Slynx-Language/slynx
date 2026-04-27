@@ -37,4 +37,14 @@ impl SymbolsResolver {
     pub fn register_variable(&mut self, id: VariableId, symbol: SymbolPointer) {
         self.variable_names.insert(id, symbol);
     }
+
+    pub fn variables(&self) -> &HashMap<VariableId, SymbolPointer> {
+        &self.variable_names
+    }
+    pub fn symbols_module(&self) -> &SymbolsModule {
+        &self.module
+    }
+    pub fn get_symbols_module(self) -> SymbolsModule {
+        self.module
+    }
 }
