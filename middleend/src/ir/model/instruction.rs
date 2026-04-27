@@ -24,7 +24,6 @@ pub enum Value {
     Void,
     StructLiteral(IRTypeId, IRPointer<Value>),
     Specliazed(IRPointer<IRSpecializedComponent, 1>),
-    StructLiteral(IRTypeId, IRPointer<Value>),
     Raw(IRPointer<Operand, 1>),
     Instruction(IRPointer<Instruction, 1>),
     Slot(IRPointer<Slot, 1>),

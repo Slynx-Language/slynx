@@ -2,8 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 #[test]
 fn test_while() {
-    let context =
-        slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/while.slynx"))).unwrap();
+    let context = slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/while.syx"))).unwrap();
     let output = context.compile().unwrap();
     assert_eq!(
         output

@@ -7,6 +7,7 @@ mod model;
 mod temp;
 mod visualize;
 
+use common::SymbolsModule;
 pub use model::*;
 pub use visualize::*;
 

@@ -1,6 +1,6 @@
 use frontend::hir::{
-    definitions::{ComponentMemberDeclaration, HirDeclaration, SpecializedComponent},
-    types::HirType,
+    TypeId,
+    model::{ComponentMemberDeclaration, HirDeclaration, HirType, SpecializedComponent},
 };
 
 use crate::{

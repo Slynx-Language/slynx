@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 #[test]
 fn test_tuple_access() {
     let context =
-        slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/tuple_access.slynx"))).unwrap();
+        slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/tupleAccess.syx"))).unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(
