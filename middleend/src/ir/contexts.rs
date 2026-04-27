@@ -235,14 +235,12 @@ impl SlynxIR {
                 );
 
                 let then_label = self.insert_label(temp.current_function(), "then_label");
-                debug_assert_eq!(then_label, then_label);
+
                 let else_label = self.insert_label(temp.current_function(), "else_label");
-                debug_assert_eq!(else_label, else_label);
                 let end_label = {
                     let label = self.insert_label(temp.current_function(), "end_label");
-                    debug_assert_eq!(label, end_label);
-                    let v = self.get_type_of_value(value.clone(), temp);
-                    self.get_label_mut(label.clone()).add_argument(v);
+                    let v = self.get_type_of_value(value, temp);
+                    self.get_label_mut(label).add_argument(v);
                     label
                 };
                 temp.set_current_label(then_label);
