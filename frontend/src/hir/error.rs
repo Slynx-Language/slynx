@@ -87,7 +87,7 @@ impl HIRError {
         Self {
             kind: HIRErrorKind::InvalidType {
                 ty: name,
-                reason: reason,
+                reason,
             },
             span,
         }

@@ -20,7 +20,7 @@ impl SlynxContext {
                     file: self.entry_point.to_string_lossy().to_string(),
                     source_code: src.to_string(),
                 };
-                return Report::new(err);
+                Report::new(err)
             }
             LexerError::UnrecognizedChar { index, .. } => {
                 let (line, column, src) = self.get_line_info(&self.entry_point, index);
@@ -33,7 +33,7 @@ impl SlynxContext {
                     file: self.entry_point.to_string_lossy().to_string(),
                     source_code: src.to_string(),
                 };
-                return Report::new(err);
+                Report::new(err)
             }
         }
     }

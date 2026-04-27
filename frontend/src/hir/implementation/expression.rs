@@ -1,4 +1,4 @@
-use std::{mem::discriminant, usize};
+use std::mem::discriminant;
 
 use crate::hir::{
     ExpressionId, Result, SlynxHir, TypeId,
@@ -35,17 +35,17 @@ impl SlynxHir {
                             .then_some(*field)
                     })
                     .collect::<Vec<_>>();
-                return Err(HIRError::missing_properties(missing_fields, *span).into());
+                return Err(HIRError::missing_properties(missing_fields, *span));
             }
             true if defined_layout.len() < fields.len() => {
                 let non_existent_fields = fields
                     .iter()
                     .filter_map(|provided_field| {
                         let field_symbol = self.modules.intern_name(&provided_field.name);
-                        (!defined_layout.iter().any(|f| *f == field_symbol)).then_some(field_symbol)
+                        (!defined_layout.contains(&field_symbol)).then_some(field_symbol)
                     })
                     .collect();
-                return Err(HIRError::property_unrecognized(non_existent_fields, *span).into());
+                return Err(HIRError::property_unrecognized(non_existent_fields, *span));
             }
             _ => {}
         }
@@ -79,7 +79,10 @@ impl SlynxHir {
                 fields: out,
             })
         } else {
-            Err(HIRError::property_unrecognized(non_recognized_fields, *span).into())
+            Err(HIRError::property_unrecognized(
+                non_recognized_fields,
+                *span,
+            ))
         }
     }
 
@@ -100,21 +103,17 @@ impl SlynxHir {
                 self.resolve_tuple_access_type(field_ty, index, span)
             }
             HirType::Reference { rf, .. } => self.resolve_tuple_access_type(rf, index, span),
-            HirType::Tuple { fields } => fields.get(index).copied().ok_or(
-                HIRError {
-                    kind: HIRErrorKind::InvalidTupleIndex {
-                        index,
-                        length: fields.len(),
-                    },
-                    span: span.clone(),
-                }
-                .into(),
-            ),
+            HirType::Tuple { fields } => fields.get(index).copied().ok_or(HIRError {
+                kind: HIRErrorKind::InvalidTupleIndex {
+                    index,
+                    length: fields.len(),
+                },
+                span: *span,
+            }),
             other => Err(HIRError {
                 kind: HIRErrorKind::InvalidTupleAccessTarget { ty: other },
-                span: span.clone(),
-            }
-            .into()),
+                span: *span,
+            }),
         }
     }
 
@@ -172,9 +171,8 @@ impl SlynxHir {
             }
             other => Err(HIRError {
                 kind: HIRErrorKind::InvalidFieldAccessTarget { ty: other },
-                span: span.clone(),
-            }
-            .into()),
+                span: *span,
+            }),
         }
     }
 
@@ -259,7 +257,7 @@ impl SlynxHir {
             ASTExpressionKind::FunctionCall { name, args } => {
                 let func_symbol = self.modules.intern_name(&name.identifier);
                 let Some((decl, tyid)) = self.modules.get_declaration_by_name(&func_symbol) else {
-                    return Err(HIRError::name_unrecognized(func_symbol, expr.span).into());
+                    return Err(HIRError::name_unrecognized(func_symbol, expr.span));
                 };
                 let ty = self.get_type(&tyid);
                 let HirType::Function {
@@ -267,7 +265,7 @@ impl SlynxHir {
                     args: expect_args,
                 } = ty
                 else {
-                    return Err(HIRError::not_a_func(func_symbol, ty.clone(), expr.span).into());
+                    return Err(HIRError::not_a_func(func_symbol, ty.clone(), expr.span));
                 };
                 if expect_args.len() != args.len() {
                     return Err(HIRError::invalid_funcall_arg_length(
@@ -275,8 +273,7 @@ impl SlynxHir {
                         expect_args.len(),
                         args.len(),
                         expr.span,
-                    )
-                    .into());
+                    ));
                 }
                 let return_type = *return_type;
                 let exprs = args
@@ -326,7 +323,7 @@ impl SlynxHir {
             ASTExpressionKind::ObjectExpression { name, fields } => {
                 let symbol = self.modules.intern_name(&name.identifier);
                 let Some((_, ty)) = self.modules.get_declaration_by_name(&symbol) else {
-                    return Err(HIRError::name_unrecognized(symbol, name.span).into());
+                    return Err(HIRError::name_unrecognized(symbol, name.span));
                 };
                 let kind = self.organized_object_fields(ty, fields, &expr.span)?;
                 Ok(HirExpression {
@@ -348,11 +345,10 @@ impl SlynxHir {
                         let ty = self.add_unnamed_type(HirType::type_field(*ty, index));
                         Ok(self.create_field_access_expression(parent, index, ty, expr.span))
                     }
-                    HirType::Reference { .. } => {
-                        return Err(
-                            HIRError::property_unrecognized(vec![field_symbol], expr.span).into(),
-                        );
-                    }
+                    HirType::Reference { .. } => Err(HIRError::property_unrecognized(
+                        vec![field_symbol],
+                        expr.span,
+                    )),
 
                     HirType::VarReference(rf) => {
                         let ty = self.add_unnamed_type(HirType::variable_field(*rf, field_symbol));
@@ -372,16 +368,13 @@ impl SlynxHir {
                                     parent, index, field_ty, expr.span,
                                 ))
                             }
-                            _ => {
-                                Err(HIRError::property_unrecognized(vec![field], expr.span).into())
-                            }
+                            _ => Err(HIRError::property_unrecognized(vec![field], expr.span)),
                         }
                     }
                     u => Err(HIRError {
                         kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u.clone() },
                         span: expr.span,
-                    }
-                    .into()),
+                    }),
                 }
             }
         }

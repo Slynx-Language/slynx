@@ -89,7 +89,7 @@ impl SlynxHir {
                 self.modules.enter_scope();
                 let symbol = self.modules.intern_name(&name.identifier);
                 let Some((decl, ty)) = self.modules.get_declaration_by_name(&symbol) else {
-                    return Err(HIRError::name_unrecognized(symbol, ast.span).into());
+                    return Err(HIRError::name_unrecognized(symbol, ast.span));
                 };
 
                 let defs = self.resolve_component_defs(members)?;
@@ -113,11 +113,11 @@ impl SlynxHir {
                     .types_module
                     .get_type_from_name_mut(&alias_name)
                 else {
-                    return Err(HIRError::name_unrecognized(alias_name, name.span).into());
+                    return Err(HIRError::name_unrecognized(alias_name, name.span));
                 };
                 *alias_ty = HirType::new_ref(target_ty);
                 let Some((decl, ty)) = self.modules.get_declaration_by_name(&alias_name) else {
-                    return Err(HIRError::name_unrecognized(alias_name, name.span).into());
+                    return Err(HIRError::name_unrecognized(alias_name, name.span));
                 };
                 self.declarations
                     .push(HirDeclaration::new_alias(decl, ty, ast.span));

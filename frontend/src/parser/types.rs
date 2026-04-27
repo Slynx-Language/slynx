@@ -51,7 +51,7 @@ impl Parser {
     ///Parses a type.
     pub fn parse_type(&mut self) -> Result<GenericIdentifier> {
         let token = self.peek()?;
-        let start_span = token.span.clone();
+        let start_span = token.span;
 
         if let TokenKind::LParen = &token.kind {
             self.eat()?;

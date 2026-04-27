@@ -19,7 +19,7 @@ impl Parser {
                 let expr = self.parse_if(if_span)?;
                 let end = expr.span.end;
 
-                let span = expr.span.clone();
+                let span = expr.span;
 
                 (
                     Some(vec![ASTStatement {

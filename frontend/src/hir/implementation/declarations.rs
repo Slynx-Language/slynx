@@ -1,10 +1,7 @@
 use crate::hir::{
-    PropertyId, Result, SlynxHir,
-    error::{HIRError, HIRErrorKind},
-    model::{
-        ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirDeclarationKind,
-        HirStatement, HirType,
-    },
+    Result, SlynxHir,
+    error::HIRError,
+    model::{ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirStatement, HirType},
 };
 use common::{
     ASTStatement, ASTStatementKind,
@@ -32,7 +29,7 @@ impl SlynxHir {
             .map(|field| {
                 let symbol_name = self.modules.intern_name(&name.identifier);
                 if self.modules.intern_name(&field.name.name) == symbol_name {
-                    Err(HIRError::recursive(symbol_name, field.name.span).into())
+                    Err(HIRError::recursive(symbol_name, field.name.span))
                 } else {
                     self.retrieve_information_of_type(&field.name.kind.identifier, &field.name.span)
                         .map(|v| v.0)
@@ -41,7 +38,7 @@ impl SlynxHir {
             .collect::<Result<Vec<_>>>()?;
         let identifier_symbol = self.modules.intern_name(&name.identifier);
         let Some((decl, declty)) = self.modules.get_declaration_by_name(&identifier_symbol) else {
-            return Err(HIRError::name_unrecognized(identifier_symbol, name.span).into());
+            return Err(HIRError::name_unrecognized(identifier_symbol, name.span));
         };
         let HirType::Reference { rf, .. } = self.get_type(&declty) else {
             unreachable!("WTF, type of custom object should be a reference to its real type");
@@ -61,7 +58,7 @@ impl SlynxHir {
     pub fn hoist_function(
         &mut self,
         name: &GenericIdentifier,
-        args: &Vec<TypedName>,
+        args: &[TypedName],
         return_type: &GenericIdentifier,
     ) -> Result<()> {
         let args = args
@@ -78,19 +75,19 @@ impl SlynxHir {
     pub fn resolve_function(
         &mut self,
         name: &GenericIdentifier,
-        args: &Vec<TypedName>,
+        args: &[TypedName],
         body: Vec<ASTStatement>,
         span: &Span,
     ) -> Result<()> {
         let symbol = self.modules.intern_name(&name.identifier);
         let Some((decl, tyid)) = self.modules.get_declaration_by_name(&symbol) else {
-            return Err(HIRError::name_unrecognized(symbol, name.span).into());
+            return Err(HIRError::name_unrecognized(symbol, name.span));
         };
 
         self.modules.enter_scope();
 
         let args = args
-            .into_iter()
+            .iter()
             .map(|arg| {
                 let symbol = self.modules.intern_name(&arg.name);
                 match self.retrieve_information_of_type(&arg.kind.identifier, &arg.kind.span) {
@@ -138,7 +135,7 @@ impl SlynxHir {
                         Some(generic) => self.get_typeid_of_name(&generic.identifier, &member.span),
                         _ => Ok(self.infer_type()),
                     };
-                    Some(ty.map(|ty| ComponentProperty::new(modifier.clone(), name.clone(), ty)))
+                    Some(ty.map(|ty| ComponentProperty::new(*modifier, name.clone(), ty)))
                 }
                 ComponentMemberKind::Child(_) => None,
             })
@@ -174,7 +171,7 @@ impl SlynxHir {
                     ));
                     let name = self.modules.intern_name(&name);
 
-                    self.create_variable(name, ty, &def.span);
+                    self.create_variable(name, ty, &def.span)?;
                     prop_idx += 1;
                 }
                 ComponentMemberKind::Child(child) => {

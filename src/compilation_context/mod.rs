@@ -284,7 +284,7 @@ impl SlynxContext {
         };
         let decls = match Parser::new(stream).parse_declarations() {
             Ok(v) => v,
-            Err(e) => return Err(self.handle_parser_error(e.downcast_ref().unwrap()).into()),
+            Err(e) => return Err(self.handle_parser_error(e.downcast_ref().unwrap())),
         };
         let mut hir = SlynxHir::new();
         if let Err(e) = hir.generate(decls) {
@@ -325,8 +325,7 @@ impl SlynxContext {
                     &variable_names,
                     &types_module,
                     &hir.modules.declarations_module,
-                )
-                .into());
+                ));
         };
         Ok(CompilationStages::new(
             self.entry_point.as_ref(),

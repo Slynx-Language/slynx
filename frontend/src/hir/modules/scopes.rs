@@ -14,6 +14,12 @@ pub struct HIRScope {
     mutables: Vec<VariableId>,
 }
 
+impl Default for HIRScope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HIRScope {
     pub fn new() -> Self {
         Self {
@@ -54,7 +60,10 @@ impl ScopeModule {
     pub fn len(&self) -> usize {
         self.scopes.len()
     }
-
+    ///Returns if this scope is empty. Not necessarily useful, just because clippy proclaims about
+    pub fn is_empty(&self) -> bool {
+        self.scopes.is_empty()
+    }
     ///Enter a new scope and returns a mutable reference to it.
     pub fn enter_scope(&mut self) -> &mut HIRScope {
         self.scopes.push(HIRScope::new());

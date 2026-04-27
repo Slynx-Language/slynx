@@ -63,7 +63,7 @@ impl SlynxHir {
 
             ASTStatementKind::While { condition, body } => {
                 let condition = self.resolve_expr(condition, None)?;
-                let mut body = body
+                let body = body
                     .into_iter()
                     .map(|stmt| self.resolve_statement(stmt))
                     .collect::<Result<Vec<_>>>()?;

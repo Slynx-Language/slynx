@@ -1,10 +1,10 @@
 ///Module that implements anything related Specialized Component on the HIR
 use common::{
-    ComponentExpression, ComponentMember, ComponentMemberValue, Span, VisibilityModifier,
+    ComponentExpression, ComponentMemberValue, Span, VisibilityModifier,
 };
 
 use crate::hir::{
-    PropertyId, Result, SlynxHir, TypeId,
+    Result, SlynxHir, TypeId,
     error::{HIRError, HIRErrorKind},
     model::{ComponentMemberDeclaration, HirType, SpecializedComponent},
 };
@@ -33,7 +33,7 @@ impl SlynxHir {
                             VisibilityModifier::Private | VisibilityModifier::ChildrenPublic
                         ) =>
                     {
-                        Err(HIRError::not_visible_property(interned_name, span).into())
+                        Err(HIRError::not_visible_property(interned_name, span))
                     }
                     Some(index) => {
                         let expr = self.resolve_expr(rhs, Some(*props[index].prop_type()))?;
@@ -85,15 +85,14 @@ impl SlynxHir {
                     "text" => text = Some(self.resolve_expr(rhs, None)?),
                     _ => {
                         let intern = self.modules.intern_name(&prop_name);
-                        return Err(HIRError::type_unrecognized(intern, span).into());
+                        return Err(HIRError::type_unrecognized(intern, span));
                     }
                 },
                 ComponentMemberValue::Child(e) => {
                     return Err(HIRError {
                         kind: HIRErrorKind::InvalidChild { child: Box::new(e) },
-                        span: span.clone(),
-                    }
-                    .into());
+                        span: *span,
+                    });
                 }
             }
         }
@@ -103,7 +102,7 @@ impl SlynxHir {
             })
         } else {
             let properties = vec![self.modules.intern_name("text")];
-            Err(HIRError::missing_properties(properties, *span).into())
+            Err(HIRError::missing_properties(properties, *span))
         }
     }
     ///Resolves the provided `children` knowning it is a specialized div component
@@ -120,7 +119,7 @@ impl SlynxHir {
                     prop_name, span, ..
                 } => {
                     let prop = self.modules.intern_name(&prop_name);
-                    return Err(HIRError::property_unrecognized(vec![prop], span).into());
+                    return Err(HIRError::property_unrecognized(vec![prop], span));
                 }
                 ComponentMemberValue::Child(c) => {
                     let component = self.resolve_component(c)?;

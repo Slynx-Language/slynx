@@ -28,7 +28,7 @@ impl TypeChecker {
             HirType::Struct { .. } => Ok(*ty),
             v => Err(TypeError {
                 kind: TypeErrorKind::NotAStruct(v.clone()),
-                span: span.clone(),
+                span: *span,
             }
             .into()),
         }
@@ -71,7 +71,7 @@ impl TypeChecker {
                     .get_variable(&variable_id)
                     .ok_or(TypeError {
                         kind: TypeErrorKind::Unrecognized,
-                        span: span.clone(),
+                        span: *span,
                     })?;
                 let layout_ty = self.get_object_layout_type(&object_ty, span)?;
 
@@ -84,7 +84,7 @@ impl TypeChecker {
                 else {
                     return Err(TypeError {
                         kind: TypeErrorKind::Unrecognized,
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into());
                 };
@@ -114,7 +114,7 @@ impl TypeChecker {
         else {
             return Err(TypeError {
                 kind: TypeErrorKind::Unrecognized,
-                span: span.clone(),
+                span: *span,
             }
             .into());
         };
@@ -126,7 +126,7 @@ impl TypeChecker {
                     declaration,
                     received: resolved,
                 },
-                span: span.clone(),
+                span: *span,
             }
             .into());
         };
@@ -572,7 +572,7 @@ impl TypeChecker {
                                 };
 
                                 *declared[*index].prop_type_mut() =
-                                    self.unify(&*declared[*index].prop_type(), &expr_ty, span)?;
+                                    self.unify(declared[*index].prop_type(), &expr_ty, span)?;
 
                                 *self.types_module.get_type_mut(&resolved) =
                                     HirType::Component { props: declared };

@@ -25,8 +25,7 @@ impl SlynxHir {
             Ok(self.modules.types_module.get_type(rf))
         } else {
             Err(
-                HIRError::invalid_type(name_symbol, InvalidTypeReason::IncorrectUsage, *span)
-                    .into(),
+                HIRError::invalid_type(name_symbol, InvalidTypeReason::IncorrectUsage, *span),
             )
         }
     }
@@ -39,7 +38,7 @@ impl SlynxHir {
             "int" => Ok(self.int32_type()),
             "float" => Ok(self.float32_type()),
             "str" => Ok(self.str_type()),
-            _ => self.modules.find_type_by_name(&name, span).cloned(),
+            _ => self.modules.find_type_by_name(name, span).cloned(),
         }
     }
 
@@ -47,20 +46,20 @@ impl SlynxHir {
         match gener.identifier.as_str() {
             "tuple" if let Some(ref types) = gener.generic => {
                 let fields = types
-                    .into_iter()
+                    .iter()
                     .map(|field| self.get_typeid_of_generic(field))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(self.add_tuple_type(fields))
             }
             "tuple" if let None = &gener.generic => {
                 let interned = self.modules.intern_name(&gener.identifier);
-                Err(HIRError::name_unrecognized(interned, gener.span).into())
+                Err(HIRError::name_unrecognized(interned, gener.span))
             }
             "()" => Ok(self.void_type()),
             _ if let Some(ref generics) = gener.generic => {
                 let gen_ids = generics
                     .iter()
-                    .map(|generic| self.get_typeid_of_generic(&generic))
+                    .map(|generic| self.get_typeid_of_generic(generic))
                     .collect::<Result<Vec<_>>>()?;
                 let base_id = self.get_typeid_of_name(&gener.identifier, &gener.span)?;
                 Ok(self.add_unnamed_type(HirType::new_generic_ref(base_id, gen_ids)))
@@ -74,7 +73,7 @@ impl SlynxHir {
         if let Some(variable) = self.modules.find_variable(symbol) {
             Ok(variable)
         } else {
-            Err(HIRError::name_unrecognized(symbol, *span).into())
+            Err(HIRError::name_unrecognized(symbol, *span))
         }
     }
     ///Creates a mutable variable with the given `name` and `ty`

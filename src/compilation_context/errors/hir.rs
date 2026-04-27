@@ -10,7 +10,8 @@ use crate::{
 
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
-        let out = match &err.kind {
+        
+        match &err.kind {
             HIRErrorKind::InvalidFuncallArgLength {
                 func_name,
                 expected_length,
@@ -84,8 +85,7 @@ impl SlynxContext {
                 let ty = hir.get_name(*ty);
                 format!("The type named as '{ty}' is recursive at this point")
             }
-        };
-        out
+        }
     }
 
     pub fn handle_hir_error(&self, hir: &SlynxHir, error: &HIRError) -> color_eyre::Report {

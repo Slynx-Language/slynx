@@ -68,7 +68,7 @@ impl Parser {
                         args,
                         return_type,
                         body: vec![ASTStatement {
-                            span: expr.span.clone(),
+                            span: expr.span,
                             kind: ASTStatementKind::Expression(expr),
                         }],
                     },

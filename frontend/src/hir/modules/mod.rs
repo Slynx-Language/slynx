@@ -64,7 +64,7 @@ impl HirModules {
         ty: super::TypeId,
         span: &Span,
     ) -> Result<VariableId> {
-        if let Some(_) = self.scope_module.retrieve_name(&name) {
+        if self.scope_module.retrieve_name(&name).is_some() {
             Err(HIRError::already_defined(name, *span))
         } else {
             let v = VariableId::new();
@@ -80,8 +80,8 @@ impl HirModules {
 impl HirModules {
     ///Creates an type alias with the given `name`. Its initial type is `infer`. Because of hoisting, and so, the type this refers to might be defined after it
     pub fn create_alias(&mut self, target: &str, name: &str) {
-        self.symbols_resolver.intern(&target);
-        let symbol = self.symbols_resolver.intern(&name);
+        self.symbols_resolver.intern(target);
+        let symbol = self.symbols_resolver.intern(name);
         let ty = self.types_module.insert_type(symbol, HirType::Infer);
         self.declarations_module.create_declaration(symbol, ty);
     }
@@ -92,14 +92,14 @@ impl HirModules {
         name: &str,
         ty: HirType,
     ) -> (SymbolPointer, TypeId, DeclarationId) {
-        let symbol = self.symbols_resolver.intern(&name);
+        let symbol = self.symbols_resolver.intern(name);
         let tyid = self.types_module.insert_type(symbol, ty);
         let decl_id = self.declarations_module.create_declaration(symbol, tyid);
         (symbol, tyid, decl_id)
     }
 
     pub fn create_object(&mut self, name: &str, fields: &[ObjectField]) {
-        let name = self.symbols_resolver.intern(&name);
+        let name = self.symbols_resolver.intern(name);
         let def_fields = fields
             .iter()
             .map(|f| self.symbols_resolver.intern(&f.name.name))

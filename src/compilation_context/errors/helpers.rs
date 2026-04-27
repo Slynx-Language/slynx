@@ -22,7 +22,7 @@ pub enum SlynxSuggestion {
     MalformedNumber(String, String, String),
     UnexpectedToken(String, String),
     NameAlreadyDefined(String),
-    IRTypeNotRecognized(String),
+    //IRTypeNotRecognized(String),
     DeclarationNotRecognized(String),
 }
 impl fmt::Display for SlynxSuggestion {
@@ -67,10 +67,10 @@ impl fmt::Display for SlynxSuggestion {
                 f,
                 "`{name}` is already defined in this scope — use a different name or remove the duplicate definition"
             ),
-            SlynxSuggestion::IRTypeNotRecognized(type_) => write!(
-                f,
-                "internal compiler error: type `{type_}` was not registered in the IR — this is likely a compiler bug, please report it"
-            ),
+            // SlynxSuggestion::IRTypeNotRecognized(type_) => write!(
+            //     f,
+            //     "internal compiler error: type `{type_}` was not registered in the IR — this is likely a compiler bug, please report it"
+            // ),
             SlynxSuggestion::DeclarationNotRecognized(decl) => write!(
                 f,
                 "internal compiler error: declaration `{decl}` was not registered in the IR — this is likely a compiler bug, please report it"

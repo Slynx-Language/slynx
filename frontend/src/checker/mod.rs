@@ -61,7 +61,7 @@ impl TypeChecker {
                     other => {
                         return Err(TypeError {
                             kind: TypeErrorKind::NotAStruct(other.clone()),
-                            span: span.clone(),
+                            span: *span,
                         }
                         .into());
                     }
@@ -73,13 +73,13 @@ impl TypeChecker {
                             .copied()
                             .ok_or(TypeError {
                                 kind: TypeErrorKind::Unrecognized,
-                                span: span.clone(),
+                                span: *span,
                             })?;
                 }
                 other => {
                     return Err(TypeError {
                         kind: TypeErrorKind::NotAStruct(other.clone()),
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into());
                 }
@@ -101,7 +101,7 @@ impl TypeChecker {
                 kind: TypeErrorKind::InvalidTupleAccessTarget {
                     received: self.types_module.get_type(&resolved_ty).clone(),
                 },
-                span: span.clone(),
+                span: *span,
             }
             .into());
         };
@@ -112,7 +112,7 @@ impl TypeChecker {
                     index,
                     length: fields.len(),
                 },
-                span: span.clone(),
+                span: *span,
             }
             .into(),
         )
@@ -167,7 +167,7 @@ impl TypeChecker {
                             expected: self.types_module.get_type(&ty).clone(),
                             received: HirType::Struct { fields: Vec::new() },
                         },
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into())
                 }
@@ -178,7 +178,7 @@ impl TypeChecker {
             HirType::Field(FieldMethod::Variable(var_id, n)) => {
                 let object_ty = *self.types_module.get_variable(&var_id).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
-                    span: span.clone(),
+                    span: *span,
                 })?;
                 let layout_ty = self.get_object_layout_type(&object_ty, span)?;
                 let concrete_type = self
@@ -186,7 +186,7 @@ impl TypeChecker {
                     .get_type(&self.get_struct_from_ref(&object_ty, span)?);
                 let s_fields = self.structs.get(&layout_ty).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
-                    span: span.clone(),
+                    span: *span,
                 })?;
                 let HirType::Struct { fields } = concrete_type else {
                     unreachable!("Type should be a struct. Fields only happen to structs");
@@ -196,7 +196,7 @@ impl TypeChecker {
                 } else {
                     Err(TypeError {
                         kind: TypeErrorKind::Unrecognized,
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into())
                 }
@@ -264,14 +264,14 @@ impl TypeChecker {
                                         lhs: bprops.len(),
                                     },
                                 },
-                                span: span.clone(),
+                                span: *span,
                             }
                             .into());
                         }
                         let mut unified_props = Vec::with_capacity(aprops.len());
                         for (prop_a, prop_b) in aprops.iter().zip(bprops.iter()) {
                             let unified_prop =
-                                self.unify(&*prop_a.prop_type(), &*prop_b.prop_type(), span)?;
+                                self.unify(prop_a.prop_type(), prop_b.prop_type(), span)?;
                             unified_props.push(ComponentProperty::new(
                                 *prop_a.visibility(),
                                 prop_a.name().to_string(),
@@ -300,7 +300,7 @@ impl TypeChecker {
                                     expected: concrete_a,
                                     received: concrete_b,
                                 },
-                                span: span.clone(),
+                                span: *span,
                             }
                             .into())
                         } else {
@@ -317,7 +317,7 @@ impl TypeChecker {
                                     expected: concrete_a,
                                     received: concrete_b,
                                 },
-                                span: span.clone(),
+                                span: *span,
                             }
                             .into())
                         } else {
@@ -346,7 +346,7 @@ impl TypeChecker {
                             expected: concrete_b,
                             received: concrete_a,
                         },
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into()),
                 }
@@ -371,7 +371,7 @@ impl TypeChecker {
         if self.recursive_ty(rf, ty) {
             return Err(TypeError {
                 kind: TypeErrorKind::CiclicType { ty: ty.clone() },
-                span: span.clone(),
+                span: *span,
             }
             .into());
         }
@@ -451,7 +451,7 @@ impl TypeChecker {
             kind: TypeErrorKind::MissingReturnValue {
                 expected: self.types_module.get_type(&return_type).clone(),
             },
-            span: span.clone(),
+            span: *span,
         }
         .into())
     }

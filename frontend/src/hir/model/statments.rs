@@ -50,7 +50,7 @@ impl HirStatement {
 
     pub fn new_while(condition: HirExpression, body: Vec<HirStatement>, span: Span) -> Self {
         Self {
-            span: span,
+            span,
             kind: HirStatementKind::While { condition, body },
         }
     }

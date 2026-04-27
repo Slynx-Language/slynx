@@ -13,7 +13,7 @@ impl Monomorphizer {
             reference_cache: HashMap::new(),
         };
         for decl in hir.declarations.iter() {
-            this.resolve_reference(hir, decl.ty, decl.span.clone(), types_module)?;
+            this.resolve_reference(hir, decl.ty, decl.span, types_module)?;
         }
         for (key, value) in this.reference_cache {
             let HirType::Reference { rf, .. } = types_module.get_type_mut(&key) else {
@@ -27,7 +27,7 @@ impl Monomorphizer {
     /// to another reference) it resolves it to make the reference point to the concrete type. This only caches it for later mutability
     pub fn resolve_reference(
         &mut self,
-        hir: &SlynxHir,
+        _hir: &SlynxHir,
         id: TypeId,
         span: common::ast::Span,
         types_module: &TypesModule,
