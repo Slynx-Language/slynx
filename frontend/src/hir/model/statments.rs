@@ -41,4 +41,23 @@ impl HirStatement {
             span,
         }
     }
+    pub fn new_variable(name: VariableId, value: HirExpression, span: Span) -> Self {
+        Self {
+            kind: HirStatementKind::Variable { name, value },
+            span,
+        }
+    }
+
+    pub fn new_while(condition: HirExpression, body: Vec<HirStatement>, span: Span) -> Self {
+        Self {
+            span: span,
+            kind: HirStatementKind::While { condition, body },
+        }
+    }
+    pub fn new_expression(expr: HirExpression) -> Self {
+        Self {
+            span: expr.span,
+            kind: HirStatementKind::Expression { expr },
+        }
+    }
 }

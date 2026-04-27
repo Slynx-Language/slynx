@@ -1,4 +1,6 @@
-use crate::hir::{SlynxHir, TypeId, model::HirType};
+use common::SymbolPointer;
+
+use crate::hir::{SlynxHir, TypeId, VariableId, model::HirType};
 
 impl SlynxHir {
     /// Retrieves the id of the `infer` type.
@@ -36,5 +38,43 @@ impl SlynxHir {
     ///Gets the HIR type of the given `ty`
     pub fn get_type(&self, ty: &TypeId) -> &HirType {
         self.modules.types_module.get_type(ty)
+    }
+
+    ///Gets the HIR type of the given `ty`
+    pub fn get_type_mut(&mut self, ty: &TypeId) -> &mut HirType {
+        self.modules.types_module.get_type_mut(ty)
+    }
+
+    ///Creates a new tuple type with the given `fields` and returns its typeid
+    pub fn add_tuple_type(&mut self, fields: Vec<TypeId>) -> TypeId {
+        self.modules.types_module.add_tuple_type(fields)
+    }
+
+    ///Creates a the given `ty` on the hir and returns its id. doesnt map a name to it
+    pub fn add_unnamed_type(&mut self, ty: HirType) -> TypeId {
+        self.modules.types_module.insert_unnamed_type(ty)
+    }
+    pub fn add_type(&mut self, name: SymbolPointer, ty: HirType) -> TypeId {
+        self.modules.types_module.insert_type(name, ty)
+    }
+
+    pub fn get_type_from_name(&self, name: &SymbolPointer) -> Option<&HirType> {
+        self.modules.types_module.get_type_from_name(name)
+    }
+
+    pub fn get_type_mut_from_name(&mut self, name: &SymbolPointer) -> Option<&mut HirType> {
+        self.modules.types_module.get_type_from_name_mut(name)
+    }
+
+    pub fn get_typeid_from_name(&self, name: &SymbolPointer) -> Option<&TypeId> {
+        self.modules.types_module.get_id(name)
+    }
+
+    pub fn retrieve_object_fields(&self, ty: TypeId) -> Option<&[SymbolPointer]> {
+        self.modules.declarations_module.retrieve_object_body(ty)
+    }
+
+    pub fn get_variable_type(&self, ty: VariableId) -> Option<&TypeId> {
+        self.modules.types_module.get_variable(&ty)
     }
 }

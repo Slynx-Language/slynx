@@ -4,6 +4,7 @@ use crate::hir::{
     ExpressionId, Result, SlynxHir, TypeId,
     definitions::{HirExpression, HirExpressionKind, HirStatementKind},
     error::{HIRError, HIRErrorKind},
+    model::HirType,
     types::{FieldMethod, HirType},
 };
 use common::ast::{ASTExpression, ASTExpressionKind, NamedExpr, Operator, Span};
@@ -15,39 +16,33 @@ impl SlynxHir {
         fields: Vec<NamedExpr>,
         span: &Span,
     ) -> Result<HirExpressionKind> {
-        let Some(defined_layout) = self.declarations_module.retrieve_object_body(ty) else {
+        let Some(defined_layout) = self.retrieve_object_fields(ty) else {
             unreachable!(
                 "The deffinition of this should have been defined during hoisting and the resolving of it"
             )
         };
-        let defined_layout = defined_layout.to_vec();
         if defined_layout.len() != fields.len() {
             if defined_layout.len() > fields.len() {
                 let missing_fields = defined_layout
                     .iter()
                     .filter_map(|field| {
-                        if fields
+                        fields
                             .iter()
-                            .any(|f| self.symbols_module.intern(&f.name) == *field)
-                        {
-                            None
-                        } else {
-                            Some(*field)
-                        }
+                            .any(|f| self.modules.intern_name(&f.name) == *field)
+                            .then_some(*field)
                     })
                     .collect::<Vec<_>>();
 
                 return Err(HIRError::missing_properties(missing_fields, *span).into());
-            } else {
-                let non_existent_fields = fields
-                    .iter()
-                    .filter_map(|provided_field| {
-                        let field_symbol = self.symbols_module.intern(&provided_field.name);
-                        (!defined_layout.iter().any(|f| *f == field_symbol)).then_some(field_symbol)
-                    })
-                    .collect();
-                return Err(HIRError::property_unrecognized(non_existent_fields, *span).into());
             }
+            let non_existent_fields = fields
+                .iter()
+                .filter_map(|provided_field| {
+                    let field_symbol = self.modules.intern_name(&provided_field.name);
+                    (!defined_layout.iter().any(|f| *f == field_symbol)).then_some(field_symbol)
+                })
+                .collect();
+            return Err(HIRError::property_unrecognized(non_existent_fields, *span).into());
         }
         let mut out = Vec::with_capacity(fields.len());
         let mut non_recognized_fields = Vec::with_capacity(fields.len());
@@ -61,7 +56,7 @@ impl SlynxHir {
         for field in fields {
             if let Some(field_idx) = defined_layout
                 .iter()
-                .position(|defined_field| &self.symbols_module.intern(&field.name) == defined_field)
+                .position(|defined_field| &self.modules.intern_name(&field.name) == defined_field)
             {
                 let ty = field_types[field_idx];
                 out.insert(
@@ -69,7 +64,7 @@ impl SlynxHir {
                     self.resolve_expr(field.expr, Some(ty))?,
                 );
             } else {
-                let field_symbol = self.symbols_module.intern(&field.name);
+                let field_symbol = self.modules.intern_name(&field.name);
                 non_recognized_fields.push(field_symbol);
             }
         }
@@ -86,14 +81,14 @@ impl SlynxHir {
     fn resolve_tuple_access_type(&self, ty: TypeId, index: usize, span: &Span) -> Result<TypeId> {
         // Follow the shape of the parent expression until we reach the concrete
         // tuple type that owns the requested index.
-        let current_ty = self.types_module.get_type(&ty).clone();
+        let current_ty = self.get_type(&ty).clone();
         match current_ty {
             HirType::VarReference(variable_id) => {
-                let variable_ty = *self
-                    .types_module
-                    .get_variable(&variable_id)
+                let variable_ty = self
+                    .get_variable_type(variable_id)
                     .expect("variable type should exist before tuple access lowering");
-                self.resolve_tuple_access_type(variable_ty, index, span)
+
+                self.resolve_tuple_access_type(*variable_ty, index, span)
             }
             HirType::Field(field_method) => {
                 let field_ty = self.resolve_field_method_type(&field_method, span)?;
@@ -129,24 +124,17 @@ impl SlynxHir {
             }
             FieldMethod::Variable(variable_id, field_name) => {
                 let variable_ty = *self
-                    .types_module
-                    .get_variable(variable_id)
+                    .get_variable_type(variable_id)
                     .expect("variable type should exist before field access lowering");
                 let object_ref = self.resolve_object_reference_type(variable_ty, span)?;
-                let Some(layout) = self.declarations_module.retrieve_object_body(object_ref) else {
+                let Some(layout) = self.retrieve_object_fields(object_ref) else {
                     unreachable!("object reference should carry a layout");
                 };
                 let HirType::Struct { fields } = self.get_type_from_ref(object_ref).clone() else {
                     unreachable!("object layouts should always resolve to structs");
                 };
                 let Some(index) = layout.iter().position(|field| field == field_name) else {
-                    return Err(HIRError {
-                        kind: HIRErrorKind::PropertyNotRecognized {
-                            prop_names: vec![*field_name],
-                        },
-                        span: span.clone(),
-                    }
-                    .into());
+                    return Err(HIRError::property_unrecognized(vec![*field_name], *span));
                 };
                 Ok(fields[index])
             }
@@ -158,12 +146,11 @@ impl SlynxHir {
         // Chained accesses can arrive here through variables, aliases, or
         // previous field accesses, so normalize them into the object reference
         // that actually owns the named layout.
-        let current_ty = self.types_module.get_type(&ty).clone();
+        let current_ty = self.get_type(&ty).clone();
         match current_ty {
             HirType::VarReference(variable_id) => {
                 let variable_ty = *self
-                    .types_module
-                    .get_variable(&variable_id)
+                    .get_variable_type(variable_id)
                     .expect("variable type should exist before field access lowering");
                 self.resolve_object_reference_type(variable_ty, span)
             }
@@ -172,7 +159,7 @@ impl SlynxHir {
                 self.resolve_object_reference_type(field_ty, span)
             }
             HirType::Reference { rf, .. } => {
-                if self.declarations_module.retrieve_object_body(ty).is_some() {
+                if self.retrieve_object_fields(ty).is_some() {
                     Ok(ty)
                 } else {
                     self.resolve_object_reference_type(rf, span)
@@ -202,20 +189,13 @@ impl SlynxHir {
                     types.push(resolved.ty);
                     hir_elements.push(resolved);
                 }
-                let tuple_ty = self
-                    .types_module
-                    .insert_unnamed_type(HirType::Tuple { fields: types });
+                let tuple_ty = self.add_unnamed_type(HirType::new_tuple(types));
 
-                Ok(HirExpression {
-                    id: ExpressionId::new(),
-                    ty: tuple_ty,
-                    kind: HirExpressionKind::Tuple(hir_elements),
-                    span: expr.span,
-                })
+                Ok(self.create_tuple_expression(tuple_ty, hir_elements, expr.span))
             }
             ASTExpressionKind::TupleAccess { tuple, index } => {
                 let tuple = self.resolve_expr(*tuple, None)?;
-                let tuple_field_ty = self.types_module.insert_unnamed_type(HirType::Field(
+                let tuple_field_ty = self.add_unnamed_type(HirType::Field(
                     // Keep tuple accesses distinct from object fields so later
                     // phases can reject numeric access on non-tuples.
                     FieldMethod::Tuple(tuple.ty, index),

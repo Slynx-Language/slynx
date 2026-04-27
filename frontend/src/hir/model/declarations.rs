@@ -77,4 +77,20 @@ impl HirDeclaration {
             ty,
         }
     }
+    pub fn new_object(decl: DeclarationId, declty: TypeId, span: Span) -> Self {
+        Self {
+            kind: HirDeclarationKind::Object,
+            id: decl,
+            ty: declty,
+            span,
+        }
+    }
+    pub fn new_alias(decl: DeclarationId, ty: TypeId, span: Span) -> Self {
+        Self {
+            id: decl,
+            kind: HirDeclarationKind::Alias,
+            ty,
+            span,
+        }
+    }
 }

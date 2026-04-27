@@ -14,8 +14,8 @@ use common::{
 impl SlynxHir {
     ///Retrieves the type of something by knowing the provided `ref_ty` is a reference to it
     pub fn get_type_from_ref(&self, ref_ty: crate::hir::TypeId) -> &HirType {
-        if let HirType::Reference { rf, .. } = self.types_module.get_type(&ref_ty) {
-            self.types_module.get_type(rf)
+        if let HirType::Reference { rf, .. } = self.get_type(&ref_ty) {
+            self.get_type(rf)
         } else {
             unreachable!("The provided ref_ty should be of type Reference");
         }
@@ -27,47 +27,32 @@ impl SlynxHir {
         fields: Vec<ObjectField>,
         span: Span,
     ) -> Result<()> {
-        let mut fields = {
-            let mut out = Vec::with_capacity(fields.len());
-            for field in &fields {
-                let symbol_name = self.symbols_module.intern(&name.identifier);
-                if self.symbols_module.intern(&field.name.name) == symbol_name {
-                    return Err(HIRError::recursive(symbol_name, field.name.span).into());
+        let mut fields = fields
+            .into_iter()
+            .map(|field| {
+                let symbol_name = self.modules.intern_name(&name.identifier);
+                if self.modules.intern_name(&field.name.name) == symbol_name {
+                    Err(HIRError::recursive(symbol_name, field.name.span).into())
+                } else {
+                    self.retrieve_information_of_type(&field.name.kind.identifier, &field.name.span)
+                        .0
                 }
-                out.push(
-                    self.retrieve_information_of_type(
-                        &field.name.kind.identifier,
-                        &field.name.span,
-                    )?
-                    .0,
-                );
-            }
-            out
-        };
+            })
+            .collect::<Result<Vec<_>>>()?;
         let identifier_symbol = self.modules.intern_name(&name.identifier);
-        let (decl, declty) = if let Some(data) = self
-            .declarations_module
-            .retrieve_declaration_data_by_name(&identifier_symbol)
-        {
-            data
-        } else {
+        let Some((decl, declty)) = self.modules.get_declaration_by_name(&identifier_symbol) else {
             return Err(HIRError::name_unrecognized(identifier_symbol, name.span).into());
         };
-        let HirType::Reference { rf, .. } = self.types_module.get_type(&declty) else {
+        let HirType::Reference { rf, .. } = self.get_type(&declty) else {
             unreachable!("WTF, type of custom object should be a reference to its real type");
         };
-        let rf = *rf;
-        let HirType::Struct { fields: ty_field } = self.types_module.get_type_mut(&rf) else {
+        let HirType::Struct { fields: ty_field } = self.get_type_mut(&*rf) else {
             unreachable!("WTF. Type of object should be a Struct ty");
         };
 
         ty_field.append(&mut fields);
-        self.declarations.push(HirDeclaration {
-            kind: HirDeclarationKind::Object,
-            id: decl,
-            ty: declty,
-            span,
-        });
+        self.declarations
+            .push(HirDeclaration::new_object(decl, declty, span));
 
         Ok(())
     }

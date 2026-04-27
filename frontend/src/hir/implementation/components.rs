@@ -23,7 +23,7 @@ impl SlynxHir {
                 } => match prop_name.as_str() {
                     "text" => text = Some(self.resolve_expr(rhs, None)?),
                     _ => {
-                        let intern = self.symbols_module.intern(&prop_name);
+                        let intern = self.modules.intern_name(&prop_name);
                         return Err(HIRError::type_unrecognized(intern, span).into());
                     }
                 },
@@ -41,7 +41,7 @@ impl SlynxHir {
                 text: Box::new(text),
             })
         } else {
-            let properties = vec![self.symbols_module.intern("text")];
+            let properties = vec![self.modules.intern_name("text")];
             Err(HIRError::missing_properties(properties, *span).into())
         }
     }
@@ -58,7 +58,7 @@ impl SlynxHir {
                 ComponentMemberValue::Assign {
                     prop_name, span, ..
                 } => {
-                    let prop = self.symbols_module.intern(&prop_name);
+                    let prop = self.modules.intern_name(&prop_name);
                     return Err(HIRError::property_unrecognized(vec![prop], span).into());
                 }
                 ComponentMemberValue::Child(c) => {

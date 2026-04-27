@@ -172,28 +172,20 @@ impl SlynxHir {
             ASTDeclarationKind::Alias { name, target } => {
                 let target_ty = self.get_typeid_of_name(&target.identifier, &target.span)?;
 
-                let alias_name = self.symbols_module.intern(&name.identifier);
-                let Some(alias_ty) = self.types_module.get_type_from_name_mut(&alias_name) else {
+                let alias_name = self.modules.intern_name(&name.identifier);
+                let Some(alias_ty) = self
+                    .modules
+                    .types_module
+                    .get_type_from_name_mut(&alias_name)
+                else {
                     return Err(HIRError::name_unrecognized(alias_name, name.span).into());
                 };
-                *alias_ty = HirType::Reference {
-                    rf: target_ty,
-                    generics: Vec::new(),
-                };
-                let (decl, ty) = if let Some(data) = self
-                    .declarations_module
-                    .retrieve_declaration_data_by_name(&alias_name)
-                {
-                    data
-                } else {
+                *alias_ty = HirType::new_ref(target_ty);
+                let Some((decl, ty)) = self.modules.get_declaration_by_name(&alias_name) else {
                     return Err(HIRError::name_unrecognized(alias_name, name.span).into());
                 };
-                self.declarations.push(HirDeclaration {
-                    id: decl,
-                    kind: HirDeclarationKind::Alias,
-                    ty,
-                    span: ast.span,
-                });
+                self.declarations
+                    .push(HirDeclaration::new_alias(decl, ty, ast.span));
             }
         }
         Ok(())

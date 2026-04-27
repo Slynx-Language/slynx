@@ -1,9 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::hir::{
-    Result, SlynxHir, TypeId,
-    error::HIRError,
-    types::{HirType, TypesModule},
+    Result, SlynxHir, TypeId, error::HIRError, model::HirType, modules::types::TypesModule,
 };
 
 ///A struct that handles all the monomorphization on the code
@@ -62,10 +60,7 @@ mod tests {
     use super::Monomorphizer;
     use crate::{
         checker::TypeChecker,
-        hir::{
-            SlynxHir,
-            error::{HIRError, HIRErrorKind},
-        },
+        hir::{SlynxHir, error::HIRErrorKind},
         lexer::Lexer,
         parser::Parser,
     };
