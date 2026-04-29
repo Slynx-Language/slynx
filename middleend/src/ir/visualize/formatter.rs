@@ -1,8 +1,8 @@
 use common::SymbolsModule;
 
 use crate::{
-    Context, IRPointer, IRSpecializedComponentType, IRType, IRTypeId, IRTypes, Instruction,
-    InstructionType, Label, Operand, Slot, Value,
+    Context, IRComponentId, IRPointer, IRSpecializedComponentType, IRStructId, IRType, IRTypeId,
+    IRTypes, Instruction, InstructionType, Label, Operand, Slot, Value,
 };
 
 /// Formatter holds the slices and helpers necessary to render the IR in textual form (SIR).
@@ -36,6 +36,31 @@ impl<'a> Formatter<'a> {
             symbols,
         }
     }
+
+    fn fmt_struct(&self, t: &IRStructId) -> String {
+        let strukt = self.types.get_object_type(*t);
+        if let Some(name) = strukt.name() {
+            format!("%{}", self.symbols.get_name(name))
+        } else {
+            let fields = self
+                .types
+                .get_object_type(*t)
+                .get_fields()
+                .iter()
+                .map(|v| {
+                    let t = self.types.get_type(*v);
+                    self.fmt_type(&t)
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("{{{fields}}}")
+        }
+    }
+
+    fn fmt_component(&self, t: &IRComponentId) -> String {
+        let component = self.types.get_component_type(*t);
+        format!("%{}", self.symbols.get_name(component.name()))
+    }
     /// Convert IRType into a human friendly string. Kept as a free fn for reuse inside the module.
     fn fmt_type(&self, ty: &IRType) -> String {
         match ty {
@@ -52,26 +77,8 @@ impl<'a> Formatter<'a> {
             IRType::BOOL => "bool".to_string(),
             IRType::VOID => "void".to_string(),
             IRType::STR => "str".to_string(),
-            IRType::Struct(t) => {
-                let strukt = self.types.get_object_type(*t);
-                if let Some(name) = strukt.name() {
-                    format!("%{}", self.symbols.get_name(name))
-                } else {
-                    let fields = self
-                        .types
-                        .get_object_type(*t)
-                        .get_fields()
-                        .iter()
-                        .map(|v| {
-                            let t = self.types.get_type(*v);
-                            self.fmt_type(&t)
-                        })
-                        .collect::<Vec<_>>()
-                        .join(",");
-                    format!("{{{fields}}}")
-                }
-            }
-            IRType::Component(_) => "component".to_string(),
+            IRType::Struct(t) => self.fmt_struct(t),
+            IRType::Component(c) => self.fmt_component(c),
             IRType::Function(_) => "fn".to_string(),
             IRType::GenericComponent => "component".to_string(),
             IRType::ISIZE => "isize".to_string(),
