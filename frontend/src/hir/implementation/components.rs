@@ -116,7 +116,7 @@ impl SlynxHir {
                     prop_name, span, ..
                 } => {
                     let prop = self.modules.intern_name(&prop_name);
-                    return Err(HIRError::property_unrecognized(vec![prop], span));
+                    Err(HIRError::property_unrecognized(vec![prop], span))
                 }
                 ComponentMemberValue::Child(c) => self.resolve_component(c),
             })

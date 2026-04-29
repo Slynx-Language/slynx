@@ -4,7 +4,7 @@ use crate::hir::{
     ExpressionId, Result, SlynxHir, TypeId,
     error::{HIRError, HIRErrorKind},
     model::{
-        FieldMethod, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, HirType,
+        FieldMethod, HirExpression, HirExpressionKind, HirStatementKind, HirType,
     },
 };
 use common::{
@@ -251,7 +251,7 @@ impl SlynxHir {
                 condition,
                 body,
                 else_body,
-            } => {}
+            } => self.resolve_if_expression(*condition, body, else_body, expr.span),
 
             ASTExpressionKind::FunctionCall { name, args } => {
                 let func_symbol = self.modules.intern_name(&name.identifier);

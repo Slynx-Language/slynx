@@ -6,8 +6,6 @@ pub mod model;
 pub mod modules;
 pub mod names;
 
-use std::collections::HashMap;
-
 use crate::hir::{
     error::HIRError,
     model::{HirDeclaration, HirDeclarationKind, HirType},
@@ -25,9 +23,6 @@ pub type Result<T> = std::result::Result<T, HIRError>;
 #[derive(Debug, Default)]
 pub struct SlynxHir {
     pub modules: HirModules,
-    /// Maps the types of top level things on the current scope to their types.
-    /// An example is functions, which contain an HirType.
-    types: HashMap<TypeId, HirType>,
 
     /// The scopes of this HIR. On the final it's expected to have only one, which is the global one
     pub declarations: Vec<HirDeclaration>,
@@ -37,7 +32,6 @@ impl SlynxHir {
     pub fn new() -> Self {
         Self {
             modules: HirModules::new(),
-            types: HashMap::new(),
             declarations: Vec::new(),
         }
     }
