@@ -69,6 +69,9 @@ impl SlynxHir {
         Ok(out)
     }
 
+    /// Resolves the provided `values` as members of the `Text` specialized component.
+    ///
+    /// Expects exactly one `text` property assignment and no children.
     pub fn resolve_specialize_text(
         &mut self,
         values: Vec<ComponentMemberValue>,

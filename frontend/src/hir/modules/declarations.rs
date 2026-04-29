@@ -10,10 +10,12 @@ pub struct DeclarationsModule {
     decls: HashMap<DeclarationId, SymbolPointer>,
     ///The types of the declarations. Use a vec because we can access the type based on the inner value of the ID
     declaration_types: Vec<TypeId>,
+    /// Maps each object [`TypeId`] to its ordered list of field symbol pointers.
     pub objects: HashMap<TypeId, Vec<SymbolPointer>>,
 }
 
 impl DeclarationsModule {
+    /// Creates a new, empty [`DeclarationsModule`].
     pub fn new() -> Self {
         DeclarationsModule {
             decls: HashMap::new(),
@@ -21,6 +23,7 @@ impl DeclarationsModule {
             declaration_types: Vec::new(),
         }
     }
+    /// Registers a new declaration with the given name symbol and type, returning its [`DeclarationId`].
     pub fn create_declaration(&mut self, name: SymbolPointer, ty: TypeId) -> DeclarationId {
         let id = DeclarationId::from_raw(self.declaration_types.len() as u64);
         self.decls.insert(id, name);
@@ -52,10 +55,16 @@ impl DeclarationsModule {
             .map(|(decl, _)| (*decl, self.declaration_types[decl.as_raw() as usize]))
     }
 
+    /// Returns the [`TypeId`] of the declaration with the given [`DeclarationId`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `id` does not correspond to a registered declaration.
     pub fn retrieve_declaration_type(&self, id: DeclarationId) -> TypeId {
         self.declaration_types[id.as_raw() as usize]
     }
 
+    /// Returns the [`TypeId`] of the declaration with the given [`DeclarationId`], or `None` if it does not exist.
     pub fn try_retrieve_declaration_type(&self, id: DeclarationId) -> Option<TypeId> {
         self.declaration_types.get(id.as_raw() as usize).copied()
     }

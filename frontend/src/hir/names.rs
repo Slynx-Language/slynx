@@ -32,6 +32,10 @@ impl SlynxHir {
         }
     }
 
+    /// Resolves the [`TypeId`] for the given plain type name string.
+    ///
+    /// Handles built-in names (`int`, `float`, `str`, `bool`, `void`, `Component`) directly,
+    /// and falls back to the module's type registry for user-defined types.
     pub fn get_typeid_of_name(&mut self, name: &str, span: &Span) -> Result<TypeId> {
         match name {
             "Component" => Ok(self.component_type()),
@@ -44,6 +48,7 @@ impl SlynxHir {
         }
     }
 
+    /// Resolves the [`TypeId`] for a [`GenericIdentifier`], handling tuple and generic types.
     pub fn get_typeid_of_generic(&mut self, gener: &GenericIdentifier) -> Result<TypeId> {
         match gener.identifier.as_str() {
             "tuple" if let Some(ref types) = gener.generic => {

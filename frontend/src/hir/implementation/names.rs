@@ -41,6 +41,9 @@ impl SlynxHir {
         }
     }
 
+    /// Retrieves a mutable reference to the [`HirType`] registered under the given name.
+    ///
+    /// Returns an error if no type with that name exists.
     pub fn retrieve_ref_to_type(&mut self, name: &str, span: &Span) -> Result<&mut HirType> {
         let name_symbol = self.modules.intern_name(name);
         match self.get_type_mut_from_name(&name_symbol) {

@@ -54,26 +54,32 @@ impl SlynxHir {
     pub fn add_unnamed_type(&mut self, ty: HirType) -> TypeId {
         self.modules.types_module.insert_unnamed_type(ty)
     }
+    /// Inserts a named type into the HIR and returns its [`TypeId`].
     pub fn add_type(&mut self, name: SymbolPointer, ty: HirType) -> TypeId {
         self.modules.types_module.insert_type(name, ty)
     }
 
+    /// Returns the [`HirType`] associated with the given name, if it exists.
     pub fn get_type_from_name(&self, name: &SymbolPointer) -> Option<&HirType> {
         self.modules.types_module.get_type_from_name(name)
     }
 
+    /// Returns a mutable reference to the [`HirType`] associated with the given name, if it exists.
     pub fn get_type_mut_from_name(&mut self, name: &SymbolPointer) -> Option<&mut HirType> {
         self.modules.types_module.get_type_from_name_mut(name)
     }
 
+    /// Returns the [`TypeId`] associated with the given name, if it exists.
     pub fn get_typeid_from_name(&self, name: &SymbolPointer) -> Option<&TypeId> {
         self.modules.types_module.get_id(name)
     }
 
+    /// Returns the field layout (as a slice of symbol pointers) for the object with the given [`TypeId`].
     pub fn retrieve_object_fields(&self, ty: TypeId) -> Option<&[SymbolPointer]> {
         self.modules.declarations_module.retrieve_object_body(ty)
     }
 
+    /// Returns the [`TypeId`] of the given variable, if it exists.
     pub fn get_variable_type(&self, ty: VariableId) -> Option<&TypeId> {
         self.modules.types_module.get_variable(&ty)
     }

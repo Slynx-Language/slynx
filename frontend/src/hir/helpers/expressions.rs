@@ -6,6 +6,7 @@ use crate::hir::{
 };
 
 impl SlynxHir {
+    /// Creates a tuple expression with the given type and values.
     pub fn create_tuple_expression(
         &self,
         tuple_ty: TypeId,
@@ -19,6 +20,7 @@ impl SlynxHir {
             span,
         }
     }
+    /// Creates a field access expression on `parent` at the given `field` index.
     pub fn create_field_access_expression(
         &self,
         parent: HirExpression,
@@ -36,6 +38,7 @@ impl SlynxHir {
             span,
         }
     }
+    /// Creates a boolean literal expression.
     pub fn create_boolean_expression(&self, b: bool, span: Span) -> HirExpression {
         HirExpression {
             id: ExpressionId::new(),
@@ -44,6 +47,7 @@ impl SlynxHir {
             span,
         }
     }
+    /// Creates a string literal expression.
     pub fn create_strliteral_expression(&self, s: String, span: Span) -> HirExpression {
         HirExpression {
             id: ExpressionId::new(),
@@ -52,6 +56,7 @@ impl SlynxHir {
             span,
         }
     }
+    /// Creates an identifier expression referencing the given variable.
     pub fn create_identifier_expression(
         &self,
         var: VariableId,

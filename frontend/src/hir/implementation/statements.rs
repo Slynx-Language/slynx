@@ -5,6 +5,7 @@ use crate::hir::{
 use common::ast::{ASTExpression, ASTExpressionKind, ASTStatement, ASTStatementKind};
 
 impl SlynxHir {
+    /// Checks that the given expression refers to an already-defined name, returning an error if not.
     pub fn check_existance(&mut self, expr: &ASTExpression) -> Result<()> {
         match &expr.kind {
             ASTExpressionKind::FieldAccess { parent, .. } => {
@@ -21,6 +22,7 @@ impl SlynxHir {
         }
         Ok(())
     }
+    /// Resolves an AST statement into a typed [`HirStatement`].
     pub fn resolve_statement(&mut self, statement: ASTStatement) -> Result<HirStatement> {
         match statement.kind {
             ASTStatementKind::Expression(expr) => {

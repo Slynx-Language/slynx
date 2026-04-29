@@ -18,6 +18,7 @@ impl SlynxHir {
         }
     }
 
+    /// Resolves an object declaration, filling in its field types and pushing the declaration.
     pub fn resolve_object(
         &mut self,
         name: GenericIdentifier,
@@ -55,6 +56,7 @@ impl SlynxHir {
         Ok(())
     }
 
+    /// Hoists a function declaration by registering its signature without processing its body.
     pub fn hoist_function(
         &mut self,
         name: &GenericIdentifier,
@@ -72,6 +74,7 @@ impl SlynxHir {
         Ok(())
     }
 
+    /// Resolves a function declaration, type-checking its body and pushing the HIR declaration.
     pub fn resolve_function(
         &mut self,
         name: &GenericIdentifier,
@@ -120,6 +123,7 @@ impl SlynxHir {
         Ok(())
     }
 
+    /// Hoists a component declaration by registering its property layout without resolving children.
     pub fn hoist_component(
         &mut self,
         name: &GenericIdentifier,
@@ -146,6 +150,7 @@ impl SlynxHir {
         Ok(())
     }
 
+    /// Resolves the member definitions of a component body into [`ComponentMemberDeclaration`]s.
     pub fn resolve_component_defs(
         &mut self,
         def: Vec<ComponentMember>,

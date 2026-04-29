@@ -11,6 +11,7 @@ use common::{
 };
 
 impl SlynxHir {
+    /// Resolves and reorders the provided object field expressions to match the declared field layout.
     pub fn organized_object_fields(
         &mut self,
         ty: TypeId,
@@ -178,6 +179,7 @@ impl SlynxHir {
         }
     }
 
+    /// Resolves an `if` expression, type-checking the condition and both branches.
     pub fn resolve_if_expression(
         &mut self,
         condition: ASTExpression,

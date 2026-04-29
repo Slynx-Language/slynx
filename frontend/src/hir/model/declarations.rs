@@ -30,13 +30,21 @@ use crate::hir::{
     model::{HirExpression, HirStatement},
 };
 
+/// A built-in specialized component with predefined rendering semantics.
+///
+/// Unlike user-defined components, specialized components (`Text`, `Div`) are
+/// handled directly by the compiler and do not require a component declaration.
 #[derive(Debug)]
 #[repr(C)]
 pub enum SpecializedComponent {
+    /// A text-rendering component with a single `text` expression.
     Text {
+        /// The expression whose value is rendered as text.
         text: Box<HirExpression>,
     },
+    /// A layout container component with zero or more child declarations.
     Div {
+        /// The child component declarations nested inside this `Div`.
         children: Vec<ComponentMemberDeclaration>,
     },
 }

@@ -7,6 +7,7 @@ pub use common::symbols::*;
 
 use crate::hir::VariableId;
 
+/// Wraps a [`SymbolsModule`] and additionally tracks the source-level symbol for each variable.
 #[derive(Debug, Default)]
 pub struct SymbolsResolver {
     module: SymbolsModule,
@@ -27,6 +28,7 @@ impl DerefMut for SymbolsResolver {
 }
 
 impl SymbolsResolver {
+    /// Creates a new [`SymbolsResolver`] wrapping the given [`SymbolsModule`].
     pub fn new(module: SymbolsModule) -> Self {
         Self {
             module,
@@ -34,16 +36,20 @@ impl SymbolsResolver {
         }
     }
 
+    /// Associates the given variable ID with its source-level symbol pointer.
     pub fn register_variable(&mut self, id: VariableId, symbol: SymbolPointer) {
         self.variable_names.insert(id, symbol);
     }
 
+    /// Returns the map from variable IDs to their source-level symbol pointers.
     pub fn variables(&self) -> &HashMap<VariableId, SymbolPointer> {
         &self.variable_names
     }
+    /// Returns a reference to the underlying [`SymbolsModule`].
     pub fn symbols_module(&self) -> &SymbolsModule {
         &self.module
     }
+    /// Consumes this resolver and returns the underlying [`SymbolsModule`].
     pub fn get_symbols_module(self) -> SymbolsModule {
         self.module
     }

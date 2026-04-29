@@ -7,6 +7,7 @@ use common::SymbolPointer;
 
 use crate::hir::VariableId;
 
+/// A single lexical scope that maps symbol names to variable IDs.
 #[derive(Debug)]
 pub struct HIRScope {
     ///A map to a name to an id. This can be used to save variables for example
@@ -21,6 +22,7 @@ impl Default for HIRScope {
 }
 
 impl HIRScope {
+    /// Creates a new, empty [`HIRScope`].
     pub fn new() -> Self {
         Self {
             mutables: Vec::new(),
@@ -50,6 +52,7 @@ pub struct ScopeModule {
 }
 
 impl ScopeModule {
+    /// Creates a new [`ScopeModule`] with an initial global scope already pushed.
     pub fn new() -> Self {
         let mut out = Self::default();
         out.enter_scope();
