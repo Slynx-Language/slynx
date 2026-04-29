@@ -167,13 +167,6 @@ pub struct SlynxHir {
     /// - The declaration's [`TypeId`]
     /// - The source [`Span`] for error reporting
     pub declarations: Vec<HirDeclaration>,
-
-    /// Maps type IDs to their concrete [`HirType`] representations.
-    ///
-    /// This internal cache stores the type information for each type ID
-    /// encountered during HIR generation. It is used for type lookup and
-    /// validation during the resolution phase.
-    types: HashMap<TypeId, HirType>,
 }
 
 impl SlynxHir {
@@ -473,78 +466,4 @@ impl SlynxHir {
         }
         Ok(())
     }
-
-    /// Resolves the provided `ast` declaration by hoisting it to the current scope.
-    ///
-    /// This method handles Phase 1 of HIR generation. It registers declarations
-    /// without processing their bodies, making them available for forward references.
-    ///
-    /// # Arguments
-    ///
-    /// * `ast` — Reference to the AST declaration to hoist
-    ///
-    /// # Returns
-    ///
-    /// * [`Ok(())`] — Declaration was successfully hoisted
-    /// * [`Err(HIRError)`] — Semantic error during hoisting
-    ///
-    /// # Details
-    ///
-    /// This function delegates to specialized hoisting methods based on declaration kind:
-    ///
-    /// - **Alias**: Directly creates type alias mapping via [`modules::HirModules::create_alias`]
-    /// - **ObjectDeclaration**: Delegates to [`modules::HirModules::create_object`]
-    /// - **FuncDeclaration**: Delegates to [`hoist_function`]
-    /// - **ComponentDeclaration**: Delegates to [`hoist_component`]
-    ///
-    /// # Errors
-    ///
-    /// Returns [`HIRError`] if:
-    /// - A recursive object type is detected (field references own type)
-    /// - There are issues during function/component hoisting
-    ///
-    /// # See Also
-    ///
-    /// - [`generate`](SlynxHir::generate) — Main entry point that calls this
-    /// - [`resolve`](SlynxHir::resolve) — Phase 2 processing counterpart
-    /// - [`hoist_function`](SlynxHir::hoist_function)
-    /// - [`hoist_component`](SlynxHir::hoist_component)
-    fn hoist(&mut self, ast: &ASTDeclaration) -> Result<()>;
-
-    /// Resolves the provided `ast` declaration, processing its full body.
-    ///
-    /// This method handles Phase 2 of HIR generation. It processes declaration
-    /// bodies to build complete HIR nodes with type information.
-    ///
-    /// # Arguments
-    ///
-    /// * `ast` — The AST declaration to resolve (consumed)
-    ///
-    /// # Returns
-    ///
-    /// * [`Ok(())`] — Declaration was successfully resolved and added to HIR
-    /// * [`Err(HIRError)`] — Type error or semantic error during resolution
-    ///
-    /// # Details
-    ///
-    /// This function delegates to specialized resolution methods:
-    ///
-    /// - **ObjectDeclaration**: Delegates to [`resolve_object`](SlynxHir::resolve_object)
-    /// - **FuncDeclaration**: Delegates to [`resolve_function`](SlynxHir::resolve_function)
-    /// - **ComponentDeclaration**: Processes component members and records declaration
-    /// - **Alias**: Links alias to target type in the type system
-    ///
-    /// # See Also
-    ///
-    /// - [`generate`](SlynxHir::generate) — Main entry point that calls this
-    /// - [`hoist`](SlynxHir::hoist) — Phase 1 counterpart
-    /// - [`resolve_function`](SlynxHir::resolve_function)
-    /// - [`resolve_object`](SlynxHir::resolve_object)
-    fn resolve(&mut self, ast: ASTDeclaration) -> Result<()>;
 }
-
-// Re-export commonly used types for convenience
-pub use implementation::{
-    components::hoist_component, declarations::resolve_function, declarations::resolve_object,
-    expression::resolve_expr, names::resolve_component_defs,
-};

@@ -125,23 +125,23 @@ pub struct HirStatement {
 /// represents a different kind of action or declaration.
 ///
 /// # Categories
-//!
+///
 /// ## Variable Declarations
 /// Introduce new bindings in the current scope.
 ///
 /// - [`Variable`](HirStatementKind::Variable) — `let` and `let mut` bindings
-//!
+///
 /// ## Assignments
 /// Modify existing bindings.
 ///
 /// - [`Assign`](HirStatementKind::Assign) — Assignment to mutable variables
-//!
+///
 /// ## Control Flow
 /// Affect the order of execution.
 ///
 /// - [`While`](HirStatementKind::While) — While loops
 /// - [`Return`](HirStatementKind::Return) — Function returns
-//!
+///
 /// ## Expressions
 /// Standalone expressions (often for side effects).
 ///

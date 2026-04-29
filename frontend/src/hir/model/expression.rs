@@ -200,37 +200,37 @@ pub struct HirExpression {
 /// literals to complex function calls and object constructions.
 ///
 /// # Categories
-//!
+///
 /// ## Literals
 /// Simple values written directly in source code.
-//!
+///
 /// - [`Int`](HirExpressionKind::Int) — Integer literals like `42` or `-10`
 /// - [`Float`](HirExpressionKind::Float) — Floating-point literals like `3.14` or `2.0`
 /// - [`StringLiteral`](HirExpressionKind::StringLiteral) — String literals like `"hello"`
 /// - [`Bool`](HirExpressionKind::Bool) — Boolean literals `true` and `false`
-//!
+///
 /// ## Composite
 /// Expressions that combine multiple values into a single value.
-//!
+///
 /// - [`Tuple`](HirExpressionKind::Tuple) — Tuple expressions like `(1, "hello", true)`
 /// - [`Object`](HirExpressionKind::Object) — Object construction like `Person(name: "Alice", age: 30)`
 /// - [`Component`](HirExpressionKind::Component) — Component construction like `Button(label: "Click me")`
-//!
+///
 /// ## Operations
 /// Expressions that perform computations.
-//!
+///
 /// - [`Binary`](HirExpressionKind::Binary) — Binary operations like `a + b` or `x && y`
 /// - [`FieldAccess`](HirExpressionKind::FieldAccess) — Field access like `person.name`
 /// - [`FunctionCall`](HirExpressionKind::FunctionCall) — Function calls like `print("hello")`
-//!
+///
 /// ## Control Flow
 /// Expressions that control program execution.
-//!
+///
 /// - [`If`](HirExpressionKind::If) — Conditional expressions like `if condition { true } else { false }`
-//!
+///
 /// ## References
 /// Expressions that refer to other values.
-//!
+///
 /// - [`Identifier`](HirExpressionKind::Identifier) — Variable references like `x`
 /// - [`Specialized`](HirExpressionKind::Specialized) — Specialized component constructions
 ///

@@ -212,7 +212,7 @@ impl ComponentProperty {
 /// user-defined types.
 ///
 /// # Type Categories
-//!
+///
 /// ## Primitive Types
 ///
 /// - [`Bool`](HirType::Bool) — Boolean values (`true` or `false`)
@@ -293,7 +293,7 @@ impl ComponentProperty {
 /// - [`new_ref`](HirType::new_ref) — Create a reference type
 ///
 /// # See Also
-//!
+///
 /// - [`crate::hir::modules::TypesModule`] — Manages type creation and lookup
 /// - [`crate::hir::TypeId`] — Type identifiers
 /// - [`crate::hir::model::ComponentProperty`] — Component property definitions
@@ -366,10 +366,10 @@ pub enum HirType {
     ///
     /// ```slynx
     /// object Person { name: str }
-    /// 
+    ///
     /// // Reference to Person type
     /// let p: Person = Person(name: "Alice");
-    /// 
+    ///
     /// // Generic reference: Option<int>
     /// type Option<T> { value: T }
     /// let opt: Option<int> = Option(value: 42);
