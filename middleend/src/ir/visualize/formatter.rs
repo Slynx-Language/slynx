@@ -79,8 +79,24 @@ impl<'a> Formatter<'a> {
             }
         }
     }
-    pub fn format_type(&self, ty: IRTypeId) -> String {
-        self.fmt_type(&self.types.get_type(ty))
+
+    pub fn format_types(&self) -> String {
+        let mut out = String::new();
+        for (name, fields) in self
+            .types
+            .structs()
+            .iter()
+            .filter_map(|s| s.name().map(|name| (name, s.get_fields())))
+        {
+            let fields = fields
+                .iter()
+                .map(|f| self.fmt_type(&self.types.get_type(*f)))
+                .collect::<Vec<_>>()
+                .join(",");
+            let v = format!("struct %{}{{{}}};\n", self.symbols.get_name(name), fields);
+            out.push_str(&v);
+        }
+        out
     }
 
     pub fn format_label(&self, label: &Label, idx: usize, instructions: &[Instruction]) -> String {

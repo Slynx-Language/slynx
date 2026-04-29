@@ -151,7 +151,8 @@ impl SlynxIR {
             &self.types,
             &self.strings,
         );
-
-        fmt.format_labels(&self.instructions)
+        let mut out = fmt.format_types();
+        out.push_str(&fmt.format_labels(&self.instructions));
+        out
     }
 }

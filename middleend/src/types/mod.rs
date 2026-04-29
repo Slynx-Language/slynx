@@ -50,6 +50,13 @@ impl IRTypes {
         }
     }
 
+    pub fn structs(&self) -> &[IRStruct] {
+        &self.structs
+    }
+    pub fn components(&self) -> &[IRStruct] {
+        &self.structs
+    }
+
     ///Checks if the provided `ty` is some variant of unsigned int
     pub fn is_negative_int(&self, ty: IRTypeId) -> bool {
         let index = self.usize_type().0;
