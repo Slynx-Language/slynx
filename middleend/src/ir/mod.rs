@@ -74,7 +74,9 @@ impl SlynxIR {
         for declaration in &hir {
             match &declaration.kind {
                 HirDeclarationKind::Object => {
-                    let out = self.types.create_empty_struct();
+                    let out = self
+                        .types
+                        .create_empty_struct(*tys.get_type_name(&declaration.ty).unwrap());
                     temp.define_type(declaration.ty, out);
                     // Also map the inner unnamed Struct TypeId (the `rf` of the Reference)
                     if let HirType::Reference { rf, .. } = tys.get_type(&declaration.ty) {
@@ -142,14 +144,9 @@ impl SlynxIR {
     /// This uses the helpers defined in the `visualize` module to format labels and
     /// instructions in the human-readable SIR form described in `middleend/README.md`.
     pub fn format_sir(&self) -> String {
-        let fmt = visualize::Formatter::new(
-            &self.labels,
-            &self.values,
-            &self.operands,
-            &self.types,
-            &self.strings,
-        );
-
-        fmt.format_labels(&self.instructions)
+        let fmt = visualize::Formatter::new(self, &self.strings);
+        let mut out = fmt.format_types();
+        out.push_str(&fmt.format_contexts());
+        out
     }
 }

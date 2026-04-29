@@ -234,12 +234,36 @@ impl SlynxIR {
                     true,
                 );
 
+                {
+                    let next = self.get_next_mapeable_instruction_ptr();
+                    let mut fresh = next.with_length::<0>();
+                    fresh.set_length(0);
+                    self.get_label_mut(then_label)
+                        .set_instructions_pointer(fresh);
+                }
+
                 temp.set_current_label(then_label);
                 self.lower_if_branch(then_branch, end_label, temp)?;
+
+                {
+                    let next = self.get_next_mapeable_instruction_ptr();
+                    let mut fresh = next.with_length::<0>();
+                    fresh.set_length(0);
+                    self.get_label_mut(else_label)
+                        .set_instructions_pointer(fresh);
+                }
 
                 temp.set_current_label(else_label);
                 let else_branch = else_branch.as_deref().unwrap_or(&[]);
                 self.lower_if_branch(else_branch, end_label, temp)?;
+
+                {
+                    let next = self.get_next_mapeable_instruction_ptr();
+                    let mut fresh = next.with_length::<0>();
+                    fresh.set_length(0);
+                    self.get_label_mut(end_label)
+                        .set_instructions_pointer(fresh);
+                }
 
                 temp.set_current_label(end_label);
                 let end_label = self.get_label(end_label);

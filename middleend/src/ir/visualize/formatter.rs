@@ -1,43 +1,222 @@
+use std::collections::{BTreeSet, HashMap, HashSet};
+
 use common::SymbolsModule;
 
 use crate::{
-    Context, IRPointer, IRSpecializedComponentType, IRType, IRTypes, Instruction, InstructionType,
-    Label, Operand, Slot, Value,
+    Component, Context, IRComponentId, IRPointer, IRSpecializedComponent,
+    IRSpecializedComponentType, IRStructId, IRType, IRTypes, Instruction, InstructionType, Label,
+    Operand, SlynxIR, Value,
 };
 
-/// Formatter holds the slices and helpers necessary to render the IR in textual form (SIR).
-/// It provides instance methods that replace the free functions previously living in the
-/// `visualize` module.
 pub struct Formatter<'a> {
+    pub ir: &'a SlynxIR,
     pub labels: &'a [Label],
+    pub contexts: &'a [Context],
+    pub components: &'a [Component],
     pub values: &'a [Value],
     pub operands: &'a [Operand],
     pub types: &'a IRTypes,
     pub symbols: &'a SymbolsModule,
+    pub specialized: &'a [IRSpecializedComponent],
+    instruction_pointers: &'a [IRPointer<Instruction>],
+    instructions: &'a [Instruction],
+    label_offset: usize,
+    inline_set: HashSet<usize>,
 }
 
 impl<'a> Formatter<'a> {
-    /// Create a new formatter instance.
-    pub fn new(
-        labels: &'a [Label],
-        values: &'a [Value],
-        operands: &'a [Operand],
-        types: &'a IRTypes,
-        symbols: &'a SymbolsModule,
-    ) -> Self {
+    pub fn new(ir: &'a SlynxIR, symbols: &'a SymbolsModule) -> Self {
+        let labels = &ir.labels;
+        let contexts = &ir.contexts;
+        let components = &ir.components;
+        let values = &ir.values;
+        let operands = &ir.operands;
+        let types = &ir.types;
+        let specialized = &ir.specialized;
+        let instruction_pointers = &ir.instruction_pointers;
+        let instructions = &ir.instructions;
         Self {
+            ir,
+            contexts,
+            components,
             labels,
             values,
             operands,
             types,
             symbols,
+            specialized,
+            instruction_pointers,
+            instructions,
+            label_offset: 0,
+            inline_set: HashSet::new(),
         }
     }
-    pub fn format_label(&self, label: &Label, idx: usize, instructions: &[Instruction]) -> String {
-        let mut out = String::new();
 
-        if label.arguments().is_empty() {
-            out.push_str(&format!("$label_{}:\n", idx));
+    fn with_label_offset(&self, offset: usize) -> Formatter<'a> {
+        Formatter {
+            label_offset: offset,
+            inline_set: HashSet::new(),
+            ..*self
+        }
+    }
+
+    // --- type formatting ---
+
+    fn fmt_type(&self, ty: &IRType) -> String {
+        match ty {
+            IRType::I8 => "i8".to_string(),
+            IRType::U8 => "u8".to_string(),
+            IRType::I16 => "i16".to_string(),
+            IRType::U16 => "u16".to_string(),
+            IRType::I32 => "i32".to_string(),
+            IRType::U32 => "u32".to_string(),
+            IRType::I64 => "i64".to_string(),
+            IRType::U64 => "u64".to_string(),
+            IRType::F32 => "f32".to_string(),
+            IRType::F64 => "f64".to_string(),
+            IRType::BOOL => "bool".to_string(),
+            IRType::VOID => "void".to_string(),
+            IRType::STR => "str".to_string(),
+            IRType::ISIZE => "isize".to_string(),
+            IRType::USIZE => "usize".to_string(),
+            IRType::Function(_) => "fn".to_string(),
+            IRType::GenericComponent => "component".to_string(),
+            IRType::Struct(t) => self.fmt_struct_type(t),
+            IRType::Component(c) => self.fmt_component_type(c),
+            IRType::Specialized(IRSpecializedComponentType::Div) => "specialized(div)".to_string(),
+            IRType::Specialized(IRSpecializedComponentType::Text) => {
+                "specialized(text)".to_string()
+            }
+        }
+    }
+
+    fn fmt_struct_type(&self, t: &IRStructId) -> String {
+        let strukt = self.types.get_object_type(*t);
+        if let Some(name) = strukt.name() {
+            format!("%{}", self.symbols.get_name(name))
+        } else {
+            let fields = strukt
+                .get_fields()
+                .iter()
+                .map(|v| self.fmt_type(&self.types.get_type(*v)))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("{{{fields}}}")
+        }
+    }
+
+    fn fmt_component_type(&self, t: &IRComponentId) -> String {
+        let component = self.types.get_component_type(*t);
+        format!("%{}", self.symbols.get_name(component.name()))
+    }
+
+    // --- top-level formatting ---
+
+    pub fn format_types(&self) -> String {
+        let mut out = String::new();
+        for (name, fields) in self
+            .types
+            .structs()
+            .iter()
+            .filter_map(|s| s.name().map(|name| (name, s.get_fields())))
+        {
+            let fields = fields
+                .iter()
+                .map(|f| self.fmt_type(&self.types.get_type(*f)))
+                .collect::<Vec<_>>()
+                .join(",");
+            out.push_str(&format!(
+                "struct %{}{{{}}};\n",
+                self.symbols.get_name(name),
+                fields
+            ));
+        }
+        out
+    }
+
+    pub fn format_contexts(&self) -> String {
+        let mut out = Vec::new();
+        for ctx in self.contexts {
+            out.push(self.format_function(ctx));
+        }
+        for component in self.components {
+            out.push(self.format_component(component));
+        }
+        out.join("\n")
+    }
+
+    fn format_function(&self, ctx: &Context) -> String {
+        let IRType::Function(fty) = self.types.get_type(ctx.ty()) else {
+            unreachable!("Type of context should be function");
+        };
+        let ret_ty = self.fmt_type(
+            &self
+                .types
+                .get_type(self.types.get_function_type(fty).get_return_type()),
+        );
+        let mut out = format!("{ret_ty} {}(){{\n", self.symbols.get_name(ctx.name()));
+
+        let labels_ptr = ctx.labels_ptr();
+        let fmt = self.with_label_offset(labels_ptr.ptr());
+        for (idx, label) in self.labels[labels_ptr.range()].iter().enumerate() {
+            out.push_str(&fmt.format_label(label, idx));
+        }
+        out.push_str("}\n");
+        out
+    }
+
+    fn format_component(&self, component: &Component) -> String {
+        let IRType::Component(cid) = self.types.get_type(component.ir_type()) else {
+            unreachable!("Type of component should be Component");
+        };
+        let comp_ty = self.types.get_component_type(cid);
+        let params = comp_ty
+            .fields()
+            .iter()
+            .map(|v| self.fmt_type(&self.types.get_type(*v)))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut out = format!(
+            "component %{}({}) {{\n",
+            self.symbols.get_name(comp_ty.name()),
+            params
+        );
+
+        for (i, field_ty) in comp_ty.fields().iter().enumerate() {
+            out.push_str(&format!(
+                "  %field{}: {} = p{};\n",
+                i,
+                self.fmt_type(&self.types.get_type(*field_ty)),
+                i
+            ));
+        }
+
+        let values_range = component.values();
+        for i in 0..values_range.len() {
+            let child_str = match &self.values[values_range.ptr_to(i).ptr()] {
+                Value::Instruction(p) => format!("#t{}: component %t{}", i, p.ptr()),
+                Value::Specliazed(spec_ptr) => {
+                    let kind = match &self.specialized[spec_ptr.ptr()] {
+                        IRSpecializedComponent::Text(_) => "specialized(text)",
+                        IRSpecializedComponent::Div(_) => "specialized(div)",
+                    };
+                    format!("#t{}: {}", i, kind)
+                }
+                _ => format!("#t{}: unknown", i),
+            };
+            out.push_str(&format!("  {};\n", child_str));
+        }
+
+        out.push_str("}\n");
+        out
+    }
+
+    // --- label formatting ---
+
+    pub fn format_label(&self, label: &Label, idx: usize) -> String {
+        let header = if label.arguments().is_empty() {
+            format!("$label_{}:\n", idx)
         } else {
             let params = label
                 .arguments()
@@ -46,74 +225,74 @@ impl<'a> Formatter<'a> {
                 .map(|(i, _)| format!("lp{}", i))
                 .collect::<Vec<_>>()
                 .join(", ");
+            format!("$label_{}({}):\n", idx, params)
+        };
 
-            out.push_str(&format!("$label_{}({}):\n", idx, params));
-        }
+        let inline_set = self.build_inline_set(label);
+        let fmt = Formatter {
+            inline_set,
+            ..*self
+        };
 
-        // Instructions inside the label
         let iptr = label.instructions();
+        let mut emitted = BTreeSet::new();
+        let mut body = String::new();
+
         for i in 0..iptr.len() {
-            let instr_ptr = iptr.ptr_to(i);
-            let instr_idx = instr_ptr.ptr();
-            let instr = &instructions[instr_idx];
+            let real_idx = fmt.instruction_pointers[iptr.ptr_to(i).ptr()].ptr();
 
-            let fmt = Formatter::new(
-                self.labels,
-                self.values,
-                self.operands,
-                self.types,
-                self.symbols,
-            );
-            let line = fmt.format_instruction(instr);
-
-            let produces_value = !matches!(
-                instr.instruction_type,
-                InstructionType::Br(_)
-                    | InstructionType::Cbr { .. }
-                    | InstructionType::Write(_)
-                    | InstructionType::Ret
-            );
-
-            out.push_str("  ");
-
-            if produces_value {
-                out.push_str(&format!("%t{} = {}", instr_idx, line));
-            } else {
-                out.push_str(&line);
-            }
-
-            out.push('\n');
-        }
-
-        out
-    }
-
-    pub fn format_labels(&self, instructions: &[Instruction]) -> String {
-        let mut out = String::new();
-        for (i, label) in self.labels.iter().enumerate() {
-            out.push_str(&self.format_label(label, i, instructions));
-            out.push('\n');
-        }
-        out
-    }
-    /// Format a single instruction into a String (the full textual representation).
-    pub fn format_instruction(&self, instr: &Instruction) -> String {
-        match &instr.instruction_type {
-            InstructionType::Br(label_ptr) => {
-                let idx = label_ptr.ptr();
-                let len = instr.operands.len();
-
-                if len == 0 {
-                    format!("br $label_{};", idx)
-                } else {
-                    let args = (0..len)
-                        .map(|i| self.fmt_value(&instr.operands.ptr_to(i)))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!("br $label_{}({});", idx, args)
+            let mut deps = BTreeSet::new();
+            fmt.collect_unmapped_deps(real_idx, &mut deps);
+            for dep_idx in deps {
+                if emitted.insert(dep_idx) {
+                    body.push_str(&format!(
+                        "  %t{} = {}\n",
+                        dep_idx,
+                        fmt.format_instruction(&fmt.instructions[dep_idx])
+                    ));
                 }
             }
 
+            let instr = &fmt.instructions[real_idx];
+            let line = fmt.format_instruction(instr);
+            body.push_str("  ");
+            if fmt.produces_value(instr) {
+                let lhs = if let InstructionType::Allocate(slot) = &instr.instruction_type {
+                    format!("${}", slot.ptr())
+                } else {
+                    format!("%t{}", real_idx)
+                };
+                body.push_str(&format!("{} = {}", lhs, line));
+            } else {
+                body.push_str(&line);
+            }
+            body.push('\n');
+        }
+
+        format!("{}{}", header, body)
+    }
+
+    pub fn format_labels(&self) -> String {
+        self.labels
+            .iter()
+            .enumerate()
+            .map(|(i, label)| format!("{}\n", self.format_label(label, i)))
+            .collect()
+    }
+
+    // --- instruction formatting ---
+
+    pub fn format_instruction(&self, instr: &Instruction) -> String {
+        match &instr.instruction_type {
+            InstructionType::Br(label_ptr) => {
+                let label_str = self.fmt_label_ref(label_ptr);
+                let args = self.fmt_operands_range(0, instr.operands.len(), &instr.operands);
+                if args.is_empty() {
+                    format!("br {};", label_str)
+                } else {
+                    format!("br {}({});", label_str, args)
+                }
+            }
             InstructionType::Cbr {
                 then_label,
                 else_label,
@@ -121,20 +300,16 @@ impl<'a> Formatter<'a> {
                 else_args,
             } => {
                 let cond = self.fmt_value(&instr.operands.ptr_to(0));
-                let then_str = self.fmt_label_ref(then_label);
-                let else_str = self.fmt_label_ref(else_label);
-                let then_a = self.fmt_value_range(then_args);
-                let else_a = self.fmt_value_range(else_args);
                 format!(
                     "cbr {}, {}({}), {}({});",
-                    cond, then_str, then_a, else_str, else_a
+                    cond,
+                    self.fmt_label_ref(then_label),
+                    self.fmt_value_range(then_args),
+                    self.fmt_label_ref(else_label),
+                    self.fmt_value_range(else_args),
                 )
             }
-
-            InstructionType::Ret => {
-                let val = self.fmt_value(&instr.operands.ptr_to(0));
-                format!("ret {};", val)
-            }
+            InstructionType::Ret => format!("ret {};", self.fmt_value(&instr.operands.ptr_to(0))),
 
             InstructionType::Add => self.fmt_binary("add", instr),
             InstructionType::Sub => self.fmt_binary("sub", instr),
@@ -152,97 +327,100 @@ impl<'a> Formatter<'a> {
             InstructionType::Shr => self.fmt_binary("shr", instr),
             InstructionType::AShr => self.fmt_binary("ashr", instr),
 
-            InstructionType::GetField(u) => self.fmt_get_field(instr, *u),
-            InstructionType::SetField(u) => self.fmt_set_field(instr, *u),
-            InstructionType::FunctionCall(temp) => self.fmt_function_call(instr, temp),
-
-            InstructionType::Allocate(_) => self.fmt_allocate(instr),
-            InstructionType::Write(slot) => self.fmt_write(instr, slot),
-            InstructionType::Read => self.fmt_read(instr),
-            InstructionType::Reinterpret => self.fmt_reinterpret(instr),
-
-            InstructionType::RawValue => {
-                let ptr = instr.operands.ptr_to(0);
-                self.fmt_value(&ptr)
+            InstructionType::GetField(u) => {
+                let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
+                format!(
+                    "getfield {}, {}, {};",
+                    ty_str,
+                    self.fmt_value(&instr.operands.ptr_to(0)),
+                    u
+                )
             }
+            InstructionType::SetField(u) => {
+                let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
+                format!(
+                    "setfield {}, {}, {};",
+                    ty_str,
+                    self.fmt_value(&instr.operands.ptr_to(0)),
+                    u
+                )
+            }
+            InstructionType::FunctionCall(func) => {
+                let args = self.fmt_operands_range(0, instr.operands.len(), &instr.operands);
+                format!("call f{}, {};", func.ptr(), args)
+            }
+            InstructionType::Allocate(_) => {
+                format!(
+                    "allocate {};",
+                    self.fmt_type(&self.types.get_type(instr.value_type))
+                )
+            }
+            InstructionType::Write(slot) => {
+                let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
+                format!(
+                    "write {}, ${}, {};",
+                    ty_str,
+                    slot.ptr(),
+                    self.fmt_value(&instr.operands.ptr_to(0))
+                )
+            }
+            InstructionType::Read => {
+                let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
+                format!(
+                    "read {}, {};",
+                    ty_str,
+                    self.fmt_value(&instr.operands.ptr_to(0))
+                )
+            }
+            InstructionType::Reinterpret => {
+                let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
+                format!(
+                    "reinterpret {}, {};",
+                    ty_str,
+                    self.fmt_value(&instr.operands.ptr_to(0))
+                )
+            }
+            InstructionType::RawValue => self.fmt_value(&instr.operands.ptr_to(0)),
             InstructionType::Struct | InstructionType::Component => {
-                "Struct/Component not implemented".to_string()
+                let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
+                let args = self.fmt_operands_range(0, instr.operands.len(), &instr.operands);
+                format!("{}({});", ty_str, args)
             }
         }
     }
 
-    #[inline]
-    fn fmt_label_ref(&self, ptr: &IRPointer<Label, 1>) -> String {
-        let idx = ptr.ptr();
-        format!("$label_{}", idx)
-    }
-
-    fn fmt_get_field(&self, instr: &Instruction, index: usize) -> String {
-        let target = self.fmt_value(&instr.operands.ptr_to(0));
-        let ty_str = fmt_type(&self.types.get_type(instr.value_type));
-        format!("getfield {}, {}, {};", ty_str, target, index)
-    }
-
-    fn fmt_set_field(&self, instr: &Instruction, slot: usize) -> String {
-        let target = self.fmt_value(&instr.operands.ptr_to(0));
-        // slot here is an index into struct fields (not an IRPointer)
-        let ty_str = fmt_type(&self.types.get_type(instr.value_type));
-        format!("set {}, {}, {};", ty_str, target, slot)
-    }
-
-    fn fmt_function_call(&self, instr: &Instruction, func: &IRPointer<Context, 1>) -> String {
-        let args = (0..instr.operands.len())
-            .map(|i| self.fmt_value(&instr.operands.ptr_to(i)))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let fname = format!("f{}", func.ptr());
-
-        format!("call {}, {};", fname, args)
-    }
-
-    fn fmt_allocate(&self, instr: &Instruction) -> String {
-        format!("allocate {};", instr.value_type.0)
-    }
-
-    fn fmt_write(&self, instr: &Instruction, slot: &IRPointer<Slot, 1>) -> String {
-        let value = self.fmt_value(&instr.operands.ptr_to(0));
-        let slot_str = format!("%slot{}", slot.ptr());
-        let ty_str = fmt_type(&self.types.get_type(instr.value_type));
-        format!("write {}, {}, {};", ty_str, slot_str, value)
-    }
-
-    fn fmt_read(&self, instr: &Instruction) -> String {
-        let slot = instr.operands.ptr_to(0);
-        let slot_str = self.fmt_value(&slot);
-        let ty_str = fmt_type(&self.types.get_type(instr.value_type));
-        format!("read {}, {};", ty_str, slot_str)
-    }
-
-    fn fmt_reinterpret(&self, instr: &Instruction) -> String {
-        let slot_str = self.fmt_value(&instr.operands.ptr_to(0));
-        let ty_str = fmt_type(&self.types.get_type(instr.value_type));
-        format!("reinterpret {}, {};", ty_str, slot_str)
-    }
+    // --- value / operand helpers ---
 
     fn fmt_value(&self, ptr: &IRPointer<Value, 1>) -> String {
         match &self.values[ptr.ptr()] {
             Value::FuncArg(n) => format!("p{}", n),
             Value::LabelArg(n) => format!("lp{}", n),
-            Value::Instruction(p) => format!("%t{}", p.ptr()),
-            Value::Slot(p) => format!("%slot{}", p.ptr()),
-            Value::Raw(op_ptr) => {
-                let op = &self.operands[op_ptr.ptr()];
-                match op {
-                    Operand::Bool(b) => b.to_string(),
-                    Operand::Int(i) => i.to_string(),
-                    Operand::Float(f) => f.to_string(),
-                    Operand::String(sym) => format!("\"{}\"", self.symbols.get_name(*sym)),
+            Value::Slot(p) => format!("${}", p.ptr()),
+            Value::Raw(op_ptr) => self.fmt_operand(&self.operands[op_ptr.ptr()]),
+            Value::Instruction(p) => {
+                let instr = &self.instructions[p.ptr()];
+                if matches!(instr.instruction_type, InstructionType::RawValue) {
+                    self.fmt_value(&instr.operands.ptr_to(0))
+                } else if self.inline_set.contains(&p.ptr()) {
+                    self.format_instruction(instr)
+                        .trim_end_matches(';')
+                        .to_string()
+                } else {
+                    format!("%t{}", p.ptr())
                 }
             }
             Value::StructLiteral(_, _) => format!("%lit{}", ptr.ptr()),
             Value::Void => "void".to_string(),
-            Value::Specliazed(_) => "Specialized not implemented".to_string(),
+            Value::Specliazed(_) => "specialized".to_string(),
+        }
+    }
+
+    fn fmt_operand(&self, op: &Operand) -> String {
+        match op {
+            Operand::Bool(b) => b.to_string(),
+            Operand::Int(i) => i.to_string(),
+            Operand::Float(f) => f.to_string(),
+            Operand::String(sym) => format!("\"{}\"", self.symbols.get_name(*sym)),
         }
     }
 
@@ -253,39 +431,102 @@ impl<'a> Formatter<'a> {
             .join(", ")
     }
 
+    fn fmt_operands_range(&self, start: usize, len: usize, base: &IRPointer<Value>) -> String {
+        (start..start + len)
+            .map(|i| self.fmt_value(&base.ptr_to(i)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
     fn fmt_binary(&self, op: &str, instr: &Instruction) -> String {
+        let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
         let a = self.fmt_value(&instr.operands.ptr_to(0));
         let b = self.fmt_value(&instr.operands.ptr_to(1));
-        let sla = self.types.get_type(instr.value_type);
-        let ty_str = fmt_type(&sla);
         format!("{} {}, {}, {};", op, ty_str, a, b)
     }
-}
 
-/// Convert IRType into a human friendly string. Kept as a free fn for reuse inside the module.
-fn fmt_type(ty: &IRType) -> String {
-    match ty {
-        IRType::I8 => "i8".to_string(),
-        IRType::U8 => "u8".to_string(),
-        IRType::I16 => "i16".to_string(),
-        IRType::U16 => "u16".to_string(),
-        IRType::I32 => "i32".to_string(),
-        IRType::U32 => "u32".to_string(),
-        IRType::I64 => "i64".to_string(),
-        IRType::U64 => "u64".to_string(),
-        IRType::F32 => "f32".to_string(),
-        IRType::F64 => "f64".to_string(),
-        IRType::BOOL => "bool".to_string(),
-        IRType::VOID => "void".to_string(),
-        IRType::STR => "str".to_string(),
-        IRType::Tuple(_) => "tuple".to_string(),
-        IRType::Struct(_) => "struct".to_string(),
-        IRType::Component(_) => "component".to_string(),
-        IRType::Function(_) => "fn".to_string(),
-        IRType::GenericComponent => "generic".to_string(),
-        IRType::ISIZE => "isize".to_string(),
-        IRType::USIZE => "usize".to_string(),
-        IRType::Specialized(IRSpecializedComponentType::Div) => "div".to_string(),
-        IRType::Specialized(IRSpecializedComponentType::Text) => "text".to_string(),
+    fn fmt_label_ref(&self, ptr: &IRPointer<Label, 1>) -> String {
+        format!("$label_{}", ptr.ptr().saturating_sub(self.label_offset))
+    }
+
+    // --- inline / unmapped dep helpers ---
+
+    fn is_mapped(&self, instr_idx: usize) -> bool {
+        self.instruction_pointers
+            .iter()
+            .any(|p| p.ptr() == instr_idx)
+    }
+
+    fn is_inlinable(instr: &Instruction) -> bool {
+        matches!(
+            instr.instruction_type,
+            InstructionType::Component | InstructionType::Struct
+        )
+    }
+
+    fn produces_value(&self, instr: &Instruction) -> bool {
+        !matches!(
+            instr.instruction_type,
+            InstructionType::Br(_)
+                | InstructionType::Cbr { .. }
+                | InstructionType::Write(_)
+                | InstructionType::Ret
+        )
+    }
+
+    fn count_refs(&self, instr_idx: usize, counts: &mut HashMap<usize, usize>) {
+        let instr = &self.instructions[instr_idx];
+        for i in 0..instr.operands.len() {
+            if let Value::Instruction(p) = &self.values[instr.operands.ptr_to(i).ptr()] {
+                let dep = p.ptr();
+                if matches!(
+                    self.instructions[dep].instruction_type,
+                    InstructionType::RawValue
+                ) {
+                    continue;
+                }
+                if !self.is_mapped(dep) {
+                    *counts.entry(dep).or_insert(0) += 1;
+                    if *counts.get(&dep).unwrap() == 1 {
+                        self.count_refs(dep, counts);
+                    }
+                }
+            }
+        }
+    }
+
+    fn build_inline_set(&self, label: &Label) -> HashSet<usize> {
+        let iptr = label.instructions();
+        let mut counts = HashMap::new();
+        for i in 0..iptr.len() {
+            let real_idx = self.instruction_pointers[iptr.ptr_to(i).ptr()].ptr();
+            self.count_refs(real_idx, &mut counts);
+        }
+        counts
+            .into_iter()
+            .filter(|(idx, count)| *count == 1 && Self::is_inlinable(&self.instructions[*idx]))
+            .map(|(idx, _)| idx)
+            .collect()
+    }
+
+    fn collect_unmapped_deps(&self, instr_idx: usize, out: &mut BTreeSet<usize>) {
+        let instr = &self.instructions[instr_idx];
+        for i in 0..instr.operands.len() {
+            if let Value::Instruction(p) = &self.values[instr.operands.ptr_to(i).ptr()] {
+                let dep_idx = p.ptr();
+                if matches!(
+                    self.instructions[dep_idx].instruction_type,
+                    InstructionType::RawValue
+                ) {
+                    continue;
+                }
+                if self.inline_set.contains(&dep_idx) {
+                    continue;
+                }
+                if !self.is_mapped(dep_idx) && out.insert(dep_idx) {
+                    self.collect_unmapped_deps(dep_idx, out);
+                }
+            }
+        }
     }
 }

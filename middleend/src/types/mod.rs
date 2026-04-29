@@ -3,6 +3,7 @@ mod functions;
 mod irtype;
 mod structs;
 mod tuple;
+use common::SymbolPointer;
 pub use components::*;
 pub use functions::*;
 pub use irtype::*;
@@ -49,6 +50,13 @@ impl IRTypes {
         }
     }
 
+    pub fn structs(&self) -> &[IRStruct] {
+        &self.structs
+    }
+    pub fn components(&self) -> &[IRStruct] {
+        &self.structs
+    }
+
     ///Checks if the provided `ty` is some variant of unsigned int
     pub fn is_negative_int(&self, ty: IRTypeId) -> bool {
         let index = self.usize_type().0;
@@ -75,7 +83,7 @@ impl IRTypes {
     }
 
     ///Gets a mutable referente to the type of the function with the provided `id`
-    pub fn get_object_type(&mut self, id: IRStructId) -> &IRStruct {
+    pub fn get_object_type(&self, id: IRStructId) -> &IRStruct {
         &self.structs[id.0]
     }
     ///Gets a mutable referente to the type of the function with the provided `id`
@@ -161,9 +169,9 @@ impl IRTypes {
             .unwrap()
     }
     ///Creates a new empty struct and returns its type ID
-    pub fn create_empty_struct(&mut self) -> IRTypeId {
+    pub fn create_empty_struct(&mut self, name: SymbolPointer) -> IRTypeId {
         let sout = self.structs.len();
-        self.structs.push(IRStruct::new());
+        self.structs.push(IRStruct::new(Some(name)));
         let out = self.types.len();
         self.types.push(IRType::Struct(IRStructId(sout)));
         IRTypeId(out)
@@ -195,7 +203,7 @@ impl IRTypes {
                 );
             }
         }
-        let mut s = IRStruct::new();
+        let mut s = IRStruct::new(None);
         for field in elements {
             s.insert_field(field);
         }
