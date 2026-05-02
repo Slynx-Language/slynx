@@ -1,4 +1,4 @@
-use frontend::hir::{
+use slynx_hir::{
     SlynxHir,
     error::{HIRError, HIRErrorKind},
 };

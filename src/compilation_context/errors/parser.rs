@@ -1,4 +1,4 @@
-use frontend::parser::error::ParseError;
+use slynx_parser::error::ParseError;
 
 use crate::{
     SlynxContext, SlynxError, SlynxErrorType,

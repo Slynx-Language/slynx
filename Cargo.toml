@@ -2,20 +2,24 @@
 name = "slynx"
 version = "0.1.0"
 edition = "2024"
+resolver="2"
 
 [workspace.dependencies]
 smallvec = "1.15.1"
 color-eyre = "0.6.5"
+common = {path="./crates/common"}
 
 [dependencies]
-clap = { version = "4.5.52", features = ["derive"] }
-color-eyre={workspace=true}
-middleend = {path="./middleend"}
-frontend = {path="./frontend"}
-common = {path="./common"}
+clap={ version = "4.5.52", features = ["derive"] }
+color-eyre.workspace=true
+common.workspace=true
+
+slynx-lexer.path="./crates/lexer"
+slynx-parser.path="./crates/parser"
+slynx-hir.path="./crates/hir"
+slynx-typechecker.path="./crates/checker"
+slynx-monomorphizer.path="./crates/monomorphizer"
+slynx-ir.path="./crates/slynx_ir"
+
 [workspace]
-members = [
-  ".",
-  "middleend",
-  "frontend",
-]
+members = ["crates/*"]

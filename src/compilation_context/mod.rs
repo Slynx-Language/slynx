@@ -8,20 +8,15 @@ use std::{
 use color_eyre::{eyre::Result, owo_colors::OwoColorize};
 
 use common::SymbolPointer;
-use frontend::{
-    hir::{
-        SlynxHir, VariableId,
-        modules::{DeclarationsModule, TypesModule},
-    },
-    lexer::Lexer,
-    parser::Parser,
+use slynx_hir::{
+    SlynxHir, VariableId,
+    modules::{DeclarationsModule, TypesModule},
 };
-
-use frontend::{
-    checker::{TypeChecker, error::TypeError},
-    monomorphizer::Monomorphizer,
-};
-use middleend::{IRError, SlynxIR};
+use slynx_ir::{IRError, SlynxIR};
+use slynx_lexer::Lexer;
+use slynx_monomorphizer::Monomorphizer;
+use slynx_parser::Parser;
+use slynx_typechecker::{TypeChecker, error::TypeError};
 
 use crate::compilation_context::errors::helpers::{
     SlynxSuggestion, suggestions_from_lexer, suggestions_from_type_error,
@@ -413,13 +408,14 @@ fn format_ir_generation_error(
 mod tests {
     use super::SlynxContext;
     use super::format_ir_generation_error;
-    use frontend::hir::modules::BUILTIN_NAMES;
-    use frontend::hir::{
+
+    use slynx_hir::{
         DeclarationId, VariableId,
         model::HirType,
-        modules::{DeclarationsModule, SymbolsModule, TypesModule},
+        modules::{BUILTIN_NAMES, DeclarationsModule, SymbolsModule, TypesModule},
     };
-    use middleend::{IRError, SlynxIR};
+
+    use slynx_ir::{IRError, SlynxIR};
     use std::{
         collections::HashMap,
         fs,

@@ -1,12 +1,10 @@
 use std::fmt;
 
-use frontend::{
-    checker::error::{TypeError, TypeErrorKind},
-    hir::error::{HIRError, HIRErrorKind},
-    lexer::error::LexerError,
-    parser::error::ParseError,
-};
-use middleend::IRError;
+use slynx_hir::{HIRError, HIRErrorKind, SlynxHir};
+use slynx_ir::IRError;
+use slynx_lexer::error::LexerError;
+use slynx_parser::error::ParseError;
+use slynx_typechecker::error::{TypeError, TypeErrorKind};
 
 #[derive(Debug, PartialEq)]
 pub enum SlynxSuggestion {
@@ -137,7 +135,7 @@ pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
 }
 
 /// this function converts a [`HIRError`] into a [`Vec<SlynxSuggestion>`]
-pub fn suggestions_from_hir(hir: &crate::hir::SlynxHir, err: &HIRError) -> Vec<SlynxSuggestion> {
+pub fn suggestions_from_hir(hir: &SlynxHir, err: &HIRError) -> Vec<SlynxSuggestion> {
     match &err.kind {
         HIRErrorKind::NameAlreadyDefined(name) => {
             vec![SlynxSuggestion::NameAlreadyDefined(
@@ -162,10 +160,8 @@ mod tests {
 
     use super::*;
 
-    use frontend::{
-        hir::DeclarationId,
-        lexer::tokens::{Token, TokenKind},
-    };
+    use slynx_hir::DeclarationId;
+    use slynx_lexer::tokens::{Token, TokenKind};
 
     #[test]
     /// tests that [`suggestions_from_parser`] returns [`SlynxSuggestion::UnexpectedToken`] for [`ParseError::UnexpectedToken`]

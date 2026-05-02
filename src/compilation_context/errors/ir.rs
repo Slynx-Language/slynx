@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use common::SymbolPointer;
-use frontend::hir::{
+use slynx_hir::{
     VariableId,
     modules::{DeclarationsModule, TypesModule},
 };
-use middleend::{IRError, SlynxIR};
+use slynx_ir::{IRError, SlynxIR};
 
 use crate::{
     SlynxContext, SlynxError, SlynxErrorType,

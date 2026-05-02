@@ -1,0 +1,13 @@
+[package]
+name = "slynx-ir"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = {path = "../common"}
+slynx-hir.path = "../hir"
+color-eyre={workspace=true}
+smallvec={workspace=true}
+either = "1.15.0"
+petgraph = "0.8.3"
+

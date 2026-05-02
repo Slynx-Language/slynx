@@ -171,7 +171,7 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 name = "common"
 version = "0.1.0"
 dependencies = [
- "rart 0.3.1",
+ "rart",
 ]
 
 [[package]]
@@ -207,15 +207,6 @@ name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
-
-[[package]]
-name = "frontend"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "common",
- "rart 0.2.1",
-]
 
 [[package]]
 name = "gimli"
@@ -283,18 +274,6 @@ name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
-
-[[package]]
-name = "middleend"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "common",
- "either",
- "frontend",
- "petgraph",
- "smallvec",
-]
 
 [[package]]
 name = "miniz_oxide"
@@ -385,16 +364,6 @@ dependencies = [
 
 [[package]]
 name = "rart"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ee3cec64ffb4c34bf2ba812c017dda70807b2b46e59cabc9afe19baa2bb65c1"
-dependencies = [
- "num-traits",
- "simdeez",
-]
-
-[[package]]
-name = "rart"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc146e0ff42e2e9e600003d63f43c17d98615762b295c3eb23aa559cad4f4ac7"
@@ -464,8 +433,67 @@ dependencies = [
  "clap",
  "color-eyre",
  "common",
- "frontend",
- "middleend",
+ "slynx-hir",
+ "slynx-ir",
+ "slynx-lexer",
+ "slynx-monomorphizer",
+ "slynx-parser",
+ "slynx-typechecker",
+]
+
+[[package]]
+name = "slynx-hir"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+]
+
+[[package]]
+name = "slynx-ir"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+ "either",
+ "petgraph",
+ "slynx-hir",
+ "smallvec",
+]
+
+[[package]]
+name = "slynx-lexer"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+]
+
+[[package]]
+name = "slynx-monomorphizer"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+ "slynx-hir",
+]
+
+[[package]]
+name = "slynx-parser"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+ "slynx-lexer",
+]
+
+[[package]]
+name = "slynx-typechecker"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+ "slynx-hir",
 ]
 
 [[package]]

@@ -1,14 +1,12 @@
 mod common;
 
-use frontend::{
-    checker::{
-        TypeChecker,
-        error::{TypeError, TypeErrorKind},
-    },
-    hir::{
-        ExpressionId,
-        model::{HirExpression, HirExpressionKind},
-    },
+use slynx_hir::{
+    ExpressionId,
+    model::{HirExpression, HirExpressionKind},
+};
+use slynx_typechecker::{
+    TypeChecker,
+    error::{TypeError, TypeErrorKind},
 };
 
 #[test]

@@ -1,4 +1,4 @@
-use frontend::lexer::error::LexerError;
+use slynx_lexer::error::LexerError;
 
 use crate::{
     SlynxContext, SlynxError, SlynxErrorType, compilation_context::suggestions_from_lexer,
