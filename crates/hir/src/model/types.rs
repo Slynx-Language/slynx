@@ -54,7 +54,7 @@
 
 use common::{SymbolPointer, VisibilityModifier};
 
-use crate::hir::{TypeId, VariableId};
+use crate::{TypeId, VariableId};
 
 /// A method for accessing fields on types.
 ///

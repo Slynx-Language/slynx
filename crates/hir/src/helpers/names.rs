@@ -1,6 +1,6 @@
 use common::SymbolPointer;
 
-use crate::hir::SlynxHir;
+use crate::SlynxHir;
 
 impl SlynxHir {
     /// Returns the source-level name string for the given symbol pointer.
