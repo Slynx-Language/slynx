@@ -1,6 +1,6 @@
 mod common;
 
-use slynx::checker::{
+use slynx_typechecker::{
     TypeChecker,
     error::{TypeError, TypeErrorKind},
 };

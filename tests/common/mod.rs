@@ -1,10 +1,10 @@
-use frontend::hir::{
+use slynx_hir::{
     SlynxHir,
+    model::HirDeclaration,
     model::{HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind},
 };
-use frontend::lexer::Lexer;
-use frontend::parser::Parser;
-use slynx::hir::model::HirDeclaration;
+use slynx_lexer::Lexer;
+use slynx_parser::Parser;
 
 pub fn load_hir(path: &str) -> SlynxHir {
     let source = std::fs::read_to_string(path).expect("source file should exist");

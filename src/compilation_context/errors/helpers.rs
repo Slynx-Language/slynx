@@ -160,10 +160,8 @@ mod tests {
 
     use super::*;
 
-    use frontend::{
-        hir::DeclarationId,
-        lexer::tokens::{Token, TokenKind},
-    };
+    use slynx_hir::DeclarationId;
+    use slynx_lexer::tokens::{Token, TokenKind};
 
     #[test]
     /// tests that [`suggestions_from_parser`] returns [`SlynxSuggestion::UnexpectedToken`] for [`ParseError::UnexpectedToken`]
