@@ -6,8 +6,8 @@
 
 use color_eyre::eyre::Result;
 
-use crate::checker::TypeChecker;
-use crate::hir::{
+use crate::TypeChecker;
+use slynx_hir::{
     TypeId,
     model::{HirStatement, HirStatementKind},
 };

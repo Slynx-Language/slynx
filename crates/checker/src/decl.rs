@@ -19,7 +19,7 @@ use color_eyre::eyre::Result;
 
 use super::TypeChecker;
 
-use crate::hir::{
+use slynx_hir::{
     TypeId,
     model::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirType},
 };

@@ -8,15 +8,15 @@ use color_eyre::eyre::Result;
 
 use super::TypeChecker;
 
-use crate::checker::error::{TypeError, TypeErrorKind};
-use crate::hir::{
+use crate::error::{TypeError, TypeErrorKind};
+use common::ast::Span;
+use slynx_hir::{
     DeclarationId, TypeId,
     model::{
         ComponentMemberDeclaration, FieldMethod, HirExpression, HirExpressionKind, HirStatement,
         HirStatementKind, HirType, SpecializedComponent,
     },
 };
-use common::ast::Span;
 impl TypeChecker {
     /// Resolves the struct type from a reference type.
     ///

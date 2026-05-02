@@ -25,15 +25,15 @@ use std::collections::HashMap;
 use color_eyre::eyre::Result;
 use common::SymbolPointer;
 
-use crate::checker::error::{IncompatibleComponentReason, TypeError, TypeErrorKind};
+use crate::error::{IncompatibleComponentReason, TypeError, TypeErrorKind};
 
-use crate::hir::model::{ComponentProperty, HirStatement, HirStatementKind};
-use crate::hir::modules::TypesModule;
-use crate::hir::{
+use common::ast::Span;
+use slynx_hir::model::{ComponentProperty, HirStatement, HirStatementKind};
+use slynx_hir::modules::TypesModule;
+use slynx_hir::{
     SlynxHir, TypeId,
     model::{FieldMethod, HirDeclaration, HirDeclarationKind, HirType},
 };
-use common::ast::Span;
 #[derive(Debug)]
 ///The type checker of slynx. Slynx has 2 phases of type checking by now. The first phase is to get information about the types on all the HIR
 ///and try to type them properly. Thus, the HIR might come with infers, and the type checker tries to get rid of them with their actual type. This is made with all function
