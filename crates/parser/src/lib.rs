@@ -8,11 +8,11 @@ mod statement;
 mod types;
 use color_eyre::eyre::{Report, Result};
 
-use crate::lexer::{
+use crate::parser::error::ParseError;
+use slynx_lexer::{
     TokenStream,
     tokens::{Token, TokenKind},
 };
-use crate::parser::error::ParseError;
 
 use common::ast::ASTDeclaration;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
