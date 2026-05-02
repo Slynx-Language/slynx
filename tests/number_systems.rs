@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 #[test]
 fn test_number_systems() {
     let context =
-        slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/number_systems.slynx"))).unwrap();
+        slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/numberSystems.syx"))).unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(

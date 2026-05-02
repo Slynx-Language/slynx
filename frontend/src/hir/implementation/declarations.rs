@@ -1,128 +1,156 @@
-use color_eyre::eyre::Result;
-
 use crate::hir::{
-    PropertyId, SlynxHir,
-    definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
-    error::{HIRError, HIRErrorKind},
-    types::HirType,
+    Result, SlynxHir,
+    error::HIRError,
+    model::{ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirStatement, HirType},
 };
-use common::ast::{
-    ComponentMember, ComponentMemberKind, GenericIdentifier, ObjectField, Span, TypedName,
+use common::{
+    ASTStatement, ASTStatementKind,
+    ast::{ComponentMember, ComponentMemberKind, GenericIdentifier, ObjectField, Span, TypedName},
 };
 
 impl SlynxHir {
+    ///Retrieves the type of something by knowing the provided `ref_ty` is a reference to it
+    pub fn get_type_from_ref(&self, ref_ty: crate::hir::TypeId) -> &HirType {
+        if let HirType::Reference { rf, .. } = self.get_type(&ref_ty) {
+            self.get_type(rf)
+        } else {
+            unreachable!("The provided ref_ty should be of type Reference");
+        }
+    }
+
+    /// Resolves an object declaration, filling in its field types and pushing the declaration.
     pub fn resolve_object(
         &mut self,
         name: GenericIdentifier,
         fields: Vec<ObjectField>,
         span: Span,
     ) -> Result<()> {
-        let mut fields = {
-            let mut out = Vec::with_capacity(fields.len());
-            for field in &fields {
-                if self.symbols_module.intern(&field.name.name)
-                    == self.symbols_module.intern(&name.identifier)
-                {
-                    return Err(HIRError {
-                        kind: HIRErrorKind::RecursiveType {
-                            ty: name.to_string(),
-                        },
-                        span: field.name.span.clone(),
-                    }
-                    .into());
+        let mut fields = fields
+            .into_iter()
+            .map(|field| {
+                let symbol_name = self.modules.intern_name(&name.identifier);
+                if self.modules.intern_name(&field.name.name) == symbol_name {
+                    Err(HIRError::recursive(symbol_name, field.name.span))
+                } else {
+                    self.retrieve_information_of_type(&field.name.kind.identifier, &field.name.span)
+                        .map(|v| v.0)
                 }
-                out.push(
-                    self.retrieve_information_of_type(
-                        &field.name.kind.identifier,
-                        &field.name.span,
-                    )?
-                    .0,
-                );
-            }
-            out
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let identifier_symbol = self.modules.intern_name(&name.identifier);
+        let Some((decl, declty)) = self.modules.get_declaration_by_name(&identifier_symbol) else {
+            return Err(HIRError::name_unrecognized(identifier_symbol, name.span));
         };
-        let symbol = self.get_symbol_of(&name.identifier, &name.span)?;
-        let (decl, declty) = if let Some(data) = self
-            .declarations_module
-            .retrieve_declaration_data_by_name(&symbol)
-        {
-            data
-        } else {
-            return Err(HIRError {
-                kind: HIRErrorKind::NameNotRecognized(name.identifier),
-                span: name.span,
-            }
-            .into());
-        };
-        let HirType::Reference { rf, .. } = self.types_module.get_type(&declty) else {
+        let HirType::Reference { rf, .. } = self.get_type(&declty) else {
             unreachable!("WTF, type of custom object should be a reference to its real type");
         };
         let rf = *rf;
-        let HirType::Struct { fields: ty_field } = self.types_module.get_type_mut(&rf) else {
+        let HirType::Struct { fields: ty_field } = self.get_type_mut(&rf) else {
             unreachable!("WTF. Type of object should be a Struct ty");
         };
 
         ty_field.append(&mut fields);
-        self.declarations.push(HirDeclaration {
-            kind: HirDeclarationKind::Object,
-            id: decl,
-            ty: declty,
-            span,
-        });
+        self.declarations
+            .push(HirDeclaration::new_object(decl, declty, span));
 
         Ok(())
     }
 
-    pub fn hoist_object(
-        &mut self,
-        name: &GenericIdentifier,
-        obj_fields: &[ObjectField],
-    ) -> Result<()> {
-        let name = self.symbols_module.intern(&name.identifier);
-        let def_fields = obj_fields
-            .iter()
-            .map(|f| self.symbols_module.intern(&f.name.name))
-            .collect();
-        let ty = self.types_module.insert_unnamed_type(HirType::Struct {
-            fields: { Vec::new() },
-        });
-
-        let ty = self.define_type(
-            name,
-            HirType::Reference {
-                rf: ty,
-                generics: Vec::new(),
-            },
-        );
-
-        self.declarations_module.create_object(name, ty, def_fields);
-        Ok(())
-    }
-
+    /// Hoists a function declaration by registering its signature without processing its body.
     pub fn hoist_function(
         &mut self,
         name: &GenericIdentifier,
-        args: &Vec<TypedName>,
+        args: &[TypedName],
         return_type: &GenericIdentifier,
     ) -> Result<()> {
-        let args = {
-            let mut vec = Vec::with_capacity(args.len());
-            for arg in args {
-                let id = self.get_typeid_of_generic(&arg.kind)?;
-                vec.push(id);
-            }
-            vec
-        };
-        let func_ty = HirType::Function {
-            args,
-            return_type: self.get_typeid_of_generic(return_type)?,
-        };
-        let symbol = self.symbols_module.intern(&name.identifier);
-        let id = self.define_type(symbol, func_ty);
-        self.create_declaration(&name.identifier, id);
+        let args = args
+            .iter()
+            .map(|arg| self.get_typeid_of_generic(&arg.kind))
+            .collect::<Result<Vec<_>>>()?;
+        let return_type = self.get_typeid_of_generic(return_type)?;
+        self.modules
+            .create_declaration(&name.identifier, HirType::new_function(args, return_type));
+
         Ok(())
     }
 
+    /// Resolves a function declaration, type-checking its body and pushing the HIR declaration.
+    pub fn resolve_function(
+        &mut self,
+        name: &GenericIdentifier,
+        args: &[TypedName],
+        body: Vec<ASTStatement>,
+        span: &Span,
+    ) -> Result<()> {
+        let symbol = self.modules.intern_name(&name.identifier);
+        let Some((decl, tyid)) = self.modules.get_declaration_by_name(&symbol) else {
+            return Err(HIRError::name_unrecognized(symbol, name.span));
+        };
+
+        self.modules.enter_scope();
+
+        let args = args
+            .iter()
+            .map(|arg| {
+                let symbol = self.modules.intern_name(&arg.name);
+                match self.retrieve_information_of_type(&arg.kind.identifier, &arg.kind.span) {
+                    Ok((ty, _)) => self.create_variable(symbol, ty, &arg.span),
+                    Err(e) => Err(e),
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let body_len = body.len();
+        let statements = body
+            .into_iter()
+            .enumerate()
+            .map(|(index, statement)| {
+                let is_last = index + 1 == body_len;
+                match statement {
+                    // The last expression in a function body becomes the implicit return.
+                    common::ast::ASTStatement {
+                        kind: ASTStatementKind::Expression(expr),
+                        ..
+                    } if is_last => self.resolve_expr(expr, None).map(HirStatement::new_return),
+                    statement => self.resolve_statement(statement),
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        self.declarations.push(HirDeclaration::new_function(
+            statements, args, symbol, *span, decl, tyid,
+        ));
+        self.modules.exit_scope();
+        Ok(())
+    }
+
+    /// Hoists a component declaration by registering its property layout without resolving children.
+    pub fn hoist_component(
+        &mut self,
+        name: &GenericIdentifier,
+        members: &[ComponentMember],
+    ) -> Result<()> {
+        let props = members
+            .iter()
+            .filter_map(|member| match &member.kind {
+                ComponentMemberKind::Property {
+                    name, modifier, ty, ..
+                } => {
+                    let ty = match ty {
+                        Some(generic) => self.get_typeid_of_name(&generic.identifier, &member.span),
+                        _ => Ok(self.infer_type()),
+                    };
+                    Some(ty.map(|ty| ComponentProperty::new(*modifier, name.clone(), ty)))
+                }
+                ComponentMemberKind::Child(_) => None,
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        self.modules
+            .create_declaration(&name.identifier, HirType::new_component(props));
+        Ok(())
+    }
+
+    /// Resolves the member definitions of a component body into [`ComponentMemberDeclaration`]s.
     pub fn resolve_component_defs(
         &mut self,
         def: Vec<ComponentMember>,
@@ -136,21 +164,19 @@ impl SlynxHir {
                         self.retrieve_information_of_type(&ty.identifier, &ty.span)?
                             .0
                     } else {
-                        self.types_module.infer_id()
+                        self.infer_type()
                     };
+                    let rhs = if let Some(rhs) = rhs {
+                        Some(self.resolve_expr(rhs, Some(ty))?)
+                    } else {
+                        None
+                    };
+                    out.push(ComponentMemberDeclaration::new_property(
+                        prop_idx, rhs, def.span,
+                    ));
+                    let name = self.modules.intern_name(&name);
 
-                    out.push(ComponentMemberDeclaration::Property {
-                        id: PropertyId::new(),
-                        index: prop_idx,
-                        value: if let Some(rhs) = rhs {
-                            Some(self.resolve_expr(rhs, Some(ty))?)
-                        } else {
-                            None
-                        },
-                        span: def.span,
-                    });
-
-                    self.create_variable(&name, ty, true);
+                    self.create_variable(name, ty, &def.span)?;
                     prop_idx += 1;
                 }
                 ComponentMemberKind::Child(child) => {

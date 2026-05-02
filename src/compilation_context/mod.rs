@@ -1,26 +1,30 @@
+mod errors;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
-use color_eyre::{Report, eyre::Result, owo_colors::OwoColorize};
+use color_eyre::{eyre::Result, owo_colors::OwoColorize};
 
-use frontend::hir::{
-    SlynxHir, VariableId, declarations::DeclarationsModule, error::HIRError,
-    symbols::SymbolPointer, types::TypesModule,
+use common::SymbolPointer;
+use frontend::{
+    hir::{
+        SlynxHir, VariableId,
+        modules::{DeclarationsModule, TypesModule},
+    },
+    lexer::Lexer,
+    parser::Parser,
 };
-use frontend::lexer::{Lexer, error::LexerError};
-use frontend::parser::{Parser, error::ParseError};
+
 use frontend::{
     checker::{TypeChecker, error::TypeError},
     monomorphizer::Monomorphizer,
 };
 use middleend::{IRError, SlynxIR};
 
-use crate::err::{
-    SlynxSuggestion, suggestions_from_hir, suggestions_from_ir, suggestions_from_lexer,
-    suggestions_from_parser, suggestions_from_type_error,
+use crate::compilation_context::errors::helpers::{
+    SlynxSuggestion, suggestions_from_lexer, suggestions_from_type_error,
 };
 #[derive(Debug)]
 ///The type of the error that was generated
@@ -86,7 +90,7 @@ impl CompilationOutput {
 
     ///Retrieves the path where this compilation output should write the IR at
     pub fn output_path(&self) -> &Path {
-        &self.output_path
+        self.output_path.as_path()
     }
 
     ///Writes the IR of this output into the path of `output_path()`
@@ -128,7 +132,7 @@ impl CompilationStages {
     }
 
     pub fn into_output(self) -> CompilationOutput {
-        CompilationOutput::new(&self.entry_point, self.ir)
+        CompilationOutput::new(self.entry_point.as_path(), self.ir)
     }
 }
 
@@ -271,132 +275,20 @@ impl SlynxContext {
         self.entry_point.to_string_lossy().to_string()
     }
 
-    fn build_ir_generation_error(
-        &self,
-        error: &IRError,
-        ir: &SlynxIR,
-        variable_names: &HashMap<VariableId, SymbolPointer>,
-        types_module: &TypesModule,
-        declarations_module: &DeclarationsModule,
-    ) -> SlynxError {
-        let source_code = self
-            .get_entry_point_source()
-            .lines()
-            .next()
-            .unwrap_or("Internal IR generation error")
-            .to_string();
-
-        SlynxError {
-            line: 1,
-            column_start: 1,
-            ty: SlynxErrorType::Compilation,
-            message: format_ir_generation_error(
-                error,
-                ir,
-                variable_names,
-                types_module,
-                declarations_module,
-            ),
-            file: self.file_name(),
-            suggestion: suggestions_from_ir(error),
-            source_code,
-        }
-    }
-
     ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
     ///before materializing the default `.sir` output.
     pub fn build_stages(self) -> Result<CompilationStages> {
         let stream = match Lexer::tokenize(self.get_entry_point_source()) {
             Ok(value) => value,
-            Err(e) => {
-                let suggestion = suggestions_from_lexer(&e);
-                match e {
-                    LexerError::MalformedNumber { init, .. } => {
-                        let (line, column, src) = self.get_line_info(&self.entry_point, init);
-                        let err = SlynxError {
-                            line,
-                            ty: SlynxErrorType::Lexer,
-                            column_start: column,
-                            message: e.to_string(),
-                            suggestion,
-                            file: self.entry_point.to_string_lossy().to_string(),
-                            source_code: src.to_string(),
-                        };
-                        return Err(Report::new(err));
-                    }
-                    LexerError::UnrecognizedChar { index, .. } => {
-                        let (line, column, src) = self.get_line_info(&self.entry_point, index);
-                        let err = SlynxError {
-                            line,
-                            ty: SlynxErrorType::Lexer,
-                            column_start: column,
-                            message: e.to_string(),
-                            suggestion,
-                            file: self.entry_point.to_string_lossy().to_string(),
-                            source_code: src.to_string(),
-                        };
-                        return Err(Report::new(err));
-                    }
-                }
-            }
+            Err(e) => return Err(self.handle_lexer_error(e)),
         };
         let decls = match Parser::new(stream).parse_declarations() {
             Ok(v) => v,
-            Err(e) => {
-                return match e.downcast_ref::<ParseError>() {
-                    Some(err @ ParseError::UnexpectedToken(token, _)) => {
-                        let (line, column, src) =
-                            self.get_line_info(&self.entry_point, token.span.start);
-                        let suggestion = suggestions_from_parser(err);
-                        let err = SlynxError {
-                            line,
-                            ty: SlynxErrorType::Parser,
-                            column_start: column,
-                            message: err.to_string(),
-                            file: self.file_name(),
-                            suggestion,
-                            source_code: src.to_string(),
-                        };
-                        Err(e.wrap_err(err))
-                    }
-                    Some(err @ ParseError::UnexpectedEndOfInput) => {
-                        let suggestion = suggestions_from_parser(err);
-                        let (line, column, src) =
-                            self.get_line_info(&self.entry_point, self.entry_point_eof_index());
-                        let err = SlynxError {
-                            line,
-                            ty: SlynxErrorType::Parser,
-                            column_start: column,
-                            message: e.to_string(),
-                            file: self.file_name(),
-                            suggestion,
-                            source_code: src.to_string(),
-                        };
-                        Err(e.wrap_err(err))
-                    }
-                    None => Err(e),
-                };
-            }
+            Err(e) => return Err(self.handle_parser_error(e.downcast_ref().unwrap())),
         };
         let mut hir = SlynxHir::new();
         if let Err(e) = hir.generate(decls) {
-            match e.downcast_ref::<HIRError>() {
-                Some(err) => {
-                    let suggestion = suggestions_from_hir(err);
-                    let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
-                    let err = SlynxError {
-                        line,
-                        column_start: column,
-                        ty: SlynxErrorType::Hir,
-                        message: e.to_string(),
-                        suggestion,
-                        file: self.entry_point.to_string_lossy().to_string(),
-                        source_code: src.to_string(),
-                    };
-                    return Err(e.wrap_err(err));
-                }
-                None => return Err(e),
-            }
+            return Err(self.handle_hir_error(&hir, &e));
         }
         let mut types_module = match TypeChecker::check(&mut hir) {
             Err(e) => match e.downcast_ref::<TypeError>() {
@@ -419,38 +311,20 @@ impl SlynxContext {
             Ok(module) => module,
         };
         if let Err(e) = Monomorphizer::resolve(&hir, &mut types_module) {
-            match e.downcast_ref::<HIRError>() {
-                Some(err) => {
-                    let suggestion = suggestions_from_hir(err);
-                    let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
-                    let err = SlynxError {
-                        line,
-                        column_start: column,
-                        ty: SlynxErrorType::Hir,
-                        message: e.to_string(),
-                        suggestion,
-                        file: self.entry_point.to_string_lossy().to_string(),
-                        source_code: src.to_string(),
-                    };
-                    return Err(e.wrap_err(err));
-                }
-                None => return Err(e),
-            }
+            return Err(self.handle_hir_error(&hir, &e));
         }
         let hir_dump = format_hir_dump(&hir, &types_module);
-        let variable_names = hir.variable_names().clone();
-        let mut ir = SlynxIR::new(hir.symbols_module);
+        let variable_names = hir.modules.symbols_resolver.variables().clone();
+        let mut ir = SlynxIR::new(hir.modules.symbols_resolver.get_symbols_module());
 
         if let Err(e) = ir.generate(hir.declarations, &types_module) {
-            return Err(self
-                .build_ir_generation_error(
-                    &e,
-                    &ir,
-                    &variable_names,
-                    &types_module,
-                    &hir.declarations_module,
-                )
-                .into());
+            return Err(self.build_ir_generation_error(
+                &e,
+                &ir,
+                &variable_names,
+                &types_module,
+                &hir.modules.declarations_module,
+            ));
         };
         Ok(CompilationStages::new(
             self.entry_point.as_ref(),
@@ -476,9 +350,9 @@ fn format_hir_dump(hir: &SlynxHir, types_module: &TypesModule) -> String {
     format!(
         "HIR Declarations:\n{:#?}\n\nDeclarations Module:\n{:#?}\n\nTypes Module:\n{:#?}\n\nVariable Names:\n{:#?}",
         hir.declarations,
-        hir.declarations_module,
+        hir.modules.types_module,
         types_module,
-        hir.variable_names()
+        hir.modules.symbols_resolver.variables()
     )
 }
 
@@ -539,11 +413,11 @@ fn format_ir_generation_error(
 mod tests {
     use super::SlynxContext;
     use super::format_ir_generation_error;
+    use frontend::hir::modules::BUILTIN_NAMES;
     use frontend::hir::{
         DeclarationId, VariableId,
-        declarations::DeclarationsModule,
-        symbols::SymbolsModule,
-        types::{BUILTIN_NAMES, HirType, TypesModule},
+        model::HirType,
+        modules::{DeclarationsModule, SymbolsModule, TypesModule},
     };
     use middleend::{IRError, SlynxIR};
     use std::{

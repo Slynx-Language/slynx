@@ -1,7 +1,4 @@
-mod tys;
-pub use tys::*;
-
-use crate::hir::{TypeId, VariableId, symbols::SymbolPointer};
+use crate::hir::{SymbolPointer, TypeId, VariableId, model::HirType};
 use std::collections::HashMap;
 
 const INT_IDX: usize = 0;
@@ -13,6 +10,7 @@ const GENERIC_COMPONENT_IDX: usize = 5;
 const BOOL_IDX: usize = 6;
 const BUILTIN_TYPES_SIZE: usize = 7;
 
+/// The set of built-in primitive types pre-registered in every [`TypesModule`].
 pub const BUILTIN_TYPES: [HirType; BUILTIN_TYPES_SIZE] = [
     HirType::Int,
     HirType::Float,
@@ -22,6 +20,7 @@ pub const BUILTIN_TYPES: [HirType; BUILTIN_TYPES_SIZE] = [
     HirType::GenericComponent,
     HirType::Bool,
 ];
+/// The source-level names corresponding to each entry in [`BUILTIN_TYPES`].
 pub const BUILTIN_NAMES: [&str; BUILTIN_TYPES_SIZE] = [
     "int",
     "float",
@@ -32,6 +31,7 @@ pub const BUILTIN_NAMES: [&str; BUILTIN_TYPES_SIZE] = [
     "bool",
 ];
 
+/// Holds the pre-allocated [`TypeId`]s for each built-in primitive type.
 #[derive(Debug, Clone)]
 pub struct BuiltinTypes {
     int: TypeId,
@@ -57,6 +57,7 @@ impl Default for BuiltinTypes {
 }
 
 impl BuiltinTypes {
+    /// Creates a new [`BuiltinTypes`] with IDs matching the fixed indices in [`BUILTIN_TYPES`].
     pub fn new() -> Self {
         Self {
             int: TypeId::from_raw(INT_IDX as u64),
@@ -70,6 +71,7 @@ impl BuiltinTypes {
     }
 }
 
+/// Manages all types in the HIR, including built-ins, user-defined types, and variables.
 #[derive(Debug, Default)]
 pub struct TypesModule {
     ///A hashmap that maps a name of a global name to its type. This is not for variables, but only for global types, such as structs, functions and components
@@ -83,6 +85,7 @@ pub struct TypesModule {
     builtins: BuiltinTypes,
 }
 impl TypesModule {
+    /// Creates a new [`TypesModule`] with built-in types pre-registered under the given symbol names.
     pub fn new(builtin_names: &[SymbolPointer; BUILTIN_TYPES_SIZE]) -> Self {
         let mut types = Vec::with_capacity(BUILTIN_TYPES_SIZE);
         let mut type_names = HashMap::new();
@@ -104,27 +107,35 @@ impl TypesModule {
         }
     }
 
+    /// Creates a new tuple type with the given field types and returns its [`TypeId`].
     pub fn add_tuple_type(&mut self, fields: Vec<TypeId>) -> TypeId {
         self.insert_unnamed_type(HirType::Tuple { fields })
     }
+    /// Returns the [`TypeId`] of the built-in `int` type.
     pub fn int_id(&self) -> TypeId {
         self.builtins.int
     }
+    /// Returns the [`TypeId`] of the built-in `float` type.
     pub fn float_id(&self) -> TypeId {
         self.builtins.float
     }
+    /// Returns the [`TypeId`] of the built-in `str` type.
     pub fn str_id(&self) -> TypeId {
         self.builtins.str
     }
+    /// Returns the [`TypeId`] of the built-in `void` type.
     pub fn void_id(&self) -> TypeId {
         self.builtins.void
     }
+    /// Returns the [`TypeId`] of the special `infer` type used during type inference.
     pub fn infer_id(&self) -> TypeId {
         self.builtins.infer
     }
+    /// Returns the [`TypeId`] of the built-in `GenericComponent` type.
     pub fn generic_component_id(&self) -> TypeId {
         self.builtins.generic_component
     }
+    /// Returns the [`TypeId`] of the built-in `bool` type.
     pub fn bool_id(&self) -> TypeId {
         self.builtins.bool
     }
@@ -172,27 +183,46 @@ impl TypesModule {
     pub fn get_id(&self, name: &SymbolPointer) -> Option<&TypeId> {
         self.type_names.get(name)
     }
+    /// Returns the [`HirType`] for the given [`TypeId`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `id` does not correspond to a registered type.
     pub fn get_type(&self, id: &TypeId) -> &HirType {
         &self.types[id.as_raw() as usize]
     }
+    /// Returns the name symbol associated with the given [`TypeId`], if any.
     pub fn get_type_name(&self, id: &TypeId) -> Option<&SymbolPointer> {
         self.name_of_types.get(id)
     }
+    /// Returns the [`TypeId`] of the given variable, if it has been registered.
     pub fn get_variable(&self, id: &VariableId) -> Option<&TypeId> {
         self.variables.get(id)
     }
+    /// Returns the [`HirType`] associated with the given name symbol, if it exists.
     pub fn get_type_from_name(&self, name: &SymbolPointer) -> Option<&HirType> {
         self.type_names.get(name).map(|id| self.get_type(id))
     }
 
+    /// Returns a mutable reference to the [`HirType`] for the given [`TypeId`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `id` does not correspond to a registered type.
     pub fn get_type_mut(&mut self, id: &TypeId) -> &mut HirType {
         &mut self.types[id.as_raw() as usize]
     }
+    /// Returns a mutable reference to the [`HirType`] associated with the given name symbol, if it exists.
     pub fn get_type_from_name_mut(&mut self, name: &SymbolPointer) -> Option<&mut HirType> {
         self.type_names
             .get(name)
             .map(|id| &mut self.types[id.as_raw() as usize])
     }
+    /// Follows a [`HirType::Reference`] and returns the inner type it points to.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the type at `id` is not a [`HirType::Reference`].
     pub fn get_type_from_ref(&self, id: &TypeId) -> &HirType {
         if let HirType::Reference { rf, .. } = self.get_type(id) {
             self.get_type(rf)

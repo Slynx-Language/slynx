@@ -23,14 +23,15 @@ mod statement;
 use std::collections::HashMap;
 
 use color_eyre::eyre::Result;
+use common::SymbolPointer;
 
 use crate::checker::error::{IncompatibleComponentReason, TypeError, TypeErrorKind};
 
+use crate::hir::model::{ComponentProperty, HirStatement, HirStatementKind};
+use crate::hir::modules::TypesModule;
 use crate::hir::{
     SlynxHir, TypeId,
-    definitions::{HirDeclaration, HirDeclarationKind},
-    symbols::SymbolPointer,
-    types::{FieldMethod, HirType, TypesModule},
+    model::{FieldMethod, HirDeclaration, HirDeclarationKind, HirType},
 };
 use common::ast::Span;
 #[derive(Debug)]
@@ -60,7 +61,7 @@ impl TypeChecker {
                     other => {
                         return Err(TypeError {
                             kind: TypeErrorKind::NotAStruct(other.clone()),
-                            span: span.clone(),
+                            span: *span,
                         }
                         .into());
                     }
@@ -72,13 +73,13 @@ impl TypeChecker {
                             .copied()
                             .ok_or(TypeError {
                                 kind: TypeErrorKind::Unrecognized,
-                                span: span.clone(),
+                                span: *span,
                             })?;
                 }
                 other => {
                     return Err(TypeError {
                         kind: TypeErrorKind::NotAStruct(other.clone()),
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into());
                 }
@@ -100,7 +101,7 @@ impl TypeChecker {
                 kind: TypeErrorKind::InvalidTupleAccessTarget {
                     received: self.types_module.get_type(&resolved_ty).clone(),
                 },
-                span: span.clone(),
+                span: *span,
             }
             .into());
         };
@@ -111,7 +112,7 @@ impl TypeChecker {
                     index,
                     length: fields.len(),
                 },
-                span: span.clone(),
+                span: *span,
             }
             .into(),
         )
@@ -122,8 +123,8 @@ impl TypeChecker {
     pub fn check(hir: &mut SlynxHir) -> Result<TypesModule> {
         let mut inner = Self {
             types: HashMap::new(),
-            structs: std::mem::take(&mut hir.declarations_module.objects),
-            types_module: std::mem::take(&mut hir.types_module),
+            structs: std::mem::take(&mut hir.modules.declarations_module.objects),
+            types_module: std::mem::take(&mut hir.modules.types_module),
             declarations: Vec::new(),
         };
         // DeclarationId is currently assigned linearly in hoisting order,
@@ -166,7 +167,7 @@ impl TypeChecker {
                             expected: self.types_module.get_type(&ty).clone(),
                             received: HirType::Struct { fields: Vec::new() },
                         },
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into())
                 }
@@ -177,7 +178,7 @@ impl TypeChecker {
             HirType::Field(FieldMethod::Variable(var_id, n)) => {
                 let object_ty = *self.types_module.get_variable(&var_id).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
-                    span: span.clone(),
+                    span: *span,
                 })?;
                 let layout_ty = self.get_object_layout_type(&object_ty, span)?;
                 let concrete_type = self
@@ -185,7 +186,7 @@ impl TypeChecker {
                     .get_type(&self.get_struct_from_ref(&object_ty, span)?);
                 let s_fields = self.structs.get(&layout_ty).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
-                    span: span.clone(),
+                    span: *span,
                 })?;
                 let HirType::Struct { fields } = concrete_type else {
                     unreachable!("Type should be a struct. Fields only happen to structs");
@@ -195,7 +196,7 @@ impl TypeChecker {
                 } else {
                     Err(TypeError {
                         kind: TypeErrorKind::Unrecognized,
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into())
                 }
@@ -212,7 +213,9 @@ impl TypeChecker {
                 let mut resolved_props = {
                     let mut tys = Vec::with_capacity(props.len());
                     for prop in props {
-                        tys.push((prop.0.clone(), prop.1.clone(), self.resolve(&prop.2, span)?));
+                        let mut prop = prop.clone();
+                        *prop.prop_type_mut() = self.resolve(prop.prop_type(), span)?;
+                        tys.push(prop)
                     }
                     tys
                 };
@@ -261,14 +264,19 @@ impl TypeChecker {
                                         lhs: bprops.len(),
                                     },
                                 },
-                                span: span.clone(),
+                                span: *span,
                             }
                             .into());
                         }
                         let mut unified_props = Vec::with_capacity(aprops.len());
                         for (prop_a, prop_b) in aprops.iter().zip(bprops.iter()) {
-                            let unified_prop = self.unify(&prop_a.2, &prop_b.2, span)?;
-                            unified_props.push((prop_a.0.clone(), prop_a.1.clone(), unified_prop));
+                            let unified_prop =
+                                self.unify(prop_a.prop_type(), prop_b.prop_type(), span)?;
+                            unified_props.push(ComponentProperty::new(
+                                *prop_a.visibility(),
+                                prop_a.name().to_string(),
+                                unified_prop,
+                            ));
                         }
                         let HirType::Component { props } = self.types_module.get_type_mut(a) else {
                             unreachable!()
@@ -292,7 +300,7 @@ impl TypeChecker {
                                     expected: concrete_a,
                                     received: concrete_b,
                                 },
-                                span: span.clone(),
+                                span: *span,
                             }
                             .into())
                         } else {
@@ -309,7 +317,7 @@ impl TypeChecker {
                                     expected: concrete_a,
                                     received: concrete_b,
                                 },
-                                span: span.clone(),
+                                span: *span,
                             }
                             .into())
                         } else {
@@ -338,7 +346,7 @@ impl TypeChecker {
                             expected: concrete_b,
                             received: concrete_a,
                         },
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into()),
                 }
@@ -363,7 +371,7 @@ impl TypeChecker {
         if self.recursive_ty(rf, ty) {
             return Err(TypeError {
                 kind: TypeErrorKind::CiclicType { ty: ty.clone() },
-                span: span.clone(),
+                span: *span,
             }
             .into());
         }
@@ -387,9 +395,9 @@ impl TypeChecker {
                     false
                 }
             }
-            HirType::Component { props } => props
-                .iter()
-                .any(|prop| self.recursive_ty(ty_ref, self.types_module.get_type(&prop.2))),
+            HirType::Component { props } => props.iter().any(|prop| {
+                self.recursive_ty(ty_ref, self.types_module.get_type(prop.prop_type()))
+            }),
             _ => false,
         }
     }
@@ -421,7 +429,7 @@ impl TypeChecker {
 
     fn ensure_function_returns(
         &mut self,
-        statements: &[crate::hir::definitions::HirStatement],
+        statements: &[HirStatement],
         return_type: TypeId,
         span: &Span,
     ) -> Result<()> {
@@ -434,7 +442,7 @@ impl TypeChecker {
         // so a non-void function must end with a lowered `Return`.
         if matches!(
             statements.last().map(|statement| &statement.kind),
-            Some(crate::hir::definitions::HirStatementKind::Return { .. })
+            Some(HirStatementKind::Return { .. })
         ) {
             return Ok(());
         }
@@ -443,7 +451,7 @@ impl TypeChecker {
             kind: TypeErrorKind::MissingReturnValue {
                 expected: self.types_module.get_type(&return_type).clone(),
             },
-            span: span.clone(),
+            span: *span,
         }
         .into())
     }
@@ -458,7 +466,9 @@ mod tests {
         checker::error::{TypeError, TypeErrorKind},
         hir::{
             ExpressionId, SlynxHir,
-            definitions::{HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind},
+            model::{
+                HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind, HirType,
+            },
         },
         lexer::Lexer,
         parser::Parser,
@@ -489,7 +499,9 @@ mod tests {
                 continue;
             };
 
-            if hir.symbols_module.get_name(*name) != "main" {
+            if let Some(main_symbol) = hir.modules.retrieve_symbol("main")
+                && main_symbol == *name
+            {
                 continue;
             }
 
@@ -573,7 +585,7 @@ mod tests {
     #[test]
     fn rejects_function_call_with_wrong_argument_type() {
         let mut hir = load_hir("slynx/functioncall.slynx");
-        let bool_ty = hir.types_module.bool_id();
+        let bool_ty = hir.bool_type();
         let args = main_call_args(&mut hir).expect("expected to find a function call in main");
         let first_arg = args.first_mut().expect("call should have at least one arg");
         first_arg.kind = HirExpressionKind::Bool(true);
@@ -611,7 +623,7 @@ mod tests {
         match &type_error.kind {
             TypeErrorKind::MissingReturnValue { expected } => {
                 assert!(
-                    matches!(expected, crate::hir::types::HirType::Int),
+                    matches!(expected, HirType::Int),
                     "expected missing int return, got {expected:?}"
                 );
             }
@@ -629,7 +641,8 @@ mod tests {
             "#,
         );
         let main_symbol = hir
-            .symbols_module
+            .modules
+            .symbols_resolver
             .retrieve("main")
             .copied()
             .expect("main symbol should exist");

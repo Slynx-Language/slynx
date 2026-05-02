@@ -1,8 +1,6 @@
 use common::Operator;
 use either::Either;
-use frontend::hir::definitions::{
-    HirExpression, HirExpressionKind, HirStatement, HirStatementKind,
-};
+use frontend::hir::model::{HirExpression, HirExpressionKind, HirStatement, HirStatementKind};
 
 use crate::{
     IRError, IRPointer, IRTypeId, Instruction, Label, Operand, Slot, SlynxIR, Value,

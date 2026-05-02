@@ -9,7 +9,7 @@ pub struct TypedName {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-///A Identifier that might contain a generic. Such as Component<int>
+///A Identifier that might contain a generic. Such as `Component<int>`
 pub struct GenericIdentifier {
     ///The generic this identifier contains.
     pub generic: Option<Vec<GenericIdentifier>>,

@@ -9,7 +9,7 @@ use color_eyre::eyre::Result;
 use crate::checker::TypeChecker;
 use crate::hir::{
     TypeId,
-    definitions::{HirStatement, HirStatementKind},
+    model::{HirStatement, HirStatementKind},
 };
 
 impl TypeChecker {

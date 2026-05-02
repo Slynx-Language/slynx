@@ -50,12 +50,12 @@ impl Parser {
 
     /// Parses a component member, which can be either a child component or a property. It first checks for any visibility modifiers (like 'pub'), then determines if the member is a child component (identified by an identifier followed by an expression) or a property (identified by the 'prop' keyword followed by an identifier and optional type and default value). The function constructs and returns a `ComponentMember` based on the parsed information, including its kind and span.
     fn parse_component_member(&mut self) -> Result<ComponentMember> {
-        let mut span = self.peek()?.span.clone();
+        let mut span = self.peek()?.span;
         let modifier = self.parse_modifier()?;
         let curr = self.peek()?;
         match curr.kind {
             TokenKind::Identifier(_) => {
-                let span = curr.span.clone();
+                let span = curr.span;
                 let expr = self.parse_component_expr()?;
                 Ok(ComponentMember {
                     kind: ComponentMemberKind::Child(expr),

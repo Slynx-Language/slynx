@@ -3,7 +3,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Shared trait for all HIR IDs
 /// Ensures all IDs have consistent behavior
 pub trait HirIdTrait: Copy + Clone + std::fmt::Debug + std::hash::Hash + Eq + PartialEq {
+    /// Returns the inner `u64` value of this ID.
     fn as_u64(&self) -> u64;
+    /// Constructs an ID from a raw `u64` value.
     fn from_u64(value: u64) -> Self;
 }
 

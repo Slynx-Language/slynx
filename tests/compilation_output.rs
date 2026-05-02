@@ -20,7 +20,7 @@ fn temp_case_dir(name: &str) -> PathBuf {
 fn write_temp_source(case_dir: &PathBuf) -> PathBuf {
     fs::create_dir_all(case_dir).expect("temp case dir should be created");
     let source_path = case_dir.join("input.slynx");
-    let source = fs::read_to_string("examples/booleans.slynx").expect("fixture should exist");
+    let source = fs::read_to_string("examples/booleans.syx").expect("fixture should exist");
     fs::write(&source_path, source).expect("temp source should be written");
     source_path
 }

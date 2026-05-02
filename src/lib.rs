@@ -1,14 +1,11 @@
 use std::{path::PathBuf, sync::Arc};
 
-mod context;
-pub use context::*;
+mod compilation_context;
+pub use compilation_context::*;
 pub use frontend::checker;
 pub use frontend::hir;
 pub use frontend::lexer;
 pub use frontend::parser;
-
-pub mod err;
-pub use err::*;
 
 pub use middleend;
 use middleend::*;

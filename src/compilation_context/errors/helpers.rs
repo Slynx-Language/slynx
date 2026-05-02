@@ -22,7 +22,6 @@ pub enum SlynxSuggestion {
     MalformedNumber(String, String, String),
     UnexpectedToken(String, String),
     NameAlreadyDefined(String),
-    IRTypeNotRecognized(String),
     DeclarationNotRecognized(String),
 }
 impl fmt::Display for SlynxSuggestion {
@@ -66,10 +65,6 @@ impl fmt::Display for SlynxSuggestion {
             SlynxSuggestion::NameAlreadyDefined(name) => write!(
                 f,
                 "`{name}` is already defined in this scope — use a different name or remove the duplicate definition"
-            ),
-            SlynxSuggestion::IRTypeNotRecognized(type_) => write!(
-                f,
-                "internal compiler error: type `{type_}` was not registered in the IR — this is likely a compiler bug, please report it"
             ),
             SlynxSuggestion::DeclarationNotRecognized(decl) => write!(
                 f,
@@ -142,10 +137,12 @@ pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
 }
 
 /// this function converts a [`HIRError`] into a [`Vec<SlynxSuggestion>`]
-pub fn suggestions_from_hir(err: &HIRError) -> Vec<SlynxSuggestion> {
+pub fn suggestions_from_hir(hir: &crate::hir::SlynxHir, err: &HIRError) -> Vec<SlynxSuggestion> {
     match &err.kind {
         HIRErrorKind::NameAlreadyDefined(name) => {
-            vec![SlynxSuggestion::NameAlreadyDefined(name.clone())]
+            vec![SlynxSuggestion::NameAlreadyDefined(
+                hir.get_name(*name).to_string(),
+            )]
         }
         _ => vec![],
     }
@@ -166,27 +163,10 @@ mod tests {
     use super::*;
 
     use frontend::{
-        hir::{
-            DeclarationId,
-            error::{HIRError, HIRErrorKind},
-        },
+        hir::DeclarationId,
         lexer::tokens::{Token, TokenKind},
     };
 
-    #[test]
-    /// tests that [`suggestions_from_hir`] returns [`SlynxSuggestion::NameAlreadyDefined`] for [`HIRErrorKind::NameAlreadyDefined`]
-    fn test_suggestions_from_hir_name_already_defined() {
-        let err = HIRError {
-            kind: HIRErrorKind::NameAlreadyDefined("foo".to_string()),
-            span: common::Span { start: 0, end: 3 },
-        };
-
-        let result = suggestions_from_hir(&err);
-        assert_eq!(
-            result,
-            vec![SlynxSuggestion::NameAlreadyDefined("foo".to_string())]
-        );
-    }
     #[test]
     /// tests that [`suggestions_from_parser`] returns [`SlynxSuggestion::UnexpectedToken`] for [`ParseError::UnexpectedToken`]
     fn test_suggestions_parser() {

@@ -1,17 +1,21 @@
-use crate::hir::{DeclarationId, TypeId, symbols::SymbolPointer};
+use common::SymbolPointer;
+
+use crate::hir::{DeclarationId, TypeId};
 use std::collections::HashMap;
 
 /// A top level module that keeps track of all the declarations on the Hir.
 /// Since declarations are avaible only on the top level this is being implemented by thinking in so
 #[derive(Debug, Default)]
 pub struct DeclarationsModule {
-    decls: HashMap<SymbolPointer, DeclarationId>,
+    decls: HashMap<DeclarationId, SymbolPointer>,
     ///The types of the declarations. Use a vec because we can access the type based on the inner value of the ID
     declaration_types: Vec<TypeId>,
+    /// Maps each object [`TypeId`] to its ordered list of field symbol pointers.
     pub objects: HashMap<TypeId, Vec<SymbolPointer>>,
 }
 
 impl DeclarationsModule {
+    /// Creates a new, empty [`DeclarationsModule`].
     pub fn new() -> Self {
         DeclarationsModule {
             decls: HashMap::new(),
@@ -19,9 +23,10 @@ impl DeclarationsModule {
             declaration_types: Vec::new(),
         }
     }
+    /// Registers a new declaration with the given name symbol and type, returning its [`DeclarationId`].
     pub fn create_declaration(&mut self, name: SymbolPointer, ty: TypeId) -> DeclarationId {
         let id = DeclarationId::from_raw(self.declaration_types.len() as u64);
-        self.decls.insert(name, id);
+        self.decls.insert(id, name);
         self.declaration_types.push(ty);
         id
     }
@@ -33,7 +38,7 @@ impl DeclarationsModule {
         fields: Vec<SymbolPointer>,
     ) -> DeclarationId {
         let id = DeclarationId::from_raw(self.declaration_types.len() as u64);
-        self.decls.insert(name, id);
+        self.decls.insert(id, name);
         self.declaration_types.push(ty);
         self.objects.insert(ty, fields);
         id
@@ -45,14 +50,21 @@ impl DeclarationsModule {
         symbol: &SymbolPointer,
     ) -> Option<(DeclarationId, TypeId)> {
         self.decls
-            .get(symbol)
-            .map(|decl| (*decl, self.declaration_types[decl.as_raw() as usize]))
+            .iter()
+            .find(|v| v.1 == symbol)
+            .map(|(decl, _)| (*decl, self.declaration_types[decl.as_raw() as usize]))
     }
 
+    /// Returns the [`TypeId`] of the declaration with the given [`DeclarationId`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `id` does not correspond to a registered declaration.
     pub fn retrieve_declaration_type(&self, id: DeclarationId) -> TypeId {
         self.declaration_types[id.as_raw() as usize]
     }
 
+    /// Returns the [`TypeId`] of the declaration with the given [`DeclarationId`], or `None` if it does not exist.
     pub fn try_retrieve_declaration_type(&self, id: DeclarationId) -> Option<TypeId> {
         self.declaration_types.get(id.as_raw() as usize).copied()
     }

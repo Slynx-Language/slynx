@@ -1,8 +1,49 @@
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut, Index, IndexMut},
+};
 
-use crate::hir::scopes::scope::HIRScope;
+use common::SymbolPointer;
 
-mod scope;
+use crate::hir::VariableId;
+
+/// A single lexical scope that maps symbol names to variable IDs.
+#[derive(Debug)]
+pub struct HIRScope {
+    ///A map to a name to an id. This can be used to save variables for example
+    names: HashMap<SymbolPointer, VariableId>,
+    mutables: Vec<VariableId>,
+}
+
+impl Default for HIRScope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HIRScope {
+    /// Creates a new, empty [`HIRScope`].
+    pub fn new() -> Self {
+        Self {
+            mutables: Vec::new(),
+            names: HashMap::new(),
+        }
+    }
+
+    ///Inserts the provided `symbol` on this scope
+    pub fn insert_name(&mut self, symbol: SymbolPointer, var: VariableId, mutable: bool) {
+        self.names.insert(symbol, var);
+        if mutable {
+            self.mutables.push(var);
+        }
+    }
+
+    ///Retrieves the id of the provided `name` on the scope
+    pub fn retrieve_name(&self, name: &SymbolPointer) -> Option<&VariableId> {
+        self.names.get(name)
+    }
+}
+
 #[derive(Debug, Default)]
 ///A module made with the intent of managing data inside scopes. Note that everything on this scope will have affect on the last defined scope.
 ///So when entering a new scope, it means all functions will have effect on this new scope. This struct always derefs to the last active scope
@@ -11,6 +52,7 @@ pub struct ScopeModule {
 }
 
 impl ScopeModule {
+    /// Creates a new [`ScopeModule`] with an initial global scope already pushed.
     pub fn new() -> Self {
         let mut out = Self::default();
         out.enter_scope();
@@ -18,10 +60,13 @@ impl ScopeModule {
     }
 
     ///Retrieves how many scopes there are
-    pub fn len(&mut self) -> usize {
+    pub fn len(&self) -> usize {
         self.scopes.len()
     }
-
+    ///Returns if this scope is empty. Not necessarily useful, just because clippy proclaims about
+    pub fn is_empty(&self) -> bool {
+        self.scopes.is_empty()
+    }
     ///Enter a new scope and returns a mutable reference to it.
     pub fn enter_scope(&mut self) -> &mut HIRScope {
         self.scopes.push(HIRScope::new());

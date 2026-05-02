@@ -100,7 +100,7 @@ impl Parser {
                 } else {
                     self.set_flags(super::ParserFlags::RequireSemicolon);
                     Ok(ASTStatement {
-                        span: expr.span.clone(),
+                        span: expr.span,
                         kind: ASTStatementKind::Expression(expr),
                     })
                 }

@@ -21,8 +21,7 @@ use super::TypeChecker;
 
 use crate::hir::{
     TypeId,
-    definitions::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind},
-    types::HirType,
+    model::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirType},
 };
 
 impl TypeChecker {
@@ -60,8 +59,8 @@ impl TypeChecker {
                             if let Some(expr) = maybe_expr {
                                 let expr_ty = self.get_type_of_expr(expr)?;
 
-                                declared_props[*index].2 =
-                                    self.unify(&declared_props[*index].2, &expr_ty, span)?;
+                                *declared_props[*index].prop_type_mut() =
+                                    self.unify(declared_props[*index].prop_type(), &expr_ty, span)?;
                             }
                         }
 
@@ -114,9 +113,10 @@ impl TypeChecker {
                 } => {
                     if let Some(expr) = maybe_expr {
                         let expr_ty = self.get_type_of_expr(expr)?;
-                        let unified = self.unify(&declared_props[*index].2, &expr_ty, span)?;
+                        let unified =
+                            self.unify(declared_props[*index].prop_type(), &expr_ty, span)?;
 
-                        declared_props[*index].2 = unified;
+                        *declared_props[*index].prop_type_mut() = unified;
                     }
                 }
 

@@ -7,13 +7,13 @@ use frontend::{
     },
     hir::{
         ExpressionId,
-        definitions::{HirExpression, HirExpressionKind},
+        model::{HirExpression, HirExpressionKind},
     },
 };
 
 #[test]
 fn typechecker_rejects_function_call_with_extra_arg() {
-    let mut hir = common::load_hir("examples/functioncall.slynx");
+    let mut hir = common::load_hir("examples/functionCall.syx");
     let args = common::find_main_call_args(&mut hir)
         .expect("expected to find a function call inside main");
     let template = args.first().expect("call should have at least one arg");
@@ -21,7 +21,7 @@ fn typechecker_rejects_function_call_with_extra_arg() {
         id: ExpressionId::new(),
         ty: template.ty,
         kind: HirExpressionKind::Int(0),
-        span: template.span.clone(),
+        span: template.span,
     });
 
     let err = TypeChecker::check(&mut hir)

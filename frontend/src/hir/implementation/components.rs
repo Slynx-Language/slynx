@@ -1,14 +1,77 @@
 ///Module that implements anything related Specialized Component on the HIR
-use color_eyre::eyre::Result;
-use common::{ComponentExpression, ComponentMemberValue, Span};
+use common::{ComponentExpression, ComponentMemberValue, Span, VisibilityModifier};
 
 use crate::hir::{
-    SlynxHir,
-    definitions::{ComponentMemberDeclaration, SpecializedComponent},
+    Result, SlynxHir, TypeId,
     error::{HIRError, HIRErrorKind},
+    model::{ComponentMemberDeclaration, HirType, SpecializedComponent},
 };
 
 impl SlynxHir {
+    fn resolve_component_member(
+        &mut self,
+        member: ComponentMemberValue,
+        ty: TypeId,
+    ) -> Result<ComponentMemberDeclaration> {
+        match member {
+            ComponentMemberValue::Assign {
+                prop_name,
+                rhs,
+                span,
+            } => {
+                let interned_name = self.modules.intern_name(&prop_name);
+                let HirType::Component { props } = self.get_type(&ty) else {
+                    unreachable!("The type should be a component instead");
+                };
+                match props.iter().position(|prop| prop.name() == prop_name) {
+                    None => Err(HIRError::name_unrecognized(interned_name, span)),
+                    Some(index)
+                        if matches!(
+                            props[index].visibility(),
+                            VisibilityModifier::Private | VisibilityModifier::ChildrenPublic
+                        ) =>
+                    {
+                        Err(HIRError::not_visible_property(interned_name, span))
+                    }
+
+                    Some(index) => {
+                        let expr = self.resolve_expr(rhs, Some(*props[index].prop_type()))?;
+                        Ok(ComponentMemberDeclaration::new_property(
+                            index,
+                            Some(expr),
+                            span,
+                        ))
+                    }
+                }
+            }
+            ComponentMemberValue::Child(child) => {
+                //By now this won't track whether it can or cannot have children, since a method better than 'children' might be implemented in the future.
+                let (id, _) =
+                    self.retrieve_information_of_type(&child.name.identifier, &child.name.span)?;
+                let values = self.resolve_component_members(child.values, id)?;
+                Ok(ComponentMemberDeclaration::new_child(
+                    id, values, child.span,
+                ))
+            }
+        }
+    }
+
+    /// Resolves the provided values on a component. The `ty` is the type of the component we are resolving it
+    pub fn resolve_component_members(
+        &mut self,
+        members: Vec<ComponentMemberValue>,
+        ty: TypeId,
+    ) -> Result<Vec<ComponentMemberDeclaration>> {
+        let out = members
+            .into_iter()
+            .map(|member| self.resolve_component_member(member, ty))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(out)
+    }
+
+    /// Resolves the provided `values` as members of the `Text` specialized component.
+    ///
+    /// Expects exactly one `text` property assignment and no children.
     pub fn resolve_specialize_text(
         &mut self,
         values: Vec<ComponentMemberValue>,
@@ -17,73 +80,53 @@ impl SlynxHir {
         let mut text = None;
         for value in values {
             match value {
+                ComponentMemberValue::Assign { prop_name, rhs, .. } if prop_name == "text" => {
+                    text = Some(self.resolve_expr(rhs, None)?)
+                }
                 ComponentMemberValue::Assign {
-                    prop_name,
-                    rhs,
-                    span,
-                } => match prop_name.as_str() {
-                    "text" => text = Some(self.resolve_expr(rhs, None)?),
-                    _ => {
-                        return Err(HIRError {
-                            kind: HIRErrorKind::TypeNotRecognized(prop_name),
-                            span: span.clone(),
-                        }
-                        .into());
-                    }
-                },
+                    prop_name, span, ..
+                } => {
+                    let intern = self.modules.intern_name(&prop_name);
+                    return Err(HIRError::type_unrecognized(intern, span));
+                }
                 ComponentMemberValue::Child(e) => {
                     return Err(HIRError {
                         kind: HIRErrorKind::InvalidChild { child: Box::new(e) },
-                        span: span.clone(),
-                    }
-                    .into());
+                        span: *span,
+                    });
                 }
             }
         }
-        if let Some(text) = text {
-            Ok(SpecializedComponent::Text {
-                text: Box::new(text),
-            })
-        } else {
-            Err(HIRError {
-                kind: HIRErrorKind::MissingProperty {
-                    prop_names: vec![String::from("text")],
-                },
-                span: span.clone(),
+        match text {
+            Some(text) => Ok(SpecializedComponent::new_text(text)),
+            None => {
+                let properties = vec![self.modules.intern_name("text")];
+                Err(HIRError::missing_properties(properties, *span))
             }
-            .into())
         }
     }
+
     ///Resolves the provided `children` knowning it is a specialized div component
     pub fn resolve_specialized_div(
         &mut self,
         children: Vec<ComponentMemberValue>,
         _: &Span,
     ) -> Result<SpecializedComponent> {
-        let mut out = Vec::with_capacity(children.len());
-
-        for child in children {
-            match child {
+        let children = children
+            .into_iter()
+            .map(|c| match c {
                 ComponentMemberValue::Assign {
                     prop_name, span, ..
                 } => {
-                    return Err(HIRError {
-                        kind: HIRErrorKind::PropertyNotRecognized {
-                            prop_names: vec![prop_name],
-                        },
-                        span,
-                    }
-                    .into());
+                    let prop = self.modules.intern_name(&prop_name);
+                    Err(HIRError::property_unrecognized(vec![prop], span))
                 }
-                ComponentMemberValue::Child(c) => {
-                    let component = self.resolve_component(c)?;
-                    out.push(component);
-                }
-            }
-        }
-
-        Ok(SpecializedComponent::Div { children: out })
+                ComponentMemberValue::Child(c) => self.resolve_component(c),
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(SpecializedComponent::new_div(children))
     }
+    ///Tries to resolve the given `child` as, either a specialized component, or a normal user defined component
     pub fn try_resolve_specialized(
         &mut self,
         child: ComponentExpression,
@@ -103,7 +146,8 @@ impl SlynxHir {
             _ => (None, Some(child)),
         }
     }
-    ///Resolves the provided `component` expression. If it's a specialized one, resolves as a SpecializedComponent, otherwise as a normal 'Component'
+
+    ///Resolves the provided `component` expression. If it's a specialized one, resolves as a `SpecializedComponent`, otherwise as a normal 'Component'
     pub fn resolve_component(
         &mut self,
         component: ComponentExpression,
@@ -114,11 +158,11 @@ impl SlynxHir {
                 let (id, _) =
                     self.retrieve_information_of_type(&component.name.identifier, &component.span)?;
                 let values = self.resolve_component_members(component.values, id)?;
-                Ok(ComponentMemberDeclaration::Child {
-                    name: id,
+                Ok(ComponentMemberDeclaration::new_child(
+                    id,
                     values,
-                    span: component.span,
-                })
+                    component.span,
+                ))
             }
             (_, _) => unreachable!(
                 "Try resolve specialized is bugged. This should literally never happen"

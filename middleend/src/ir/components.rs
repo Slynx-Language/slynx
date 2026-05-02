@@ -1,7 +1,6 @@
 use frontend::hir::{
     TypeId,
-    definitions::{ComponentMemberDeclaration, HirDeclaration, SpecializedComponent},
-    types::HirType,
+    model::{ComponentMemberDeclaration, HirDeclaration, HirType, SpecializedComponent},
 };
 
 use crate::{
@@ -88,8 +87,8 @@ impl SlynxIR {
                 unreachable!("{:?} should map to an Component, but it doesn't", decl);
             };
 
-            for (_, _, prop) in ty_props {
-                let ty = self.get_ir_type(prop, temp)?;
+            for prop_type in ty_props.iter().map(|prop| prop.prop_type()) {
+                let ty = self.get_ir_type(prop_type, temp)?;
                 let comp_ty = self.types.get_component_type_mut(cid);
                 comp_ty.insert_field(ty);
             }

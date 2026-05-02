@@ -1,3 +1,4 @@
+use common::SymbolPointer;
 use smallvec::SmallVec;
 
 use crate::IRTypeId;
@@ -5,6 +6,7 @@ use crate::IRTypeId;
 #[derive(Debug, Default)]
 pub struct IRStruct {
     fields: SmallVec<[IRTypeId; 8]>,
+    name: Option<SymbolPointer>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -13,9 +15,10 @@ pub struct IRStructId(pub usize);
 
 impl IRStruct {
     ///Creates a new empty struct
-    pub fn new() -> Self {
+    pub fn new(name: Option<SymbolPointer>) -> Self {
         IRStruct {
             fields: SmallVec::new(),
+            name,
         }
     }
     ///Inserts the provided `field` onto this struct's fields
@@ -25,5 +28,9 @@ impl IRStruct {
 
     pub fn get_fields(&self) -> &[IRTypeId] {
         &self.fields
+    }
+
+    pub fn name(&self) -> Option<SymbolPointer> {
+        self.name
     }
 }

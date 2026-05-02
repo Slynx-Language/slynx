@@ -3,7 +3,7 @@
 //! This module defines the error types used during type checking, including
 //! type mismatch errors, cyclic type errors, and component-related errors.
 
-use crate::hir::{DeclarationId, VariableId, types::HirType};
+use crate::hir::{DeclarationId, VariableId, model::HirType};
 use common::ast::Span;
 
 /// Represents the reason for an incompatible component error.

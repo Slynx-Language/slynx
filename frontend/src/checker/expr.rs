@@ -11,11 +11,10 @@ use super::TypeChecker;
 use crate::checker::error::{TypeError, TypeErrorKind};
 use crate::hir::{
     DeclarationId, TypeId,
-    definitions::{
-        ComponentMemberDeclaration, HirExpression, HirExpressionKind, HirStatement,
-        HirStatementKind, SpecializedComponent,
+    model::{
+        ComponentMemberDeclaration, FieldMethod, HirExpression, HirExpressionKind, HirStatement,
+        HirStatementKind, HirType, SpecializedComponent,
     },
-    types::{FieldMethod, HirType},
 };
 use common::ast::Span;
 impl TypeChecker {
@@ -29,7 +28,7 @@ impl TypeChecker {
             HirType::Struct { .. } => Ok(*ty),
             v => Err(TypeError {
                 kind: TypeErrorKind::NotAStruct(v.clone()),
-                span: span.clone(),
+                span: *span,
             }
             .into()),
         }
@@ -72,7 +71,7 @@ impl TypeChecker {
                     .get_variable(&variable_id)
                     .ok_or(TypeError {
                         kind: TypeErrorKind::Unrecognized,
-                        span: span.clone(),
+                        span: *span,
                     })?;
                 let layout_ty = self.get_object_layout_type(&object_ty, span)?;
 
@@ -85,7 +84,7 @@ impl TypeChecker {
                 else {
                     return Err(TypeError {
                         kind: TypeErrorKind::Unrecognized,
-                        span: span.clone(),
+                        span: *span,
                     }
                     .into());
                 };
@@ -115,7 +114,7 @@ impl TypeChecker {
         else {
             return Err(TypeError {
                 kind: TypeErrorKind::Unrecognized,
-                span: span.clone(),
+                span: *span,
             }
             .into());
         };
@@ -127,7 +126,7 @@ impl TypeChecker {
                     declaration,
                     received: resolved,
                 },
-                span: span.clone(),
+                span: *span,
             }
             .into());
         };
@@ -146,7 +145,7 @@ impl TypeChecker {
                     expected_length: expected_args.len(),
                     received_length: args.len(),
                 },
-                span: span.clone(),
+                span: *span,
             }
             .into());
         }
@@ -572,8 +571,8 @@ impl TypeChecker {
                                     );
                                 };
 
-                                declared[*index].2 =
-                                    self.unify(&declared[*index].2, &expr_ty, span)?;
+                                *declared[*index].prop_type_mut() =
+                                    self.unify(declared[*index].prop_type(), &expr_ty, span)?;
 
                                 *self.types_module.get_type_mut(&resolved) =
                                     HirType::Component { props: declared };

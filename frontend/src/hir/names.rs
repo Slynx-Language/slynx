@@ -1,157 +1,104 @@
-use color_eyre::eyre::Result;
-
 use crate::hir::{
-    SlynxHir, TypeId, VariableId,
-    error::{HIRError, HIRErrorKind, InvalidTypeReason},
-    symbols::SymbolPointer,
-    types::HirType,
+    Result, SlynxHir, TypeId, VariableId,
+    error::{HIRError, InvalidTypeReason},
+    model::HirType,
 };
 
-use common::ast::{GenericIdentifier, Span};
+use common::{
+    SymbolPointer,
+    ast::{GenericIdentifier, Span},
+};
 //file specific to implement things related to name resolution
 impl SlynxHir {
-    pub fn insert_name(&mut self, name: &str) -> super::symbols::SymbolPointer {
-        self.symbols_module.intern(name)
-    }
     ///Retrieves the pointer(simply a symbol) of the provided `name`.
-    pub fn get_symbol_of(&self, name: &str, span: &Span) -> Result<SymbolPointer> {
-        self.symbols_module.retrieve(name).cloned().ok_or(
-            HIRError {
-                kind: HIRErrorKind::NameNotRecognized(name.to_string()),
-                span: span.clone(),
-            }
-            .into(),
-        )
-    }
-
-    ///Retrieves the type of something by knowing the provided `ref_ty` is a reference to it
-    pub fn get_type_from_ref(&self, ref_ty: TypeId) -> &HirType {
-        if let HirType::Reference { rf, .. } = self.types_module.get_type(&ref_ty) {
-            self.types_module.get_type(rf)
-        } else {
-            unreachable!("The provided ref_ty should be of type Reference");
-        }
+    pub fn get_symbol_of(&self, name: &str) -> Option<SymbolPointer> {
+        self.modules.retrieve_symbol(name)
     }
 
     ///Since when a object is defined, its generated as an unnamed type, and has got a reference to it, this retrieves the inner layout of the object
-    pub fn get_object_type_from_name(&self, name: &str, span: &Span) -> Result<&HirType> {
-        if let Some(symbol) = self.symbols_module.retrieve(name) {
-            if let Some(ref_id) = self.types_module.get_id(symbol)
-                && let HirType::Reference { rf, .. } = self.types_module.get_type(ref_id)
-            {
-                Ok(self.types_module.get_type(rf))
-            } else {
-                Err(HIRError {
-                    kind: HIRErrorKind::InvalidType {
-                        ty: name.to_string(),
-                        reason: InvalidTypeReason::IncorrectUsage,
-                    },
-                    span: span.clone(),
-                }
-                .into())
-            }
+    pub fn get_object_type_from_name(&mut self, name: &str, span: &Span) -> Result<&HirType> {
+        let name_symbol = self.modules.intern_name(name);
+
+        if let Some(ref_id) = self.modules.types_module.get_id(&name_symbol)
+            && let HirType::Reference { rf, .. } = self.modules.types_module.get_type(ref_id)
+        {
+            Ok(self.modules.types_module.get_type(rf))
         } else {
-            Err(HIRError {
-                kind: HIRErrorKind::NameNotRecognized(name.to_string()),
-                span: span.clone(),
-            }
-            .into())
+            Err(HIRError::invalid_type(
+                name_symbol,
+                InvalidTypeReason::IncorrectUsage,
+                *span,
+            ))
         }
     }
 
-    pub fn get_typeid_of_name(&self, name: &str, span: &Span) -> Result<TypeId> {
+    /// Resolves the [`TypeId`] for the given plain type name string.
+    ///
+    /// Handles built-in names (`int`, `float`, `str`, `bool`, `void`, `Component`) directly,
+    /// and falls back to the module's type registry for user-defined types.
+    pub fn get_typeid_of_name(&mut self, name: &str, span: &Span) -> Result<TypeId> {
         match name {
-            "Component" => Ok(self.types_module.generic_component_id()),
-            "()" => Ok(self.types_module.void_id()),
-            "void" => Ok(self.types_module.void_id()),
-            "bool" => Ok(self.types_module.bool_id()),
-            "int" => Ok(self.types_module.int_id()),
-            "float" => Ok(self.types_module.float_id()),
-            "str" => Ok(self.types_module.str_id()),
-
-            _ => {
-                let temp = self
-                    .symbols_module
-                    .retrieve(name)
-                    .and_then(|id| self.types_module.get_id(id).cloned());
-                temp.ok_or(
-                    HIRError {
-                        kind: HIRErrorKind::NameNotRecognized(name.to_string()),
-                        span: span.clone(),
-                    }
-                    .into(),
-                )
-            }
+            "Component" => Ok(self.component_type()),
+            "()" | "void" => Ok(self.void_type()),
+            "bool" => Ok(self.bool_type()),
+            "int" => Ok(self.int32_type()),
+            "float" => Ok(self.float32_type()),
+            "str" => Ok(self.str_type()),
+            _ => self.modules.find_type_by_name(name, span).cloned(),
         }
     }
 
+    /// Resolves the [`TypeId`] for a [`GenericIdentifier`], handling tuple and generic types.
     pub fn get_typeid_of_generic(&mut self, gener: &GenericIdentifier) -> Result<TypeId> {
         match gener.identifier.as_str() {
-            "tuple" => {
-                if let Some(types) = &gener.generic {
-                    let mut fields = Vec::with_capacity(types.len());
-                    for t in types {
-                        fields.push(self.get_typeid_of_generic(t)?);
-                    }
-                    Ok(self.types_module.add_tuple_type(fields))
-                } else {
-                    Err(HIRError {
-                        kind: HIRErrorKind::NameNotRecognized(gener.identifier.clone()),
-                        span: gener.span.clone(),
-                    }
-                    .into())
-                }
+            "tuple" if let Some(ref types) = gener.generic => {
+                let fields = types
+                    .iter()
+                    .map(|field| self.get_typeid_of_generic(field))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(self.add_tuple_type(fields))
             }
-            "()" => Ok(self.types_module.void_id()),
-            _ => {
-                if let Some(gens) = &gener.generic {
-                    let gen_ids = {
-                        let mut tmp = Vec::with_capacity(gens.len());
-                        for g in gens {
-                            tmp.push(self.get_typeid_of_generic(g)?);
-                        }
-                        tmp
-                    };
-                    let base_id = self.get_typeid_of_name(&gener.identifier, &gener.span)?;
-                    Ok(self.types_module.insert_unnamed_type(HirType::Reference {
-                        rf: base_id,
-                        generics: gen_ids,
-                    }))
-                } else {
-                    self.get_typeid_of_name(&gener.identifier, &gener.span)
-                }
+            "tuple" if let None = &gener.generic => {
+                let interned = self.modules.intern_name(&gener.identifier);
+                Err(HIRError::name_unrecognized(interned, gener.span))
             }
+            "()" => Ok(self.void_type()),
+            _ if let Some(ref generics) = gener.generic => {
+                let gen_ids = generics
+                    .iter()
+                    .map(|generic| self.get_typeid_of_generic(generic))
+                    .collect::<Result<Vec<_>>>()?;
+                let base_id = self.get_typeid_of_name(&gener.identifier, &gener.span)?;
+                Ok(self.add_unnamed_type(HirType::new_generic_ref(base_id, gen_ids)))
+            }
+            _ => self.get_typeid_of_name(&gener.identifier, &gener.span),
         }
     }
 
-    ///Creates a new variable with the provided `name` on the current scope and returns its id
-    pub fn create_variable(&mut self, name: &str, ty: TypeId, mutable: bool) -> VariableId {
-        let ptr = self.symbols_module.intern(name);
-        let v = VariableId::new();
-        self.scope_module.insert_name(ptr, v, mutable);
-        self.types_module.insert_variable(v, ty);
-        self.variable_names.insert(v, ptr);
-        v
-    }
-
-    pub fn variable_names(&self) -> &std::collections::HashMap<VariableId, SymbolPointer> {
-        &self.variable_names
-    }
     ///Tries to retrieve a variable with the provided `name` on the current active scope
-    pub fn get_variable(&mut self, name: &str, span: &Span) -> Result<&VariableId> {
-        if let Some(symbol) = self.symbols_module.retrieve(name)
-            && let Some(variable) = self.scope_module.retrieve_name(symbol)
-        {
+    pub fn get_variable(&mut self, symbol: SymbolPointer, span: &Span) -> Result<VariableId> {
+        if let Some(variable) = self.modules.find_variable(symbol) {
             Ok(variable)
         } else {
-            Err(HIRError {
-                kind: HIRErrorKind::NameNotRecognized(name.to_string()),
-                span: span.clone(),
-            }
-            .into())
+            Err(HIRError::name_unrecognized(symbol, *span))
         }
     }
-    pub fn define_type(&mut self, name: SymbolPointer, ty: HirType) -> TypeId {
-        self.types_module.insert_type(name, ty)
+    ///Creates a mutable variable with the given `name` and `ty`
+    pub fn create_mutable_variable(
+        &mut self,
+        symbol: SymbolPointer,
+        ty: TypeId,
+        span: &Span,
+    ) -> Result<VariableId> {
+        self.modules.create_variable(symbol, true, ty, span)
+    }
+    ///Creates a imutable variable with the given `name` and `ty`
+    pub fn create_variable(
+        &mut self,
+        symbol: SymbolPointer,
+        ty: TypeId,
+        span: &Span,
+    ) -> Result<VariableId> {
+        self.modules.create_variable(symbol, false, ty, span)
     }
 }
