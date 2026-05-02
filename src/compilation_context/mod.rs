@@ -408,13 +408,14 @@ fn format_ir_generation_error(
 mod tests {
     use super::SlynxContext;
     use super::format_ir_generation_error;
-    use frontend::hir::modules::BUILTIN_NAMES;
-    use frontend::hir::{
+
+    use slynx_hir::{
         DeclarationId, VariableId,
         model::HirType,
-        modules::{DeclarationsModule, SymbolsModule, TypesModule},
+        modules::{BUILTIN_NAMES, DeclarationsModule, SymbolsModule, TypesModule},
     };
-    use middleend::{IRError, SlynxIR};
+
+    use slynx_ir::{IRError, SlynxIR};
     use std::{
         collections::HashMap,
         fs,
