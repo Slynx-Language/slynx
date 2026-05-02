@@ -285,18 +285,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
-name = "middleend"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "common",
- "either",
- "frontend",
- "petgraph",
- "smallvec",
-]
-
-[[package]]
 name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -464,8 +452,64 @@ dependencies = [
  "clap",
  "color-eyre",
  "common",
+ "slynx-hir",
+ "slynx-ir",
+ "slynx-lexer",
+ "slynx-monomorphizer",
+ "slynx-parser",
+ "slynx-typechecker",
+]
+
+[[package]]
+name = "slynx-hir"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+]
+
+[[package]]
+name = "slynx-ir"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+ "either",
  "frontend",
- "middleend",
+ "petgraph",
+ "smallvec",
+]
+
+[[package]]
+name = "slynx-lexer"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+]
+
+[[package]]
+name = "slynx-monomorphizer"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+]
+
+[[package]]
+name = "slynx-parser"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
+]
+
+[[package]]
+name = "slynx-typechecker"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "common",
 ]
 
 [[package]]

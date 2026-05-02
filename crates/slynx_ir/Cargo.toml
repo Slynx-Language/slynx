@@ -1,5 +1,5 @@
 [package]
-name = "middleend"
+name = "slynx-ir"
 version = "0.1.0"
 edition = "2024"
 
