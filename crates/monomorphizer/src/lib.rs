@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::hir::{Result, SlynxHir, TypeId, error::HIRError, model::HirType, modules::TypesModule};
+use slynx_hir::{Result, SlynxHir, TypeId, error::HIRError, model::HirType, modules::TypesModule};
 
 ///A struct that handles all the monomorphization on the code
 pub struct Monomorphizer {
