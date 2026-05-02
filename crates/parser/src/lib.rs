@@ -8,7 +8,7 @@ mod statement;
 mod types;
 use color_eyre::eyre::{Report, Result};
 
-use crate::parser::error::ParseError;
+use crate::error::ParseError;
 use slynx_lexer::{
     TokenStream,
     tokens::{Token, TokenKind},

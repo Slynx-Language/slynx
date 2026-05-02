@@ -1,7 +1,8 @@
 use color_eyre::eyre::Result;
 use common::{ASTExpression, ASTExpressionKind, ASTStatement, ASTStatementKind, Span};
 
-use crate::{lexer::tokens::TokenKind, parser::Parser};
+use crate::Parser;
+use slynx_lexer::tokens::TokenKind;
 
 impl Parser {
     /// Parses an if statement. The provided `span` is the initial span for the 'if' keyword.

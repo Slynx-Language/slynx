@@ -4,8 +4,8 @@ use common::ast::{
     Span, VisibilityModifier,
 };
 
-use crate::lexer::tokens::{Token, TokenKind};
-use crate::parser::error::ParseError;
+use crate::error::ParseError;
+use slynx_lexer::tokens::{Token, TokenKind};
 
 use super::Parser;
 impl Parser {

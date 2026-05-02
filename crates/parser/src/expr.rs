@@ -1,10 +1,10 @@
-use crate::lexer::tokens::{Token, TokenKind};
-use crate::parser::{Parser, error::ParseError};
+use crate::{Parser, error::ParseError};
 use color_eyre::eyre::Result;
 use common::ast::{
     ASTExpression, ASTExpressionKind, ComponentExpression, ComponentMemberValue, GenericIdentifier,
     NamedExpr, Operator, Span,
 };
+use slynx_lexer::tokens::{Token, TokenKind};
 
 impl Parser {
     /// Parses a function call expression.

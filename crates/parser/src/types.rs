@@ -1,10 +1,8 @@
 use super::Parser;
-use crate::{
-    lexer::tokens::{Token, TokenKind},
-    parser::error::ParseError,
-};
+use crate::error::ParseError;
 use color_eyre::eyre::Result;
 use common::{ASTDeclaration, ASTDeclarationKind, Span, ast::GenericIdentifier};
+use slynx_lexer::tokens::{Token, TokenKind};
 impl Parser {
     ///Parses an alias declaration which follows `alias ty = AnotherType`
     pub fn parse_alias(&mut self, init: Span) -> Result<ASTDeclaration> {
