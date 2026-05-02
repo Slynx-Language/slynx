@@ -78,7 +78,7 @@
 
 use common::Span;
 
-use crate::hir::{VariableId, model::HirExpression};
+use crate::{VariableId, model::HirExpression};
 
 /// A statement node in the HIR.
 ///

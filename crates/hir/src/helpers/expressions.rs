@@ -1,6 +1,6 @@
 use common::{Operator, Span};
 
-use crate::hir::{
+use crate::{
     ExpressionId, SlynxHir, TypeId, VariableId,
     model::{HirExpression, HirExpressionKind, HirStatement},
 };

@@ -1,4 +1,4 @@
-use crate::hir::{error::HIRError, model::HirType, Result, SlynxHir, TypeId};
+use crate::{Result, SlynxHir, TypeId, error::HIRError, model::HirType};
 use common::ast::{GenericIdentifier, Span};
 
 impl SlynxHir {

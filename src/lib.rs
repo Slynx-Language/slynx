@@ -2,10 +2,10 @@ use std::{path::PathBuf, sync::Arc};
 
 mod compilation_context;
 pub use compilation_context::*;
-pub use frontend::checker;
 pub use frontend::hir;
 pub use frontend::lexer;
 pub use frontend::parser;
+pub use slynx_typechecker;
 
 pub use middleend;
 use middleend::*;

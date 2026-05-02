@@ -1,4 +1,4 @@
-use crate::hir::{
+use crate::{
     Result, SlynxHir, TypeId, VariableId,
     error::{HIRError, InvalidTypeReason},
     model::HirType,

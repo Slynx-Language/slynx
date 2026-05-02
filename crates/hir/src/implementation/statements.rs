@@ -1,4 +1,4 @@
-use crate::hir::{
+use crate::{
     Result, SlynxHir,
     model::{HirStatement, HirStatementKind},
 };

@@ -1,6 +1,6 @@
 use common::{ObjectField, Span};
 
-use crate::hir::{DeclarationId, Result, TypeId, VariableId, error::HIRError, model::HirType};
+use crate::{DeclarationId, Result, TypeId, VariableId, error::HIRError, model::HirType};
 
 mod declarations;
 mod scopes;

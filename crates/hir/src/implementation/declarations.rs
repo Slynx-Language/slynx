@@ -1,4 +1,4 @@
-use crate::hir::{
+use crate::{
     Result, SlynxHir,
     error::HIRError,
     model::{ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirStatement, HirType},
@@ -10,7 +10,7 @@ use common::{
 
 impl SlynxHir {
     ///Retrieves the type of something by knowing the provided `ref_ty` is a reference to it
-    pub fn get_type_from_ref(&self, ref_ty: crate::hir::TypeId) -> &HirType {
+    pub fn get_type_from_ref(&self, ref_ty: crate::TypeId) -> &HirType {
         if let HirType::Reference { rf, .. } = self.get_type(&ref_ty) {
             self.get_type(rf)
         } else {

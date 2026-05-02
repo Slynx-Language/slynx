@@ -25,7 +25,7 @@
 
 use common::{Span, SymbolPointer};
 
-use crate::hir::{
+use crate::{
     DeclarationId, PropertyId, TypeId, VariableId,
     model::{HirExpression, HirStatement},
 };

@@ -5,7 +5,7 @@ use std::{
 
 pub use common::symbols::*;
 
-use crate::hir::VariableId;
+use crate::VariableId;
 
 /// Wraps a [`SymbolsModule`] and additionally tracks the source-level symbol for each variable.
 #[derive(Debug, Default)]

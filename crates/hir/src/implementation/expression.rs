@@ -1,6 +1,6 @@
 use std::mem::discriminant;
 
-use crate::hir::{
+use crate::{
     ExpressionId, Result, SlynxHir, TypeId,
     error::{HIRError, HIRErrorKind},
     model::{FieldMethod, HirExpression, HirExpressionKind, HirStatementKind, HirType},

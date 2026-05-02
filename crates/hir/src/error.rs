@@ -1,4 +1,4 @@
-use crate::hir::model::{HirExpression, HirType};
+use crate::model::{HirExpression, HirType};
 
 use common::{
     SymbolPointer,

@@ -86,7 +86,7 @@
 
 use common::{Operator, Span};
 
-use crate::hir::{
+use crate::{
     DeclarationId, ExpressionId, TypeId, VariableId,
     model::{ComponentMemberDeclaration, HirStatement},
 };

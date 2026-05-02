@@ -5,7 +5,7 @@ use std::{
 
 use common::SymbolPointer;
 
-use crate::hir::VariableId;
+use crate::VariableId;
 
 /// A single lexical scope that maps symbol names to variable IDs.
 #[derive(Debug)]
