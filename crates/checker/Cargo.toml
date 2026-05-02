@@ -1,5 +1,5 @@
 [package]
-name = "slynx"
+name = "slynx-typechecker"
 version = "0.1.0"
 edition = "2024"
 
@@ -17,3 +17,4 @@ common = {path="./common"}
 members = [
   "crates/*"
 ]
+,

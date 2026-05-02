@@ -1,6 +1,6 @@
-use crate::hir::{Result, SlynxHir, TypeId, error::HIRError, model::HirType};
-
+use crate::hir::{error::HIRError, model::HirType, Result, SlynxHir, TypeId};
 use common::ast::{GenericIdentifier, Span};
+
 impl SlynxHir {
     ///Retrieves the type of the provided `name` but in the global scope
     pub fn retrieve_type_of_name(
