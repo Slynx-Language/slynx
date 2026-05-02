@@ -2,13 +2,14 @@ use std::{path::PathBuf, sync::Arc};
 
 mod compilation_context;
 pub use compilation_context::*;
-pub use frontend::hir;
-pub use frontend::lexer;
-pub use frontend::parser;
-pub use slynx_typechecker;
 
-pub use middleend;
-use middleend::*;
+pub use slynx_hir;
+pub use slynx_ir;
+use slynx_ir::SlynxIR;
+pub use slynx_lexer;
+pub use slynx_monomorphizer;
+pub use slynx_parser;
+pub use slynx_typechecker;
 
 ///Compiels the provided `slynx` code from the provided `path` and writes the slynx IR textual form into the same `path` but with extension `sir`
 pub fn compile_code(path: PathBuf) -> color_eyre::eyre::Result<()> {
