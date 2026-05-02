@@ -1,4 +1,4 @@
-use frontend::hir::{DeclarationId, TypeId, VariableId};
+use slynx_hir::{DeclarationId, TypeId, VariableId};
 
 #[derive(Debug)]
 ///An error that occurred on the IR

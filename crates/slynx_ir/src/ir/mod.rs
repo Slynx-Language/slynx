@@ -11,7 +11,7 @@ use common::SymbolsModule;
 pub use model::*;
 pub use visualize::*;
 
-use frontend::hir::{
+use slynx_hir::{
     model::{HirDeclaration, HirDeclarationKind, HirType},
     modules::TypesModule,
 };

@@ -1,4 +1,4 @@
-use frontend::hir::{
+use slynx_hir::{
     TypeId,
     model::{ComponentMemberDeclaration, HirDeclaration, HirType, SpecializedComponent},
 };

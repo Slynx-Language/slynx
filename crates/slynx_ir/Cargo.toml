@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 common = {path = "../common"}
-frontend = {path = "../frontend"}
+slynx-hir.path = "../hir"
 color-eyre={workspace=true}
 smallvec={workspace=true}
 either = "1.15.0"
