@@ -134,6 +134,16 @@ pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
     }
 }
 
+/// this function converts a [`IRError`] into a [`Vec<SlynxSuggestion>`]
+pub fn suggestions_from_ir(err: &IRError) -> Vec<SlynxSuggestion> {
+    match &err {
+        IRError::DeclarationNotRecognized(sla) => vec![SlynxSuggestion::DeclarationNotRecognized(
+            format!("{}", sla.as_raw()),
+        )],
+        _ => vec![],
+    }
+}
+
 /// this function converts a [`HIRError`] into a [`Vec<SlynxSuggestion>`]
 pub fn suggestions_from_hir(hir: &SlynxHir, err: &HIRError) -> Vec<SlynxSuggestion> {
     match &err.kind {
@@ -142,15 +152,6 @@ pub fn suggestions_from_hir(hir: &SlynxHir, err: &HIRError) -> Vec<SlynxSuggesti
                 hir.get_name(*name).to_string(),
             )]
         }
-        _ => vec![],
-    }
-}
-/// this function converts a [`IRError`] into a [`Vec<SlynxSuggestion>`]
-pub fn suggestions_from_ir(err: &IRError) -> Vec<SlynxSuggestion> {
-    match &err {
-        IRError::DeclarationNotRecognized(sla) => vec![SlynxSuggestion::DeclarationNotRecognized(
-            format!("{}", sla.as_raw()),
-        )],
         _ => vec![],
     }
 }

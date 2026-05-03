@@ -4,8 +4,8 @@ use slynx_hir::{
 };
 
 use crate::{
-    SlynxContext, SlynxError, SlynxErrorType,
-    compilation_context::errors::helpers::suggestions_from_hir,
+    SlynxContext,
+    compilation_context::errors::{SlynxError, helpers::suggestions_from_hir},
 };
 
 impl SlynxContext {
@@ -87,18 +87,16 @@ impl SlynxContext {
         }
     }
 
-    pub fn handle_hir_error(&self, hir: &SlynxHir, error: &HIRError) -> color_eyre::Report {
+    pub fn handle_hir_error(&self, hir: &SlynxHir, error: &HIRError) -> SlynxError {
         let suggestion = suggestions_from_hir(hir, error);
         let (line, column, src) = self.get_line_info(&self.entry_point, error.span.start);
-        let err = SlynxError {
+        SlynxError::new_hir(
             line,
-            column_start: column,
-            ty: SlynxErrorType::Hir,
-            message: self.hir_error_to_string(hir, error),
+            column,
+            self.hir_error_to_string(hir, error),
+            self.file_name(),
+            src.to_string(),
             suggestion,
-            file: self.entry_point.to_string_lossy().to_string(),
-            source_code: src.to_string(),
-        };
-        err.into()
+        )
     }
 }

@@ -5,56 +5,19 @@ use std::{
     sync::Arc,
 };
 
-use color_eyre::{eyre::Result, owo_colors::OwoColorize};
-
-use common::SymbolPointer;
+use color_eyre::eyre::Result;
+use common::{ASTDeclaration, SymbolPointer};
 use slynx_hir::{
     SlynxHir, VariableId,
     modules::{DeclarationsModule, TypesModule},
 };
 use slynx_ir::{IRError, SlynxIR};
-use slynx_lexer::Lexer;
+use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
 use slynx_parser::Parser;
-use slynx_typechecker::{TypeChecker, error::TypeError};
+use slynx_typechecker::TypeChecker;
 
-use crate::compilation_context::errors::helpers::{
-    SlynxSuggestion, suggestions_from_lexer, suggestions_from_type_error,
-};
-#[derive(Debug)]
-///The type of the error that was generated
-pub enum SlynxErrorType {
-    Lexer,
-    Parser,
-    Hir,
-    Type,
-    Compilation,
-}
-impl std::fmt::Display for SlynxErrorType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SlynxErrorType::Lexer => write!(f, "Lexing Error"),
-            SlynxErrorType::Parser => write!(f, "Parsing Error"),
-            SlynxErrorType::Hir => write!(f, "Name Resolution Error"),
-            SlynxErrorType::Compilation => write!(f, "Compilation Error"),
-            SlynxErrorType::Type => write!(f, "Type Checking Error"),
-        }
-    }
-}
-
-#[derive(Debug)]
-///An error that will be shown if something fails
-pub struct SlynxError {
-    ty: SlynxErrorType,
-    line: usize,
-    column_start: usize,
-    message: String,
-    ///The file path the error occuried
-    file: String,
-    source_code: String,
-    suggestion: Vec<SlynxSuggestion>,
-}
-impl std::error::Error for SlynxError {}
+use crate::compilation_context::errors::{SlynxError, helpers::suggestions_from_lexer};
 
 #[derive(Debug)]
 pub struct CompilationOutput {
@@ -128,40 +91,6 @@ impl CompilationStages {
 
     pub fn into_output(self) -> CompilationOutput {
         CompilationOutput::new(self.entry_point.as_path(), self.ir)
-    }
-}
-
-impl std::fmt::Display for SlynxError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let type_error = self.ty.to_string();
-        let source = self.source_code.replace("\t", " ");
-        let before_error = format!("{} |", self.line);
-        let error_with_data = format!("{before_error}{source}");
-
-        let error_points = {
-            let points_offset = " ".to_string();
-            let points = "^".repeat(self.source_code.trim().len());
-            format!("{before_error}{points_offset}{points}",)
-        };
-
-        let line_and_column = format!(
-            "{}:{}",
-            self.line.blue().bold(),
-            self.column_start.blue().bold()
-        );
-        writeln!(
-            f,
-            "{}: {} => {}:{line_and_column}",
-            type_error.green().bold(),
-            self.message.red(),
-            self.file.bold()
-        )?;
-        writeln!(f, "{}", error_with_data)?;
-        writeln!(f, "{}", error_points)?;
-        for suggestion in self.suggestion.iter() {
-            writeln!(f, "-->{}", suggestion)?;
-        }
-        writeln!(f)
     }
 }
 
@@ -270,62 +199,70 @@ impl SlynxContext {
         self.entry_point.to_string_lossy().to_string()
     }
 
-    ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
-    ///before materializing the default `.sir` output.
-    pub fn build_stages(self) -> Result<CompilationStages> {
-        let stream = match Lexer::tokenize(self.get_entry_point_source()) {
-            Ok(value) => value,
-            Err(e) => return Err(self.handle_lexer_error(e)),
-        };
-        let decls = match Parser::new(stream).parse_declarations() {
-            Ok(v) => v,
-            Err(e) => return Err(self.handle_parser_error(e.downcast_ref().unwrap())),
-        };
+    ///Builds the token stream to be used by the Parser from the source code
+    pub fn build_tokens(&self) -> Result<TokenStream, SlynxError> {
+        Lexer::tokenize(self.get_entry_point_source()).map_err(|e| self.handle_lexer_error(e))
+    }
+
+    ///Builds the Slynx AST from the given `tokens` stream.
+    pub fn build_parser(&self, tokens: TokenStream) -> Result<Vec<ASTDeclaration>, SlynxError> {
+        Parser::new(tokens)
+            .parse_declarations()
+            .map_err(|e| self.handle_parser_error(e.downcast_ref().unwrap()))
+    }
+
+    ///Builds the Slynx HIR from the given `ast`. And type checks the HIR. The result hir is already typed. Also returns the types module to be used if needed to get information about the types on the Hir.
+    pub fn build_hir(
+        &self,
+        ast: Vec<ASTDeclaration>,
+    ) -> Result<(SlynxHir, TypesModule), SlynxError> {
         let mut hir = SlynxHir::new();
-        if let Err(e) = hir.generate(decls) {
-            return Err(self.handle_hir_error(&hir, &e));
-        }
-        let mut types_module = match TypeChecker::check(&mut hir) {
-            Err(e) => match e.downcast_ref::<TypeError>() {
-                Some(err) => {
-                    let suggestion = suggestions_from_type_error(err);
-                    let (line, column, src) = self.get_line_info(&self.entry_point, err.span.start);
-                    let err = SlynxError {
-                        line,
-                        column_start: column,
-                        suggestion,
-                        ty: SlynxErrorType::Type,
-                        message: e.to_string(),
-                        file: self.file_name(),
-                        source_code: src.to_string(),
-                    };
-                    return Err(e.wrap_err(err));
-                }
-                _ => return Err(e),
-            },
-            Ok(module) => module,
-        };
-        if let Err(e) = Monomorphizer::resolve(&hir, &mut types_module) {
-            return Err(self.handle_hir_error(&hir, &e));
-        }
-        let hir_dump = format_hir_dump(&hir, &types_module);
-        let variable_names = hir.modules.symbols_resolver.variables().clone();
+        hir.generate(ast)
+            .map_err(|e| self.handle_hir_error(&hir, &e))?;
+        let mut module = TypeChecker::check(&mut hir)
+            .map_err(|e| self.handle_checker_error(e.downcast_ref().unwrap()))?;
+
+        self.monomorphize(&hir, &mut module)?;
+
+        Ok((hir, module))
+    }
+
+    ///Monomorphization only changes(by now) the types module.
+    pub fn monomorphize(&self, hir: &SlynxHir, ty: &mut TypesModule) -> Result<(), SlynxError> {
+        Monomorphizer::resolve(hir, ty).map_err(|e| self.handle_hir_error(hir, &e))
+    }
+
+    ///Builds a new IR from the given `hir`. It's assumed that it is already implemented
+    pub fn build_ir(
+        &self,
+        hir: SlynxHir,
+        types_module: &TypesModule,
+    ) -> Result<SlynxIR, SlynxError> {
+        let variables = hir.modules.symbols_resolver.variables().clone();
         let mut ir = SlynxIR::new(hir.modules.symbols_resolver.get_symbols_module());
 
-        if let Err(e) = ir.generate(hir.declarations, &types_module) {
-            return Err(self.build_ir_generation_error(
+        ir.generate(hir.declarations, &types_module).map_err(|e| {
+            self.build_ir_generation_error(
                 &e,
                 &ir,
-                &variable_names,
+                &variables,
                 &types_module,
                 &hir.modules.declarations_module,
-            ));
-        };
-        Ok(CompilationStages::new(
-            self.entry_point.as_ref(),
-            hir_dump,
-            ir,
-        ))
+            )
+        })?;
+        Ok(ir)
+    }
+
+    ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
+    ///before materializing the default `.sir` output.
+    pub fn build_stages(self) -> color_eyre::eyre::Result<CompilationStages> {
+        let stream = self.build_tokens()?;
+        let decls = self.build_parser(stream)?;
+        let (hir, types_module) = self.build_hir(decls)?;
+        let dump = format_hir_dump(&hir, &types_module);
+        let ir = self.build_ir(hir, &types_module)?;
+
+        Ok(CompilationStages::new(self.entry_point.as_ref(), dump, ir))
     }
 
     ///Compiles the code from the current contexts and returns the compilation result including the IR

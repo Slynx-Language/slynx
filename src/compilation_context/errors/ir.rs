@@ -8,8 +8,11 @@ use slynx_hir::{
 use slynx_ir::{IRError, SlynxIR};
 
 use crate::{
-    SlynxContext, SlynxError, SlynxErrorType,
-    compilation_context::{errors::helpers::suggestions_from_ir, format_ir_generation_error},
+    SlynxContext,
+    compilation_context::{
+        errors::{SlynxError, helpers::suggestions_from_ir},
+        format_ir_generation_error,
+    },
 };
 
 impl SlynxContext {
@@ -20,7 +23,7 @@ impl SlynxContext {
         variable_names: &HashMap<VariableId, SymbolPointer>,
         types_module: &TypesModule,
         declarations_module: &DeclarationsModule,
-    ) -> color_eyre::Report {
+    ) -> SlynxError {
         let source_code = self
             .get_entry_point_source()
             .lines()
@@ -28,21 +31,19 @@ impl SlynxContext {
             .unwrap_or("Internal IR generation error")
             .to_string();
 
-        SlynxError {
-            line: 1,
-            column_start: 1,
-            ty: SlynxErrorType::Compilation,
-            message: format_ir_generation_error(
+        SlynxError::new_hir(
+            1,
+            1,
+            format_ir_generation_error(
                 error,
                 ir,
                 variable_names,
                 types_module,
                 declarations_module,
             ),
-            file: self.file_name(),
-            suggestion: suggestions_from_ir(error),
+            self.file_name(),
             source_code,
-        }
-        .into()
+            suggestions_from_ir(error),
+        )
     }
 }
