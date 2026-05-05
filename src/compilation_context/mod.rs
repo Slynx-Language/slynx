@@ -117,9 +117,14 @@ impl SlynxContext {
 
     pub fn from_source(src: String) -> Self {
         let entry = Arc::new(PathBuf::new());
+        let lines = src
+            .chars()
+            .enumerate()
+            .filter_map(|(idx, c)| if c == '\n' { Some(idx) } else { None })
+            .collect::<Vec<_>>();
         Self {
             files: HashMap::from([(entry.clone(), src)]),
-            lines: HashMap::new(),
+            lines: HashMap::from([(entry.clone(), lines)]),
             entry_point: entry,
         }
     }
