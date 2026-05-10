@@ -6,7 +6,7 @@ use common::Span;
 pub mod tokens;
 pub use tokens::*;
 #[derive(Debug)]
-///A stream of tokens to be used when parsing the content
+/// A stream of tokens to be used when parsing the content
 pub struct TokenStream {
     pub stream: VecDeque<Token>,
     pub new_lines: Vec<usize>,
@@ -21,411 +21,82 @@ impl Iterator for TokenStream {
 
 impl Index<usize> for TokenStream {
     type Output = Token;
-
     fn index(&self, index: usize) -> &Self::Output {
         &self.stream[index]
     }
 }
+
 pub struct Lexer;
 
 impl Lexer {
     pub fn tokenize(source: &str) -> Result<TokenStream, LexerError> {
-        let mut out = VecDeque::new();
-        let mut lines = Vec::new();
-        let chars = source.chars().collect::<Vec<_>>();
-        let mut idx = 0;
-        while idx < chars.len() {
-            let Some(tk) = chars.get(idx) else {
-                break;
-            };
-            let tk = match tk {
-                '&' => {
-                    if let Some('&') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::and(idx)
-                    } else {
-                        Token::bitand(idx)
-                    }
-                }
-                '|' => {
-                    if let Some('|') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::or(idx)
-                    } else {
-                        Token::bitor(idx)
-                    }
-                }
-                '^' => Token::xor(idx),
-                '.' => Token::dot(idx),
-                '(' => Token::lparen(idx),
-                ')' => Token::rparen(idx),
-                '{' => Token::lbrace(idx),
-                '}' => Token::rbrace(idx),
-                ';' => Token::semicolon(idx),
-                '<' => {
-                    if let Some('<') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::shl(idx)
-                    } else if let Some('=') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::lte(idx)
-                    } else {
-                        Token::lt(idx)
-                    }
-                }
-                '>' => {
-                    if let Some('>') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::shr(idx)
-                    } else if let Some('=') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::gte(idx)
-                    } else {
-                        Token::gt(idx)
-                    }
-                }
-                '=' => {
-                    if let Some('=') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::eqeq(idx)
-                    } else {
-                        Token::eq(idx)
-                    }
-                }
+        let mut stream = VecDeque::new();
+        let mut new_lines = Vec::new();
 
-                ':' => Token::colon(idx),
-                ',' => Token::comma(idx),
-                '+' => {
-                    if let Some('=') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::pluseq(idx)
-                    } else {
-                        Token::plus(idx)
-                    }
-                }
-                '-' => {
-                    if let Some('=') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::subeq(idx)
-                    } else if let Some('>') = chars.get(idx + 1) {
-                        let out = Token::arrow(idx);
-                        idx += 1;
-                        out
-                    } else {
-                        Token::sub(idx)
-                    }
-                }
-                '*' => {
-                    if let Some('=') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::stareq(idx)
-                    } else {
-                        Token::star(idx)
-                    }
-                }
-                '/' => {
-                    if let Some('*') = chars.get(idx + 1) {
-                        while idx < chars.len() {
-                            if let Some('\n') = chars.get(idx) {
-                                lines.push(idx);
-                            }
-                            if let Some('*') = chars.get(idx)
-                                && let Some('/') = chars.get(idx + 1)
-                            {
-                                break;
-                            }
-                            idx += 1;
-                        }
-                        continue;
-                    } else if let Some('=') = chars.get(idx + 1) {
-                        idx += 1;
-                        Token::slasheq(idx)
-                    } else if let Some('/') = chars.get(idx + 1) {
-                        while idx < chars.len() {
-                            if chars.get(idx) == Some(&'\n') {
-                                lines.push(idx);
-                            }
-                            idx += 1;
-                        }
-                        continue;
-                    } else {
-                        Token::slash(idx)
-                    }
-                }
+        let raw: Vec<(Result<TokenKind, ()>, std::ops::Range<usize>)> =
+            TokenKind::lexer(source).spanned().collect();
 
-                '"' => {
-                    let mut buffer = String::new();
-                    idx += 1;
-                    let start = idx;
-                    while idx < chars.len()
-                        && let Some(c) = chars.get(idx)
-                        && *c != '"'
+        for i in 0..raw.len() {
+            let (ref result, ref range) = raw[i];
+            match result {
+                Ok(TokenKind::Newline) => {
+                    new_lines.push(range.start);
+                }
+                Ok(kind) => {
+                    // Reject `<int>..` (double-dot after number)
+                    if matches!(kind, TokenKind::Int(_) | TokenKind::Float(_))
+                        && let Some((Ok(TokenKind::Dot), dot1)) = raw.get(i + 1)
+                        && let Some((Ok(TokenKind::Dot), _)) = raw.get(i + 2)
                     {
-                        if *c == '\\' {
-                            idx += 1;
-                            match c {
-                                'n' => buffer.push('\n'),
-                                't' => buffer.push('\t'),
-                                'r' => buffer.push('\r'),
-                                c @ '0'..='9' => buffer.push(*c),
-                                '\\' => buffer.push('\\'),
-                                '"' => buffer.push('"'),
-                                _ => buffer.push('\\'),
-                            }
-                        } else {
-                            buffer.push(*c);
-                        }
-
-                        idx += 1;
-                    }
-                    Token::string(buffer, start, idx)
-                }
-                c if c.is_whitespace() => {
-                    if *c == '\n' {
-                        lines.push(idx);
-                    }
-                    idx += 1;
-                    continue;
-                }
-                c if c.is_ascii_digit() => {
-                    let mut buffer = String::new();
-                    let start = idx;
-                    let mut float_value = false;
-                    let mut last_is_underscore = false;
-                    let mut last_is_dot = false;
-                    let mut should_err = false;
-                    let mut hex_value = false;
-                    let mut binary_value = false;
-                    let mut radix = 0;
-                    let mut octal_value = false;
-
-                    if let Some('0') = chars.get(idx) {
-                        match chars.get(idx + 1) {
-                            Some('x') => {
-                                radix += 16;
-                                idx += 2;
-                                hex_value = true;
-                                while let Some(c) = chars.get(idx)
-                                    && (c.is_ascii_hexdigit())
-                                {
-                                    buffer.push(*c);
-                                    idx += 1;
-                                }
-                            }
-                            Some('b') => {
-                                binary_value = true;
-                                radix += 2;
-                                idx += 2;
-                                while let Some(c) = chars.get(idx)
-                                    && (*c == '0' || *c == '1')
-                                {
-                                    buffer.push(*c);
-                                    idx += 1;
-                                }
-                            }
-                            Some('o') => {
-                                octal_value = true;
-                                radix += 8;
-                                idx += 2;
-                                while let Some(c) = chars.get(idx)
-                                    && (c.is_digit(radix))
-                                {
-                                    buffer.push(*c);
-                                    idx += 1;
-                                }
-                            }
-                            _ => (),
-                        }
-                    }
-
-                    if !hex_value && !binary_value && !octal_value {
-                        while let Some(c) = chars.get(idx) {
-                            if c.is_ascii_digit() {
-                                last_is_dot = false;
-                                last_is_underscore = false;
-                                buffer.push(*c);
-                                idx += 1;
-                                continue;
-                            }
-
-                            if *c == '_' {
-                                if last_is_underscore || last_is_dot {
-                                    should_err = true;
-                                }
-                                last_is_dot = false;
-                                last_is_underscore = true;
-                                buffer.push(*c);
-                                idx += 1;
-                                continue;
-                            }
-
-                            if *c == '.' {
-                                let next = chars.get(idx + 1);
-                                if !float_value
-                                    && matches!(next, Some(next) if next.is_ascii_digit())
-                                {
-                                    // Only keep '.' inside a number when it actually starts
-                                    // the fractional part of a float literal.
-                                    float_value = true;
-                                    if last_is_underscore {
-                                        should_err = true;
-                                    }
-                                    last_is_dot = true;
-                                    last_is_underscore = false;
-                                    buffer.push(*c);
-                                    idx += 1;
-                                    continue;
-                                }
-
-                                if matches!(next, Some('.') | Some('_')) {
-                                    should_err = true;
-                                    buffer.push(*c);
-                                    idx += 1;
-                                }
-                                break;
-                            }
-
-                            break;
-                        }
-                    }
-                    if should_err || buffer.ends_with('_') || buffer.ends_with('.') {
                         return Err(LexerError::MalformedNumber {
-                            number: buffer,
-                            init: start,
-                            end: idx,
+                            number: source[range.start..dot1.end].to_string(),
+                            init: range.start,
+                            end: dot1.end,
                         });
                     }
-
-                    idx -= 1;
-                    let buffer = buffer.replace('_', "");
-                    if hex_value || binary_value || octal_value {
-                        let decimal_value = i32::from_str_radix(&buffer, radix);
-
-                        match decimal_value {
-                            Ok(value) => Token::int(value, start, idx),
-                            Err(_) => {
-                                return Err(LexerError::MalformedNumber {
-                                    number: buffer,
-                                    init: start,
-                                    end: idx,
-                                });
-                            }
+                    // Reject `<int>._` or `<int_ending_with_underscore>.`
+                    // logos won't produce Int with trailing underscore, but catches `1._0`
+                    // pattern: Int Dot Identifier-starting-with-underscore
+                    if matches!(kind, TokenKind::Int(_)) {
+                        if let Some((Ok(TokenKind::Dot), dot_range)) = raw.get(i + 1)
+                            && let Some((Ok(TokenKind::Identifier(id)), _)) = raw.get(i + 2)
+                            && id.starts_with('_')
+                        {
+                            return Err(LexerError::MalformedNumber {
+                                number: source[range.start..dot_range.end].to_string(),
+                                init: range.start,
+                                end: dot_range.end,
+                            });
                         }
-                    } else if float_value {
-                        match buffer.parse::<f32>() {
-                            Ok(value) => Token::float(value, start, idx),
-                            Err(_) => {
-                                return Err(LexerError::MalformedNumber {
-                                    number: buffer,
-                                    init: start,
-                                    end: idx,
-                                });
-                            }
-                        }
-                    } else {
-                        match buffer.parse::<i32>() {
-                            Ok(value) => Token::int(value, start, idx),
-                            Err(_) => {
-                                return Err(LexerError::MalformedNumber {
-                                    number: buffer,
-                                    init: start,
-                                    end: idx,
-                                });
-                            }
+                        // Reject `1_.0`: logos lexes `1_` as error, but let's also check
+                        // if the raw source slice for this int ends with '_'
+                        if source[range.clone()].ends_with('_') {
+                            return Err(LexerError::MalformedNumber {
+                                number: source[range.clone()].to_string(),
+                                init: range.start,
+                                end: range.end,
+                            });
                         }
                     }
-                }
-                c if c.is_alphabetic() || *c == '_' => {
-                    let mut buffer = String::new();
-                    let start = idx;
-                    while let Some(c) = chars.get(idx)
-                        && (chars[idx].is_alphanumeric() || *c == '_')
-                    {
-                        buffer.push(*c);
-                        idx += 1;
-                    }
-
-                    idx -= 1;
-                    let span = Span { start, end: idx };
-                    match buffer.as_str() {
-                        "while" => Token {
-                            kind: TokenKind::While,
-                            span,
+                    stream.push_back(Token {
+                        kind: kind.clone(),
+                        span: Span {
+                            start: range.start,
+                            end: range.end,
                         },
-
-                        "let" => Token {
-                            kind: TokenKind::Let,
-                            span,
-                        },
-                        "mut" => Token {
-                            kind: TokenKind::Mut,
-                            span,
-                        },
-                        "object" => Token {
-                            kind: TokenKind::Object,
-                            span,
-                        },
-                        "component" => Token {
-                            kind: TokenKind::Component,
-                            span,
-                        },
-                        "func" => Token {
-                            kind: TokenKind::Func,
-                            span,
-                        },
-                        "pub" => Token {
-                            kind: TokenKind::Pub,
-                            span,
-                        },
-                        "prop" => Token {
-                            kind: TokenKind::Prop,
-                            span,
-                        },
-                        "if" => Token {
-                            kind: TokenKind::If,
-                            span,
-                        },
-                        "else" => Token {
-                            kind: TokenKind::Else,
-                            span,
-                        },
-                        "true" => Token {
-                            kind: TokenKind::True,
-                            span,
-                        },
-                        "false" => Token {
-                            kind: TokenKind::False,
-                            span,
-                        },
-                        "alias" => Token {
-                            kind: TokenKind::Alias,
-                            span,
-                        },
-                        "stylesheet" => Token {
-                            kind: TokenKind::StyleSheet,
-                            span,
-                        },
-                        "import" => Token {
-                            kind: TokenKind::Import,
-                            span,
-                        },
-                        _ => Token::identifier(&buffer, start, idx),
-                    }
-                }
-                c => {
-                    return Err(LexerError::UnrecognizedChar {
-                        char: *c,
-                        index: idx,
                     });
                 }
-            };
-            out.push_back(tk);
-            idx += 1;
+                Err(()) => {
+                    let c = source[range.clone()].chars().next().unwrap_or('?');
+                    return Err(LexerError::UnrecognizedChar {
+                        char: c,
+                        index: range.start,
+                    });
+                }
+            }
         }
-        Ok(TokenStream {
-            stream: out,
-            new_lines: lines,
-        })
+
+        Ok(TokenStream { stream, new_lines })
     }
 }
 
