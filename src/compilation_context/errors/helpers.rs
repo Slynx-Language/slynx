@@ -227,7 +227,7 @@ mod tests {
         assert_eq!(
             result,
             vec![SlynxSuggestion::UnexpectedToken(
-                "'foo'".to_string(),
+                "'Identifier(\"foo\")'".to_string(),
                 "sla".to_string()
             )]
         );

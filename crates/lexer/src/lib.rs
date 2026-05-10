@@ -1,8 +1,8 @@
 pub mod error;
-pub use error::*;
-use std::{collections::VecDeque, ops::Index};
-
 use common::Span;
+pub use error::*;
+use logos::Logos;
+use std::{collections::VecDeque, ops::Index};
 pub mod tokens;
 pub use tokens::*;
 #[derive(Debug)]

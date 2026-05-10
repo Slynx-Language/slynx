@@ -1,4 +1,5 @@
 use common::Span;
+use logos::Logos;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
@@ -7,8 +8,9 @@ pub struct Token {
 }
 
 #[derive(Logos, Debug, PartialEq, Clone)]
-#[logos(skip r"[ \t\r\f]+")]
 pub enum TokenKind {
+    #[regex(r"[ \t\r\f\n]+", logos::skip)]
+    Newline,
     // Comments (skip)
     #[regex(r"//[^\n]*", logos::skip, allow_greedy = true)]
     #[regex(r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/", logos::skip)]
@@ -41,7 +43,10 @@ pub enum TokenKind {
     True,
     #[token("false")]
     False,
-
+    #[token("stylesheet")]
+    StyleSheet,
+    #[token("import")]
+    Import,
     // Multi-char operators (must come before single-char)
     #[token("&&")]
     And,
@@ -146,27 +151,10 @@ pub enum TokenKind {
 
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     Identifier(String),
-
-    Component,
-    Func,
-    Pub,
-    Prop,
-    Alias,
-    StyleSheet,
-
-    Object,
-
-    Let,
-    Mut,
-
-    True,
-    False,
-
-    Import,
 }
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "'{}'", self.kind)
+        write!(f, "'{:?}'", self.kind)
     }
 }
