@@ -37,12 +37,19 @@ impl Lexer {
             TokenKind::lexer(source).spanned().collect();
 
         for i in 0..raw.len() {
-            let (ref result, ref range) = raw[i];
+            let (Ok(result), range) = &raw[i] else {
+                let range = &raw[i].1;
+                let c = source[range.clone()].chars().next().unwrap_or('?');
+                return Err(LexerError::UnrecognizedChar {
+                    char: c,
+                    index: range.start,
+                });
+            };
             match result {
-                Ok(TokenKind::Newline) => {
+                TokenKind::Newline => {
                     new_lines.push(range.start);
                 }
-                Ok(kind) => {
+                kind => {
                     // Reject `<int>..` (double-dot after number)
                     if matches!(kind, TokenKind::Int(_) | TokenKind::Float(_))
                         && let Some((Ok(TokenKind::Dot), dot1)) = raw.get(i + 1)
@@ -84,13 +91,6 @@ impl Lexer {
                             start: range.start,
                             end: range.end,
                         },
-                    });
-                }
-                Err(()) => {
-                    let c = source[range.clone()].chars().next().unwrap_or('?');
-                    return Err(LexerError::UnrecognizedChar {
-                        char: c,
-                        index: range.start,
                     });
                 }
             }
