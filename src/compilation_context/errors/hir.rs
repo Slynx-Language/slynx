@@ -4,7 +4,7 @@ use slynx_hir::{
 };
 
 use crate::{
-    SlynxContext,
+    LineInfo, SlynxContext,
     compilation_context::errors::{SlynxError, helpers::suggestions_from_hir},
 };
 
@@ -53,7 +53,7 @@ impl SlynxContext {
                 let prop_name = hir.get_name(*prop_name);
                 format!("Property with name '{prop_name}' is not visible")
             }
-            HIRErrorKind::InvalidChild { .. } => {
+            HIRErrorKind::InvalidChild => {
                 "Invalid child. Component is not expecting children".to_string()
             }
             HIRErrorKind::InvalidType { ty, reason } => {
@@ -89,10 +89,16 @@ impl SlynxContext {
 
     pub fn handle_hir_error(&self, hir: &SlynxHir, error: &HIRError) -> SlynxError {
         let suggestion = suggestions_from_hir(hir, error);
-        let (line, column, src) = self.get_line_info(&self.entry_point, error.span.start);
+        let LineInfo {
+            line,
+            column_start,
+            column_end,
+            src,
+        } = self.get_line_info(&self.entry_point, error.span.start);
         SlynxError::new_hir(
             line,
-            column,
+            column_start,
+            column_end,
             self.hir_error_to_string(hir, error),
             self.file_name(),
             src.to_string(),

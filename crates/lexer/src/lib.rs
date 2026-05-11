@@ -5,7 +5,7 @@ use crate::{
     error::LexerError,
     tokens::{Token, TokenKind},
 };
-use common::ast::Span;
+use common::Span;
 pub mod tokens;
 #[derive(Debug)]
 ///A stream of tokens to be used when parsing the content

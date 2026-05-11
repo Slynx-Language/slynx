@@ -120,8 +120,7 @@ impl SlynxIR {
                 Value::StructLiteral(ty, values_ptr)
             }
             HirExpressionKind::StringLiteral(v) => {
-                let handle_idx = self.strings.intern(v);
-                let operand = Operand::String(handle_idx);
+                let operand = Operand::String(*v);
                 let operand_ptr = self.insert_operands(&[operand]);
                 let value = self.insert_value(Value::Raw(operand_ptr));
                 let instruction = self.insert_instruction(

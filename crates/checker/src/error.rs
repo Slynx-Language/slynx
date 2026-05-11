@@ -3,7 +3,7 @@
 //! This module defines the error types used during type checking, including
 //! type mismatch errors, cyclic type errors, and component-related errors.
 
-use common::ast::Span;
+use common::Span;
 use slynx_hir::{DeclarationId, VariableId, model::HirType};
 
 /// Represents the reason for an incompatible component error.

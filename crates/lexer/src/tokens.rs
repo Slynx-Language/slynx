@@ -1,4 +1,4 @@
-use common::ast::Span;
+use common::Span;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {

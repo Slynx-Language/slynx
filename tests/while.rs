@@ -1,8 +1,8 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 #[test]
 fn test_while() {
-    let context = slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/while.syx"))).unwrap();
+    let context = slynx::SlynxContext::new(PathBuf::from("examples/while.syx")).unwrap();
     let output = context.compile().unwrap();
     assert_eq!(
         output

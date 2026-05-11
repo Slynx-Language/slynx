@@ -1,4 +1,7 @@
-use std::fmt;
+use std::{
+    fmt,
+    ops::{Range, RangeFrom, RangeTo},
+};
 
 use slynx_hir::{HIRError, HIRErrorKind, SlynxHir};
 use slynx_ir::IRError;
@@ -6,6 +9,57 @@ use slynx_lexer::error::LexerError;
 use slynx_parser::error::ParseError;
 use slynx_typechecker::error::{TypeError, TypeErrorKind};
 
+#[derive(Debug)]
+///A metadata containing the `file` and `message` amd `source` data in a single string. This is being made to don't explode the requirement of sizoef(error) < 128, of rust.
+pub struct ErrorMetadata {
+    ///The metadata containing `file`, `message` and `source` respectively
+    metadata: String,
+    ///The indexes where the `message` and `source` initialize. `file` is initialized at 0
+    range_metadata: usize,
+}
+
+impl ErrorMetadata {
+    ///Creates a new metadata containing the given `file`, `message` and `source`
+    pub fn new(mut file: String, message: String, source: String) -> Self {
+        let file_len = file.len();
+        file.push_str(&message);
+        file.push_str(&source);
+        Self {
+            metadata: file,
+            range_metadata: file_len << 32 | message.len(),
+        }
+    }
+
+    fn file_len(&self) -> usize {
+        self.range_metadata >> 32
+    }
+    fn file_range(&self) -> RangeTo<usize> {
+        ..self.file_len()
+    }
+    fn message_range(&self) -> Range<usize> {
+        let file_len = self.file_len();
+
+        (file_len)..(file_len + (self.range_metadata & 0xffffffff))
+    }
+    fn source_range(&self) -> RangeFrom<usize> {
+        (self.file_len() + (self.range_metadata & 0xffffffff))..
+    }
+
+    ///Retrieves the file metadata
+    pub fn file(&self) -> &str {
+        &self.metadata[self.file_range()]
+    }
+
+    ///Retrieves the message metadata
+    pub fn message(&self) -> &str {
+        &self.metadata[self.message_range()]
+    }
+
+    ///Retrieves the source metadata
+    pub fn source(&self) -> &str {
+        &self.metadata[self.source_range()]
+    }
+}
 #[derive(Debug, PartialEq)]
 pub enum SlynxSuggestion {
     /// this error is raised when the Typeckeck

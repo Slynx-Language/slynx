@@ -1,6 +1,6 @@
-use common::{ObjectField, Span};
-
 use crate::{DeclarationId, Result, TypeId, VariableId, error::HIRError, model::HirType};
+use common::Span;
+use slynx_parser::ObjectField;
 
 mod declarations;
 mod scopes;

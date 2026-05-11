@@ -52,9 +52,9 @@
 //! - [`crate::hir::TypeId`] — Type identifiers
 //! - [`crate::hir::modules::TypesModule`] — Type management
 
-use common::{SymbolPointer, VisibilityModifier};
-
 use crate::{TypeId, VariableId};
+use common::SymbolPointer;
+use slynx_parser::VisibilityModifier;
 
 /// A method for accessing fields on types.
 ///

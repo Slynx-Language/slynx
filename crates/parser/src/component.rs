@@ -1,8 +1,11 @@
-use color_eyre::eyre::Result;
-use common::ast::{
-    ASTDeclaration, ASTDeclarationKind, ComponentMember, ComponentMemberKind, GenericIdentifier,
-    Span, VisibilityModifier,
+use crate::{
+    Result,
+    ast::{
+        ASTDeclaration, ASTDeclarationKind, ComponentMember, ComponentMemberKind,
+        GenericIdentifier, VisibilityModifier,
+    },
 };
+use common::Span;
 
 use crate::error::ParseError;
 use slynx_lexer::tokens::{Token, TokenKind};
@@ -35,8 +38,7 @@ impl Parser {
                             },
                             "child' or 'parent' to determine who will be able to access it"
                                 .to_string(),
-                        )
-                        .into());
+                        ));
                     };
                     self.expect(&TokenKind::RParen)?;
                     modifier
@@ -135,7 +137,7 @@ impl Parser {
                                 return Err(ParseError::UnexpectedToken(
                                     curr,
                                     "Expecing ';' to determine this property initialization is required by it's parent or '=' to give it a default value".to_string(),
-                                ).into());
+                                ));
                             }
                         };
                         Ok(ComponentMember {
@@ -166,15 +168,14 @@ impl Parser {
                         Err(ParseError::UnexpectedToken(
                             self.eat()?,
                             "'=' or ':' to define the type of the property or a ';' to keep it to be initialized by it's parent".to_string(),
-                        ).into())
+                        ))
                     }
                 }
             }
             _ => Err(ParseError::UnexpectedToken(
                 self.eat()?,
                 "'prop' a macro name or an identifier".to_string(),
-            )
-            .into()),
+            )),
         }
     }
     ///Parses a component declaration. This initializes on the 'component' keyword

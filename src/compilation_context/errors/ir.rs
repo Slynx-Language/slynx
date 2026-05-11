@@ -32,8 +32,9 @@ impl SlynxContext {
             .to_string();
 
         SlynxError::new_hir(
-            1,
-            1,
+            0,
+            0,
+            0,
             format_ir_generation_error(
                 error,
                 ir,

@@ -1,8 +1,8 @@
 use slynx_lexer::error::LexerError;
 
 use crate::{
-    SlynxContext,
-    compilation_context::{errors::SlynxError, suggestions_from_lexer},
+    LineInfo, SlynxContext, compilation_context::errors::SlynxError,
+    helpers::suggestions_from_lexer,
 };
 
 impl SlynxContext {
@@ -10,10 +10,16 @@ impl SlynxContext {
         let suggestion = suggestions_from_lexer(&error);
         match error {
             LexerError::MalformedNumber { init, .. } => {
-                let (line, column, src) = self.get_line_info(&self.entry_point, init);
+                let LineInfo {
+                    line,
+                    column_start,
+                    column_end,
+                    src,
+                } = self.get_line_info(&self.entry_point, init);
                 SlynxError::new_lexer(
                     line,
-                    column,
+                    column_start,
+                    column_end,
                     error.to_string(),
                     self.file_name(),
                     src.to_string(),
@@ -21,10 +27,16 @@ impl SlynxContext {
                 )
             }
             LexerError::UnrecognizedChar { index, .. } => {
-                let (line, column, src) = self.get_line_info(&self.entry_point, index);
+                let LineInfo {
+                    line,
+                    column_start,
+                    column_end,
+                    src,
+                } = self.get_line_info(&self.entry_point, index);
                 SlynxError::new_lexer(
                     line,
-                    column,
+                    column_start,
+                    column_end,
                     error.to_string(),
                     self.file_name(),
                     src.to_string(),

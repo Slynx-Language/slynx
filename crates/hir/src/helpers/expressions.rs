@@ -1,9 +1,8 @@
-use common::{Operator, Span};
-
 use crate::{
     ExpressionId, SlynxHir, TypeId, VariableId,
     model::{HirExpression, HirExpressionKind, HirStatement},
 };
+use common::{Operator, Span, SymbolPointer};
 
 impl SlynxHir {
     /// Creates a tuple expression with the given type and values.
@@ -48,7 +47,7 @@ impl SlynxHir {
         }
     }
     /// Creates a string literal expression.
-    pub fn create_strliteral_expression(&self, s: String, span: Span) -> HirExpression {
+    pub fn create_strliteral_expression(&self, s: SymbolPointer, span: Span) -> HirExpression {
         HirExpression {
             id: ExpressionId::new(),
             ty: self.str_type(),

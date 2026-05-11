@@ -13,7 +13,7 @@ pub fn load_hir(path: &str) -> SlynxHir {
         .parse_declarations()
         .expect("source should parse");
     let mut hir = SlynxHir::new();
-    hir.generate(declarations).expect("HIR should generate");
+    hir.generate(&declarations).expect("HIR should generate");
     hir
 }
 

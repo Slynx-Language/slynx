@@ -5,19 +5,18 @@ use std::{
     sync::Arc,
 };
 
-use color_eyre::eyre::Result;
-use common::{ASTDeclaration, SymbolPointer};
+use common::SymbolPointer;
 use slynx_hir::{
-    modules::{DeclarationsModule, TypesModule},
     SlynxHir, VariableId,
+    modules::{DeclarationsModule, TypesModule},
 };
 use slynx_ir::{IRError, SlynxIR};
 use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
-use slynx_parser::Parser;
+use slynx_parser::{ASTDeclaration, Parser};
 use slynx_typechecker::TypeChecker;
 
-use crate::compilation_context::errors::{helpers::suggestions_from_lexer, SlynxError};
+pub use crate::compilation_context::errors::*;
 
 #[derive(Debug)]
 pub struct CompilationOutput {
@@ -52,7 +51,7 @@ impl CompilationOutput {
     }
 
     ///Writes the IR of this output into the path of `output_path()`
-    pub fn write(&self) -> Result<()> {
+    pub fn write(&self) -> std::io::Result<()> {
         std::fs::write(&self.output_path, format!("{:#?}", self.ir))?;
         Ok(())
     }
@@ -79,12 +78,12 @@ impl CompilationStages {
         self.entry_point.with_extension(extension)
     }
 
-    pub fn write_hir(&self) -> Result<()> {
+    pub fn write_hir(&self) -> std::io::Result<()> {
         std::fs::write(self.dump_path("hir"), self.hir_text())?;
         Ok(())
     }
 
-    pub fn write_ir(&self) -> Result<()> {
+    pub fn write_ir(&self) -> std::io::Result<()> {
         std::fs::write(self.dump_path("ir"), self.ir_text())?;
         Ok(())
     }
@@ -104,8 +103,20 @@ pub struct SlynxContext {
     entry_point: Arc<PathBuf>,
 }
 
+pub struct LineInfo<'a> {
+    ///The line where the error occuried
+    pub line: usize,
+    ///The initial column on that line
+    pub column_start: usize,
+    ///The final column on that line
+    pub column_end: usize,
+    ///The source that generated that error
+    pub src: &'a str,
+}
+
 impl SlynxContext {
-    pub fn new(entry_point: Arc<PathBuf>) -> Result<Self> {
+    pub fn new(entry_point: PathBuf) -> std::io::Result<Self> {
+        let entry_point = Arc::new(entry_point);
         let mut out = Self {
             files: HashMap::new(),
             lines: HashMap::new(),
@@ -113,6 +124,20 @@ impl SlynxContext {
         };
         out.insert_file(entry_point)?;
         Ok(out)
+    }
+
+    pub fn from_source(src: String) -> Self {
+        let entry = Arc::new(PathBuf::new());
+        let lines = src
+            .chars()
+            .enumerate()
+            .filter_map(|(idx, c)| if c == '\n' { Some(idx) } else { None })
+            .collect::<Vec<_>>();
+        Self {
+            files: HashMap::from([(entry.clone(), src)]),
+            lines: HashMap::from([(entry.clone(), lines)]),
+            entry_point: entry,
+        }
     }
 
     ///Gets the source code of the file that will start all the compilation
@@ -123,7 +148,7 @@ impl SlynxContext {
     }
 
     ///Inserts the file with provided `path` if it exists.
-    pub fn insert_file(&mut self, path: Arc<PathBuf>) -> Result<()> {
+    pub fn insert_file(&mut self, path: Arc<PathBuf>) -> std::io::Result<()> {
         let file = std::fs::read_to_string(path.as_path())?;
         let lines = file
             .chars()
@@ -157,7 +182,7 @@ impl SlynxContext {
 
     ///Based on the provided `index`, which is the index of a char on the source code of `path`, returns the line where it's located on the file of the provided `path`.
     ///This will return its line and the column and the line containing the error
-    pub fn get_line_info(&self, path: &Arc<PathBuf>, index: usize) -> (usize, usize, &str) {
+    pub fn get_line_info<'a>(&'a self, path: &Arc<PathBuf>, index: usize) -> LineInfo<'a> {
         let lines = self
             .lines
             .get(path)
@@ -167,7 +192,12 @@ impl SlynxContext {
             .get(path)
             .expect("Path should be provided on the context");
         if source.is_empty() {
-            return (1, 1, "");
+            return LineInfo {
+                line: 1,
+                column_start: 1,
+                column_end: 1,
+                src: "",
+            };
         }
 
         let char_len = source.chars().count();
@@ -191,7 +221,12 @@ impl SlynxContext {
         let end = Self::char_index_to_byte_offset(source, line_end_char);
         let column = clamped_index.saturating_sub(line_start_char) + 1;
 
-        (line_idx + 1, column, &source[start..end])
+        LineInfo {
+            line: line_idx + 1,
+            column_start: column,
+            column_end: end,
+            src: &source[start..end],
+        }
     }
 
     ///The name of the file this context is parsing
@@ -208,19 +243,15 @@ impl SlynxContext {
     pub fn build_parser(&self, tokens: TokenStream) -> Result<Vec<ASTDeclaration>, SlynxError> {
         Parser::new(tokens)
             .parse_declarations()
-            .map_err(|e| self.handle_parser_error(e.downcast_ref().unwrap()))
+            .map_err(|e| self.handle_parser_error(&e))
     }
 
     ///Builds the Slynx HIR from the given `ast`. And type checks the HIR. The result hir is already typed. Also returns the types module to be used if needed to get information about the types on the Hir.
-    pub fn build_hir(
-        &self,
-        ast: Vec<ASTDeclaration>,
-    ) -> Result<(SlynxHir, TypesModule), SlynxError> {
+    pub fn build_hir(&self, ast: &[ASTDeclaration]) -> Result<(SlynxHir, TypesModule), SlynxError> {
         let mut hir = SlynxHir::new();
         hir.generate(ast)
             .map_err(|e| self.handle_hir_error(&hir, &e))?;
-        let mut module = TypeChecker::check(&mut hir)
-            .map_err(|e| self.handle_checker_error(e.downcast_ref().unwrap()))?;
+        let mut module = TypeChecker::check(&mut hir).map_err(|e| self.handle_checker_error(&e))?;
 
         self.monomorphize(&hir, &mut module)?;
 
@@ -255,10 +286,10 @@ impl SlynxContext {
 
     ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
     ///before materializing the default `.sir` output.
-    pub fn build_stages(self) -> color_eyre::eyre::Result<CompilationStages> {
+    pub fn build_stages(self) -> Result<CompilationStages, SlynxError> {
         let stream = self.build_tokens()?;
         let decls = self.build_parser(stream)?;
-        let (hir, types_module) = self.build_hir(decls)?;
+        let (hir, types_module) = self.build_hir(&decls)?;
         let dump = format_hir_dump(&hir, &types_module);
         let ir = self.build_ir(hir, &types_module)?;
 
@@ -266,15 +297,9 @@ impl SlynxContext {
     }
 
     ///Compiles the code from the current contexts and returns the compilation result including the IR
-    pub fn compile(self) -> Result<CompilationOutput> {
+    pub fn compile(self) -> Result<CompilationOutput, SlynxError> {
         let stages = self.build_stages()?;
         Ok(stages.into_output())
-    }
-
-    pub fn start_compilation(self) -> Result<()> {
-        let output = self.compile()?;
-        output.write()?;
-        Ok(())
     }
 }
 
@@ -343,13 +368,13 @@ fn format_ir_generation_error(
 
 #[cfg(test)]
 mod tests {
-    use super::format_ir_generation_error;
     use super::SlynxContext;
+    use super::format_ir_generation_error;
 
     use slynx_hir::{
-        model::HirType,
-        modules::{DeclarationsModule, SymbolsModule, TypesModule, BUILTIN_NAMES},
         DeclarationId, VariableId,
+        model::HirType,
+        modules::{BUILTIN_NAMES, DeclarationsModule, SymbolsModule, TypesModule},
     };
 
     use slynx_ir::{IRError, SlynxIR};
@@ -377,7 +402,7 @@ mod tests {
         fs::write(path.as_ref(), source).expect("temp source should be written");
 
         (
-            SlynxContext::new(path.clone()).expect("context should be created"),
+            SlynxContext::new((*path).clone()).expect("context should be created"),
             path,
             dir,
         )
@@ -493,11 +518,11 @@ mod tests {
     fn get_line_info_handles_single_line_sources_without_trailing_newline() {
         let (context, path, dir) = temp_context("func main(): int {", "single-line");
 
-        let (line, column, source) = context.get_line_info(&path, 5);
+        let info = context.get_line_info(&path, 5);
 
-        assert_eq!(line, 1);
-        assert_eq!(column, 6);
-        assert_eq!(source, "func main(): int {");
+        assert_eq!(info.line, 1);
+        assert_eq!(info.column_start, 6);
+        assert_eq!(info.src, "func main(): int {");
 
         fs::remove_dir_all(dir).expect("temp dir should be removed");
     }
@@ -509,11 +534,11 @@ mod tests {
 
         let last_line_start = source.rfind('\n').expect("last line should exist") + 1;
         let value_index = source[..last_line_start].chars().count() + 4;
-        let (line, column, line_source) = context.get_line_info(&path, value_index);
+        let info = context.get_line_info(&path, value_index);
 
-        assert_eq!(line, 3);
-        assert_eq!(column, 5);
-        assert_eq!(line_source, "    value");
+        assert_eq!(info.line, 3);
+        assert_eq!(info.column_start, 5);
+        assert_eq!(info.src, "    value");
 
         fs::remove_dir_all(dir).expect("temp dir should be removed");
     }
@@ -523,11 +548,11 @@ mod tests {
         let source = "a\u{00E7}\u{00E3}o\n\u{03B2}";
         let (context, path, dir) = temp_context(source, "utf8");
 
-        let (line, column, line_source) = context.get_line_info(&path, 2);
+        let info = context.get_line_info(&path, 2);
 
-        assert_eq!(line, 1);
-        assert_eq!(column, 3);
-        assert_eq!(line_source, "a\u{00E7}\u{00E3}o");
+        assert_eq!(info.line, 1);
+        assert_eq!(info.column_start, 3);
+        assert_eq!(info.src, "a\u{00E7}\u{00E3}o");
 
         fs::remove_dir_all(dir).expect("temp dir should be removed");
     }
@@ -536,11 +561,11 @@ mod tests {
     fn get_line_info_handles_empty_sources() {
         let (context, path, dir) = temp_context("", "empty");
 
-        let (line, column, line_source) = context.get_line_info(&path, 0);
+        let info = context.get_line_info(&path, 0);
 
-        assert_eq!(line, 1);
-        assert_eq!(column, 1);
-        assert_eq!(line_source, "");
+        assert_eq!(info.line, 1);
+        assert_eq!(info.column_start, 1);
+        assert_eq!(info.src, "");
 
         fs::remove_dir_all(dir).expect("temp dir should be removed");
     }

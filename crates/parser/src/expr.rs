@@ -1,9 +1,9 @@
-use crate::{Parser, error::ParseError};
-use color_eyre::eyre::Result;
-use common::ast::{
+use crate::{
     ASTExpression, ASTExpressionKind, ComponentExpression, ComponentMemberValue, GenericIdentifier,
-    NamedExpr, Operator, Span,
+    NamedExpr,
 };
+use crate::{Parser, Result, error::ParseError};
+use common::{Operator, Span};
 use slynx_lexer::tokens::{Token, TokenKind};
 
 impl Parser {
@@ -39,8 +39,7 @@ impl Parser {
                     return Err(ParseError::UnexpectedToken(
                         self.eat()?,
                         "an expression or ','".to_string(),
-                    )
-                    .into());
+                    ));
                 }
             }
         }
@@ -205,7 +204,7 @@ impl Parser {
                             kind: ASTExpressionKind::Component(component),
                         }))
                     } else {
-                        Err(ParseError::UnexpectedToken(self.eat()?, "'{'".to_string()).into())
+                        Err(ParseError::UnexpectedToken(self.eat()?, "'{'".to_string()))
                     }
                 } else {
                     Ok(None)
@@ -468,7 +467,10 @@ impl Parser {
                     index: index as usize,
                 },
             }),
-            _ => Err(ParseError::UnexpectedToken(current, "A field access".to_string()).into()),
+            _ => Err(ParseError::UnexpectedToken(
+                current,
+                "A field access".to_string(),
+            )),
         }
     }
     /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.

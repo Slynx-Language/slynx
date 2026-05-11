@@ -4,12 +4,10 @@
 //! It handles the resolution of function bodies, component property
 //! initialization, and ensures type safety through unification.
 
-use color_eyre::eyre::Result;
-
-use super::TypeChecker;
+use super::{Result, TypeChecker};
 
 use crate::error::{TypeError, TypeErrorKind};
-use common::ast::Span;
+use common::Span;
 use slynx_hir::{
     DeclarationId, TypeId,
     model::{
@@ -29,8 +27,7 @@ impl TypeChecker {
             v => Err(TypeError {
                 kind: TypeErrorKind::NotAStruct(v.clone()),
                 span: *span,
-            }
-            .into()),
+            }),
         }
     }
 
@@ -85,8 +82,7 @@ impl TypeChecker {
                     return Err(TypeError {
                         kind: TypeErrorKind::Unrecognized,
                         span: *span,
-                    }
-                    .into());
+                    });
                 };
 
                 *field_index = index;
@@ -115,8 +111,7 @@ impl TypeChecker {
             return Err(TypeError {
                 kind: TypeErrorKind::Unrecognized,
                 span: *span,
-            }
-            .into());
+            });
         };
 
         let resolved = self.types_module.get_type(&function_ty).clone();
@@ -127,8 +122,7 @@ impl TypeChecker {
                     received: resolved,
                 },
                 span: *span,
-            }
-            .into());
+            });
         };
         Ok((args, return_type))
     }
@@ -146,8 +140,7 @@ impl TypeChecker {
                     received_length: args.len(),
                 },
                 span: *span,
-            }
-            .into());
+            });
         }
         Ok(())
     }

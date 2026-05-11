@@ -1,7 +1,7 @@
 use super::Parser;
 use crate::error::ParseError;
-use color_eyre::eyre::Result;
-use common::{ASTDeclaration, ASTDeclarationKind, Span, ast::GenericIdentifier};
+use crate::{ASTDeclaration, ASTDeclarationKind, Result, ast::GenericIdentifier};
+use common::Span;
 use slynx_lexer::tokens::{Token, TokenKind};
 impl Parser {
     ///Parses an alias declaration which follows `alias ty = AnotherType`
@@ -40,10 +40,10 @@ impl Parser {
                 (false, n) => return Ok((false, n - initial_ahead)),
             }
         }
-        return Ok((
+        Ok((
             matches!(self.peek_at(ahead + 1)?.kind, TokenKind::Gt),
             ahead - initial_ahead,
-        ));
+        ))
     }
 
     ///Parses a type.
@@ -76,8 +76,7 @@ impl Parser {
                         return Err(ParseError::UnexpectedToken(
                             self.eat()?,
                             "expected ',' or ')' in tuple type".into(),
-                        )
-                        .into());
+                        ));
                     }
                 }
             }

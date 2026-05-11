@@ -9,6 +9,27 @@ pub mod parser;
 
 use helpers::SlynxSuggestion;
 
+use crate::helpers::ErrorMetadata;
+
+///A column range that's is represented by 48 bits for indexing, and 16 bits to define its range.
+#[derive(Debug)]
+pub struct ColumnRange(u64);
+impl ColumnRange {
+    pub fn new(start: usize, end: usize) -> Self {
+        let start = start as u64;
+        let end = end as u64;
+        let dif = end - start;
+        Self(start << 32 | dif & 0xffffffff)
+    }
+
+    pub fn start(&self) -> usize {
+        (self.0 >> 32) as usize
+    }
+    pub fn end(&self) -> usize {
+        self.start() + (self.0 as usize & 0xffffffff)
+    }
+}
+
 #[derive(Debug)]
 ///The type of the error that was generated
 pub enum SlynxErrorType {
@@ -33,41 +54,45 @@ impl std::fmt::Display for SlynxErrorType {
 #[derive(Debug)]
 ///An error that will be shown if something fails
 pub struct SlynxError {
-    ty: SlynxErrorType,
-    line: usize,
-    column_start: usize,
-    message: String,
+    ///The phase this error was generated at
+    pub ty: SlynxErrorType,
+    ///The initial line this error occurs
+    pub line: usize,
+    ///The starting column of this error. Thus, where it initializes inside a buffer
+    pub column: ColumnRange,
+    ///All the metadata of this error, such as File, Message and Source
+    pub metadata: ErrorMetadata,
     ///The file path the error occuried
-    file: String,
-    source_code: String,
-    suggestion: Vec<SlynxSuggestion>,
+    ///Suggestions for solving this error
+    pub suggestion: Vec<SlynxSuggestion>,
 }
+
 impl std::error::Error for SlynxError {}
 
 impl std::fmt::Display for SlynxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let type_error = self.ty.to_string();
-        let source = self.source_code.replace("\t", " ");
+        let source = self.metadata.source().replace("\t", " ");
         let before_error = format!("{} |", self.line);
         let error_with_data = format!("{before_error}{source}");
 
         let error_points = {
             let points_offset = " ".to_string();
-            let points = "^".repeat(self.source_code.trim().len());
+            let points = "^".repeat(self.metadata.source().trim().len());
             format!("{before_error}{points_offset}{points}",)
         };
 
         let line_and_column = format!(
             "{}:{}",
             self.line.blue().bold(),
-            self.column_start.blue().bold()
+            self.column.start().blue().bold()
         );
         writeln!(
             f,
             "{}: {} => {}:{line_and_column}",
             type_error.green().bold(),
-            self.message.red(),
-            self.file.bold()
+            self.metadata.message().red(),
+            self.metadata.file().bold()
         )?;
         writeln!(f, "{}", error_with_data)?;
         writeln!(f, "{}", error_points)?;
@@ -84,6 +109,7 @@ macro_rules! impl_slynx_error {
             pub fn $name(
                 line: usize,
                 column: usize,
+                end_column: usize,
                 message: String,
                 file: String,
                 source: String,
@@ -92,10 +118,8 @@ macro_rules! impl_slynx_error {
                 Self {
                     ty: $value,
                     line,
-                    column_start: column,
-                    message,
-                    file,
-                    source_code: source,
+                    column: ColumnRange::new(column, end_column),
+                    metadata: ErrorMetadata::new(file, message, source),
                     suggestion,
                 }
             }

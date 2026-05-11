@@ -4,10 +4,8 @@ use crate::{
     model::HirType,
 };
 
-use common::{
-    SymbolPointer,
-    ast::{GenericIdentifier, Span},
-};
+use common::{Span, SymbolPointer};
+use slynx_parser::GenericIdentifier;
 //file specific to implement things related to name resolution
 impl SlynxHir {
     ///Retrieves the pointer(simply a symbol) of the provided `name`.

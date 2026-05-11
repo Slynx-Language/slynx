@@ -1,3 +1,4 @@
+mod ast;
 mod component;
 pub mod conditionals;
 pub mod error;
@@ -6,7 +7,7 @@ mod functions;
 pub mod objects;
 mod statement;
 mod types;
-use color_eyre::eyre::{Report, Result};
+pub use ast::*;
 
 use crate::error::ParseError;
 use slynx_lexer::{
@@ -14,7 +15,8 @@ use slynx_lexer::{
     tokens::{Token, TokenKind},
 };
 
-use common::ast::ASTDeclaration;
+pub type Result<T> = std::result::Result<T, ParseError>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParserFlags {
     None,
@@ -39,9 +41,7 @@ impl Parser {
     /// Consumes the next token from the input stream and returns it.
     /// If the end of the input stream is reached, it returns an error indicating that there
     pub fn eat(&mut self) -> Result<Token> {
-        self.stream
-            .next()
-            .ok_or(Report::new(ParseError::UnexpectedEndOfInput))
+        self.stream.next().ok_or(ParseError::UnexpectedEndOfInput)
     }
 
     /// Peeks at the token at the specified index without consuming it.
@@ -50,11 +50,11 @@ impl Parser {
         self.stream
             .stream
             .get(idx)
-            .ok_or(Report::new(ParseError::UnexpectedEndOfInput))
+            .ok_or(ParseError::UnexpectedEndOfInput)
     }
 
     /// Peeks at the next token without consuming it.
-    /// Returns a reference to the next token if it exists, or an error if the end of the input stream is reached.  
+    /// Returns a reference to the next token if it exists, or an error if the end of the input stream is reached.
     pub fn peek(&self) -> Result<&Token> {
         self.peek_at(0)
     }
@@ -73,7 +73,7 @@ impl Parser {
                 TokenKind::String(_) => "a string literal".to_string(),
                 _ => format!("'{kind}'",),
             };
-            Err(ParseError::UnexpectedToken(token, kind).into())
+            Err(ParseError::UnexpectedToken(token, kind))
         }
     }
     /// Parses the declarations in the source code and returns them as a vector of `ASTDeclaration`s.
@@ -109,8 +109,7 @@ impl Parser {
                     return Err(ParseError::UnexpectedToken(
                         self.eat()?,
                         "a function, component, object or alias declaration".to_owned(),
-                    )
-                    .into());
+                    ));
                 }
             }
         }
@@ -138,7 +137,7 @@ impl Parser {
         result
     }
 
-    pub fn finish_current_parse(&mut self) -> Result<(), Report> {
+    pub fn finish_current_parse(&mut self) -> Result<()> {
         if self.flags == ParserFlags::RequireSemicolon {
             self.expect(&TokenKind::SemiColon)?;
         }

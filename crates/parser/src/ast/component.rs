@@ -1,4 +1,5 @@
-use crate::ast::{ASTExpression, GenericIdentifier, Span, VisibilityModifier};
+use crate::ast::{ASTExpression, GenericIdentifier, VisibilityModifier};
+use common::Span;
 #[derive(Debug)]
 ///A member on a component, this can be a property or a child expression
 pub struct ComponentMember {

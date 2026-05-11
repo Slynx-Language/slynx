@@ -1,9 +1,8 @@
-use color_eyre::eyre::Result;
-
-use crate::Parser;
+use crate::{Parser, Result};
 use slynx_lexer::tokens::{Token, TokenKind};
 
-use common::ast::{ASTStatement, ASTStatementKind, Span};
+use crate::ast::{ASTStatement, ASTStatementKind};
+use common::Span;
 
 impl Parser {
     ///Parses a let Statement. Until now it's only for variable declaration, so, this only parses 'let name: t = value;' or 'let name = value;', same for mut variants

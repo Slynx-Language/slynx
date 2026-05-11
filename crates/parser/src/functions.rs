@@ -1,11 +1,8 @@
-use color_eyre::eyre::Result;
-
-use crate::{Parser, error::ParseError};
+use crate::{Parser, Result, error::ParseError};
 use slynx_lexer::tokens::{Token, TokenKind};
 
-use common::ast::{
-    ASTDeclaration, ASTDeclarationKind, ASTStatement, ASTStatementKind, Span, TypedName,
-};
+use crate::ast::{ASTDeclaration, ASTDeclarationKind, ASTStatement, ASTStatementKind, TypedName};
+use common::Span;
 impl Parser {
     ///Parses a typed name. A typed name is `name: type`, which is a name that contains a type
     pub fn parse_typedname(&mut self) -> Result<TypedName> {
@@ -99,7 +96,10 @@ impl Parser {
                     },
                 })
             }
-            _ => Err(ParseError::UnexpectedToken(current, "'->' or '{'".to_string()).into()),
+            _ => Err(ParseError::UnexpectedToken(
+                current,
+                "'->' or '{'".to_string(),
+            )),
         }
     }
 }

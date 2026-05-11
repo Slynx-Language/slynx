@@ -1,7 +1,8 @@
 use crate::{
     ASTStatement,
-    ast::{ComponentExpression, GenericIdentifier, Operator, Span},
+    ast::{ComponentExpression, GenericIdentifier},
 };
+use common::{Operator, Span};
 
 #[derive(Debug)]
 ///Simply a name that comes before an expression. It represents anything like 'name: expr', '.name:expr' etc

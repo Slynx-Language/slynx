@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use common::Span;
 use slynx_hir::{Result, SlynxHir, TypeId, error::HIRError, model::HirType, modules::TypesModule};
 
 ///A struct that handles all the monomorphization on the code
@@ -29,7 +30,7 @@ impl Monomorphizer {
         &mut self,
         _hir: &SlynxHir,
         id: TypeId,
-        span: common::ast::Span,
+        span: Span,
         types_module: &TypesModule,
     ) -> Result<()> {
         let mut current = id;
@@ -57,10 +58,10 @@ impl Monomorphizer {
 mod tests {
     use super::Monomorphizer;
     use crate::{
-        checker::TypeChecker,
         hir::{SlynxHir, error::HIRErrorKind},
         lexer::Lexer,
         parser::Parser,
+        slynx_checker::TypeChecker,
     };
 
     fn load_hir_from_source(source: &str) -> SlynxHir {

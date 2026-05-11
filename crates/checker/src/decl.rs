@@ -15,9 +15,7 @@ resolving expressions so we don't hold a long-lived borrow on the
 access the `TypesModule`.
 */
 
-use color_eyre::eyre::Result;
-
-use super::TypeChecker;
+use super::{Result, TypeChecker};
 
 use slynx_hir::{
     TypeId,

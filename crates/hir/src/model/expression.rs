@@ -84,12 +84,11 @@
 //! - [`crate::hir::model::HirStatement`] — Statement nodes
 //! - [`crate::hir::implementation::expression::resolve_expr`] — Expression resolution
 
-use common::{Operator, Span};
-
 use crate::{
     DeclarationId, ExpressionId, TypeId, VariableId,
     model::{ComponentMemberDeclaration, HirStatement},
 };
+use common::{Operator, Span, SymbolPointer};
 
 /// An expression node in the HIR.
 ///
@@ -320,7 +319,7 @@ pub enum HirExpressionKind {
     /// ```slynx
     /// let message = "Hello, world!";
     /// ```
-    StringLiteral(String),
+    StringLiteral(SymbolPointer),
 
     /// A floating-point literal expression.
     ///

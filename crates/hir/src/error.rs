@@ -1,9 +1,6 @@
 use crate::model::{HirExpression, HirType};
 
-use common::{
-    SymbolPointer,
-    ast::{ComponentExpression, Span},
-};
+use common::{Span, SymbolPointer};
 
 /// An error produced during HIR generation or type checking.
 ///
@@ -67,10 +64,7 @@ pub enum HIRErrorKind {
         prop_name: SymbolPointer,
     },
     /// A component child expression is not valid in this context.
-    InvalidChild {
-        /// The invalid child expression.
-        child: Box<ComponentExpression>,
-    },
+    InvalidChild,
     /// A type was used in an invalid way (e.g., missing generics or incorrect usage).
     InvalidType {
         /// The type symbol that was used incorrectly.
@@ -178,7 +172,45 @@ impl HIRError {
     }
 }
 
-/// The reason a type was used in an invalid way.
+impl std::fmt::Display for HIRError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.kind {
+            HIRErrorKind::TypeNotRecognized(_) => write!(f, "Type not recognized"),
+            HIRErrorKind::NameNotRecognized(_) => write!(f, "Name not recognized"),
+            HIRErrorKind::NameAlreadyDefined(_) => write!(f, "Name already defined"),
+            HIRErrorKind::InvalidFieldAccessTarget { .. } => {
+                write!(f, "Invalid field access target")
+            }
+            HIRErrorKind::InvalidTupleAccessTarget { .. } => {
+                write!(f, "Invalid tuple access target")
+            }
+            HIRErrorKind::InvalidTupleIndex { index, length } => {
+                write!(f, "Tuple index {index} out of bounds (length: {length})")
+            }
+            HIRErrorKind::InvalidBinaryExpression { .. } => write!(f, "Invalid binary expression"),
+            HIRErrorKind::MissingProperty { .. } => write!(f, "Missing required property"),
+            HIRErrorKind::PropertyNotRecognized { .. } => write!(f, "Property not recognized"),
+            HIRErrorKind::PropertyNotVisible { .. } => write!(f, "Property not visible"),
+            HIRErrorKind::InvalidChild => write!(f, "Invalid child expression"),
+            HIRErrorKind::InvalidType { reason, .. } => write!(f, "Invalid type: {reason}"),
+            HIRErrorKind::RecursiveType { .. } => write!(f, "Recursive type definition"),
+            HIRErrorKind::NotAFunction(..) => write!(f, "Not a function"),
+            HIRErrorKind::InvalidFuncallArgLength {
+                expected_length,
+                received_length,
+                ..
+            } => {
+                write!(
+                    f,
+                    "Expected {expected_length} arguments, got {received_length}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for HIRError {}
+///The reason why some type is being used incorrectly
 #[derive(Debug)]
 pub enum InvalidTypeReason {
     /// The type requires a generic parameter that was not provided.

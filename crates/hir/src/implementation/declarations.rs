@@ -3,9 +3,10 @@ use crate::{
     error::HIRError,
     model::{ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirStatement, HirType},
 };
-use common::{
-    ASTStatement, ASTStatementKind,
-    ast::{ComponentMember, ComponentMemberKind, GenericIdentifier, ObjectField, Span, TypedName},
+use common::Span;
+use slynx_parser::{
+    ASTStatement, ASTStatementKind, ComponentMember, ComponentMemberKind, GenericIdentifier,
+    ObjectField, TypedName,
 };
 
 impl SlynxHir {
@@ -21,12 +22,12 @@ impl SlynxHir {
     /// Resolves an object declaration, filling in its field types and pushing the declaration.
     pub fn resolve_object(
         &mut self,
-        name: GenericIdentifier,
-        fields: Vec<ObjectField>,
+        name: &GenericIdentifier,
+        fields: &[ObjectField],
         span: Span,
     ) -> Result<()> {
         let mut fields = fields
-            .into_iter()
+            .iter()
             .map(|field| {
                 let symbol_name = self.modules.intern_name(&name.identifier);
                 if self.modules.intern_name(&field.name.name) == symbol_name {
@@ -79,7 +80,7 @@ impl SlynxHir {
         &mut self,
         name: &GenericIdentifier,
         args: &[TypedName],
-        body: Vec<ASTStatement>,
+        body: &[ASTStatement],
         span: &Span,
     ) -> Result<()> {
         let symbol = self.modules.intern_name(&name.identifier);
@@ -101,13 +102,13 @@ impl SlynxHir {
             .collect::<Result<Vec<_>>>()?;
         let body_len = body.len();
         let statements = body
-            .into_iter()
+            .iter()
             .enumerate()
             .map(|(index, statement)| {
                 let is_last = index + 1 == body_len;
                 match statement {
                     // The last expression in a function body becomes the implicit return.
-                    common::ast::ASTStatement {
+                    ASTStatement {
                         kind: ASTStatementKind::Expression(expr),
                         ..
                     } if is_last => self.resolve_expr(expr, None).map(HirStatement::new_return),
@@ -153,12 +154,12 @@ impl SlynxHir {
     /// Resolves the member definitions of a component body into [`ComponentMemberDeclaration`]s.
     pub fn resolve_component_defs(
         &mut self,
-        def: Vec<ComponentMember>,
+        def: &[ComponentMember],
     ) -> Result<Vec<ComponentMemberDeclaration>> {
         let mut out = Vec::with_capacity(def.len());
         let mut prop_idx = 0;
         for def in def {
-            match def.kind {
+            match &def.kind {
                 ComponentMemberKind::Property { ty, rhs, name, .. } => {
                     let ty = if let Some(ty) = ty {
                         self.retrieve_information_of_type(&ty.identifier, &ty.span)?
@@ -174,7 +175,7 @@ impl SlynxHir {
                     out.push(ComponentMemberDeclaration::new_property(
                         prop_idx, rhs, def.span,
                     ));
-                    let name = self.modules.intern_name(&name);
+                    let name = self.modules.intern_name(name);
 
                     self.create_variable(name, ty, &def.span)?;
                     prop_idx += 1;

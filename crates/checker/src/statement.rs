@@ -4,9 +4,7 @@
 //! variable declarations, assignments, and expressions. It uses the `TypeChecker`
 //! context to resolve types and unify them with expected types.
 
-use color_eyre::eyre::Result;
-
-use crate::TypeChecker;
+use crate::{Result, TypeChecker};
 use slynx_hir::{
     TypeId,
     model::{HirStatement, HirStatementKind},

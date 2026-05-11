@@ -1,9 +1,6 @@
 mod common;
 
-use slynx_typechecker::{
-    TypeChecker,
-    error::{TypeError, TypeErrorKind},
-};
+use slynx_typechecker::{TypeChecker, error::TypeErrorKind};
 
 #[test]
 fn typechecker_rejects_function_call_with_missing_arg() {
@@ -14,11 +11,8 @@ fn typechecker_rejects_function_call_with_missing_arg() {
 
     let err = TypeChecker::check(&mut hir)
         .expect_err("type checker should reject function calls with missing args");
-    let type_error = err
-        .downcast_ref::<TypeError>()
-        .expect("error should come from type checker");
 
-    match &type_error.kind {
+    match &err.kind {
         TypeErrorKind::InvalidFuncallArgLength {
             expected_length,
             received_length,

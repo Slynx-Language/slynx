@@ -87,7 +87,7 @@ use crate::{
     model::{HirDeclaration, HirDeclarationKind, HirType},
     modules::HirModules,
 };
-use common::ast::{ASTDeclaration, ASTDeclarationKind};
+use slynx_parser::{ASTDeclaration, ASTDeclarationKind};
 
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
 
@@ -280,9 +280,9 @@ impl SlynxHir {
     /// - [`hoist`](SlynxHir::hoist) — Phase 1: Declaration registration
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`modules::HirModules`] — Scope and symbol management during generation
-    pub fn generate(&mut self, ast: Vec<ASTDeclaration>) -> Result<()> {
+    pub fn generate(&mut self, ast: &[ASTDeclaration]) -> Result<()> {
         // Phase 1: Hoist all declarations to register them in their scopes
-        for ast in &ast {
+        for ast in ast {
             self.hoist(ast)?;
         }
 
@@ -419,14 +419,14 @@ impl SlynxHir {
     /// - [`generate`](SlynxHir::generate) — Main entry point (calls this in phase 2)
     /// - [`hoist`](SlynxHir::hoist) — Phase 1: Declaration registration
     /// - [`implementation::declarations::resolve_function`](crate::hir::implementation::declarations::resolve_function)
-    fn resolve(&mut self, ast: ASTDeclaration) -> Result<()> {
-        match ast.kind {
+    fn resolve(&mut self, ast: &ASTDeclaration) -> Result<()> {
+        match &ast.kind {
             ASTDeclarationKind::ObjectDeclaration { name, fields, .. } => {
                 self.resolve_object(name, fields, ast.span)?
             }
             ASTDeclarationKind::FuncDeclaration {
                 name, args, body, ..
-            } => self.resolve_function(&name, &args, body, &ast.span)?,
+            } => self.resolve_function(name, args, body, &ast.span)?,
             ASTDeclarationKind::ComponentDeclaration { members, name } => {
                 self.modules.enter_scope();
                 let symbol = self.modules.intern_name(&name.identifier);

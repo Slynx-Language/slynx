@@ -1,5 +1,6 @@
 use crate::{Result, SlynxHir, TypeId, error::HIRError, model::HirType};
-use common::ast::{GenericIdentifier, Span};
+use common::Span;
+use slynx_parser::GenericIdentifier;
 
 impl SlynxHir {
     ///Retrieves the type of the provided `name` but in the global scope
