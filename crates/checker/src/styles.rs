@@ -35,8 +35,8 @@ impl TypeChecker {
         let args = args.clone();
         if usage.params.len() != args.len() {
             return Err(TypeError::invalid_funcall_args(
-                usage.params.len(),
                 args.len(),
+                usage.params.len(),
                 usage.span,
             ));
         }

@@ -20,7 +20,6 @@ type ResolvedStyle<'a> = (Vec<StyleValue<'a>>, Vec<DeclarationId>);
 
 impl SlynxIR {
     /// Collect style property definitions from a list of style statements.
-    /// Returns (property_name_symbol, &expression) pairs.
     fn collect_style_properties<'a>(
         &self,
         statements: &'a [HirStyleStatement],
@@ -40,6 +39,7 @@ impl SlynxIR {
         }
         props
     }
+
     /// Lower a stylesheet declaration into IR.
     ///
     /// 1. Resolve inheritance from `uses` clauses.
@@ -49,7 +49,6 @@ impl SlynxIR {
     pub(crate) fn lower_stylesheet(
         &mut self,
         decl: &HirDeclaration,
-        hir: &[HirDeclaration],
         temp: &mut TempIRData,
     ) -> Result<(), IRError> {
         let HirDeclarationKind::StyleSheet {
@@ -71,7 +70,7 @@ impl SlynxIR {
 
         // 2. Resolve inheritance: merge parent properties with own properties
         let (merged_props, parent_usage_decls) =
-            self.resolve_style_inheritance(usages, &own_props, hir, temp)?;
+            self.resolve_style_inheritance(usages, &own_props, temp.hir)?;
 
         // 3. Populate the struct type fields
         let struct_ty = temp.get_type(decl.ty)?;
@@ -100,7 +99,6 @@ impl SlynxIR {
         usages: &[HirStyleUsage],
         own_props: &[&'a StylesDefinition],
         hir: &'a [HirDeclaration],
-        _temp: &TempIRData,
     ) -> Result<ResolvedStyle<'a>, IRError> {
         let mut merged: Vec<(StyleProperty, &HirExpression)> = Vec::new();
         let mut seen_codes: HashSet<StyleProperty> = HashSet::new();
@@ -201,7 +199,9 @@ impl SlynxIR {
             func_ty.set_return_type(void_ty);
         }
 
-        // Set up entry label
+        // Set up entry label, saving and restoring prior temp state
+        let prev_func = temp.current_function();
+        let prev_label = temp.current_label();
         temp.set_current_function(ctx);
         let entry_label = self.insert_label(ctx, "entry");
         self.get_context_mut(ctx)
@@ -264,6 +264,9 @@ impl SlynxIR {
             Instruction::ret(void_value, void_ty),
             true,
         );
+
+        temp.set_current_function(prev_func);
+        temp.set_current_label(prev_label);
 
         Ok(ctx)
     }

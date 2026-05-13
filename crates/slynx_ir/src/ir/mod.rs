@@ -137,7 +137,7 @@ impl SlynxIR {
                     temp.define_type(declaration.ty, t);
                 }
                 HirDeclarationKind::StyleSheet { .. } => {
-                    self.lower_stylesheet(declaration, &hir, &mut temp)?;
+                    self.lower_stylesheet(declaration, &mut temp)?;
                 }
             }
         }

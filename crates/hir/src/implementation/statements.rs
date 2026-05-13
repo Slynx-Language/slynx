@@ -130,7 +130,7 @@ impl SlynxHir {
         for style in styles {
             let kind = match style.event.as_deref() {
                 Some("hover") => HirStyleBlockKind::Hover,
-                None => HirStyleBlockKind::Default,
+                Some("default") | None => HirStyleBlockKind::Default,
                 Some(event) => {
                     let event = self.modules.intern_name(event);
                     return Err(HIRError::invalid_style_event(event, style.span));

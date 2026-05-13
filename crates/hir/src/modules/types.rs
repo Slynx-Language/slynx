@@ -169,7 +169,7 @@ impl TypesModule {
     pub fn get_component(&self, ty: &TypeId) -> Option<&HirType> {
         match self.get_type(ty) {
             v @ HirType::Component { .. } => Some(v),
-            HirType::Reference { rf, .. } => self.get_object(rf),
+            HirType::Reference { rf, .. } => self.get_component(rf),
             _ => None,
         }
     }

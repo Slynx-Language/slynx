@@ -202,7 +202,7 @@ impl SlynxHir {
                     .collect::<Result<_>>()
             })
             .transpose()?;
-        let else_type = match then_block.last().map(|s| &s.kind) {
+        let else_type = match else_block.as_ref().and_then(|b| b.last()).map(|s| &s.kind) {
             Some(HirStatementKind::Expression { expr }) => expr.ty,
             Some(HirStatementKind::Variable { value, .. }) => value.ty,
             _ => self.void_type(),
