@@ -216,6 +216,8 @@ impl TypeChecker {
                         ComponentMemberDeclaration::Child { name, values, .. } => {
                             self.resolve_component_members(values, *name)?;
                         }
+
+                        ComponentMemberDeclaration::Style { .. } => {}
                     }
                 }
             }
@@ -581,6 +583,7 @@ impl TypeChecker {
                         ComponentMemberDeclaration::Child { name, values, .. } => {
                             self.resolve_component_members(values, *name)?;
                         }
+                        ComponentMemberDeclaration::Style { .. } => {}
                     }
                 }
             }

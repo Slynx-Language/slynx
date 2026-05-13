@@ -69,6 +69,8 @@ impl TypeChecker {
                         ComponentMemberDeclaration::Child { .. } => {}
 
                         ComponentMemberDeclaration::Specialized(_) => {}
+
+                        ComponentMemberDeclaration::Style { .. } => {}
                     }
                 }
 
@@ -128,6 +130,10 @@ impl TypeChecker {
                     ..
                 } => {
                     self.resolve_component_members(child_values, *name)?;
+                }
+
+                ComponentMemberDeclaration::Style { usage, .. } => {
+                    self.check_style_usage(usage)?;
                 }
             }
         }
