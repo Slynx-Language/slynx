@@ -81,6 +81,7 @@ impl SlynxHir {
         }
     }
 
+    ///Transforms the given `statement` into an HIR style statement
     pub fn resolve_stylesheet_statement(
         &mut self,
         statement: &StyleSheetStatement,
@@ -101,12 +102,13 @@ impl SlynxHir {
             "backgroundColor" | "foregroundColor" => self.int32_type(),
             _ => {
                 let name = self.modules.intern_name(name);
-                return Err(HIRError::invalid_style(name, span));
+                return Err(HIRError::invalid_style_definition(name, span));
             }
         };
         Ok(ty)
     }
 
+    ///Transforms the given `definitions` in a vector of `StyleDefinition`
     pub fn resolve_style_definitions(
         &mut self,
         definitions: &[NamedExpr],
@@ -122,6 +124,7 @@ impl SlynxHir {
             .collect::<Result<Vec<_>>>()
     }
 
+    ///Resolves the given `styles` blocks, and creates `HirStyleBlock`s based on them
     pub fn resolve_stylesblock(&mut self, styles: &[StyleBlock]) -> Result<Vec<HirStyleBlock>> {
         let mut out = Vec::new();
         for style in styles {
@@ -130,7 +133,7 @@ impl SlynxHir {
                 None => HirStyleBlockKind::Default,
                 Some(event) => {
                     let event = self.modules.intern_name(event);
-                    return Err(HIRError::invalid_event(event, style.span));
+                    return Err(HIRError::invalid_style_event(event, style.span));
                 }
             };
             let definitions = self.resolve_style_definitions(&style.properties)?;

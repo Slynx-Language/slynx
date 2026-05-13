@@ -84,6 +84,14 @@ impl SlynxContext {
                 let ty = hir.get_name(*ty);
                 format!("The type named as '{ty}' is recursive at this point")
             }
+            HIRErrorKind::InvalidStyleEvent { name } => {
+                let name = hir.get_name(*name);
+                format!("Invalid style event '{name}'")
+            }
+            HIRErrorKind::InvalidStyleDefinition { name } => {
+                let name = hir.get_name(*name);
+                format!("Invalid style definition '{name}'")
+            }
         }
     }
 

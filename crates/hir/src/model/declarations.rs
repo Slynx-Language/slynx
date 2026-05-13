@@ -442,6 +442,7 @@ impl HirDeclaration {
         }
     }
 
+    ///Creates a new stylesheet declaration with the given `args`, `statements` and `usages`. `span`, `id` and `ty`(pe) are metadata for the declaration
     pub fn new_stylesheet(
         args: Vec<VariableId>,
         statements: Vec<HirStyleStatement>,

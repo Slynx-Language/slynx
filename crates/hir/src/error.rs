@@ -88,22 +88,35 @@ pub enum HIRErrorKind {
         /// The number of arguments that were provided.
         received_length: usize,
     },
+    ///An error that occurs when an style event is used on a stylesheet. For example:
+    ///```slx
+    /// stylesheet Example(){
+    ///     styles {
+    ///       blob(){/*wtf is blob?*/}
+    ///     }
+    /// }```
     InvalidStyleEvent {
+        ///The name of the event that is invalid
         name: SymbolPointer,
     },
+    ///An error that occurs when a style definition is invalid, such as `fg: red`, where `fg` does not exist
     InvalidStyleDefinition {
+        ///The name of the definition that is invalid
         name: SymbolPointer,
     },
 }
 
 impl HIRError {
-    pub fn invalid_style(name: SymbolPointer, span: Span) -> Self {
+    ///Creates a new `InvalidStyleDefinition` error, where the name of the style definition is the given `name` and the given `span` is
+    ///the span on the code that generated so
+    pub fn invalid_style_definition(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidStyleDefinition { name },
             span,
         }
     }
-    pub fn invalid_event(name: SymbolPointer, span: Span) -> Self {
+    ///Creates a new `InvalidStyleEvent` error, where the `name` is the invalid style event
+    pub fn invalid_style_event(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidStyleEvent { name },
             span,

@@ -83,10 +83,7 @@ pub mod modules;
 pub mod names;
 
 pub use crate::error::{HIRError, HIRErrorKind};
-use crate::{
-    model::{HirDeclaration, HirDeclarationKind, HirType},
-    modules::HirModules,
-};
+use crate::{model::HirDeclaration, modules::HirModules};
 use slynx_parser::{ASTDeclaration, ASTDeclarationKind};
 
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
@@ -444,7 +441,7 @@ impl SlynxHir {
                 usages,
                 body,
             } => {
-                self.resolve_stylesheet(name, args, usages, body, ast.span);
+                self.resolve_stylesheet(name, args, usages, body, ast.span)?;
             }
         }
         Ok(())

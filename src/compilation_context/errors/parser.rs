@@ -26,6 +26,18 @@ impl SlynxContext {
                     suggestion,
                 )
             }
+            err @ ParseError::NoStyleUsagesProvided => {
+                let suggestion = suggestions_from_parser(err);
+                SlynxError::new_parser(
+                    0,
+                    0,
+                    0,
+                    err.to_string(),
+                    self.file_name(),
+                    String::new(),
+                    suggestion,
+                )
+            }
             err @ ParseError::UnexpectedEndOfInput => {
                 let suggestion = suggestions_from_parser(err);
                 let LineInfo {

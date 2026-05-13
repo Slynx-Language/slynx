@@ -13,6 +13,7 @@ use slynx_parser::{
 };
 
 impl SlynxHir {
+    ///Hoists a `stylesheet` declaration
     pub fn hoist_stylesheet(&mut self, name: &str, args: &[TypedName]) {
         self.modules.create_declaration(
             &name,
@@ -22,6 +23,7 @@ impl SlynxHir {
         );
     }
 
+    ///Resolves a `stylesheet` declaration
     pub fn resolve_stylesheet(
         &mut self,
         name: &GenericIdentifier,
@@ -280,6 +282,7 @@ impl SlynxHir {
         Ok(out)
     }
 
+    ///Resolves a component declaration that contains the given `members` and the given `name`
     pub fn resolve_component_declaration(
         &mut self,
         members: &[ComponentMember],
@@ -306,6 +309,7 @@ impl SlynxHir {
         Ok(())
     }
 
+    ///Resolves an alias type, mapping the given `name` to the given `target`
     pub fn resolve_alias(
         &mut self,
         name: &GenericIdentifier,
