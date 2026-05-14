@@ -24,6 +24,7 @@
 //! - [`ComponentMemberDeclaration`] — Members of a component declaration
 
 use common::{Span, SymbolPointer};
+use slynx_parser::ComponentExpression;
 
 use crate::{
     DeclarationId, PropertyId, TypeId, VariableId,
@@ -39,37 +40,6 @@ pub struct HirStyleUsage {
     pub params: Vec<HirExpression>,
     ///The span of this usage, Covers from the name until the ')'
     pub span: Span,
-}
-
-/// A built-in specialized component with predefined rendering semantics.
-///
-/// Unlike user-defined components, specialized components (`Text`, `Div`) are
-/// handled directly by the compiler and do not require a component declaration.
-#[derive(Debug)]
-#[repr(C)]
-pub enum SpecializedComponent {
-    /// A text-rendering component with a single `text` expression.
-    Text {
-        /// The expression whose value is rendered as text.
-        text: Box<HirExpression>,
-    },
-    /// A layout container component with zero or more child declarations.
-    Div {
-        /// The child component declarations nested inside this `Div`.
-        children: Vec<ComponentMemberDeclaration>,
-    },
-}
-impl SpecializedComponent {
-    ///Creates a new specialized Text component with the given `text`
-    pub fn new_text(text: HirExpression) -> Self {
-        Self::Text {
-            text: Box::new(text),
-        }
-    }
-    ///Creates a new specialized Div component with the given `children`
-    pub fn new_div(children: Vec<ComponentMemberDeclaration>) -> Self {
-        Self::Div { children }
-    }
 }
 
 /// A top-level declaration in the HIR.
@@ -302,27 +272,7 @@ pub enum ComponentMemberDeclaration {
     /// - `name` — The child component's type
     /// - `values` — The child's property values
     /// - `span` — Source location for error reporting
-    Child {
-        /// The type of the child component.
-        name: TypeId,
-
-        /// The property values passed to the child component.
-        values: Vec<ComponentMemberDeclaration>,
-
-        /// The source location of this child declaration.
-        span: Span,
-    },
-
-    /// A specialized component with predefined behavior.
-    Specialized(super::SpecializedComponent),
-
-    /// A style usage declaration (e.g., `style: Rounded(12px)`).
-    Style {
-        /// The style usage information.
-        usage: HirStyleUsage,
-        /// The source location of this style usage.
-        span: Span,
-    },
+    Child(ComponentExpression),
 }
 
 impl ComponentMemberDeclaration {

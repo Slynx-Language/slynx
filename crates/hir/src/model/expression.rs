@@ -90,6 +90,59 @@ use crate::{
 };
 use common::{Operator, Span, SymbolPointer};
 
+#[derive(Debug)]
+pub struct PropertyExpression {
+    ///The property index this expression will be applied to
+    index: usize,
+    ///The expression of the property
+    expr: HirExpression,
+}
+
+#[derive(Debug)]
+pub enum HirComponentExpression {
+    Specialized(HirSpecializedComponentExpression),
+    Normal {
+        /// The type of the component.
+        name: TypeId,
+        ///The properties of this component
+        properties: Vec<PropertyExpression>,
+        ///The children of this component
+        children: Vec<HirComponentExpression>,
+        /// The source location of this child declaration.
+        span: Span,
+    },
+}
+
+/// A built-in specialized component with predefined rendering semantics.
+///
+/// Unlike user-defined components, specialized components (`Text`, `Div`) are
+/// handled directly by the compiler and do not require a component declaration.
+#[derive(Debug)]
+pub enum HirSpecializedComponentExpression {
+    /// A text-rendering component with a single `text` expression.
+    Text {
+        /// The expression whose value is rendered as text.
+        text: Box<HirExpression>,
+    },
+    /// A layout container component with zero or more child declarations.
+    Div {
+        /// The child component declarations nested inside this `Div`.
+        children: Vec<HirComponentExpression>,
+    },
+}
+impl HirSpecializedComponentExpression {
+    ///Creates a new specialized Text component with the given `text`
+    pub fn new_text(text: HirExpression) -> Self {
+        Self::Text {
+            text: Box::new(text),
+        }
+    }
+    ///Creates a new specialized Div component with the given `children`
+    pub fn new_div(children: Vec<HirComponentExpression>) -> Self {
+        Self::Div { children }
+    }
+}
+
 /// An expression node in the HIR.
 ///
 /// Every expression in the HIR is represented by this structure, which
@@ -155,7 +208,6 @@ use common::{Operator, Span, SymbolPointer};
 /// - The `ExpressionId` is used for tracking and debugging, but doesn't affect
 ///   the semantics of the program
 #[derive(Debug)]
-#[repr(C)]
 pub struct HirExpression {
     /// A unique identifier for this expression.
     ///
@@ -298,7 +350,6 @@ pub struct HirExpression {
 /// }
 /// ```
 #[derive(Debug)]
-#[repr(C)]
 pub enum HirExpressionKind {
     /// An integer literal expression.
     ///
@@ -420,7 +471,7 @@ pub enum HirExpressionKind {
     /// # Fields
     ///
     /// - The specialized component variant
-    Specialized(super::SpecializedComponent),
+    Specialized(HirSpecializedComponentExpression),
 
     /// A component construction expression.
     ///
