@@ -206,9 +206,7 @@ impl SlynxIR {
                 );
                 Value::Instruction(self.dereference_instruction_ptr(i).with_length())
             }
-            HirExpressionKind::Component { name, values } => {
-                self.get_component_expression(*name, values, temp)?
-            }
+            HirExpressionKind::Component(c) => self.get_component_expression(c, temp)?,
             HirExpressionKind::If {
                 condition,
                 then_branch,
@@ -271,9 +269,6 @@ impl SlynxIR {
                 } else {
                     end_label.get_argument_value(0)
                 }
-            }
-            HirExpressionKind::Specialized(_) => {
-                unimplemented!("Not implemented IR for specialized components");
             }
         };
         Ok(self.insert_value(value))

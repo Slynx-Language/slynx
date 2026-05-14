@@ -1,7 +1,7 @@
 use slynx_hir::{SlynxHir, error::HIRErrorKind};
 use slynx_lexer::Lexer;
-use slynx_parser::Parser;
 use slynx_monomorphizer::Monomorphizer;
+use slynx_parser::Parser;
 use slynx_typechecker::TypeChecker;
 
 #[test]
@@ -16,9 +16,8 @@ fn rejects_cyclic_aliases_in_monomorphization() {
 
     let mut types_module = TypeChecker::check(&mut hir).expect("type checking should pass");
 
-    let err =
-        Monomorphizer::resolve(&hir, &mut types_module)
-            .expect_err("cyclic aliases should fail during monomorphization");
+    let err = Monomorphizer::resolve(&hir, &mut types_module)
+        .expect_err("cyclic aliases should fail during monomorphization");
 
     match &err.kind {
         HIRErrorKind::RecursiveType { ty } => assert_eq!(*ty, hir.modules.intern_name("A")),

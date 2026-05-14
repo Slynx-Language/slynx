@@ -2,7 +2,9 @@ mod common;
 
 use slynx_hir::{
     ExpressionId,
-    model::{HirDeclaration, HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind},
+    model::{
+        HirDeclaration, HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind,
+    },
 };
 use slynx_typechecker::{TypeChecker, error::TypeErrorKind};
 
@@ -51,13 +53,13 @@ fn find_main_call_args(hir: &mut slynx_hir::SlynxHir) -> Option<&mut Vec<HirExpr
 #[test]
 fn function_calls_work_with_mixed_declaration_order() {
     let mut hir = load_hir("func bar(): void {} func main(): void { bar() }");
-    TypeChecker::check(&mut hir)
-        .expect("function call should resolve with declaration ids");
+    TypeChecker::check(&mut hir).expect("function call should resolve with declaration ids");
 }
 
 #[test]
 fn rejects_function_call_with_extra_arg() {
-    let mut hir = load_hir("func add(a: int, b: int): int { a + b } func main(): void { add(1, 2) }");
+    let mut hir =
+        load_hir("func add(a: int, b: int): int { a + b } func main(): void { add(1, 2) }");
     let args = find_main_call_args(&mut hir).expect("expected to find a function call in main");
     let template = args.first().expect("call should have at least one arg");
     args.push(HirExpression {
@@ -71,7 +73,10 @@ fn rejects_function_call_with_extra_arg() {
         .expect_err("type checker should reject function calls with extra args");
 
     match &err.kind {
-        TypeErrorKind::InvalidFuncallArgLength { expected_length, received_length } => {
+        TypeErrorKind::InvalidFuncallArgLength {
+            expected_length,
+            received_length,
+        } => {
             assert_eq!(*expected_length, 2);
             assert_eq!(*received_length, 3);
         }
@@ -81,7 +86,8 @@ fn rejects_function_call_with_extra_arg() {
 
 #[test]
 fn rejects_function_call_with_missing_arg() {
-    let mut hir = load_hir("func add(a: int, b: int): int { a + b } func main(): void { add(1, 2) }");
+    let mut hir =
+        load_hir("func add(a: int, b: int): int { a + b } func main(): void { add(1, 2) }");
     let args = find_main_call_args(&mut hir).expect("expected to find a function call in main");
     args.pop();
 
@@ -89,7 +95,10 @@ fn rejects_function_call_with_missing_arg() {
         .expect_err("type checker should reject function calls with missing args");
 
     match &err.kind {
-        TypeErrorKind::InvalidFuncallArgLength { expected_length, received_length } => {
+        TypeErrorKind::InvalidFuncallArgLength {
+            expected_length,
+            received_length,
+        } => {
             assert_eq!(*expected_length, 2);
             assert_eq!(*received_length, 1);
         }
@@ -99,7 +108,8 @@ fn rejects_function_call_with_missing_arg() {
 
 #[test]
 fn rejects_function_call_with_wrong_argument_type() {
-    let mut hir = load_hir("func takes_int(value: int): void {} func main(): void { takes_int(42) }");
+    let mut hir =
+        load_hir("func takes_int(value: int): void {} func main(): void { takes_int(42) }");
     let bool_ty = hir.bool_type();
     let args = find_main_call_args(&mut hir).expect("expected to find a function call in main");
     let first_arg = args.first_mut().expect("call should have at least one arg");
@@ -122,8 +132,7 @@ fn rejects_function_call_with_wrong_argument_type() {
 fn rejects_function_without_return_value_for_non_void_return_type() {
     let mut hir = load_hir("func main(): int { let x = 12; }");
 
-    let err = TypeChecker::check(&mut hir)
-        .expect_err("non-void functions must return a value");
+    let err = TypeChecker::check(&mut hir).expect_err("non-void functions must return a value");
 
     match &err.kind {
         TypeErrorKind::MissingReturnValue { expected } => {
@@ -139,21 +148,31 @@ fn rejects_function_without_return_value_for_non_void_return_type() {
 #[test]
 fn preserves_non_expression_tail_statement_in_function_body() {
     let hir = load_hir("func main(): void { let x = 12; }");
-    let main_symbol = hir.modules.retrieve_symbol("main")
+    let main_symbol = hir
+        .modules
+        .retrieve_symbol("main")
         .expect("main symbol should exist");
 
-    let main_fn = hir.declarations.iter().find(|declaration| {
-        matches!(
-            declaration.kind,
-            HirDeclarationKind::Function { ref name, .. } if *name == main_symbol
-        )
-    }).expect("main function should exist");
+    let main_fn = hir
+        .declarations
+        .iter()
+        .find(|declaration| {
+            matches!(
+                declaration.kind,
+                HirDeclarationKind::Function { ref name, .. } if *name == main_symbol
+            )
+        })
+        .expect("main function should exist");
 
     let HirDeclarationKind::Function { statements, .. } = &main_fn.kind else {
         unreachable!();
     };
 
-    assert_eq!(statements.len(), 1, "last non-expression statement should be preserved");
+    assert_eq!(
+        statements.len(),
+        1,
+        "last non-expression statement should be preserved"
+    );
     assert!(
         matches!(statements[0].kind, HirStatementKind::Variable { .. }),
         "expected trailing let statement to stay in the body"
@@ -164,8 +183,7 @@ fn preserves_non_expression_tail_statement_in_function_body() {
 fn rejects_while_with_non_boolean_condition() {
     let mut hir = load_hir("func main(): void { while 10 { 0; } }");
 
-    let err = TypeChecker::check(&mut hir)
-        .expect_err("while conditions should require bool");
+    let err = TypeChecker::check(&mut hir).expect_err("while conditions should require bool");
 
     assert!(
         matches!(err.kind, TypeErrorKind::IncompatibleTypes { .. }),
@@ -180,8 +198,8 @@ fn rejects_invalid_statement_inside_while_body() {
         "func takes_int(value: int): void {} func main(): void { while true { takes_int(false); } }",
     );
 
-    let err = TypeChecker::check(&mut hir)
-        .expect_err("while body statements should be type-checked");
+    let err =
+        TypeChecker::check(&mut hir).expect_err("while body statements should be type-checked");
 
     assert!(
         matches!(err.kind, TypeErrorKind::IncompatibleTypes { .. }),
@@ -222,8 +240,8 @@ fn resolves_named_field_access_after_tuple_access() {
 fn rejects_tuple_access_with_invalid_index() {
     let mut hir = load_hir("func main(): int { let pair = (10, 20); pair.2 }");
 
-    let err = TypeChecker::check(&mut hir)
-        .expect_err("tuple accesses should reject invalid indexes");
+    let err =
+        TypeChecker::check(&mut hir).expect_err("tuple accesses should reject invalid indexes");
 
     match &err.kind {
         TypeErrorKind::InvalidTupleIndex { index, length } => {
@@ -238,8 +256,8 @@ fn rejects_tuple_access_with_invalid_index() {
 fn rejects_tuple_access_on_non_tuple_values() {
     let mut hir = load_hir("func main(): int { let value = 10; value.0 }");
 
-    let err = TypeChecker::check(&mut hir)
-        .expect_err("non-tuples should reject tuple-style access");
+    let err =
+        TypeChecker::check(&mut hir).expect_err("non-tuples should reject tuple-style access");
 
     assert!(
         matches!(err.kind, TypeErrorKind::InvalidTupleAccessTarget { .. }),

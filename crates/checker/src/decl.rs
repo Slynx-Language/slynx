@@ -19,7 +19,10 @@ use super::{Result, TypeChecker};
 
 use slynx_hir::{
     TypeId,
-    model::{ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirType},
+    model::{
+        ComponentMemberDeclaration, HirComponentExpression, HirDeclaration, HirDeclarationKind,
+        HirType,
+    },
 };
 
 impl TypeChecker {
@@ -67,10 +70,6 @@ impl TypeChecker {
                         }
 
                         ComponentMemberDeclaration::Child { .. } => {}
-
-                        ComponentMemberDeclaration::Specialized(_) => {}
-
-                        ComponentMemberDeclaration::Style { .. } => {}
                     }
                 }
 
@@ -81,6 +80,36 @@ impl TypeChecker {
         }
 
         Ok(())
+    }
+
+    pub(super) fn resolve_component_expression(
+        &mut self,
+        expr: &mut HirComponentExpression,
+    ) -> Result<()> {
+        match expr {
+            HirComponentExpression::Specialized(spec) => self.resolve_specialized(spec),
+            HirComponentExpression::Normal {
+                name,
+                properties,
+                children,
+                span,
+            } => {
+                let ty = self.declarations[name.as_raw() as usize];
+                let HirType::Component { props } = self.types_module.get_type(&ty) else {
+                    unreachable!("Should've received a component type");
+                };
+                let props = props.clone();
+
+                for prop_expr in properties {
+                    let prop_ty = props[prop_expr.index()].prop_type().clone();
+                    prop_expr.expr_mut().ty = self.unify(&prop_ty, &prop_expr.expr().ty, span)?;
+                }
+                for child in children {
+                    self.resolve_component_expression(child)?;
+                }
+                Ok(())
+            }
+        }
     }
 
     /// Resolve and unify a list of component members against a target component type.
@@ -105,10 +134,6 @@ impl TypeChecker {
 
         for value in values.iter_mut() {
             match value {
-                ComponentMemberDeclaration::Specialized(spec) => {
-                    self.resolve_specialized(spec)?;
-                }
-
                 ComponentMemberDeclaration::Property {
                     index,
                     value: maybe_expr,
@@ -124,16 +149,8 @@ impl TypeChecker {
                     }
                 }
 
-                ComponentMemberDeclaration::Child {
-                    name,
-                    values: child_values,
-                    ..
-                } => {
-                    self.resolve_component_members(child_values, *name)?;
-                }
-
-                ComponentMemberDeclaration::Style { usage, .. } => {
-                    self.check_style_usage(usage)?;
+                ComponentMemberDeclaration::Child(child) => {
+                    self.resolve_component_expression(child)?
                 }
             }
         }

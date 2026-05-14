@@ -1,8 +1,8 @@
 use slynx_hir::{
     TypeId,
     model::{
-        ComponentMemberDeclaration, HirDeclaration, HirDeclarationKind, HirStyleUsage, HirType,
-        SpecializedComponent,
+        ComponentMemberDeclaration, HirComponentExpression, HirDeclaration,
+        HirSpecializedComponentExpression, HirType,
     },
 };
 
@@ -32,51 +32,54 @@ impl SlynxIR {
     ///Gets a value to represent a component whose name(in this case, its type) is the given `name` and the values of it are `values`.
     pub(crate) fn get_component_expression(
         &mut self,
-        name: TypeId,
-        values: &[ComponentMemberDeclaration],
+        value: &HirComponentExpression,
         temp: &mut TempIRData,
     ) -> Result<Value, IRError> {
-        let mut vals = Vec::with_capacity(values.len());
-        for value in values {
-            match value {
-                ComponentMemberDeclaration::Property { value, .. } => {
-                    let Some(value) = value else {
-                        unimplemented!(
-                            "Must refactor HIR. Default values should be provided as such they were normal files"
-                        );
-                    };
-                    let value = self.get_value_for(value, temp)?;
+        let mut vals = Vec::new();
+        let ty = match value {
+            HirComponentExpression::Specialized(HirSpecializedComponentExpression::Text {
+                text,
+            }) => {
+                let value = self.get_value_for(&*text, temp)?;
+                let value = self.get_value(value);
+                vals.push(value);
+                self.types.specialized_text_type()
+            }
+            HirComponentExpression::Specialized(HirSpecializedComponentExpression::Div {
+                children,
+            }) => {
+                for child in children {
+                    let value = self.get_component_expression(&child, temp)?;
+                    vals.push(value);
+                }
+                self.types.specialized_div_type()
+            }
+            HirComponentExpression::Normal {
+                name,
+                properties,
+                children,
+                ..
+            } => {
+                for prop in properties {
+                    let value = self.get_value_for(prop.expr(), temp)?;
                     let value = self.get_value(value);
                     vals.push(value);
                 }
-                ComponentMemberDeclaration::Child { name, values, .. } => {
-                    vals.push(self.get_component_expression(*name, values, temp)?);
+                for child in children {
+                    vals.push(self.get_component_expression(child, temp)?);
                 }
-                _ => {
-                    unimplemented!("Specialized components, not implemented");
-                }
+                temp.get_type(*name)?
             }
-        }
+        };
+
         let vals = self.insert_values(&vals);
-        let ty = temp.get_type(name)?;
+
         let instruction = self.insert_instruction(
             temp.current_label(),
             Instruction::component(ty, vals),
             false,
         );
         let instruction = self.dereference_instruction_ptr(instruction).with_length();
-
-        // Emit @initcall for component-level style usages from the component's declaration
-        if let Some(decl) = temp.hir.iter().find(|d| d.ty == name)
-            && let HirDeclarationKind::ComponentDeclaration { props, .. } = &decl.kind
-        {
-            let component_value = self.insert_value(Value::Instruction(instruction));
-            for member in props {
-                if let ComponentMemberDeclaration::Style { usage, .. } = member {
-                    self.emit_style_initcall(usage, component_value, temp)?;
-                }
-            }
-        }
 
         Ok(Value::Instruction(instruction))
     }
@@ -124,16 +127,9 @@ impl SlynxIR {
                         .default_properties
                         .push((value, *index as u8));
                 }
-                ComponentMemberDeclaration::Child { name, values, .. } => {
-                    let child = self.get_component_expression(*name, values, temp)?;
-                    ir_values.push(child);
-                }
-                ComponentMemberDeclaration::Specialized(a) => {
-                    let spec = self.get_specialized_component_value(a, temp)?;
-                    ir_values.push(spec);
-                }
-                ComponentMemberDeclaration::Style { .. } => {
-                    // Style usages are emitted elsewhere (in the style lowering pass or parent context)
+                ComponentMemberDeclaration::Child(c) => {
+                    let value = self.get_component_expression(c, temp)?;
+                    ir_values.push(value);
                 }
             }
         }
@@ -143,63 +139,5 @@ impl SlynxIR {
         self.components[comp_ptr.ptr()].values = self.insert_values(&ir_values);
 
         Ok(())
-    }
-
-    ///Gets a value for specialized components
-    pub(crate) fn get_specialized_component_value(
-        &mut self,
-        spec: &SpecializedComponent,
-        temp: &mut TempIRData,
-    ) -> Result<Value, IRError> {
-        let value = match spec {
-            SpecializedComponent::Text { text } => {
-                let v = self.get_value_for(text, temp)?;
-                let specialized = self.insert_specialized(IRSpecializedComponent::Text(v));
-                Value::Specialized(specialized)
-            }
-            SpecializedComponent::Div { children } => {
-                let style_usages: Vec<&HirStyleUsage> = children
-                    .iter()
-                    .filter_map(|c| match c {
-                        ComponentMemberDeclaration::Style { usage, .. } => Some(usage),
-                        _ => None,
-                    })
-                    .collect();
-                let children = self.get_component_children(children, temp)?;
-                let children = self.insert_values(&children);
-                let specialized = self.insert_specialized(IRSpecializedComponent::Div(children));
-                let div_value = self.insert_value(Value::Specialized(specialized));
-                for usage in style_usages {
-                    self.emit_style_initcall(usage, div_value, temp)?;
-                }
-                Value::Specialized(specialized)
-            }
-        };
-        Ok(value)
-    }
-
-    ///Gets the children values on the given `children` declarations. Note that this will ignore any property, if its got some
-    pub(crate) fn get_component_children(
-        &mut self,
-        children: &[ComponentMemberDeclaration],
-        temp: &mut TempIRData,
-    ) -> Result<Vec<Value>, IRError> {
-        let mut children_values = Vec::with_capacity(children.len());
-        for child in children {
-            match child {
-                ComponentMemberDeclaration::Property { .. } => {} //not handled
-                ComponentMemberDeclaration::Child { name, values, .. } => {
-                    let child = self.get_component_expression(*name, values, temp)?;
-                    children_values.push(child);
-                }
-                ComponentMemberDeclaration::Specialized(v) => {
-                    children_values.push(self.get_specialized_component_value(v, temp)?);
-                }
-                ComponentMemberDeclaration::Style { .. } => {
-                    // Style usages are emitted elsewhere
-                }
-            }
-        }
-        Ok(children_values)
     }
 }

@@ -67,7 +67,6 @@
 //! - [`HIRErrorKind::NotAFunction`] — Call of non-function value
 //! - [`HIRErrorKind::MissingProperty`] — Missing required object fields
 
-#![warn(missing_docs)]
 #![warn(rustdoc::broken_intra_doc_links)]
 
 /// HIR error types and diagnostic information.

@@ -99,6 +99,17 @@ impl PropertyExpression {
     pub fn new(index: usize, expr: HirExpression) -> Self {
         Self { index, expr }
     }
+
+    pub fn index(&self) -> usize {
+        self.index
+    }
+    pub fn expr(&self) -> &HirExpression {
+        &self.expr
+    }
+
+    pub fn expr_mut(&mut self) -> &mut HirExpression {
+        &mut self.expr
+    }
 }
 
 #[derive(Debug)]
@@ -474,23 +485,6 @@ pub enum HirExpressionKind {
     ///
     /// - The variable ID being referenced
     Identifier(VariableId),
-
-    /// A specialized component expression.
-    ///
-    /// Specialized components have predefined behavior and rendering logic.
-    /// Examples include `Text`, `Div`, and other built-in UI components.
-    ///
-    /// # Example
-    ///
-    /// ```slynx
-    /// let text = Text(content: "Hello");
-    /// let container = Div(children: [child1, child2]);
-    /// ```
-    ///
-    /// # Fields
-    ///
-    /// - The specialized component variant
-    Specialized(HirSpecializedComponentExpression),
 
     /// A component construction expression.
     ///
