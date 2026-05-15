@@ -7,7 +7,8 @@ use crate::{
     ir::temp::TempIRData,
 };
 
-pub type InstructionPtr = Either<IRPointer<IRPointer<Instruction>, 1>, IRPointer<Instruction>>;
+pub type InstructionPtr<const K: usize = 0> =
+    Either<IRPointer<IRPointer<Instruction, K>, 1>, IRPointer<Instruction, K>>;
 
 impl SlynxIR {
     ///Gets one(or more) instructions to operate with the given `statement`
@@ -129,7 +130,8 @@ impl SlynxIR {
             }
         }
     }
-    ///Inserts the provided `instr` on the given `label`. If `map` is `true` then the label will be able to read it when compiling, thus, otherwise, its just an intermediate instruction. If `map=true`, returns the reference to the mapped instruction, otherwise, returns the reference to the instruction itself(without being mapped)
+    ///Inserts the provided `instr` on the given `label`. If `map` is `true` then the label will be able to read it when compiling, thus, otherwise, its just an intermediate instruction.
+    ///On `map=true`, is garanteed to be `Left` variant, otherwise `Right`
     pub(crate) fn insert_instruction(
         &mut self,
         label: IRPointer<Label, 1>,
@@ -509,13 +511,15 @@ impl SlynxIR {
         slot: IRPointer<Slot, 1>,
         value: IRPointer<Value, 1>,
         temp: &TempIRData,
-    ) -> IRPointer<IRPointer<Instruction>, 1> {
+    ) -> IRPointer<IRPointer<Instruction, 1>, 1> {
         let slot_type = self.slots[slot.ptr()].ty;
-        self.insert_instruction(
-            temp.current_label(),
-            Instruction::write(slot_type, slot, value),
-            true,
-        )
-        .unwrap_left()
+        let v = self
+            .insert_instruction(
+                temp.current_label(),
+                Instruction::write(slot_type, slot, value),
+                true,
+            )
+            .unwrap_left();
+        IRPointer::new(v.ptr(), v.len())
     }
 }

@@ -233,8 +233,8 @@ component %Counter(i32) {
 
 AnyComponent main() {
 $entry:
-  Counter0 = %Counter(0); //0 = default value
-  Counter1 = %Counter(12);
+  Counter0 = %Counter{0}; //0 = default value
+  Counter1 = %Counter{12};
   ret Counter1
 }
 ```
@@ -306,8 +306,8 @@ component %Counter(i32) {
 
 AnyComponent main() {
 $entry:
-  Counter0 = %Counter(0); //0 = default value
-  Counter1 = %Counter(12);
+  Counter0 = %Counter{0}; //0 = default value
+  Counter1 = %Counter{12};
   ret Counter1;
 }
 
@@ -372,7 +372,7 @@ The `@emit p0, %count` on the function, tells that `p0` should execute its `%cou
 By default on the IR everything is moved, due to DOD, so to consume something that is not intended to be moved, we copy it via `copy` instruction.
 
 * copy: copies the provided `value`. It follows as `copy value`.
-* call: which follows: `call f, arg1, arg2, ...`, calls the provided function `f` passing `arg1`, `arg2`, ..., as parameters to it. A call is an expression
+* call: which follows: `call f, arg1, arg2, ...`, calls the provided function `f` passing `arg1`, `arg2`, ..., as parameters to it. A call is an expression. A shortcut for it is simply `f(arg1,arg2,arg3)`, such as a normal function call
 * cast: which follows: `cast ty, value` casts the provided `value`, copies the value and casts it to the provided `ty`
 * select: which follows `select cond, v1, v2`, selects `v1` if `cond` is `true` and `v2` otherwise
 

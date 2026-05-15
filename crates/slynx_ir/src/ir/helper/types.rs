@@ -76,6 +76,7 @@ impl SlynxIR {
             Value::Slot(v) => self.get_slot_type(*v),
             Value::StructLiteral(t, _) => *t,
             Value::Specialized(v) => self.specialized_type(*v),
+            Value::ComponentChild(c) => unimplemented!(),
         }
     }
 
@@ -106,7 +107,11 @@ impl SlynxIR {
     }
     ///Creates a new blank component with no arguments. Returns its context handle
     pub fn create_blank_component(&mut self, name: SymbolPointer) -> IRPointer<Component, 1> {
-        let component = Component::new(self.types.create_empty_component(name), IRPointer::null());
+        let component = Component::new(
+            self.types.create_empty_component(name),
+            IRPointer::null(),
+            IRPointer::null(),
+        );
         let ptr = self.components.len();
         self.components.push(component);
         IRPointer::new(ptr, 0)

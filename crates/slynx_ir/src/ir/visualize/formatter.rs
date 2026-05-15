@@ -4,8 +4,8 @@ use common::SymbolsModule;
 
 use crate::{
     Component, Context, IRComponentId, IRPointer, IRSpecializedComponent,
-    IRSpecializedComponentType, IRStructId, IRType, IRTypes, Instruction, InstructionType, Label,
-    Operand, SlynxIR, Value,
+    IRSpecializedComponentType, IRStructId, IRType, IRTypeId, IRTypes, Instruction,
+    InstructionType, Label, Operand, SlynxIR, UIInstruction, Value,
 };
 
 pub struct Formatter<'a> {
@@ -83,10 +83,8 @@ impl<'a> Formatter<'a> {
             IRType::GenericComponent => "anycomponent".to_string(),
             IRType::Struct(t) => self.fmt_struct_type(t),
             IRType::Component(c) => self.fmt_component_type(c),
-            IRType::Specialized(IRSpecializedComponentType::Div) => "specialized(div)".to_string(),
-            IRType::Specialized(IRSpecializedComponentType::Text) => {
-                "specialized(text)".to_string()
-            }
+            IRType::Specialized(IRSpecializedComponentType::Div) => "@div".to_string(),
+            IRType::Specialized(IRSpecializedComponentType::Text) => "@text".to_string(),
         }
     }
 
@@ -209,14 +207,20 @@ impl<'a> Formatter<'a> {
                 Value::Instruction(p) => format!("#t{}: component %t{}", i, p.ptr()),
                 Value::Specialized(spec_ptr) => {
                     let kind = match &self.specialized[spec_ptr.ptr()] {
-                        IRSpecializedComponent::Text(_) => "specialized(text)",
-                        IRSpecializedComponent::Div(_) => "specialized(div)",
+                        IRSpecializedComponent::Text(_) => "@text",
+                        IRSpecializedComponent::Div(_) => "@div",
                     };
                     format!("#t{}: {}", i, kind)
                 }
                 _ => format!("#t{}: unknown", i),
             };
             out.push_str(&format!("  {};\n", child_str));
+        }
+
+        for ptr in component.ui_instruction.iter() {
+            out.push_str("  ");
+            out.push_str(&self.format_instruction(&self.instructions[ptr.ptr()]));
+            out.push_str(";\n");
         }
 
         out.push_str("}\n");
@@ -359,7 +363,7 @@ impl<'a> Formatter<'a> {
             InstructionType::FunctionCall(func) => {
                 let args = self.fmt_operands_range(0, instr.operands.len(), &instr.operands);
                 let ctx = self.format_function_name(self.ir.get_context(*func));
-                format!("call {ctx}, {args};")
+                format!("{ctx}({args})")
             }
             InstructionType::Allocate(_) => {
                 format!(
@@ -393,21 +397,29 @@ impl<'a> Formatter<'a> {
                 )
             }
             InstructionType::RawValue => self.fmt_value(&instr.operands.ptr_to(0)),
-            InstructionType::SApply { property_code } => {
+            InstructionType::UI(UIInstruction::SApply { property_code }) => {
                 let name = property_code.to_string();
                 let component = self.fmt_value(&instr.operands.ptr_to(0));
                 let value = self.fmt_value(&instr.operands.ptr_to(1));
                 format!("@sapply {}, {}, {};", name, component, value)
             }
-            InstructionType::InitCall(func) => {
-                let values = self.fmt_value_range(&instr.operands);
-
-                format!("@initcall f{}, {values}", func.ptr())
+            InstructionType::UI(UIInstruction::InitCall(func)) => {
+                let comp = self.fmt_value(&instr.operands.ptr_to(0));
+                let struct_operand = instr.operands.ptr_to(1);
+                let struct_str = match &self.values[struct_operand.ptr()] {
+                    Value::Instruction(p) => {
+                        let call_instr = &self.instructions[p.ptr()];
+                        self.format_instruction(call_instr).trim_end_matches(';').to_string()
+                    }
+                    _ => self.fmt_value(&struct_operand),
+                };
+                let fname = self.format_function_name(self.ir.get_context(*func));
+                format!("@initcall {fname}, {comp}, {struct_str}")
             }
             InstructionType::Struct | InstructionType::Component => {
                 let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
                 let args = self.fmt_operands_range(0, instr.operands.len(), &instr.operands);
-                format!("{}({});", ty_str, args)
+                format!("{}{{{}}};", ty_str, args)
             }
         }
     }
@@ -432,9 +444,14 @@ impl<'a> Formatter<'a> {
                     format!("%t{}", p.ptr())
                 }
             }
-            Value::StructLiteral(_, _) => format!("%lit{}", ptr.ptr()),
+            Value::StructLiteral(ty, values) => {
+                let struct_name = self.fmt_type(&self.types.get_type(*ty));
+                let values = self.fmt_value_range(values);
+                format!("{struct_name}{{{values}}}")
+            }
             Value::Void => "void".to_string(),
             Value::Specialized(_) => "specialized".to_string(),
+            Value::ComponentChild(index) => format!("#t{index}",),
         }
     }
 
@@ -494,8 +511,6 @@ impl<'a> Formatter<'a> {
                 | InstructionType::Cbr { .. }
                 | InstructionType::Write(_)
                 | InstructionType::Ret
-                | InstructionType::SApply { .. }
-                | InstructionType::InitCall(_)
         )
     }
 

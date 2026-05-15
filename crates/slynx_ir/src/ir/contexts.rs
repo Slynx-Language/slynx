@@ -206,7 +206,7 @@ impl SlynxIR {
                 );
                 Value::Instruction(self.dereference_instruction_ptr(i).with_length())
             }
-            HirExpressionKind::Component(c) => self.get_component_expression(c, temp)?,
+            HirExpressionKind::Component(c) => self.get_component_expression(c, temp)?.0,
             HirExpressionKind::If {
                 condition,
                 then_branch,

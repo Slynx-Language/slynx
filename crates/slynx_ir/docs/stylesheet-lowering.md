@@ -20,6 +20,11 @@ stylesheet Rounded(size: px) {
     borderRadius: size
   }
 }
+stylesheet RoundedRed() uses Rounded(5px) {
+  styles {
+    backgroundColor: red
+  }
+}
 
 component C {
   Div {
@@ -32,6 +37,21 @@ should generate the following:
 
 ```slynxir
 struct RoundedStyle {i32}; // a pixel is a 'i32' internally
+struct RoundedRed{i32,i32}
+
+%RoundedRed GenerateRoundedRed(){
+$entry:
+  %v = %RoundedRet{5px, 0xff0000};
+  ret %v;
+}
+
+void ApplyRoundedRedStyle(PrimitiveComponent, RoundedRed) {
+$entry:
+  roundness = get_prop p1, 0;
+  @sapply BorderRadius, p0, roundness;
+  bg = get_prop p1, 1;
+  @sapplu BackgrounColor, p0, bg;
+}
 
 void ApplyRoundedStyle(PrimitiveComponent, RoundedStyle) {
 $entry:
@@ -42,7 +62,7 @@ $entry:
 
 component %C() {
   #t0 = specialized Div;
-  @initcall ApplyRoundedStyle, #t0, %RoundedStyle{0}
+  @initcall ApplyRoundedStyle, #t0, %RoundedStyle{0, 0xff0000}
 }
 ```
 
