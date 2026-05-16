@@ -3,7 +3,7 @@ use either::Either;
 use slynx_hir::model::{HirExpression, HirExpressionKind, HirStatement, HirStatementKind};
 
 use crate::{
-    IRError, IRPointer, IRTypeId, Instruction, Label, Operand, Slot, SlynxIR, Value,
+    IRError, IRPointer, IRTypeId, Instruction, Label, Operand, Slot, SlynxIR, Value, ValueKind,
     ir::temp::TempIRData,
 };
 
@@ -81,8 +81,8 @@ impl SlynxIR {
                         let value_slot = temp
                             .get_variable(*id)
                             .expect("Variable not found for assignment");
-                        let slot = match self.get_value(value_slot) {
-                            Value::Slot(slot) => slot,
+                        let slot = match &*self.get_value(value_slot) {
+                            ValueKind::Slot(slot) => *slot,
                             other => panic!("Expected Slot value for variable, got {:?}", other),
                         };
                         self.write(slot, value_ptr, temp);
@@ -92,7 +92,7 @@ impl SlynxIR {
                         field_index,
                     } => {
                         let parent_value = self.get_value_for(parent, temp)?;
-                        let parent_ty = self.get_type_of_value(parent_value, temp);
+                        let parent_ty = self.retrieve_type_of_value(parent_value);
 
                         // SetField: create a new struct with the field modified
 
@@ -122,7 +122,7 @@ impl SlynxIR {
             }
             HirStatementKind::Return { expr } => {
                 let val = self.get_value_for(expr, temp)?;
-                let ty = self.get_type_of_value(val, temp);
+                let ty = self.retrieve_type_of_value(val);
                 let instruction =
                     self.insert_instruction(temp.current_label(), Instruction::ret(val, ty), true);
                 let instruction = self.dereference_instruction_ptr(instruction).with_length();
@@ -345,7 +345,7 @@ impl SlynxIR {
     ) -> Result<Value, IRError> {
         let lhs_value = self.get_value_for(lhs, temp)?;
         let rhs_value = self.get_value_for(rhs, temp)?;
-        let lty = self.get_type_of_value(lhs_value, temp);
+        let lty = self.retrieve_type_of_value(lhs_value);
 
         let bin_instruction = match op {
             common::Operator::And => {
@@ -423,7 +423,7 @@ impl SlynxIR {
                 temp.set_current_label(elselabel);
 
                 let false_value = self.insert_operands(&[Operand::Bool(false)]);
-                let false_value = self.insert_value(Value::Raw(false_value));
+                let false_value = self.insert_value(self.generate_raw_value(false_value));
 
                 self.insert_instruction(
                     temp.current_label(),
@@ -470,7 +470,7 @@ impl SlynxIR {
                 );
 
                 let false_value = self.insert_operands(&[Operand::Bool(false)]);
-                let false_value = self.insert_value(Value::Raw(false_value));
+                let false_value = self.insert_value(self.generate_raw_value(false_value));
 
                 self.insert_instruction(
                     temp.current_label(),
@@ -488,9 +488,9 @@ impl SlynxIR {
                 )
             }
         };
-
         let bin_instruction = self.dereference_instruction_ptr(bin_instruction);
-        Ok(Value::Instruction(bin_instruction.with_length()))
+        let ty = self.get_instruction_by_pointer(bin_instruction)[0].value_type;
+        Ok(Value::new_instruction(bin_instruction.with_length(), ty))
     }
 
     pub(crate) fn allocate(
@@ -503,7 +503,7 @@ impl SlynxIR {
         let out = IRPointer::new(ptr, 1);
         let _ = self.insert_instruction(temp.current_label(), Instruction::allocate(out, ty), true);
 
-        (self.insert_value(Value::Slot(out)), out)
+        (self.insert_value(Value::new_slot(out, ty)), out)
     }
 
     pub(crate) fn write(

@@ -23,7 +23,7 @@ impl SlynxIR {
                 && let HirStatementKind::Expression { ref expr } = statement.kind
             {
                 let value = self.get_value_for(expr, temp)?;
-                let ty = self.get_type_of_value(value, temp);
+                let ty = self.retrieve_type_of_value(value);
 
                 // The merge label carries the value produced by each branch.
                 // Its argument type is the branch result type, not the condition type.
@@ -107,7 +107,7 @@ impl SlynxIR {
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut element_types = Vec::with_capacity(values_ptrs.len());
                 for ptr in &values_ptrs {
-                    let ty = self.get_type_of_value(*ptr, temp);
+                    let ty = self.retrieve_type_of_value(*ptr);
                     element_types.push(ty);
                 }
                 let values = values_ptrs
@@ -117,31 +117,34 @@ impl SlynxIR {
                 let values_ptr = self.insert_values(&values);
 
                 let ty = self.types.create_or_get_tuple(element_types);
-                Value::StructLiteral(ty, values_ptr)
+                Value::new_struct(ty, values_ptr)
             }
             HirExpressionKind::StringLiteral(v) => {
                 let operand = Operand::String(*v);
                 let operand_ptr = self.insert_operands(&[operand]);
-                let value = self.insert_value(Value::Raw(operand_ptr));
+                let value = self.insert_value(self.generate_raw_value(operand_ptr));
                 let instruction = self.insert_instruction(
                     temp.current_label(),
                     Instruction::raw(value, self.types.str_type()),
                     false,
                 );
                 let ptr = self.dereference_instruction_ptr(instruction);
-                Value::Instruction(ptr.with_length())
+                Value::new_instruction(ptr.with_length(), self.types.str_type())
             }
             HirExpressionKind::Bool(_)
             | HirExpressionKind::Float(_)
             | HirExpressionKind::Int(_) => {
                 let (operand, optype) = self.get_operand(expr, temp).unwrap();
-                let value = self.insert_value(Value::Raw(operand));
+                let value = self.insert_value(self.generate_raw_value(operand));
                 let instruction = self.insert_instruction(
                     temp.current_label(),
                     Instruction::raw(value, optype),
                     false,
                 );
-                Value::Instruction(self.dereference_instruction_ptr(instruction).with_length())
+                Value::new_instruction(
+                    self.dereference_instruction_ptr(instruction).with_length(),
+                    optype,
+                )
             }
             HirExpressionKind::FunctionCall { name, args } => {
                 let func = {
@@ -163,7 +166,10 @@ impl SlynxIR {
                     Instruction::call(func, ret_ty, ptr),
                     false,
                 );
-                Value::Instruction(self.dereference_instruction_ptr(instruction).with_length())
+                Value::new_instruction(
+                    self.dereference_instruction_ptr(instruction).with_length(),
+                    ret_ty,
+                )
             }
             HirExpressionKind::Binary { lhs, op, rhs } => {
                 self.handle_binary_expression(lhs, rhs, op, temp)?
@@ -194,17 +200,20 @@ impl SlynxIR {
                     Instruction::struct_literal(ty, values),
                     false,
                 );
-                Value::Instruction(self.dereference_instruction_ptr(strts).with_length())
+                Value::new_instruction(self.dereference_instruction_ptr(strts).with_length(), ty)
             }
             HirExpressionKind::FieldAccess { expr, field_index } => {
                 let value = self.get_value_for(expr, temp)?;
-                let ty = self.get_type_of_value(value, temp);
-                let i = self.insert_instruction(
+                let ty = self.retrieve_type_of_value(value);
+                let instruction_ptr = self.insert_instruction(
                     temp.current_label(),
                     Instruction::getfield(*field_index, value, ty),
                     false,
                 );
-                Value::Instruction(self.dereference_instruction_ptr(i).with_length())
+                let instruction_ptr = self
+                    .dereference_instruction_ptr(instruction_ptr)
+                    .with_length();
+                Value::new_instruction(instruction_ptr, ty)
             }
             HirExpressionKind::Component(c) => self.get_component_expression(c, temp)?.0,
             HirExpressionKind::If {
@@ -216,7 +225,7 @@ impl SlynxIR {
                 let then_label = self.insert_label(temp.current_function(), "then_label");
                 let else_label = self.insert_label(temp.current_function(), "else_label");
                 let end_label = self.insert_label(temp.current_function(), "end_label");
-                let condition_ty = self.get_type_of_value(value, temp);
+                let condition_ty = self.retrieve_type_of_value(value);
 
                 self.insert_instruction(
                     temp.current_label(),
@@ -265,7 +274,7 @@ impl SlynxIR {
                 temp.set_current_label(end_label);
                 let end_label = self.get_label(end_label);
                 if end_label.arguments().is_empty() {
-                    Value::Void
+                    self.generate_void_value()
                 } else {
                     end_label.get_argument_value(0)
                 }
@@ -295,7 +304,7 @@ impl SlynxIR {
 
         let ptr = IRPointer::new(self.values.len(), args.len());
         for (idx, _) in args.iter().enumerate() {
-            self.insert_value(Value::FuncArg(idx));
+            self.insert_value(self.generate_func_arg_value(idx, temp));
         }
 
         temp.set_function_args(args, ptr);

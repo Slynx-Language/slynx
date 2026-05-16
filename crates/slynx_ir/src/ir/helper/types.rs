@@ -2,9 +2,9 @@ use common::SymbolPointer;
 use slynx_hir::{TypeId, model::HirType};
 
 use crate::{
-    Component, IRComponent, IRError, IRSpecializedComponent, IRType, IRTypeId, Slot, SlynxIR,
+    Component, IRComponent, IRError, IRType, IRTypeId, SlynxIR,
     ir::{
-        model::{Context, IRPointer, Instruction, Operand, Value},
+        model::{Context, IRPointer, Instruction, Operand},
         temp::TempIRData,
     },
 };
@@ -46,37 +46,12 @@ impl SlynxIR {
         })
     }
 
-    pub fn get_slot_type(&self, slot: IRPointer<Slot, 1>) -> IRTypeId {
-        self.slots[slot.ptr()].ty
-    }
-
-    pub fn get_operand_type(&self, operand: IRPointer<Operand, 1>, _temp: &TempIRData) -> IRTypeId {
+    pub fn get_operand_type(&self, operand: IRPointer<Operand, 1>) -> IRTypeId {
         match self.operands[operand.ptr()] {
             Operand::Bool(_) => self.types.bool_type(),
             Operand::Float(_) => self.types.float_type(),
             Operand::Int(_) => self.types.int_type(),
             Operand::String(_) => self.types.str_type(),
-        }
-    }
-
-    pub fn specialized_type(&self, spec: IRPointer<IRSpecializedComponent, 1>) -> IRTypeId {
-        match self.get_specialized(spec) {
-            IRSpecializedComponent::Text(_) => self.types.specialized_text_type(),
-            IRSpecializedComponent::Div(_) => self.types.specialized_div_type(),
-        }
-    }
-
-    pub fn get_type_of_value(&self, value: IRPointer<Value, 1>, temp: &TempIRData) -> IRTypeId {
-        match &self.values[value.ptr()] {
-            Value::Void => self.types.void_type(),
-            Value::FuncArg(idx) => self.arg_types_of_context(temp.current_function())[*idx],
-            Value::Raw(operand) => self.get_operand_type(*operand, temp),
-            Value::Instruction(instr) => self.get_type_of_instruction(*instr, temp),
-            Value::LabelArg(index) => self.get_label(temp.current_label()).arguments()[*index],
-            Value::Slot(v) => self.get_slot_type(*v),
-            Value::StructLiteral(t, _) => *t,
-            Value::Specialized(v) => self.specialized_type(*v),
-            Value::ComponentChild(c) => unimplemented!(),
         }
     }
 
@@ -89,11 +64,7 @@ impl SlynxIR {
         self.types.get_component_type(c)
     }
 
-    pub fn get_type_of_instruction(
-        &self,
-        instr: IRPointer<Instruction, 1>,
-        _temp: &TempIRData,
-    ) -> IRTypeId {
+    pub fn get_type_of_instruction(&self, instr: IRPointer<Instruction, 1>) -> IRTypeId {
         let instr = &self.instructions[instr.ptr()];
         instr.value_type
     }

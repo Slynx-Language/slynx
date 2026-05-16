@@ -1,4 +1,5 @@
 mod contexts;
+mod ir_value;
 mod label;
 ///Helper functions for lowering stylesheets from HIR to IR (structs, apply functions, @sapply, @initcall)
 mod styles;

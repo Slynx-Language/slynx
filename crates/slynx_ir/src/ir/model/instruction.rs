@@ -1,6 +1,6 @@
 use common::SymbolPointer;
 
-use crate::{IRTypeId, Label, StyleProperty, ir::model::Context};
+use crate::{IRTypeId, Label, Slot, StyleProperty, Value, ir::model::Context};
 
 use super::IRPointer;
 
@@ -15,43 +15,6 @@ pub enum UIInstruction {
     /// Initialize call: apply a style function to a component.
     /// operands[0] = component, operands[1] = style struct value
     InitCall(IRPointer<Context, 1>),
-}
-
-#[derive(Debug, Clone, Copy)]
-///A value that represents something on a slot. A slot is something on memory, anywhere, so this is practically a pointer to some value. But it's better to be
-///understood as a variable
-pub struct Slot {
-    ///The type of this slot
-    pub(crate) ty: IRTypeId,
-}
-
-#[derive(Debug, Clone)]
-pub enum IRSpecializedComponent {
-    Text(IRPointer<Value, 1>),
-    Div(IRPointer<Value>),
-}
-
-#[derive(Debug, Clone)]
-///A value inside the IR. Can be a function arg, a label arg or the result of a instruction
-pub enum Value {
-    Void,
-    StructLiteral(IRTypeId, IRPointer<Value>),
-    Specialized(IRPointer<IRSpecializedComponent, 1>),
-    Raw(IRPointer<Operand, 1>),
-    Instruction(IRPointer<Instruction, 1>),
-    Slot(IRPointer<Slot, 1>),
-    LabelArg(usize),
-    FuncArg(usize),
-    ComponentChild(usize),
-}
-#[derive(Debug, Clone)]
-///An operand that is used on a instruction. Mainly it's values that are used on the instructions
-pub enum Operand {
-    Bool(bool),
-    Int(i64),
-    Float(f64),
-    ///Index into the SlynxIR string pool's entries. The backend resolves this to a StrHandle {offset, len}.
-    String(SymbolPointer),
 }
 
 #[derive(Debug, Clone)]

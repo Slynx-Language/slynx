@@ -63,7 +63,7 @@ impl SlynxIR {
         let own_props = self.collect_style_properties(statements);
 
         // 2. Resolve inheritance: merge parent properties with own properties
-        let (merged_props, parent_usage_decls) =
+        let (merged_props, _parent_usage_decls) =
             self.resolve_style_inheritance(usages, &own_props, temp.hir)?;
 
         // 3. Populate the struct type fields
@@ -74,13 +74,7 @@ impl SlynxIR {
         self.create_style_constructor(decl, struct_ty, &merged_props, temp)?;
 
         // 5. Create the apply function
-        self.create_style_apply_function(
-            decl,
-            struct_ty,
-            &merged_props,
-            &parent_usage_decls,
-            temp,
-        )?;
+        self.create_style_apply_function(decl, struct_ty, &merged_props, temp)?;
 
         Ok(())
     }
@@ -212,7 +206,10 @@ impl SlynxIR {
             false,
         );
         let struct_lit_ptr = self.dereference_instruction_ptr(struct_lit);
-        let struct_value = self.insert_value(Value::Instruction(struct_lit_ptr.with_length()));
+        let struct_value = self.insert_value(Value::new_instruction(
+            struct_lit_ptr.with_length(),
+            struct_ty,
+        ));
 
         // Return the struct
         self.insert_instruction(
@@ -233,7 +230,7 @@ impl SlynxIR {
         decl: &HirDeclaration,
         struct_ty: IRTypeId,
         properties: &[(StyleProperty, &HirExpression)],
-        parent_ids: &[DeclarationId],
+
         temp: &mut TempIRData,
     ) -> Result<IRPointer<Context, 1>, IRError> {
         let generic_component_ty = self.types.generic_component_type();
@@ -264,8 +261,8 @@ impl SlynxIR {
         temp.set_current_label(entry_label);
 
         // Insert FuncArg values for p0 (component) and p1 (struct)
-        let comp_value = self.insert_value(Value::FuncArg(0));
-        let struct_value = self.insert_value(Value::FuncArg(1));
+        let comp_value = self.insert_value(self.generate_func_arg_value(0, temp));
+        let struct_value = self.insert_value(self.generate_func_arg_value(1, temp));
 
         // For each property, emit: getfield + @sapply
         for (field_idx, (code, _)) in properties.iter().enumerate() {
@@ -278,7 +275,8 @@ impl SlynxIR {
                 false,
             );
             let getfield_ptr = self.dereference_instruction_ptr(getfield_instr);
-            let field_value = self.insert_value(Value::Instruction(getfield_ptr.with_length()));
+            let field_value =
+                self.insert_value(Value::new_instruction(getfield_ptr.with_length(), field_ty));
 
             // @sapply: apply property to component
             let operands = {
@@ -296,7 +294,7 @@ impl SlynxIR {
         }
 
         // Emit ret
-        let void_value = self.insert_value(Value::Void);
+        let void_value = self.insert_value(self.generate_void_value());
         self.insert_instruction(
             temp.current_label(),
             Instruction::ret(void_value, void_ty),

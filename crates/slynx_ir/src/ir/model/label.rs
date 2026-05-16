@@ -63,7 +63,7 @@ impl Label {
     ///Gets the `index`('th) argument of this label
     pub fn get_argument_value(&self, index: usize) -> Value {
         debug_assert!(index < self.arguments.len());
-        Value::LabelArg(index)
+        Value::new_label_arg(self.arguments[index], index)
     }
 
     ///Gets the name of this label
