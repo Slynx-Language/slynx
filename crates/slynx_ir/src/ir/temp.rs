@@ -42,6 +42,7 @@ pub struct TempIRData<'a> {
     ///The arguments of the current variable ID
     args: Vec<VariableId>,
     styles: HashMap<DeclarationId, AuxiliaryStyle>,
+    init_functions: HashMap<DeclarationId, IRPointer<Context, 1>>,
 }
 
 impl<'a> TempIRData<'a> {
@@ -57,6 +58,7 @@ impl<'a> TempIRData<'a> {
             args: Vec::new(),
             variables: Vec::new(),
             styles: HashMap::new(),
+            init_functions: HashMap::new(),
         }
     }
 
@@ -103,6 +105,19 @@ impl<'a> TempIRData<'a> {
     ///Retrieves the init function for the given stylesheet declaration ID
     pub fn get_style_init_function(&self, sid: DeclarationId) -> Option<IRPointer<Context, 1>> {
         self.styles.get(&sid).map(|s| s.init_func)
+    }
+
+    #[inline]
+    pub fn map_init_function(&mut self, did: DeclarationId, func: IRPointer<Context, 1>) {
+        self.init_functions.insert(did, func);
+    }
+
+    #[inline]
+    pub fn get_init_function(&self, did: DeclarationId) -> IRPointer<Context, 1> {
+        self.init_functions
+            .get(&did)
+            .copied()
+            .expect("Init function not found for component declaration")
     }
     #[inline]
     ///Maps the provided `fid`(hir function id) to the provided `func`(ir function)

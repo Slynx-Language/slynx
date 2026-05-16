@@ -12,6 +12,7 @@ pub enum IRSpecializedComponentType {
 pub struct IRComponent {
     pub(crate) name: SymbolPointer,
     pub(crate) fields: SmallVec<[IRTypeId; 16]>,
+    pub(crate) children: SmallVec<[IRTypeId; 16]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,11 +23,17 @@ impl IRComponent {
         Self {
             name,
             fields: SmallVec::new(),
+            children: SmallVec::new(),
         }
     }
     #[inline]
     pub fn insert_field(&mut self, field: IRTypeId) {
         self.fields.push(field);
+    }
+
+    #[inline]
+    pub fn insert_child(&mut self, field: IRTypeId) {
+        self.children.push(field);
     }
 
     #[inline]
@@ -37,5 +44,9 @@ impl IRComponent {
     #[inline]
     pub fn fields(&self) -> &[IRTypeId] {
         &self.fields
+    }
+
+    pub fn children(&self) -> &[IRTypeId] {
+        &self.children
     }
 }

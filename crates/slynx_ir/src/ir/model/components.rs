@@ -1,10 +1,11 @@
-use crate::{IRPointer, IRTypeId, Instruction, Value};
+use crate::{Context, IRPointer, IRTypeId, Instruction, Value};
 
 #[derive(Debug, Clone)]
 pub struct Component {
     pub(crate) ty: IRTypeId,
     pub(crate) values: IRPointer<Value>,
     pub(crate) ui_instruction: IRPointer<Instruction>, //should be asserted to be ui operations only
+    pub(crate) init_func: Option<IRPointer<Context, 1>>,
 }
 
 impl Component {
@@ -17,6 +18,7 @@ impl Component {
             ty: initial_type,
             values,
             ui_instruction,
+            init_func: None,
         }
     }
 

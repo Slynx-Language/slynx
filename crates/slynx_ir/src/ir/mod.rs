@@ -16,7 +16,7 @@ use slynx_hir::{
     modules::TypesModule,
 };
 
-use crate::{BUILTIN_TYPES, IRError, IRTypes};
+use crate::{IRError, IRTypes};
 
 use temp::{AuxiliaryStyle, TempIRData};
 
@@ -27,7 +27,6 @@ pub struct SlynxIR {
     contexts: Vec<Context>,
     ///The Components of this IR
     components: Vec<Component>,
-    specialized: Vec<IRSpecializedComponent>,
     ///The labels of this IR
     labels: Vec<Label>,
     ///The instructions of this IR
@@ -48,7 +47,6 @@ impl SlynxIR {
     pub fn new(symbols: SymbolsModule) -> Self {
         Self {
             components: Vec::new(),
-            specialized: Vec::new(),
             contexts: Vec::new(),
             labels: Vec::new(),
             instructions: Vec::new(),
@@ -82,10 +80,6 @@ impl SlynxIR {
                     if let HirType::Reference { rf, .. } = tys.get_type(&declaration.ty) {
                         temp.define_type(*rf, out);
                     }
-                    debug_assert_eq!(
-                        out.0 - BUILTIN_TYPES.len(),
-                        declaration.id.as_raw() as usize
-                    );
                 }
                 HirDeclarationKind::Function { name, .. } => {
                     let out = self.create_blank_function(*name).with_length();
@@ -98,6 +92,11 @@ impl SlynxIR {
                     let fnc = self.get_component(out);
                     temp.define_type(declaration.ty, fnc.ty);
                     temp.map_component(declaration.id, out);
+
+                    let name_str = self.strings.get_name(*name);
+                    let init_name = self.strings.intern(&format!("{}Init", name_str));
+                    let init_func = self.create_blank_function(init_name);
+                    temp.map_init_function(declaration.id, init_func);
                 }
                 HirDeclarationKind::Alias => {}
                 HirDeclarationKind::StyleSheet { .. } => {
@@ -105,9 +104,11 @@ impl SlynxIR {
                     if let Some(name) = name {
                         let name_str = self.strings.get_name(name);
                         let init_name = self.strings.intern(&format!("__init_{}", name_str));
+
                         let out = self.types.create_empty_struct(name);
                         let init_func = self.create_blank_function(init_name);
                         let apply_func = self.create_blank_function(name);
+
                         temp.define_type(declaration.ty, out);
                         temp.map_style(
                             declaration.id,
