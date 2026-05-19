@@ -77,9 +77,8 @@ impl std::fmt::Display for SlynxError {
         let error_with_data = format!("{before_error}{source}");
 
         let error_points = {
-            let points_offset = " ".to_string();
             let points = "^".repeat(self.metadata.source().trim().len());
-            format!("{before_error}{points_offset}{points}",)
+            format!("{before_error}{points}",)
         };
 
         let line_and_column = format!(
