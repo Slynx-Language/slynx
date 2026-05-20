@@ -1,8 +1,8 @@
 pub mod symbols;
 pub use symbols::*;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 ///The representation of the bounds of something on the code.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
@@ -15,10 +15,8 @@ impl Span {
         self
     }
 }
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
 ///Some operator on the code. Something like, +, - , *, /, &, &&, etc
+#[derive(Debug, Clone, Copy)]
 pub enum Operator {
     Add,
     Sub,

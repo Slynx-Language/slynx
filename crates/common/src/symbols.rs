@@ -1,7 +1,6 @@
 use rart::{AdaptiveRadixTree, VectorKey};
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 ///A pointer to some intern string. This is 48bits for the actual position of the string in the internalized string, and 16bits for it's length
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct SymbolPointer(usize);
 
 impl SymbolPointer {
@@ -9,10 +8,9 @@ impl SymbolPointer {
         Self(ptr << 16 | length as usize)
     }
 }
-
-#[derive(Debug, Default)]
 ///A internalized string is an wrapper over strings to don't allocate too much on the heap.
 ///The inner string might look something like `CONTENTCONTENT2CONTENT3`, where `CONTENT`, `CONTENT2` and `CONTENT3` are the actual string inserted
+#[derive(Debug, Default)]
 pub struct InternalizedString {
     inner: Vec<u8>,
 }

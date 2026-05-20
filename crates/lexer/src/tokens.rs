@@ -144,344 +144,169 @@ impl std::fmt::Display for Token {
     }
 }
 
+macro_rules! impl_token {
+    // start=end=pos
+    (
+        simple:
+        $(
+            $fn_name:ident => $kind:ident
+        ),* $(,)?
+    ) => {
+        $(
+            pub fn $fn_name(pos: usize) -> Self {
+                Self {
+                    kind: TokenKind::$kind,
+                    span: Span {
+                        start: pos,
+                        end: pos,
+                    },
+                }
+            }
+        )*
+    };
+
+    // literal.len()
+    (
+        literal:
+        $(
+            $fn_name:ident($lit:literal) => $kind:ident
+        ),* $(,)?
+    ) => {
+        $(
+            pub fn $fn_name(pos: usize) -> Self {
+                Self {
+                    kind: TokenKind::$kind,
+                    span: Span {
+                        start: pos,
+                        end: pos + $lit.len(),
+                    },
+                }
+            }
+        )*
+    };
+
+    // TokenKind::X(value)
+    (
+        value:
+        $(
+            $fn_name:ident(
+                $arg:ident : $arg_ty:ty
+            ) => $kind:ident
+        ),* $(,)?
+    ) => {
+        $(
+            pub fn $fn_name(
+                $arg: $arg_ty,
+                start: usize,
+                end: usize
+            ) -> Self {
+                Self {
+                    kind: TokenKind::$kind($arg),
+                    span: Span { start, end },
+                }
+            }
+        )*
+    };
+
+    // sem payload, mas recebe start/end
+    (
+        span:
+        $(
+            $fn_name:ident => $kind:ident
+        ),* $(,)?
+    ) => {
+        $(
+            pub fn $fn_name(
+                start: usize,
+                end: usize
+            ) -> Self {
+                Self {
+                    kind: TokenKind::$kind,
+                    span: Span { start, end },
+                }
+            }
+        )*
+    };
+
+    // end = start + CONST
+    (
+        custom_end:
+        $(
+            $fn_name:ident($offset:expr) => $kind:ident
+        ),* $(,)?
+    ) => {
+        $(
+            pub fn $fn_name(start: usize) -> Self {
+                Self {
+                    kind: TokenKind::$kind,
+                    span: Span {
+                        start,
+                        end: start + $offset,
+                    },
+                }
+            }
+        )*
+    };
+}
+
 impl Token {
-    pub fn comcomment(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::CommonComent,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    // constructor helpers for keywords; snake_case to satisfy lint
-    pub fn if_token(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::If,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn else_token(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Else,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn shr(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::ShiftRight,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn shl(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::ShiftLeft,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
+    impl_token! {
+        simple:
+        plus => Plus,
+        sub => Sub,
+        star => Star,
+        slash => Slash,
+        comma => Comma,
+        colon => Colon,
+        semicolon => SemiColon,
+        rbrace => RBrace,
+        lbrace => LBrace,
+        rparen => RParen,
+        lparen => LParen,
+        dot => Dot,
+
+        bitand => BitAnd,
+        bitor => BitOr,
+        xor => Xor,
+        shr => ShiftRight,
+        shl => ShiftLeft,
+
+        eq => Eq,
+        gt => Gt,
+        lt => Lt,
+        or => Or,
+        and => And,
+
+        lte => LtEq,
+        gte => GtEq,
+        pluseq => PlusEq,
+        subeq => SubEq,
+        stareq => StarEq,
+        slasheq => SlashEq,
+        eqeq => EqEq
     }
 
-    pub fn xor(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Xor,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn bitnot(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::BitNot,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
+    impl_token! {
+        span:
+        component => Component
     }
 
-    pub fn bitor(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::BitOr,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
+    impl_token! {
+        custom_end:
+        arrow(1) => Arrow
     }
-    pub fn bitand(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::BitAnd,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
+
+    impl_token! {
+        value:
+        int(value: i32) => Int,
+        float(value: f32) => Float,
+        string(value: String) => String
     }
-    pub fn or(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Or,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn and(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::And,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn dot(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Dot,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn lparen(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::LParen,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn rparen(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::RParen,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn lbrace(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::LBrace,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn rbrace(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::RBrace,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn semicolon(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::SemiColon,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn lt(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Lt,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn gt(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Gt,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn eq(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Eq,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn colon(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Colon,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn comma(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Comma,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn plus(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Plus,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn sub(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Sub,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn star(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Star,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn slash(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::Slash,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn lte(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::LtEq,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn gte(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::GtEq,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn pluseq(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::PlusEq,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn subeq(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::SubEq,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn stareq(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::StarEq,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn slasheq(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::SlashEq,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn eqeq(pos: usize) -> Self {
-        Self {
-            kind: TokenKind::EqEq,
-            span: Span {
-                end: pos,
-                start: pos,
-            },
-        }
-    }
-    pub fn float(value: f32, start: usize, end: usize) -> Self {
-        Self {
-            kind: TokenKind::Float(value),
-            span: Span { end, start },
-        }
-    }
-    pub fn int(value: i32, start: usize, end: usize) -> Self {
-        Self {
-            kind: TokenKind::Int(value),
-            span: Span { end, start },
-        }
-    }
+
     pub fn identifier(buffer: &str, start: usize, end: usize) -> Self {
         Self {
             kind: TokenKind::Identifier(buffer.to_string()),
-            span: Span { end, start },
-        }
-    }
-    pub fn component(start: usize, end: usize) -> Self {
-        Self {
-            kind: TokenKind::Component,
-            span: Span { end, start },
-        }
-    }
-    pub fn arrow(start: usize) -> Self {
-        Self {
-            kind: TokenKind::Arrow,
-            span: Span {
-                start,
-                end: start + 1,
-            },
-        }
-    }
-    pub fn string(str: String, start: usize, end: usize) -> Self {
-        Self {
-            kind: TokenKind::String(str),
-            span: Span { end, start },
+            span: Span { start, end },
         }
     }
 }
