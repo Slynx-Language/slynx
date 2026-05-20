@@ -244,92 +244,20 @@ impl TypeChecker {
                     (HirType::Infer, _) => Ok(*b),
                     (HirType::Reference { rf, .. }, _) => self.unify_with_ref(*rf, *b, span),
                     (_, HirType::Reference { rf, .. }) => self.unify_with_ref(*rf, *b, span),
-                    (
-                        HirType::Component { props: aprops },
-                        HirType::Component { props: bprops },
-                    ) => {
-                        if aprops.len() != bprops.len() {
-                            return Err(TypeError {
-                                kind: TypeErrorKind::IncompatibleComponent {
-                                    reason: IncompatibleComponentReason::DifferentPropAmount {
-                                        rhs: aprops.len(),
-                                        lhs: bprops.len(),
-                                    },
-                                },
-                                span: *span,
-                            });
-                        }
-                        let mut unified_props = Vec::with_capacity(aprops.len());
-                        for (prop_a, prop_b) in aprops.iter().zip(bprops.iter()) {
-                            let unified_prop =
-                                self.unify(prop_a.prop_type(), prop_b.prop_type(), span)?;
-                            unified_props.push(ComponentProperty::new(
-                                *prop_a.visibility(),
-                                prop_a.name().to_string(),
-                                unified_prop,
-                            ));
-                        }
-                        let HirType::Component { props } = self.types_module.get_type_mut(a) else {
-                            unreachable!()
-                        };
-                        props.clear();
-                        props.extend_from_slice(&unified_props);
-                        let HirType::Component { props } = self.types_module.get_type_mut(b) else {
-                            unreachable!()
-                        };
-                        props.clear();
-                        props.extend_from_slice(&unified_props);
-                        Ok(*a)
+                    (HirType::Component { .. }, HirType::Component { .. }) => {
+                        self.unify_components(a, b, &concrete_a, &concrete_b, span)
                     }
                     (HirType::Component { .. }, HirType::GenericComponent) => Ok(*a),
                     (HirType::GenericComponent, HirType::Component { .. }) => Ok(*b),
-
-                    (HirType::Struct { fields: f1 }, HirType::Struct { fields: f2 }) => {
-                        if f1.len() != f2.len() {
-                            Err(TypeError {
-                                kind: TypeErrorKind::IncompatibleTypes {
-                                    expected: concrete_a,
-                                    received: concrete_b,
-                                },
-                                span: *span,
-                            })
-                        } else {
-                            for idx in 0..f1.len() {
-                                self.unify(&f1[idx], &f2[idx], span)?;
-                            }
-                            Ok(*a)
-                        }
+                    (HirType::Struct { .. }, HirType::Struct { .. }) => {
+                        self.unify_structs(a, &concrete_a, &concrete_b, span)
                     }
-                    (HirType::Tuple { fields: f1 }, HirType::Tuple { fields: f2 }) => {
-                        if f1.len() != f2.len() {
-                            Err(TypeError {
-                                kind: TypeErrorKind::IncompatibleTypes {
-                                    expected: concrete_a,
-                                    received: concrete_b,
-                                },
-                                span: *span,
-                            })
-                        } else {
-                            let mut new_fields = Vec::with_capacity(f1.len());
-
-                            for (t1, t2) in f1.iter().zip(f2.iter()) {
-                                let unified = self.unify(t1, t2, span)?;
-                                new_fields.push(unified);
-                            }
-
-                            Ok(self.types_module.create_tuple_type(new_fields))
-                        }
+                    (HirType::Tuple { .. }, HirType::Tuple { .. }) => {
+                        self.unify_tuples(&concrete_a, &concrete_b, span)
                     }
-                    (HirType::VarReference(rf1), HirType::VarReference(rf2)) => {
-                        let Some(rf1) = self.types_module.get_variable(rf1).cloned() else {
-                            unreachable!("Variable should have already been declared")
-                        };
-                        let Some(rf2) = self.types_module.get_variable(rf2).cloned() else {
-                            unreachable!("Variable2 should have already been declared")
-                        };
-                        self.unify(&rf1, &rf2, span)
+                    (HirType::VarReference(..), HirType::VarReference(..)) => {
+                        self.unify_var_references(&concrete_a, &concrete_b, span)
                     }
-
                     (_, _) => Err(TypeError {
                         kind: TypeErrorKind::IncompatibleTypes {
                             expected: concrete_b,
@@ -340,6 +268,133 @@ impl TypeChecker {
                 }
             }
         }
+    }
+
+    fn unify_components(
+        &mut self,
+        a: &TypeId,
+        b: &TypeId,
+        concrete_a: &HirType,
+        concrete_b: &HirType,
+        span: &Span,
+    ) -> Result<TypeId> {
+        let HirType::Component { props: aprops } = concrete_a else {
+            unreachable!()
+        };
+        let HirType::Component { props: bprops } = concrete_b else {
+            unreachable!()
+        };
+
+        if aprops.len() != bprops.len() {
+            return Err(TypeError {
+                kind: TypeErrorKind::IncompatibleComponent {
+                    reason: IncompatibleComponentReason::DifferentPropAmount {
+                        rhs: aprops.len(),
+                        lhs: bprops.len(),
+                    },
+                },
+                span: *span,
+            });
+        }
+        let mut unified_props = Vec::with_capacity(aprops.len());
+        for (prop_a, prop_b) in aprops.iter().zip(bprops.iter()) {
+            let unified_prop = self.unify(prop_a.prop_type(), prop_b.prop_type(), span)?;
+            unified_props.push(ComponentProperty::new(
+                *prop_a.visibility(),
+                prop_a.name().to_string(),
+                unified_prop,
+            ));
+        }
+        if let HirType::Component { props } = self.types_module.get_type_mut(a) {
+            props.clear();
+            props.extend_from_slice(&unified_props);
+        }
+        if let HirType::Component { props } = self.types_module.get_type_mut(b) {
+            props.clear();
+            props.extend_from_slice(&unified_props);
+        }
+        Ok(*a)
+    }
+
+    fn unify_structs(
+        &mut self,
+        a: &TypeId,
+        concrete_a: &HirType,
+        concrete_b: &HirType,
+        span: &Span,
+    ) -> Result<TypeId> {
+        let HirType::Struct { fields: f1 } = concrete_a else {
+            unreachable!()
+        };
+        let HirType::Struct { fields: f2 } = concrete_b else {
+            unreachable!()
+        };
+
+        if f1.len() != f2.len() {
+            return Err(TypeError {
+                kind: TypeErrorKind::IncompatibleTypes {
+                    expected: concrete_a.clone(),
+                    received: concrete_b.clone(),
+                },
+                span: *span,
+            });
+        }
+        for idx in 0..f1.len() {
+            self.unify(&f1[idx], &f2[idx], span)?;
+        }
+        Ok(*a)
+    }
+
+    fn unify_tuples(
+        &mut self,
+        concrete_a: &HirType,
+        concrete_b: &HirType,
+        span: &Span,
+    ) -> Result<TypeId> {
+        let HirType::Tuple { fields: f1 } = concrete_a else {
+            unreachable!()
+        };
+        let HirType::Tuple { fields: f2 } = concrete_b else {
+            unreachable!()
+        };
+
+        if f1.len() != f2.len() {
+            return Err(TypeError {
+                kind: TypeErrorKind::IncompatibleTypes {
+                    expected: concrete_a.clone(),
+                    received: concrete_b.clone(),
+                },
+                span: *span,
+            });
+        }
+        let mut new_fields = Vec::with_capacity(f1.len());
+        for (t1, t2) in f1.iter().zip(f2.iter()) {
+            let unified = self.unify(t1, t2, span)?;
+            new_fields.push(unified);
+        }
+        Ok(self.types_module.create_tuple_type(new_fields))
+    }
+
+    fn unify_var_references(
+        &mut self,
+        concrete_a: &HirType,
+        concrete_b: &HirType,
+        span: &Span,
+    ) -> Result<TypeId> {
+        let HirType::VarReference(var_a) = concrete_a else {
+            unreachable!()
+        };
+        let HirType::VarReference(var_b) = concrete_b else {
+            unreachable!()
+        };
+
+        let Some(resolved_a) = self.types_module.get_variable(var_a).cloned() else {
+            unreachable!("Variable should have already been declared")
+        };
+        let Some(resolved_b) = self.types_module.get_variable(var_b).cloned() else {
+            unreachable!("Variable2 should have already been declared")
+        };
+        self.unify(&resolved_a, &resolved_b, span)
     }
 
     fn unify_with_ref(&mut self, rf: TypeId, ty: TypeId, span: &Span) -> Result<TypeId> {
