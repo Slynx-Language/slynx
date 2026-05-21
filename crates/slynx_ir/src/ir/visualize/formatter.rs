@@ -192,14 +192,12 @@ impl<'a> Formatter<'a> {
 
         for (i, field_ty) in comp_ty.fields().iter().enumerate() {
             out.push_str(&format!(
-                "  %field{i}: {} = p{i};\n",
+                "  %p{i}: {} = p{i};\n",
                 self.fmt_type(&self.types.get_type(*field_ty)),
             ));
         }
 
-        let values_range = component.values();
-
-        for (i, val) in values_range.iter().enumerate() {
+        for (i, val) in component.values().iter().enumerate() {
             let child_str = match &*self.values[val.ptr()] {
                 ValueKind::Instruction(instruction_ptr) => {
                     let instruction = &self.instructions[instruction_ptr.ptr()];
@@ -435,7 +433,7 @@ impl<'a> Formatter<'a> {
             }
             ValueKind::Void => "void".to_string(),
             ValueKind::ComponentChild(index) => format!("#t{index}",),
-            ValueKind::ComponentProperty(index) => format!("#p{index}",),
+            ValueKind::ComponentProperty(index) => format!("%p{index}",),
         }
     }
 

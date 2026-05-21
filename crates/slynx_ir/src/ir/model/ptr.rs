@@ -113,7 +113,7 @@ impl<T, const N: usize> IRPointer<T, N> {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        N == 0 || (self.inner & 0xffff) == 0
+        self.len() == 0
     }
 
     #[inline]

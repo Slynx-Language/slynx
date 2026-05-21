@@ -1,0 +1,39 @@
+stylesheet Bg(color: int) uses Fg(color | 0x00ff00) {
+	let c = (color & 0xff) << 8;
+	styles {
+		backgroundColor: color,
+		foregroundColor: c,
+	}
+}
+stylesheet Fg(color: int) {
+	styles {
+		foregroundColor: color
+	}
+}
+
+component Pedrinho {
+	Div {
+		style: Bg(12),
+		Text {
+			text: "Pedrinho leitazedo"
+		}
+	}
+}
+
+component Jorgin {
+    pub prop color:int;
+	Text {
+	    style: Fg(color),
+		text: "Jorginho neguinho"
+	}
+	Pedrinho {}
+}
+
+func main(): Component {
+	let a = 5;
+	let b = 12;
+	let c = a + b;
+	Jorgin {
+        color: 0
+	}
+}

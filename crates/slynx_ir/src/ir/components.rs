@@ -303,7 +303,8 @@ impl SlynxIR {
         // Phase 1: Create top-level child values in the main context.
         // For top-level children, only create the component VALUE without
         // emitting nested SetField instructions. The init function handles setup.
-        for (idx, prop) in props.iter().enumerate() {
+        let mut child_counter = 0;
+        for (_idx, prop) in props.iter().enumerate() {
             match prop {
                 ComponentMemberDeclaration::Property { value: None, .. } => {}
                 ComponentMemberDeclaration::Property {
@@ -332,8 +333,9 @@ impl SlynxIR {
                     ir_values.push(value);
 
                     if let HirComponentExpression::Specialized(spec) = c {
-                        specialized_children.push((idx, spec));
+                        specialized_children.push((child_counter, spec));
                     }
+                    child_counter += 1;
                 }
             }
         }
