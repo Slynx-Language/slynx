@@ -143,4 +143,58 @@ and it's the curve of the transition.
 
 When doing so, new states as possible, thus 'click.disabled'. Due to problems with not knowing how to diferentiate state `click:disabled(0.2s) {}` from `click: disabled(0.2s)` `property: expression`, i've chosen to use dots instead.
 So it means that on hover, if click or disabled, turns the color to be grey. The thing is that it's got no transition.
-And thats it. 
+And thats it.
+
+### Animations
+Animations are not avaible yet and will come as a specific feature, even though it integrates directly with the usage of styles. The reason for this is because integrating a new thing on the compiler requires it to
+change a lot of places at once. And so things start to become hard to understand, mainly with the refactor that is required on the IR generation, which was specified [here](./refactor/refactor-ir-generation.md).
+An idea for the is to make them the same way a stylesheet works, so a pure function that return a bunch of styles, in this case, since the sizes of the styles might be different, a internally it will become a struc.
+So we should have something like:
+```
+animation Name(duration: time) { //'uses' is not planned here.
+	states(duration, backnforth(amount: 3, split: false), ease-in-out) {
+		0%: SomeStyle(),
+		25%: AnotherStyle,
+		50%: AThirdStyle(12, 55, 0xff0000),
+		75%: AFourthStyle(44, 2),
+		100%: AFifthStyle, //same as AFifthStyle()
+	}
+}
+```
+
+which is, at 0, sets the style to be SomeStyle(), at 25% changes to AnotherStyle, at 50% the same logic, and so on. The backnforth means that, if given a duration of 3s, backnforth(amount:3, split: false) means that the transition MUSTN'T be splitted
+so, from 0% -> 100%, it takes 1.5 seconds, since it goes from 0->100% at 1.5s and from 100%->0% at 1.5s, so it follows the 3s, and then it restart, going from 0->100% again until complete the animation 3 times.
+So the `split=false` means that each animation from 0->100 MUST have the given duration, and `split=true` means that yes it can be split, so, it executes 1second 0->100->0, 3 times.
+In a table it is:
+
+| `split` | duration | amounts | time per pass (0→100%) | time per pass (100→0%) | total time | behavior |
+|---------|----------|---------|------------------------|------------------------|------------|----------|
+| `false` | 3s | 3 | 1.5s | 1.5s | 9s | each full cycle (0→100→0) takes exactly 3s. repeats 3 times. |
+| `true`  | 3s | 3 | 0.5s   | 0.5s   | 3s | total duration is split across all passes. each 0→100→0 takes 1s. repeats 3 times. |
+
+- `split: false` — each cycle from 0→100→0 **must** complete in exactly `duration`. the total time is `duration × amount`.
+- `split: true` — the `duration` is divided across all passes. each cycle takes `duration / amount`.
+
+Another thing that is worth saying is that the animation should be pure such as the stylesheet
+
+#### Internal representation
+Internally it shouldn't have an style or another, because it'd make things harder, so `if A {AStyle()} else {BStyle()}` is not accepted because they're different types. The language is intended to be exaustive.
+Then the Name animation should probably be something like:
+
+enum AnimationCurve{...}
+
+struct AnimationMetadata {
+	duration: time,
+	repeat: u8,
+	split: bool,
+	curve: AnimationCurve
+}
+
+struct Name {
+	metadata: AnimationMetadata,
+	style0: SomeStyle,
+	style25: AnotherStyle,
+	style50: AThirdStyle,
+	...
+}
+and the Name function generates it, and when applying, apply the given style based on the duration.Animahe given style based on the duration.
