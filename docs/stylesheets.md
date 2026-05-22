@@ -197,4 +197,4 @@ struct Name {
 	style50: AThirdStyle,
 	...
 }
-and the Name function generates it, and when applying, apply the given style based on the duration.Animahe given style based on the duration.
+and the Name function generates it, and when applying, apply the given style based on the duration.
