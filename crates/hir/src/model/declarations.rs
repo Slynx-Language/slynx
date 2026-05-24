@@ -23,10 +23,10 @@
 //! - [`HirDeclarationKind`] — Enum of declaration kinds
 //! - [`ComponentMemberDeclaration`] — Members of a component declaration
 
-use common::{Span, SymbolPointer};
+use common::Span;
 
 use crate::{
-    DeclarationId, PropertyId, TypeId, VariableId,
+    DeclarationId, PropertyId, SymbolPointer, TypeId, VariableId,
     model::{
         HirComponentExpression, HirExpression, HirStatement, HirStyleStatement, PropertyExpression,
     },

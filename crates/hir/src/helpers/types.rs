@@ -1,6 +1,4 @@
-use common::SymbolPointer;
-
-use crate::{SlynxHir, TypeId, VariableId, model::HirType};
+use crate::{SlynxHir, SymbolPointer, TypeId, VariableId, model::HirType};
 
 impl SlynxHir {
     /// Retrieves the id of the `infer` type.

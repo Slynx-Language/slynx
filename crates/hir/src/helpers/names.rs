@@ -1,6 +1,6 @@
-use common::{Span, SymbolPointer};
+use common::Span;
 
-use crate::{HIRError, Result, SlynxHir, VariableId};
+use crate::{HIRError, Result, SlynxHir, SymbolPointer, VariableId};
 
 impl SlynxHir {
     ///Tries to retrieve a variable with the provided `name` on the current active scope

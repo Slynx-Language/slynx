@@ -1,11 +1,11 @@
 use std::mem::discriminant;
 
 use crate::{
-    ExpressionId, Result, SlynxHir, TypeId,
+    ExpressionId, Result, SlynxHir, SymbolPointer, TypeId,
     error::{HIRError, HIRErrorKind},
     model::{FieldMethod, HirExpression, HirExpressionKind, HirStatementKind, HirType},
 };
-use common::{Operator, Span, SymbolPointer};
+use common::{Operator, Span};
 use slynx_parser::{ASTExpression, ASTExpressionKind, ASTStatement, GenericIdentifier, NamedExpr};
 
 impl SlynxHir {

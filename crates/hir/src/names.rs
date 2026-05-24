@@ -1,6 +1,6 @@
-use crate::{Result, SlynxHir, TypeId, VariableId};
+use crate::{Result, SlynxHir, SymbolPointer, TypeId, VariableId};
 
-use common::{Span, SymbolPointer};
+use common::Span;
 //file specific to implement things related to name resolution
 impl SlynxHir {
     pub fn intern_name(&mut self, name: &str) -> SymbolPointer {

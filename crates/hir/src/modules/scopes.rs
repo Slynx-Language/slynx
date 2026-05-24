@@ -3,9 +3,7 @@ use std::{
     ops::{Deref, DerefMut, Index, IndexMut},
 };
 
-use common::SymbolPointer;
-
-use crate::VariableId;
+use crate::{SymbolPointer, VariableId};
 
 /// A single lexical scope that maps symbol names to variable IDs.
 #[derive(Debug)]

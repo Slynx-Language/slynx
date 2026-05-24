@@ -1,6 +1,4 @@
-use common::SymbolPointer;
-
-use crate::{TypeId, VariableId, model::HirType};
+use crate::{SymbolPointer, TypeId, VariableId, model::HirType};
 use std::collections::HashMap;
 
 const INT_IDX: usize = 0;

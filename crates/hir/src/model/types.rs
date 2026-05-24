@@ -52,8 +52,8 @@
 //! - [`crate::hir::TypeId`] — Type identifiers
 //! - [`crate::hir::modules::TypesModule`] — Type management
 
-use crate::{TypeId, VariableId};
-use common::SymbolPointer;
+use crate::{SymbolPointer, TypeId, VariableId};
+
 use slynx_parser::VisibilityModifier;
 
 /// A method for accessing fields on types.

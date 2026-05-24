@@ -76,9 +76,9 @@
 //!
 //! During HIR generation, this expression is wrapped in a [`Return`] statement.
 
-use common::{Span, SymbolPointer};
+use common::Span;
 
-use crate::{TypeId, VariableId, model::HirExpression};
+use crate::{SymbolPointer, TypeId, VariableId, model::HirExpression};
 
 #[derive(Debug)]
 ///A Style definition when declaring a stylesheet

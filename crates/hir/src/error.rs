@@ -1,6 +1,9 @@
-use crate::model::{HirExpression, HirType};
+use crate::{
+    SymbolPointer,
+    model::{HirExpression, HirType},
+};
 
-use common::{Span, SymbolPointer};
+use common::Span;
 
 /// An error produced during HIR generation or type checking.
 ///

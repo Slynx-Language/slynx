@@ -1,6 +1,6 @@
-use common::{Span, SymbolPointer};
+use common::Span;
 
-use crate::{DeclarationId, HIRError, HirType, Result, SlynxHir, TypeId};
+use crate::{DeclarationId, HIRError, HirType, Result, SlynxHir, SymbolPointer, TypeId};
 
 impl SlynxHir {
     ///Gets the HIR type of the given `ty`
