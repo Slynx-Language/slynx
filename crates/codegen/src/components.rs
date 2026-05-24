@@ -4,7 +4,7 @@ use slynx_hir::{
 };
 
 use crate::{
-    Function, IRComponentId, IRError, IRPointer, IRType, IRTypeId, Instruction, SlynxIR,
+    Codegen, Function, IRComponentId, IRError, IRPointer, IRType, IRTypeId, Instruction, SlynxIR,
     TempIRData, Value,
 };
 
@@ -35,7 +35,7 @@ struct ChildrenValue<'a> {
     expressions: Vec<(usize, &'a HirSpecializedComponentExpression)>,
 }
 
-impl SlynxIR {
+impl Codegen {
     /// Resolves a [`HirStyleUsage`] into the IR function pointers and struct type
     /// for a stylesheet.
     ///
@@ -46,9 +46,9 @@ impl SlynxIR {
     fn get_style_application(
         &mut self,
         style_usage: &HirStyleUsage,
-        temp: &mut TempIRData,
     ) -> Result<StyleApplyData, IRError> {
-        let style = temp
+        let style = self
+            .temp
             .get_style(style_usage.style)
             .ok_or(IRError::DeclarationNotRecognized(style_usage.style))?;
         Ok(StyleApplyData {
@@ -77,7 +77,6 @@ impl SlynxIR {
     pub(crate) fn get_component_expression(
         &mut self,
         value: &HirComponentExpression,
-        temp: &mut TempIRData,
     ) -> Result<(Value, Option<StyleApplyData>), IRError> {
         let mut style_usage: Option<&HirStyleUsage> = None;
         let ty = match value {
@@ -95,10 +94,10 @@ impl SlynxIR {
                 style_usage = style.as_ref();
                 self.types.specialized_div_type()
             }
-            HirComponentExpression::Normal { name, .. } => temp.get_type(*name)?,
+            HirComponentExpression::Normal { name, .. } => self.temp.get_type(*name)?,
         };
 
-        let label = temp.current_label();
+        let label = self.temp.current_label();
         let instruction =
             self.insert_instruction(label, Instruction::component(ty, IRPointer::null()), false);
         let instruction_ptr = self.dereference_instruction_ptr(instruction).with_length();
@@ -109,7 +108,7 @@ impl SlynxIR {
                 text,
                 style: _,
             }) => {
-                let text_value = self.generate_value_for(text, temp)?;
+                let text_value = self.generate_value_for(text)?;
                 let vals = self.insert_values(&[comp_value.clone(), self.get_value(text_value)]);
                 self.insert_instruction(
                     label,
@@ -122,7 +121,7 @@ impl SlynxIR {
                 style: _,
             }) => {
                 for (i, child) in children.iter().enumerate() {
-                    let (child_value, _) = self.get_component_expression(child, temp)?;
+                    let (child_value, _) = self.get_component_expression(child)?;
                     let vals = self.insert_values(&[comp_value.clone(), child_value]);
                     self.insert_instruction(
                         label,
@@ -141,7 +140,7 @@ impl SlynxIR {
                 ..
             } => {
                 for prop in properties {
-                    let prop_value = self.generate_value_for(prop.expr(), temp)?;
+                    let prop_value = self.generate_value_for(prop.expr())?;
                     let vals =
                         self.insert_values(&[comp_value.clone(), self.get_value(prop_value)]);
                     self.insert_instruction(
@@ -155,7 +154,7 @@ impl SlynxIR {
                     );
                 }
                 for (i, child) in children.iter().enumerate() {
-                    let (child_value, _) = self.get_component_expression(child, temp)?;
+                    let (child_value, _) = self.get_component_expression(child)?;
                     let vals = self.insert_values(&[comp_value.clone(), child_value]);
                     self.insert_instruction(
                         label,
@@ -171,7 +170,7 @@ impl SlynxIR {
         }
 
         let style_application = if let Some(style) = style_usage {
-            Some(self.get_style_application(style, temp)?)
+            Some(self.get_style_application(style)?)
         } else {
             None
         };
@@ -182,7 +181,6 @@ impl SlynxIR {
     pub fn get_type_of_component_expression(
         &mut self,
         expr: &HirComponentExpression,
-        temp: &TempIRData,
     ) -> Result<IRTypeId, IRError> {
         let v = match expr {
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Text {
@@ -191,7 +189,7 @@ impl SlynxIR {
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Div {
                 ..
             }) => self.types.specialized_div_type(),
-            HirComponentExpression::Normal { name, .. } => self.get_ir_type(name, temp)?,
+            HirComponentExpression::Normal { name, .. } => self.get_ir_type(name)?,
         };
         Ok(v)
     }
@@ -207,12 +205,11 @@ impl SlynxIR {
         &mut self,
         expr: &HirSpecializedComponentExpression,
         p0: IRPointer<Value, 1>,
-        temp: &mut TempIRData,
     ) -> Result<(), IRError> {
         let label = temp.current_label();
         match expr {
             HirSpecializedComponentExpression::Text { text, style: _ } => {
-                let text_value = self.generate_value_for(text, temp)?;
+                let text_value = self.generate_value_for(text)?;
                 let vals = self.insert_values(&[self.get_value(p0), self.get_value(text_value)]);
                 self.insert_instruction(
                     label,
@@ -222,7 +219,7 @@ impl SlynxIR {
             }
             HirSpecializedComponentExpression::Div { children, style: _ } => {
                 for (i, child) in children.iter().enumerate() {
-                    let (child_value, _) = self.get_component_expression(child, temp)?;
+                    let (child_value, _) = self.get_component_expression(child)?;
                     let vals = self.insert_values(&[self.get_value(p0), child_value]);
                     self.insert_instruction(
                         label,
@@ -240,14 +237,10 @@ impl SlynxIR {
     }
 
     ///Retrieves the arguments required for the given `usage` style
-    pub fn get_usage_args(
-        &mut self,
-        usage: &HirStyleUsage,
-        temp: &mut TempIRData,
-    ) -> Result<IRPointer<Value>, IRError> {
+    pub fn get_usage_args(&mut self, usage: &HirStyleUsage) -> Result<IRPointer<Value>, IRError> {
         let mut out = Vec::with_capacity(usage.params.len());
         for param in &usage.params {
-            let value = self.generate_value_for(param, temp)?;
+            let value = self.generate_value_for(param)?;
             let value = self.get_value(value);
             out.push(value);
         }
@@ -259,15 +252,14 @@ impl SlynxIR {
         &mut self,
         decl: &HirDeclaration,
         component_id: IRComponentId,
-        temp: &TempIRData,
     ) -> Result<(), IRError> {
         let Some(HirType::Component { props: ty_props }) =
-            temp.types_module().get_component(&decl.ty)
+            self.temp.types_module().get_component(&decl.ty)
         else {
             unreachable!("{:?} should map to an Component, but it doesn't", decl);
         };
         for prop_type in ty_props.iter().map(|prop| prop.prop_type()) {
-            let ty = self.get_ir_type(prop_type, temp)?;
+            let ty = self.get_ir_type(prop_type)?;
             let comp_ty = self.types.get_component_type_mut(component_id);
             comp_ty.insert_field(ty);
         }
@@ -283,7 +275,6 @@ impl SlynxIR {
         decl: &HirDeclaration,
         props: &'a [ComponentMemberDeclaration],
         component_id: IRComponentId,
-        temp: &mut TempIRData,
     ) -> Result<ChildrenValue<'a>, IRError> {
         let mut ir_values = Vec::new();
         let mut specialized_children: Vec<(usize, &HirSpecializedComponentExpression)> = Vec::new();
@@ -296,13 +287,13 @@ impl SlynxIR {
                     index,
                     ..
                 } => {
-                    let value = self.generate_value_for(value, temp)?;
+                    let value = self.generate_value_for(value)?;
                     temp.get_component_mut(decl.id)
                         .default_properties
                         .push((value, *index as u8));
                 }
                 ComponentMemberDeclaration::Child(c) => {
-                    let ty = self.get_type_of_component_expression(c, temp)?;
+                    let ty = self.get_type_of_component_expression(c)?;
                     {
                         let comp_ty = self.types.get_component_type_mut(component_id);
                         comp_ty.insert_child(ty);
@@ -342,15 +333,14 @@ impl SlynxIR {
         decl: &HirDeclaration,
         comp_ptr: IRPointer<crate::Component, 1>,
         first_spec: &HirSpecializedComponentExpression,
-        temp: &mut TempIRData,
     ) -> Result<IRPointer<Function, 1>, IRError> {
-        let init_func = temp.get_init_function(decl.id);
+        let init_func = self.temp.get_init_function(decl.id);
         self.components[comp_ptr.ptr()].init_func = Some(init_func);
 
-        let prev_function = temp.current_function();
-        let prev_label = temp.current_label();
+        let prev_function = self.temp.current_function();
+        let prev_label = self.temp.current_label();
 
-        temp.set_current_function(init_func);
+        self.temp.set_current_function(init_func);
 
         let label = self.insert_label(init_func, "entry");
         self.get_context_mut(init_func)
@@ -376,19 +366,19 @@ impl SlynxIR {
             func.insert_arg_types(&[spec_type]);
             func.set_return_type(void_ty);
         }
-        self.insert_value(self.create_func_arg_value(0, temp));
+        self.insert_value(self.create_func_arg_value(0));
 
-        self.emit_specialized_component_init(first_spec, arg_ptr, temp)?;
+        self.emit_specialized_component_init(first_spec, arg_ptr)?;
 
         let void_value = self.insert_value(self.create_void_value());
         self.insert_instruction(
-            temp.current_label(),
+            self.temp.current_label(),
             Instruction::ret(void_value, self.types.void_type()),
             true,
         );
 
-        temp.set_current_function(prev_function);
-        temp.set_current_label(prev_label);
+        self.temp.set_current_function(prev_function);
+        self.temp.set_current_label(prev_label);
 
         Ok(init_func)
     }
@@ -404,7 +394,6 @@ impl SlynxIR {
         comp_ptr: IRPointer<crate::Component, 1>,
         init_func: IRPointer<Function, 1>,
         specialized_children: &[(usize, &HirSpecializedComponentExpression)],
-        temp: &mut TempIRData,
     ) -> Result<(), IRError> {
         let void_ty = self.types.void_type();
 
@@ -415,11 +404,11 @@ impl SlynxIR {
                 HirSpecializedComponentExpression::Div { style, .. } => style.as_ref(),
             };
             if let Some(usage) = style_usage {
-                let style_data = self.get_style_application(usage, temp)?;
-                let args = self.get_usage_args(usage, temp)?;
+                let style_data = self.get_style_application(usage)?;
+                let args = self.get_usage_args(usage)?;
 
                 let cons_call = self.insert_instruction(
-                    temp.current_label(),
+                    self.temp.current_label(),
                     Instruction::call(style_data.init_func, style_data.struct_ty, args),
                     false,
                 );
@@ -440,7 +429,7 @@ impl SlynxIR {
         let comp_val = self.create_component_child_value(0, comp_ptr);
         let initcall_vals = self.insert_values(&[comp_val]);
         let initcall_ptr = self.insert_instruction(
-            temp.current_label(),
+            self.temp.current_label(),
             Instruction::initcall(init_func, initcall_vals, void_ty),
             false,
         );
@@ -451,7 +440,7 @@ impl SlynxIR {
             let style_vals =
                 self.insert_values(&[comp_val, self.get_value(entry.struct_value_ptr)]);
             self.insert_instruction(
-                temp.current_label(),
+                self.temp.current_label(),
                 Instruction::initcall(entry.apply_func, style_vals, void_ty),
                 false,
             );
@@ -480,26 +469,25 @@ impl SlynxIR {
         &mut self,
         decl: &HirDeclaration,
         props: &[ComponentMemberDeclaration],
-        temp: &mut TempIRData,
     ) -> Result<(), IRError> {
-        let component_type = self.get_ir_type(&decl.ty, temp)?;
+        let component_type = self.get_ir_type(&decl.ty)?;
         let IRType::Component(component_id) = self.types.get_type(component_type) else {
             unreachable!("Something errored that type of component simply isnt Component on ir");
         };
 
-        self.populate_component_type_fields(decl, component_id, temp)?;
+        self.populate_component_type_fields(decl, component_id)?;
 
-        let comp_ptr = temp.get_component(decl.id).ptr;
+        let comp_ptr = self.temp.get_component(decl.id).ptr;
         let ChildrenValue {
             values: ir_values,
             expressions: specialized_children,
-        } = self.create_component_child_values(decl, props, component_id, temp)?;
+        } = self.create_component_child_values(decl, props, component_id)?;
 
         self.components[comp_ptr.ptr()].values = self.insert_values(&ir_values);
 
         if let Some((_, first_spec)) = specialized_children.first() {
-            let init_func = self.build_init_function(decl, comp_ptr, first_spec, temp)?;
-            self.emit_initcalls(comp_ptr, init_func, &specialized_children, temp)?;
+            let init_func = self.build_init_function(decl, comp_ptr, first_spec)?;
+            self.emit_initcalls(comp_ptr, init_func, &specialized_children)?;
         }
 
         Ok(())

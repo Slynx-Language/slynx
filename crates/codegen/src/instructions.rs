@@ -8,9 +8,6 @@ use crate::{
     ValueKind,
 };
 
-pub type InstructionPtr<const K: usize = 0> =
-    Either<IRPointer<IRPointer<Instruction, K>, 1>, IRPointer<Instruction, K>>;
-
 macro_rules! impl_bin_expression {
     ($($name:ident),* $(,)?) => {
         paste! {
@@ -168,26 +165,6 @@ impl SlynxIR {
         }
     }
 
-    ///Inserts the provided `instr` on the given `label`. If `map` is `true` then the label will be able to read it when compiling, thus, otherwise, its just an intermediate instruction.
-    ///On `map=true`, is garanteed to be `Left` variant, otherwise `Right`
-    pub(crate) fn insert_instruction(
-        &mut self,
-        label: IRPointer<Label, 1>,
-        instr: Instruction,
-        map: bool,
-    ) -> InstructionPtr {
-        let ptr = self.instructions.len();
-        self.instructions.push(instr);
-        if map {
-            let outptr = self.instruction_pointers.len();
-            self.instruction_pointers.push(IRPointer::new(ptr, 1));
-            let label = self.get_label_mut(label);
-            label.insert_instruction();
-            Either::Left(IRPointer::new(outptr, 1))
-        } else {
-            Either::Right(IRPointer::new(ptr, 1))
-        }
-    }
     impl_bin_expression!(
         add, sub, mul, div, cmp, gt, gte, lt, lte, and, or, shr, shl, xor
     );

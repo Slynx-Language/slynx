@@ -6,4 +6,5 @@ edition = "2024"
 [dependencies]
 slynx-hir.path="../hir"
 petgraph.workspace=true
+smallvec.workspace=true
 slynx-ir.path="../ir"

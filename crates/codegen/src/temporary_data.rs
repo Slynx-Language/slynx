@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use slynx_hir::{DeclarationId, TypeId, VariableId, model::HirDeclaration, modules::TypesModule};
+use slynx_hir::{DeclarationId, TypeId, VariableId};
+use slynx_ir::{Component, Function, IRPointer, IRTypeId, Label, StyleProperty, Value};
 use smallvec::SmallVec;
 
-use crate::{Component, Function, IRError, IRPointer, IRTypeId, Label, StyleProperty, Value};
+use crate::CodegenError;
 
 pub struct AuxiliaryStyle {
     pub init_func: IRPointer<Function, 1>,
@@ -21,10 +22,7 @@ pub struct TempComponentData {
 
 ///Temporary IR Data to be able to map the HIR contents to the IR contents that are being generated. This should only live during `generate` function of
 /// slynx ir
-pub struct TempIRData<'a> {
-    types_module: &'a TypesModule,
-    /// The full HIR declaration list, used for lookups during IR generation.
-    pub hir: &'a [HirDeclaration],
+pub struct TempIRData {
     ///Maps HIR types to IR types
     types_mapping: HashMap<TypeId, IRTypeId>,
     ///Maps HIR functions to IR functions
@@ -43,11 +41,9 @@ pub struct TempIRData<'a> {
     init_functions: HashMap<DeclarationId, IRPointer<Function, 1>>,
 }
 
-impl<'a> TempIRData<'a> {
-    pub fn new(types_module: &'a TypesModule, hir: &'a [HirDeclaration]) -> Self {
+impl TempIRData {
+    pub fn new() -> Self {
         Self {
-            types_module,
-            hir,
             types_mapping: HashMap::new(),
             functions: HashMap::new(),
             current_function: IRPointer::null(),
@@ -58,11 +54,6 @@ impl<'a> TempIRData<'a> {
             styles: HashMap::new(),
             init_functions: HashMap::new(),
         }
-    }
-
-    #[inline]
-    pub fn types_module(&self) -> &TypesModule {
-        self.types_module
     }
 
     ///Maps the provided `hty`(hir type) to the provided `ity`(ir type)
@@ -158,11 +149,11 @@ impl<'a> TempIRData<'a> {
     }
     #[inline]
     ///Gets the IR type for the provided `ty`(hir type)
-    pub fn get_type(&self, ty: TypeId) -> Result<IRTypeId, IRError> {
+    pub fn get_type(&self, ty: TypeId) -> Result<IRTypeId, CodegenError> {
         if let Some(ty) = self.types_mapping.get(&ty) {
             Ok(*ty)
         } else {
-            Err(IRError::IRTypeNotRecognized(ty))
+            Err(CodegenError::IRTypeNotRecognized(ty))
         }
     }
 
