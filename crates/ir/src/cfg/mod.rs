@@ -87,7 +87,8 @@ impl ControlFlowGraph {
         label: &Label,
         ir: &SlynxIR,
     ) -> Option<(Vec<IRPointer<Label, 1>>, Vec<EdgeKind>)> {
-        let instructions = ir.get_label_instructions(label).into_iter().flatten();
+        let viewer = ir.get_batch_view(label.instructions());
+        let instructions = viewer.flattened_values();
         let mut sucessors = Vec::new();
         let kind = match instructions.last()?.instruction_type {
             InstructionType::Br(c) => {

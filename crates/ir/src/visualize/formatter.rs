@@ -143,10 +143,6 @@ impl<'a> Formatter<'a> {
         out.join("\n")
     }
 
-    fn format_function_name(&self, ctx: &Function) -> String {
-        self.symbols.get_name(ctx.name()).to_string()
-    }
-
     fn format_function(&self, ctx: &Function) -> String {
         let IRType::Function(fty) = self.types.get_type(ctx.ty()) else {
             unreachable!("Type of function should be function");
