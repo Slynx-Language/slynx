@@ -1,8 +1,6 @@
 use std::ops::Deref;
 
-use common::SymbolPointer;
-
-use crate::{IRPointer, IRTypeId, Instruction};
+use crate::{IRPointer, IRTypeId, Instruction, SymbolPointer};
 
 #[derive(Debug, Clone, Copy)]
 ///A value that represents something on a slot. A slot is something on memory, anywhere, so this is practically a pointer to some value. But it's better to be

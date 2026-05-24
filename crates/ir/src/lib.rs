@@ -1,3 +1,5 @@
+mod queries;
+mod values;
 mod views;
 pub use views::*;
 mod api;
@@ -17,3 +19,5 @@ pub use model::*;
 
 pub use types::*;
 pub use visualize::*;
+
+pub type SymbolPointer = common::SymbolPointer<SlynxIR>;

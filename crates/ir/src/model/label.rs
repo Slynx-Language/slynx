@@ -1,7 +1,6 @@
-use common::SymbolPointer;
 use smallvec::SmallVec;
 
-use crate::{IRTypeId, Value};
+use crate::{IRTypeId, SymbolPointer, Value};
 
 use super::{IRPointer, instruction::Instruction};
 

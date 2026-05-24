@@ -3,12 +3,14 @@ mod functions;
 mod irtype;
 mod structs;
 mod tuple;
-use common::SymbolPointer;
+
 pub use components::*;
 pub use functions::*;
 pub use irtype::*;
 pub use structs::*;
 pub use tuple::*;
+
+use crate::SymbolPointer;
 
 pub const BUILTIN_TYPES: &[IRType] = &[
     IRType::I8,
@@ -177,10 +179,7 @@ impl IRTypes {
         (IRTypeId(out), struct_id)
     }
     ///Creates a new empty struct and returns its type ID
-    pub fn create_empty_component(
-        &mut self,
-        name: common::SymbolPointer,
-    ) -> (IRTypeId, IRComponentId) {
+    pub fn create_empty_component(&mut self, name: SymbolPointer) -> (IRTypeId, IRComponentId) {
         let sout = self.components.len();
         self.components.push(IRComponent::new(name));
         let out = self.types.len();

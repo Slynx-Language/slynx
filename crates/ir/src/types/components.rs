@@ -1,5 +1,4 @@
-use crate::IRTypeId;
-use common::SymbolPointer;
+use crate::{IRTypeId, SymbolPointer};
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
