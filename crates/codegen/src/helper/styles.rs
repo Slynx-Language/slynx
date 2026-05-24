@@ -4,12 +4,9 @@ use slynx_hir::{
     HirDeclaration, HirDeclarationKind, HirStyleBlockKind, HirStyleStatement, HirStyleUsage,
     StylesDefinition,
 };
-use slynx_ir::IRType;
+use slynx_ir::{Function, IRPointer, IRType, IRTypeId, StyleProperty};
 
-use crate::{
-    Codegen, Context, IRError, IRPointer, IRTypeId, Instruction, PropertySource, ResolvedProperty,
-    SlynxIR, StyleProperty, TempIRData, Value,
-};
+use crate::{Codegen, CodegenError};
 
 impl Codegen {
     /// Collect style property definitions from a list of style statements.
@@ -40,7 +37,7 @@ impl Codegen {
     /// 3. Store the property-to-field-index mapping for parent lookup.
     /// 4. Create the constructor function that returns the struct with default values.
     /// 5. Create the Apply function that emits @sapply for each property.
-    pub(crate) fn lower_stylesheet(&mut self, decl: &HirDeclaration) -> Result<(), IRError> {
+    pub(crate) fn lower_stylesheet(&mut self, decl: &HirDeclaration) -> Result<(), CodegenError> {
         let HirDeclarationKind::StyleSheet {
             ref statements,
             ref usages,
@@ -132,7 +129,7 @@ impl Codegen {
         &mut self,
         struct_ty: IRTypeId,
         properties: &[ResolvedProperty],
-    ) -> Result<(), IRError> {
+    ) -> Result<(), CodegenError> {
         // Compute all field types first to avoid borrow conflicts
         let field_types: Vec<IRTypeId> = properties
             .iter()
@@ -164,7 +161,7 @@ impl Codegen {
         struct_ty: IRTypeId,
         usages: &[HirStyleUsage],
         properties: &[ResolvedProperty],
-    ) -> Result<IRPointer<Context, 1>, IRError> {
+    ) -> Result<IRPointer<Context, 1>, CodegenError> {
         let HirDeclarationKind::StyleSheet { ref args, .. } = decl.kind else {
             unreachable!("Should've received a stylesheet");
         };
@@ -315,7 +312,7 @@ impl Codegen {
         decl: &HirDeclaration,
         struct_ty: IRTypeId,
         properties: &[ResolvedProperty],
-    ) -> Result<IRPointer<Context, 1>, IRError> {
+    ) -> Result<IRPointer<Function, 1>, CodegenError> {
         let generic_component_ty = self.types.generic_component_type();
         let void_ty = self.types.void_type();
 

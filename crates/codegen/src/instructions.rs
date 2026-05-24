@@ -2,11 +2,9 @@ use common::Operator;
 use either::Either;
 use paste::paste;
 use slynx_hir::{HirExpression, HirExpressionKind, HirStatement, HirStatementKind};
+use slynx_ir::{IRPointer, Instruction, Slot, Value};
 
-use crate::{
-    IRError, IRPointer, IRTypeId, Instruction, Label, Operand, Slot, SlynxIR, TempIRData, Value,
-    ValueKind,
-};
+use crate::{Codegen, CodegenError};
 
 macro_rules! impl_bin_expression {
     ($($name:ident),* $(,)?) => {
@@ -34,13 +32,12 @@ macro_rules! impl_bin_expression {
     };
 }
 
-impl SlynxIR {
+impl Codegen {
     fn emit_while_statement(
         &mut self,
         condition: &HirExpression,
         body: &[HirStatement],
-        temp: &mut TempIRData,
-    ) -> Result<Option<IRPointer<Instruction, 1>>, IRError> {
+    ) -> Result<Option<IRPointer<Instruction, 1>>, CodegenError> {
         let cond_label = self.insert_label(temp.current_function(), "while_cond");
         let body_label = self.insert_label(temp.current_function(), "while_body");
         let end_label = self.insert_label(temp.current_function(), "while_end");
@@ -89,8 +86,7 @@ impl SlynxIR {
         &mut self,
         lhs: &HirExpression,
         value: &HirExpression,
-        temp: &mut TempIRData,
-    ) -> Result<Option<IRPointer<Instruction, 1>>, IRError> {
+    ) -> Result<Option<IRPointer<Instruction, 1>>, CodegenError> {
         let value_ptr = self.generate_value_for(value, temp)?;
 
         match &lhs.kind {
@@ -128,11 +124,10 @@ impl SlynxIR {
     }
 
     ///Emits IR instructions for the given HIR `statement`
-    pub(crate) fn generate_statement(
+    pub(crate) fn lower_statement(
         &mut self,
         statement: &HirStatement,
-        temp: &mut TempIRData,
-    ) -> Result<Option<IRPointer<Instruction, 1>>, IRError> {
+    ) -> Result<Option<IRPointer<Instruction, 1>>, CodegenError> {
         match &statement.kind {
             HirStatementKind::While { condition, body } => {
                 self.emit_while_statement(condition, body, temp)
@@ -151,11 +146,11 @@ impl SlynxIR {
             HirStatementKind::Assign { lhs, value } => self.emit_assign_statement(lhs, value, temp),
 
             HirStatementKind::Expression { expr } => {
-                self.generate_value_for(expr, temp)?;
+                self.lower_expression(expr)?;
                 Ok(None)
             }
             HirStatementKind::Return { expr } => {
-                let val = self.generate_value_for(expr, temp)?;
+                let val = self.lower_expression(expr)?;
                 let ty = self.get_type_of_value(val);
                 let instruction =
                     self.insert_instruction(temp.current_label(), Instruction::ret(val, ty), true);
@@ -173,7 +168,6 @@ impl SlynxIR {
         &mut self,
         lhs_value: IRPointer<Value, 1>,
         rhs_value: IRPointer<Value, 1>,
-        temp: &mut TempIRData,
     ) -> InstructionPtr {
         let bool_type = self.types.bool_type();
         let thenlabel = self.insert_label(temp.current_function(), "and_then");
@@ -228,7 +222,6 @@ impl SlynxIR {
         &mut self,
         lhs_value: IRPointer<Value, 1>,
         rhs_value: IRPointer<Value, 1>,
-        temp: &mut TempIRData,
     ) -> InstructionPtr {
         let bool_type = self.types.bool_type();
         let elselabel = self.insert_label(temp.current_function(), "or_else");
@@ -282,7 +275,6 @@ impl SlynxIR {
         lhs: &HirExpression,
         rhs: &HirExpression,
         op: &Operator,
-        temp: &mut TempIRData,
     ) -> Result<Value, IRError> {
         let lhs_value = self.generate_value_for(lhs, temp)?;
         let rhs_value = self.generate_value_for(rhs, temp)?;
@@ -388,11 +380,7 @@ impl SlynxIR {
         Ok(Value::new_instruction(bin_instruction.with_length(), ty))
     }
 
-    pub(crate) fn allocate(
-        &mut self,
-        ty: IRTypeId,
-        temp: &TempIRData,
-    ) -> (IRPointer<Value, 1>, IRPointer<Slot, 1>) {
+    pub(crate) fn allocate(&mut self, ty: IRTypeId) -> (IRPointer<Value, 1>, IRPointer<Slot, 1>) {
         let ptr = self.slots.len();
         self.slots.push(Slot { ty });
         let out = IRPointer::new(ptr, 1);
@@ -405,7 +393,6 @@ impl SlynxIR {
         &mut self,
         slot: IRPointer<Slot, 1>,
         value: IRPointer<Value, 1>,
-        temp: &TempIRData,
     ) -> IRPointer<IRPointer<Instruction, 1>, 1> {
         let slot_type = self.slots[slot.ptr()].ty;
         let v = self

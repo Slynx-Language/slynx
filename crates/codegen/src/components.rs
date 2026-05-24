@@ -2,11 +2,9 @@ use slynx_hir::{
     ComponentMemberDeclaration, HirComponentExpression, HirDeclaration,
     HirSpecializedComponentExpression, HirStyleUsage, HirType,
 };
+use slynx_ir::{Function, IRPointer, IRType, IRTypeId, Value};
 
-use crate::{
-    Codegen, Function, IRComponentId, IRError, IRPointer, IRType, IRTypeId, Instruction, SlynxIR,
-    TempIRData, Value,
-};
+use crate::{Codegen, CodegenError};
 
 /// Holds pointers to the two functions generated for a stylesheet, plus
 /// the IR type of the style struct:
@@ -46,11 +44,11 @@ impl Codegen {
     fn get_style_application(
         &mut self,
         style_usage: &HirStyleUsage,
-    ) -> Result<StyleApplyData, IRError> {
+    ) -> Result<StyleApplyData, CodegenError> {
         let style = self
             .temp
             .get_style(style_usage.style)
-            .ok_or(IRError::DeclarationNotRecognized(style_usage.style))?;
+            .ok_or(CodegenError::DeclarationNotRecognized(style_usage.style))?;
         Ok(StyleApplyData {
             init_func: style.init_func,
             apply_func: style.apply_func,
@@ -77,7 +75,7 @@ impl Codegen {
     pub(crate) fn get_component_expression(
         &mut self,
         value: &HirComponentExpression,
-    ) -> Result<(Value, Option<StyleApplyData>), IRError> {
+    ) -> Result<(Value, Option<StyleApplyData>), CodegenError> {
         let mut style_usage: Option<&HirStyleUsage> = None;
         let ty = match value {
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Text {
@@ -181,7 +179,7 @@ impl Codegen {
     pub fn get_type_of_component_expression(
         &mut self,
         expr: &HirComponentExpression,
-    ) -> Result<IRTypeId, IRError> {
+    ) -> Result<IRTypeId, CodegenError> {
         let v = match expr {
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Text {
                 ..
@@ -205,7 +203,7 @@ impl Codegen {
         &mut self,
         expr: &HirSpecializedComponentExpression,
         p0: IRPointer<Value, 1>,
-    ) -> Result<(), IRError> {
+    ) -> Result<(), CodegenError> {
         let label = temp.current_label();
         match expr {
             HirSpecializedComponentExpression::Text { text, style: _ } => {
@@ -237,7 +235,10 @@ impl Codegen {
     }
 
     ///Retrieves the arguments required for the given `usage` style
-    pub fn get_usage_args(&mut self, usage: &HirStyleUsage) -> Result<IRPointer<Value>, IRError> {
+    pub fn get_usage_args(
+        &mut self,
+        usage: &HirStyleUsage,
+    ) -> Result<IRPointer<Value>, CodegenError> {
         let mut out = Vec::with_capacity(usage.params.len());
         for param in &usage.params {
             let value = self.generate_value_for(param)?;
@@ -252,7 +253,7 @@ impl Codegen {
         &mut self,
         decl: &HirDeclaration,
         component_id: IRComponentId,
-    ) -> Result<(), IRError> {
+    ) -> Result<(), CodegenError> {
         let Some(HirType::Component { props: ty_props }) =
             self.temp.types_module().get_component(&decl.ty)
         else {
@@ -275,7 +276,7 @@ impl Codegen {
         decl: &HirDeclaration,
         props: &'a [ComponentMemberDeclaration],
         component_id: IRComponentId,
-    ) -> Result<ChildrenValue<'a>, IRError> {
+    ) -> Result<ChildrenValue<'a>, CodegenError> {
         let mut ir_values = Vec::new();
         let mut specialized_children: Vec<(usize, &HirSpecializedComponentExpression)> = Vec::new();
 
@@ -333,7 +334,7 @@ impl Codegen {
         decl: &HirDeclaration,
         comp_ptr: IRPointer<crate::Component, 1>,
         first_spec: &HirSpecializedComponentExpression,
-    ) -> Result<IRPointer<Function, 1>, IRError> {
+    ) -> Result<IRPointer<Function, 1>, CodegenError> {
         let init_func = self.temp.get_init_function(decl.id);
         self.components[comp_ptr.ptr()].init_func = Some(init_func);
 
@@ -394,7 +395,7 @@ impl Codegen {
         comp_ptr: IRPointer<crate::Component, 1>,
         init_func: IRPointer<Function, 1>,
         specialized_children: &[(usize, &HirSpecializedComponentExpression)],
-    ) -> Result<(), IRError> {
+    ) -> Result<(), CodegenError> {
         let void_ty = self.types.void_type();
 
         let mut style_entries: Vec<StyleEntry> = Vec::new();
@@ -469,9 +470,9 @@ impl Codegen {
         &mut self,
         decl: &HirDeclaration,
         props: &[ComponentMemberDeclaration],
-    ) -> Result<(), IRError> {
+    ) -> Result<(), CodegenError> {
         let component_type = self.get_ir_type(&decl.ty)?;
-        let IRType::Component(component_id) = self.types.get_type(component_type) else {
+        let IRType::Component(component_id) = self.ir.get(component_type) else {
             unreachable!("Something errored that type of component simply isnt Component on ir");
         };
 

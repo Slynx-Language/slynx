@@ -1,9 +1,9 @@
 mod components;
-mod contexts;
 mod error;
+mod expressions;
+mod functions;
 mod helper;
 mod instructions;
-mod temporary_data;
 use std::collections::HashMap;
 
 pub use error::*;
@@ -11,29 +11,23 @@ use petgraph::{
     algo::toposort,
     graph::{DiGraph, NodeIndex},
 };
-use slynx_hir::{HirDeclaration, HirDeclarationKind, HirType, SlynxHir};
+use slynx_hir::{HirDeclaration, HirDeclarationKind, SlynxHir, modules::SymbolPointer};
 use slynx_ir::SlynxIR;
-
-use crate::temporary_data::TempIRData;
-
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
 
 pub struct Codegen {
     hir: SlynxHir,
     ir: SlynxIR,
-    temp: TempIRData,
 }
 
 impl Codegen {
     pub fn new(hir: SlynxHir) -> Self {
         Self {
             ir: SlynxIR::new(),
-            temp: TempIRData::new(),
             hir,
         }
     }
+
+    pub(crate) fn intern_to_ir(&self, symbol: SymbolPointer) {}
 
     ///Generates all the code on the IR, with types, functions, lowerings, etc, based on the provided `hir`. The `tys` is expected to be the types module used by the `hir` during all frontend process, as well as
     ///the `symbols`, to be the symbols module used by the same `hir` during all the frontend process
@@ -53,8 +47,8 @@ impl Codegen {
         for declaration in hir {
             match &declaration.kind {
                 HirDeclarationKind::Object => {}
-                HirDeclarationKind::Function { name, .. } => {}
-                HirDeclarationKind::ComponentDeclaration { name, .. } => {}
+                HirDeclarationKind::Function { .. } => {}
+                HirDeclarationKind::ComponentDeclaration { .. } => {}
                 HirDeclarationKind::StyleSheet { .. } => {}
                 HirDeclarationKind::Alias => {}
             }

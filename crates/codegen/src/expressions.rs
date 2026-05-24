@@ -1,24 +1,21 @@
-use common::SymbolPointer;
 use slynx_hir::{
     DeclarationId, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, TypeId,
 };
+use slynx_ir::{IRPointer, IRTypeId, Label, Operand, Value};
 
-use crate::{
-    IRError, IRPointer, IRTypeId, Instruction, Label, Operand, SlynxIR, TempIRData, Value,
-};
+use crate::{Codegen, CodegenError};
 
-impl SlynxIR {
+impl Codegen {
     fn lower_if_branch(
         &mut self,
         branch: &[HirStatement],
         end_label: IRPointer<Label, 1>,
-        temp: &mut TempIRData,
-    ) -> Result<Option<IRTypeId>, IRError> {
+    ) -> Result<Option<IRTypeId>, CodegenError> {
         for (idx, statement) in branch.iter().enumerate() {
             if idx == branch.len() - 1
                 && let HirStatementKind::Expression { ref expr } = statement.kind
             {
-                let value = self.generate_value_for(expr, temp)?;
+                let value = self.lower_expression(expr)?;
                 let ty = self.get_type_of_value(value);
 
                 // The merge label carries the value produced by each branch.
@@ -46,46 +43,6 @@ impl SlynxIR {
             true,
         );
         Ok(None)
-    }
-    ///Gets the new operands that are required to be inserted by the provided `value`. The final operand is the one with the actual value. Note that this function
-    ///might add instructions to the current context since an Expression can be a complex task
-    pub(crate) fn generate_operand(
-        &mut self,
-        value: &HirExpression,
-        _temp: &mut TempIRData,
-    ) -> Option<(IRPointer<Operand, 1>, IRTypeId)> {
-        let out = match value.kind {
-            HirExpressionKind::Bool(i) => {
-                let operand = Operand::Bool(i);
-                (self.insert_operands(&[operand]), self.types.bool_type())
-            }
-            HirExpressionKind::Int(i) => {
-                let operand = Operand::Int(i as i64);
-                (self.insert_operands(&[operand]), self.types.int_type())
-            }
-            HirExpressionKind::Float(f) => {
-                let operand = Operand::Float(f as f64);
-                (self.insert_operands(&[operand]), self.types.float_type())
-            }
-            _ => return None,
-        };
-        Some(out)
-    }
-
-    ///Inserts a slice of operands into the IR and returns a pointer to the first operand.
-    pub(crate) fn insert_operands<const N: usize>(
-        &mut self,
-        operands: &[Operand; N],
-    ) -> IRPointer<Operand, N> {
-        let operand_ptr = self.operands.len();
-        let out = IRPointer::new(operand_ptr, operands.len());
-        self.operands.extend_from_slice(operands);
-        out
-    }
-
-    ///Gets a value based on its `ptr`
-    pub(crate) fn get_value(&self, ptr: IRPointer<Value, 1>) -> Value {
-        self.values[ptr.ptr()].clone()
     }
 
     // ── helpers for generate_value_for ──────────────────────────────────
@@ -283,21 +240,54 @@ impl SlynxIR {
             Ok(end_label.get_argument_value(0))
         }
     }
+    ///Gets the new operands that are required to be inserted by the provided `value`. The final operand is the one with the actual value. Note that this function
+    ///might add instructions to the current context since an Expression can be a complex task
+    pub(crate) fn generate_operand(
+        &mut self,
+        value: &HirExpression,
+    ) -> Option<(IRPointer<Operand, 1>, IRTypeId)> {
+        let out = match value.kind {
+            HirExpressionKind::Bool(i) => {
+                let operand = Operand::Bool(i);
+                (self.insert_operands(&[operand]), self.types.bool_type())
+            }
+            HirExpressionKind::Int(i) => {
+                let operand = Operand::Int(i as i64);
+                (self.insert_operands(&[operand]), self.types.int_type())
+            }
+            HirExpressionKind::Float(f) => {
+                let operand = Operand::Float(f as f64);
+                (self.insert_operands(&[operand]), self.types.float_type())
+            }
+            _ => return None,
+        };
+        Some(out)
+    }
+
+    fn generate_operand_value(&mut self, op: Operand) -> Value {
+        let operand_ty = match op {
+            Operand::Bool(_) => self.ir.bool_type(),
+            Operand::Float(_) => self.ir.float_type(),
+            Operand::Int(_) => self.ir.int_type(),
+            Operand::String(_) => self.ir.str_type(),
+        };
+        let ptr = self.ir.create_single_operand(op);
+        Value::new_raw(ptr, ty)
+    }
 
     /// Returns an instruction pointer for the given expression.
-    pub(crate) fn generate_value_for(
+    pub(crate) fn lower_expression(
         &mut self,
         expr: &HirExpression,
-        temp: &mut TempIRData,
-    ) -> Result<IRPointer<Value, 1>, IRError> {
+    ) -> Result<IRPointer<Value, 1>, CodegenError> {
         let value = match &expr.kind {
-            HirExpressionKind::Tuple(vetor) => self.lower_tuple_expression(vetor, temp)?,
-            HirExpressionKind::StringLiteral(v) => self.lower_string_literal(*v, temp),
-            HirExpressionKind::Bool(_)
-            | HirExpressionKind::Float(_)
-            | HirExpressionKind::Int(_) => self.lower_literal(expr, temp),
+            HirExpressionKind::Tuple(vetor) => self.lower_tuple_expression(vetor)?,
+            HirExpressionKind::StringLiteral(v) => self.lower_string_literal(*v),
+            HirExpressionKind::Bool(v) => self.generate_operand_value(Operand::Bool(*v)),
+            HirExpressionKind::Float(f) => self.generate_operand_value(Operand::Float(*f)),
+            HirExpressionKind::Int(i) => self.generate_operand_value(Operand::Int(*i)),
             HirExpressionKind::FunctionCall { name, args } => {
-                self.lower_function_call(*name, args, temp)?
+                self.lower_function_call(*name, args)?
             }
             HirExpressionKind::Binary { lhs, op, rhs } => {
                 self.handle_binary_expression(lhs, rhs, op, temp)?
