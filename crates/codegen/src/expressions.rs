@@ -47,11 +47,7 @@ impl Codegen {
 
     // ── helpers for generate_value_for ──────────────────────────────────
 
-    fn lower_tuple_expression(
-        &mut self,
-        vetor: &[HirExpression],
-        temp: &mut TempIRData,
-    ) -> Result<Value, IRError> {
+    fn lower_tuple_expression(&mut self, vetor: &[HirExpression]) -> Result<Value, IRError> {
         let values_ptrs = vetor
             .iter()
             .map(|e| self.generate_value_for(e, temp))
@@ -85,7 +81,7 @@ impl Codegen {
     }
 
     fn lower_literal(&mut self, expr: &HirExpression, temp: &mut TempIRData) -> Value {
-        let (operand, optype) = self.generate_operand(expr, temp).unwrap();
+        let (operand, optype) = self.generate_operand(expr).unwrap();
         let value = self.insert_value(self.create_raw_value(operand));
         let instruction =
             self.insert_instruction(temp.current_label(), Instruction::raw(value, optype), false);
@@ -99,7 +95,6 @@ impl Codegen {
         &mut self,
         name: DeclarationId,
         args: &[HirExpression],
-        temp: &mut TempIRData,
     ) -> Result<Value, IRError> {
         let func = {
             let func = temp.get_function(name);
@@ -130,7 +125,6 @@ impl Codegen {
         &mut self,
         name: TypeId,
         fields: &[HirExpression],
-        temp: &mut TempIRData,
     ) -> Result<Value, IRError> {
         let ty = temp.get_type(name)?;
         let values = {
@@ -160,7 +154,6 @@ impl Codegen {
         &mut self,
         expr: &HirExpression,
         field_index: usize,
-        temp: &mut TempIRData,
     ) -> Result<Value, IRError> {
         let value = self.generate_value_for(expr, temp)?;
         let ty = self.get_type_of_value(value);
@@ -180,7 +173,6 @@ impl Codegen {
         condition: &HirExpression,
         then_branch: &[HirStatement],
         else_branch: &Option<Vec<HirStatement>>,
-        temp: &mut TempIRData,
     ) -> Result<Value, IRError> {
         let value = self.generate_value_for(condition, temp)?;
         let then_label = self.insert_label(temp.current_function(), "then_label");
@@ -210,7 +202,7 @@ impl Codegen {
         }
 
         temp.set_current_label(then_label);
-        self.lower_if_branch(then_branch, end_label, temp)?;
+        self.lower_if_branch(then_branch, end_label)?;
 
         {
             let next = self.get_next_mapeable_instruction_ptr();
@@ -222,7 +214,7 @@ impl Codegen {
 
         temp.set_current_label(else_label);
         let else_branch = else_branch.as_deref().unwrap_or(&[]);
-        self.lower_if_branch(else_branch, end_label, temp)?;
+        self.lower_if_branch(else_branch, end_label)?;
 
         {
             let next = self.get_next_mapeable_instruction_ptr();
@@ -282,15 +274,15 @@ impl Codegen {
     ) -> Result<IRPointer<Value, 1>, CodegenError> {
         let value = match &expr.kind {
             HirExpressionKind::Tuple(vetor) => self.lower_tuple_expression(vetor)?,
-            HirExpressionKind::StringLiteral(v) => self.lower_string_literal(*v),
+            HirExpressionKind::StringLiteral(v) => self.generate_operand_value(Operand::String(*v)),
             HirExpressionKind::Bool(v) => self.generate_operand_value(Operand::Bool(*v)),
-            HirExpressionKind::Float(f) => self.generate_operand_value(Operand::Float(*f)),
-            HirExpressionKind::Int(i) => self.generate_operand_value(Operand::Int(*i)),
+            HirExpressionKind::Float(f) => self.generate_operand_value(Operand::Float(*f as f64)),
+            HirExpressionKind::Int(i) => self.generate_operand_value(Operand::Int(*i as i64)),
             HirExpressionKind::FunctionCall { name, args } => {
                 self.lower_function_call(*name, args)?
             }
             HirExpressionKind::Binary { lhs, op, rhs } => {
-                self.handle_binary_expression(lhs, rhs, op, temp)?
+                self.handle_binary_expression(lhs, rhs, op)?
             }
             HirExpressionKind::Identifier(id) => {
                 if let Some(value) = temp.get_variable(*id) {
@@ -300,17 +292,17 @@ impl Codegen {
                 }
             }
             HirExpressionKind::Object { name, fields } => {
-                self.lower_struct_literal(*name, fields, temp)?
+                self.lower_struct_literal(*name, fields)?
             }
             HirExpressionKind::FieldAccess { expr, field_index } => {
-                self.lower_field_access(expr, *field_index, temp)?
+                self.lower_field_access(expr, *field_index)?
             }
-            HirExpressionKind::Component(c) => self.get_component_expression(c, temp)?.0,
+            HirExpressionKind::Component(c) => self.get_component_expression(c)?.0,
             HirExpressionKind::If {
                 condition,
                 then_branch,
                 else_branch,
-            } => self.lower_if_expression(condition, then_branch, else_branch, temp)?,
+            } => self.lower_if_expression(condition, then_branch, else_branch)?,
         };
         Ok(self.insert_value(value))
     }
