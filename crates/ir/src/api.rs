@@ -1,8 +1,7 @@
 use either::Either::{self, Left, Right};
 
 use crate::{
-    Component, ControlFlowGraph, Function, IRPointer, IRTypeId, IRTypes, IRViewer, Instruction,
-    Label, Operand, SlynxIR, Value,
+    ControlFlowGraph, Function, IRPointer, IRTypeId, Instruction, Label, SlynxIR,
     builder::{FunctionBuilder, StructBuilder},
 };
 pub type InstructionPtr<const K: usize = 0> =
@@ -34,43 +33,12 @@ impl SlynxIR {
         ControlFlowGraph::new(labels, self)
     }
 
-    pub fn functions(&self) -> &[Function] {
-        &self.functions
-    }
-
-    pub fn components(&self) -> &[Component] {
-        &self.components
-    }
-
-    pub fn get_function_labels(&self, ctx: &Function) -> &[Label] {
-        let ptr = ctx.labels_ptr();
-        &self.labels[ptr.range()]
-    }
-
-    pub fn get_label_instructions(&self, label: &Label) -> Vec<&[Instruction]> {
-        let ptr = label.instructions();
-        self.get_multiple_instructions(ptr)
-    }
-
     pub fn get_label_instructions_with_ptrs(
         &self,
         label: &Label,
     ) -> Vec<(&[Instruction], IRPointer<Instruction>)> {
         let ptr = label.instructions();
         self.get_multiple_instructions_and_ptrs(ptr)
-    }
-    ///Retrieves the inner struct that manages the types on the IR
-    pub fn ir_types(&self) -> &IRTypes {
-        &self.types
-    }
-
-    ///Retrieves a `operand` array that is pointed by the given ptr
-    pub fn get_operand_by_pointer(&self, ptr: IRPointer<Operand>) -> &[Operand] {
-        &self.operands[ptr.range()]
-    }
-    ///Retrieves a `value` array that is pointed by the given ptr
-    pub fn get_values_by_pointer(&self, ptr: IRPointer<Value>) -> &[Value] {
-        &self.values[ptr.range()]
     }
 
     ///Retrieves all the instructions that are pointer by the given `ptr`, since its the same as **instruction, this returns a vector containing the instructions returned by each
@@ -98,14 +66,6 @@ impl SlynxIR {
             out.push((&self.instructions[ptr.range()], *ptr));
         }
         out
-    }
-    ///Retriueves the instructions pointed by the given `ptr`
-    pub fn get_instruction_by_pointer(&self, ptr: IRPointer<Instruction>) -> &[Instruction] {
-        &self.instructions[ptr.range()]
-    }
-
-    pub fn get_view<'a, T>(&'a self, ptr: IRPointer<T, 1>) -> IRViewer<'a, T> {
-        IRViewer { ptr, ir: self }
     }
 
     #[inline]

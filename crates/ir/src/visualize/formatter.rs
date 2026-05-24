@@ -19,7 +19,7 @@ pub struct Formatter<'a> {
     pub values: &'a [Value],
     pub operands: &'a [Operand],
     pub types: &'a IRTypes,
-    pub symbols: &'a SymbolsModule,
+    pub symbols: &'a SymbolsModule<SlynxIR>,
     instruction_pointers: &'a [IRPointer<Instruction>],
     instructions: &'a [Instruction],
     label_offset: usize,
@@ -27,15 +27,16 @@ pub struct Formatter<'a> {
 }
 
 impl<'a> Formatter<'a> {
-    pub fn new(ir: &'a SlynxIR, symbols: &'a SymbolsModule) -> Self {
+    pub fn new(ir: &'a SlynxIR) -> Self {
         let labels = &ir.labels;
-        let functions = &ir.functions();
+        let functions = &ir.functions;
         let components = &ir.components;
         let values = &ir.values;
         let operands = &ir.operands;
         let types = &ir.types;
         let instruction_pointers = &ir.instruction_pointers;
         let instructions = &ir.instructions;
+        let symbols = &ir.strings;
         Self {
             ir,
             functions,
