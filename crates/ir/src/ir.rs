@@ -1,5 +1,7 @@
+use std::ops::Deref;
+
 use crate::{api::InstructionPtr, views::IRStorage};
-use common::{SymbolPointer, SymbolsModule};
+use common::SymbolsModule;
 use either::Either;
 
 use crate::{
@@ -25,7 +27,7 @@ pub struct SlynxIR {
     pub(crate) slots: Vec<Slot>,
     pub(crate) types: IRTypes,
     ///Pool of interned strings, accessed via StringHandle indices
-    pub(crate) strings: SymbolsModule,
+    pub(crate) strings: SymbolsModule<SlynxIR>,
 }
 
 impl SlynxIR {
@@ -65,34 +67,27 @@ impl SlynxIR {
             Either::Right(IRPointer::new(ptr, 1))
         }
     }
-    ///Returns a reference to the string pool
-    pub fn string_pool(&self) -> &SymbolsModule {
-        &self.strings
-    }
 
     /// Produces a Slynx IR textual dump (SIR) following the README syntax.
     ///
     /// This uses the helpers defined in the `visualize` module to format labels and
     /// instructions in the human-readable SIR form described in `middleend/README.md`.
     pub fn format_sir(&self) -> String {
-        let fmt = Formatter::new(self, &self.strings);
+        let fmt = Formatter::new(self);
         let mut out = fmt.format_types();
         out.push_str(&&fmt.format_functions());
         out
     }
 
     ///Retrieves the next label pointer
-    pub fn get_next_label_ptr(&self) -> IRPointer<Label, 1> {
-        IRPointer::new(self.labels.len(), 1)
-    }
-    ///Retrieves the next label pointer
-    pub fn get_next_mapeable_instruction_ptr(&self) -> IRPointer<IRPointer<Instruction>, 1> {
+    pub(crate) fn get_next_mapeable_instruction_ptr(&self) -> IRPointer<IRPointer<Instruction>, 1> {
         IRPointer::new(self.instruction_pointers.len(), 1)
     }
 
     ///Creates a new label and returns its pointer.
-    fn create_label(&mut self, name: SymbolPointer) -> IRPointer<Label, 1> {
+    fn create_label(&mut self, name: &str) -> IRPointer<Label, 1> {
         let ptr = self.labels.len();
+        let name = self.strings.intern(name);
         self.labels.push(Label::new(name));
         IRPointer::new(ptr, 1)
     }
@@ -101,7 +96,7 @@ impl SlynxIR {
     pub(crate) fn insert_label(
         &mut self,
         ir: IRPointer<Function, 1>,
-        label_name: SymbolPointer,
+        label_name: &str,
     ) -> IRPointer<Label, 1> {
         self.functions[ir.ptr()].insert_label(); //this just increases the label count on the context
         let label_ptr = self.create_label(label_name);
@@ -125,5 +120,12 @@ impl SlynxIR {
         let ptr = self.values.len();
         self.values.push(value);
         IRPointer::new(ptr, 1)
+    }
+}
+
+impl Deref for SlynxIR {
+    type Target = IRTypes;
+    fn deref(&self) -> &Self::Target {
+        &self.types
     }
 }

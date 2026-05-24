@@ -1,5 +1,3 @@
-use common::SymbolPointer;
-
 use crate::{Function, IRPointer, IRStorage, IRType, IRTypeId, Instruction, Label, SlynxIR};
 
 pub struct FunctionBuilder<'a> {
@@ -51,8 +49,8 @@ impl<'a> FunctionBuilder<'a> {
         Ok(())
     }
 
-    pub fn create_label(&'a mut self) -> LabelBuilder<'a> {
-        let label = self.ir.insert_label(self.func_id, SymbolPointer::new(0, 0));
+    pub fn create_label(&'a mut self, name: &str) -> LabelBuilder<'a> {
+        let label = self.ir.insert_label(self.func_id, name);
         LabelBuilder {
             instructions: Vec::new(),
             label: label,
