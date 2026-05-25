@@ -1,7 +1,7 @@
 use either::Either::{self, Left, Right};
 
 use crate::{
-    ControlFlowGraph, Function, IRPointer, IRTypeId, Instruction, Label, SlynxIR,
+    ControlFlowGraph, Function, IRPointer, IRTypeId, Instruction, Label, SlynxIR, SymbolPointer,
     builder::{FunctionBuilder, StructBuilder},
 };
 pub type InstructionPtr<const K: usize = 0> =
@@ -19,7 +19,7 @@ impl SlynxIR {
     ///Creates a new empty function with the given name and returns it's pointer on the IR
     pub fn create_function(&mut self, name: &str) -> IRPointer<Function, 1> {
         let name = self.strings.intern(name);
-        let func = Function::new(name, self.types.create_empty_function().0);
+        let func = Function::new(name, self.types.create_function_type().0);
         let ptr = self.functions.len(); //since we push, len = next index
         self.functions.push(func);
         IRPointer::new(ptr, 1)
@@ -74,5 +74,9 @@ impl SlynxIR {
             Left(ptr) => self.instruction_pointers[ptr.ptr()].with_length(),
             Right(e) => e.with_length(),
         }
+    }
+
+    pub fn intern_string(&mut self, s: &str) -> SymbolPointer {
+        self.strings.intern(s)
     }
 }

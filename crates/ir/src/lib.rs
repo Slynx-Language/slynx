@@ -4,6 +4,7 @@ mod views;
 pub use views::*;
 mod api;
 mod builder;
+pub use builder::*;
 pub mod cfg;
 
 mod ir;

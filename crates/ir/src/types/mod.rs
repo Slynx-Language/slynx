@@ -188,7 +188,7 @@ impl IRTypes {
         (IRTypeId(out), component_id)
     }
     ///Creates a new empty function type with return `void`
-    pub fn create_empty_function(&mut self) -> (IRTypeId, IRFunctionId) {
+    pub fn create_function_type(&mut self) -> (IRTypeId, IRFunctionId) {
         let fout = self.functions.len();
         self.functions.push(IRFunction::new(&[], self.void_type()));
         let out = self.types.len();

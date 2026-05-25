@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use crate::{api::InstructionPtr, views::IRStorage};
 use common::SymbolsModule;
@@ -127,5 +127,10 @@ impl Deref for SlynxIR {
     type Target = IRTypes;
     fn deref(&self) -> &Self::Target {
         &self.types
+    }
+}
+impl DerefMut for SlynxIR {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.types
     }
 }
