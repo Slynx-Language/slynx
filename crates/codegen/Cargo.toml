@@ -8,3 +8,4 @@ slynx-hir.path="../hir"
 petgraph.workspace=true
 smallvec.workspace=true
 slynx-ir.path="../ir"
+common.path="../common"

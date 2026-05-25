@@ -7,41 +7,6 @@ use slynx_ir::{IRType, IRTypeId};
 use crate::{Codegen, CodegenError};
 
 impl Codegen {
-    #[inline]
-    ///Gets the type of the ir based on the provided `hirty`. Uses `temp` and `tymod` as auxiliary
-    pub fn get_ir_type(&mut self, hirty: &TypeId) -> Result<IRTypeId, CodegenError> {
-        Ok(match *hirty {
-            ty if ty == self.hir.int32_type() => self.ir.int_type(),
-            ty if ty == self.hir.float32_type() => self.ir.float_type(),
-            ty if ty == self.hir.bool_type() => self.ir.bool_type(),
-            ty if ty == self.hir.void_type() => self.ir.void_type(),
-            ty if ty == self.hir.str_type() => self.ir.str_type(),
-            ty if ty == self.hir.component_type() => self.ir.generic_component_type(),
-            ty => {
-                if let Ok(mapped) = self.temp.get_type(ty) {
-                    return Ok(mapped);
-                }
-                match tymod.get_type(&ty) {
-                    HirType::Tuple { fields } => {
-                        let fields = fields.clone();
-                        let ir_fields = fields
-                            .iter()
-                            .map(|f| self.get_ir_type(f))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        self.types.create_or_get_tuple(ir_fields)
-                    }
-                    HirType::Reference { rf, .. } => {
-                        let rf = *rf;
-                        return self.get_ir_type(&rf);
-                    }
-                    _ => {
-                        return Err(CodegenError::IRTypeNotRecognized(ty));
-                    }
-                }
-            }
-        })
-    }
-
     ///Inserts the contents of the provided `decl` type, asserting it's the TypeId for a struct type, using both `temp` and `tys` to resolve the fields. Panics if `decl` is not a struct type.
     pub(crate) fn insert_object_fields_for(&mut self, decl: TypeId) -> Result<(), CodegenError> {
         let obj_handle = self.temp.get_type(decl)?;

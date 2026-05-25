@@ -1,5 +1,7 @@
-use slynx_hir::{HirStatement, VariableId};
-use slynx_ir::{Function, IRPointer, IRStorage, IRTypeId, Value};
+use slynx_hir::{HirStatement, HirType, SlynxHir, TypeId, VariableId};
+use slynx_ir::{
+    Function, FunctionBuilder, IRPointer, IRType, IRTypeId, LabelBuilder, SlynxIR, Value,
+};
 
 use crate::{Codegen, CodegenError};
 
@@ -13,30 +15,63 @@ use crate::{Codegen, CodegenError};
 ///
 /// [`FunctionBuilder`]: slynx_ir::builder::functions::FunctionBuilder
 /// [`LabelBuilder`]:    slynx_ir::builder::functions::LabelBuilder
-struct FunctionContext {
+pub struct FunctionContext<'a> {
     /// Handle to the IR [`Function`] being populated.
-    fptr: IRPointer<Function, 1>,
-    /// Snapshot of the function's argument types, obtained at setup time
-    /// so that later phases (argument mapping, body lowering) do not need
-    /// to reach into the IR or [`TempIRData`] to resolve them.
-    arg_types: Vec<IRTypeId>,
+    function_builder: FunctionBuilder<'a>,
+
+    args: Vec<(VariableId, Value)>,
 }
 
-impl FunctionContext {
-    fn new(fptr: IRPointer<Function, 1>, arg_types: Vec<IRTypeId>) -> Self {
-        Self { fptr, arg_types }
+impl<'a> FunctionContext<'a> {
+    fn new(mut function_builder: FunctionBuilder<'a>) -> Self {
+        function_builder.create_label("entry");
+        Self {
+            function_builder,
+            args: Vec::new(),
+        }
     }
-
-    fn fptr(&self) -> IRPointer<Function, 1> {
-        self.fptr
+    pub fn get_variable(&self, id: VariableId) -> Option<Value> {
+        self.args.iter().find_map(|v| (v.0 == id).then_some(v.1))
     }
-
-    fn arg_types(&self) -> &[IRTypeId] {
-        &self.arg_types
+    pub fn add_variable(&mut self, id: VariableId, value: Value) {
+        self.args.push((id, value));
+    }
+    pub fn ir(&'a mut self) -> &'a mut SlynxIR {
+        self.function_builder.ir()
     }
 }
 
 impl Codegen {
+    ///Sets up the function type. This should be made after hoisting every type. Returns the argument types of the function, and its return type
+    fn mutate_function_type(
+        &self,
+        func_ty: TypeId,
+        hir: &SlynxHir,
+        ir: &mut SlynxIR,
+    ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
+        let (args, return_type) = {
+            let ty = hir.get_type(&func_ty);
+
+            let HirType::Function { args, return_type } = ty else {
+                unreachable!("Initialize function should initialize with the type of a function");
+            };
+            let args = args
+                .iter()
+                .map(|v| self.get_or_create_ir_type(v, hir, ir))
+                .collect::<Result<Vec<_>, CodegenError>>()?;
+            let return_type = self.get_or_create_ir_type(return_type, hir, ir)?;
+            (args, return_type)
+        };
+        let Some(IRType::Function(id)) = self.get_mapped_type(&func_ty).map(|ty| ir.get_type(ty))
+        else {
+            unreachable!("The given function type should map to a valid function");
+        };
+        let ir_func = ir.get_function_type_mut(id);
+        ir_func.insert_arg_types(&args);
+        ir_func.set_return_type(return_type);
+        Ok((args, return_type))
+    }
+
     /// Lowers a single HIR function declaration into the IR.
     ///
     /// The lowering proceeds in three explicit stages, each isolated in its
@@ -61,41 +96,33 @@ impl Codegen {
     pub(crate) fn initialize_function(
         &mut self,
         fptr: IRPointer<Function, 1>,
+        func_ty: TypeId,
         statements: &[HirStatement],
         args: &[VariableId],
+        hir: &SlynxHir,
+        ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
-        let ctx = self.setup_entry(fptr);
-        self.map_arguments(&ctx, args);
-        self.lower_body(&ctx, statements)?;
+        let (arg_types, _) = self.mutate_function_type(func_ty, hir, ir)?;
+        let builder = ir.build_function(fptr);
 
+        let mut context = FunctionContext::new(builder);
+        assert!(args.len() == arg_types.len());
+        for (idx, (type_id, variable)) in arg_types.iter().zip(args).enumerate() {
+            context.add_variable(*variable, Value::new_func_arg(idx, *type_id));
+        }
+        self.lower_body(&mut context, hir, statements);
         Ok(())
-    }
-
-    /// Phase 1 ── creates the `$entry` label and configures the
-    /// instruction-pointer range on both the [`Function`] and the [`Label`].
-    fn setup_entry(&mut self, fptr: IRPointer<Function, 1>) -> FunctionContext {
-        let arg_types = self.ir.get_view(fptr).get_arguments().to_vec();
-        FunctionContext::new(fptr, arg_types)
-    }
-
-    /// Phase 2 ── inserts [`Value::new_func_arg`] entries for every
-    /// declared parameter and records the HIR → IR mapping.
-    fn map_arguments(&mut self, ctx: &FunctionContext, args: &[VariableId]) {
-        let arg_values: Vec<Value> = (0..args.len())
-            .map(|idx| Value::new_func_arg(idx, ctx.arg_types()[idx]))
-            .collect();
-        let ptr = self.ir.insert_values(&arg_values);
-        self.temp.set_function_args(args, ptr);
     }
 
     /// Phase 3 ── lowers the function body statement by statement.
     fn lower_body(
         &mut self,
-        _ctx: &FunctionContext,
+        ctx: &mut FunctionContext,
+        hir: &SlynxHir,
         statements: &[HirStatement],
     ) -> Result<(), CodegenError> {
         for statement in statements {
-            self.lower_statement(statement)?;
+            self.lower_statement(statement, hir, ctx)?;
         }
         Ok(())
     }

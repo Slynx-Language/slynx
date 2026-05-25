@@ -1,10 +1,10 @@
 use common::Operator;
 use either::Either;
 use paste::paste;
-use slynx_hir::{HirExpression, HirExpressionKind, HirStatement, HirStatementKind};
-use slynx_ir::{IRPointer, Instruction, Slot, Value};
+use slynx_hir::{HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir};
+use slynx_ir::{IRPointer, IRStorage, Instruction, Slot, SlynxIR, Value};
 
-use crate::{Codegen, CodegenError};
+use crate::{Codegen, CodegenError, functions::FunctionContext};
 
 macro_rules! impl_bin_expression {
     ($($name:ident),* $(,)?) => {
@@ -124,38 +124,37 @@ impl Codegen {
     }
 
     ///Emits IR instructions for the given HIR `statement`
-    pub(crate) fn lower_statement(
+    pub(crate) fn lower_statement<'a>(
         &mut self,
         statement: &HirStatement,
-    ) -> Result<Option<IRPointer<Instruction, 1>>, CodegenError> {
+        hir: &SlynxHir,
+        context: &FunctionContext<'a>,
+    ) -> Result<Option<Instruction>, CodegenError> {
         match &statement.kind {
             HirStatementKind::While { condition, body } => {
-                self.emit_while_statement(condition, body, temp)
+                self.emit_while_statement(condition, body)
             }
 
             HirStatementKind::Variable { name, value } => {
-                let vty = self.get_ir_type(&value.ty, temp)?;
-                let (slotvalue, slotptr) = self.allocate(vty, temp);
-                let value = self.generate_value_for(value, temp)?;
+                let vty = self.get_mapped_type(&value.ty)?;
+                let (slotvalue, slotptr) = self.allocate(vty);
+                let value = self.lower_expression(context, value, hir, ir)?;
 
-                self.write(slotptr, value, temp);
+                self.write(slotptr, value);
 
-                temp.add_variable(*name, slotvalue);
                 Ok(None)
             }
-            HirStatementKind::Assign { lhs, value } => self.emit_assign_statement(lhs, value, temp),
+            HirStatementKind::Assign { lhs, value } => self.emit_assign_statement(lhs, value),
 
             HirStatementKind::Expression { expr } => {
-                self.lower_expression(expr)?;
-                Ok(None)
+                let value = self.lower_expression(context, expr, hir)?;
+                let ty = ir.get(value).ir_type();
+                Ok(Some(Instruction::raw(value, ty)))
             }
             HirStatementKind::Return { expr } => {
-                let val = self.lower_expression(expr)?;
-                let ty = self.get_type_of_value(val);
-                let instruction =
-                    self.insert_instruction(temp.current_label(), Instruction::ret(val, ty), true);
-                let instruction = self.dereference_instruction_ptr(instruction).with_length();
-                Ok(Some(instruction))
+                let val = self.lower_expression(context, expr, hir)?;
+                let ty = ir.get(val).ir_type();
+                Ok(Some(Instruction::ret(val, ty)))
             }
         }
     }

@@ -4,38 +4,54 @@ mod expressions;
 mod functions;
 mod helper;
 mod instructions;
+mod queries;
 use std::collections::HashMap;
 
+use common::SymbolPointer;
 pub use error::*;
 use petgraph::{
     algo::toposort,
     graph::{DiGraph, NodeIndex},
 };
-use slynx_hir::{HirDeclaration, HirDeclarationKind, SlynxHir, modules::SymbolPointer};
-use slynx_ir::SlynxIR;
+use slynx_hir::{DeclarationId, HirDeclarationKind, SlynxHir, TypeId};
+use slynx_ir::{Function, IRPointer, IRTypeId, SlynxIR};
 
 pub struct Codegen {
-    hir: SlynxHir,
-    ir: SlynxIR,
+    names: HashMap<SymbolPointer<SlynxHir>, SymbolPointer<SlynxIR>>,
+    types: HashMap<TypeId, IRTypeId>,
+    functions: HashMap<DeclarationId, IRPointer<Function, 1>>,
 }
 
 impl Codegen {
-    pub fn new(hir: SlynxHir) -> Self {
+    pub fn new() -> Self {
         Self {
-            ir: SlynxIR::new(),
-            hir,
+            names: HashMap::new(),
+            types: HashMap::new(),
+            functions: HashMap::new(),
         }
     }
 
-    pub(crate) fn intern_to_ir(&self, symbol: SymbolPointer) {}
+    ///Interns the given symbol on the HIR into the IR
+    pub(crate) fn intern_to_ir(
+        &mut self,
+        hir: &SlynxHir,
+        ir: &mut SlynxIR,
+        symbol: SymbolPointer<SlynxHir>,
+    ) -> SymbolPointer<SlynxIR> {
+        let s = hir.get_name(symbol);
+        let ptr = ir.intern_string(s);
+        self.names.insert(symbol, ptr);
+        ptr
+    }
 
     ///Generates all the code on the IR, with types, functions, lowerings, etc, based on the provided `hir`. The `tys` is expected to be the types module used by the `hir` during all frontend process, as well as
     ///the `symbols`, to be the symbols module used by the same `hir` during all the frontend process
-    pub fn generate(&mut self, hir: Vec<HirDeclaration>) -> Result<(), CodegenError> {
-        self.hoist_declarations(&hir);
-        self.stylesheet_pre_pass(&hir);
-        self.lower_non_stylesheets(&hir)?;
-        self.lower_stylesheets(&hir)?;
+    pub fn generate(&mut self, hir: &SlynxHir) -> Result<(), CodegenError> {
+        let mut ir = SlynxIR::new();
+        self.hoist_declarations(hir, &mut ir);
+        self.stylesheet_pre_pass(hir, &mut ir);
+        self.lower_non_stylesheets(hir, &mut ir)?;
+        self.lower_stylesheets(hir, &mut ir)?;
 
         Ok(())
     }
@@ -43,11 +59,17 @@ impl Codegen {
     /// Phase 0: Hoist all declarations into the IR.
     /// Creates placeholder IR types, functions, components, and style scaffolding
     /// so later phases can reference them by ID.
-    fn hoist_declarations(&mut self, hir: &[HirDeclaration]) {
-        for declaration in hir {
+    fn hoist_declarations(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) {
+        for declaration in &hir.declarations {
             match &declaration.kind {
                 HirDeclarationKind::Object => {}
-                HirDeclarationKind::Function { .. } => {}
+                HirDeclarationKind::Function { name, .. } => {
+                    let name = hir.get_name(*name);
+                    let ptr = ir.create_function(name);
+                    let ty = ir.get_view(ptr).value().ty();
+                    self.types.insert(declaration.ty, ty);
+                    self.functions.insert(declaration.id, ptr);
+                }
                 HirDeclarationKind::ComponentDeclaration { .. } => {}
                 HirDeclarationKind::StyleSheet { .. } => {}
                 HirDeclarationKind::Alias => {}
@@ -57,8 +79,8 @@ impl Codegen {
 
     /// Pre-pass: compute property codes for all stylesheets before any lowering.
     /// This ensures parent property_codes are available regardless of declaration order.
-    fn stylesheet_pre_pass(&mut self, hir: &[HirDeclaration]) {
-        for declaration in hir {
+    fn stylesheet_pre_pass(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) {
+        for declaration in &hir.declarations {
             if let HirDeclarationKind::StyleSheet {
                 ref usages,
                 ref statements,
@@ -66,7 +88,8 @@ impl Codegen {
             } = declaration.kind
             {
                 let own_props = self.collect_style_properties(statements);
-                let resolved = self.resolve_style_inheritance(usages, &own_props, hir);
+                let resolved =
+                    self.resolve_style_inheritance(usages, &own_props, &hir.declarations);
                 if let Some(style_data) = self.temp.get_style_mut(declaration.id) {
                     style_data.property_codes = resolved.iter().map(|rp| rp.property).collect();
                 }
@@ -75,15 +98,17 @@ impl Codegen {
     }
 
     /// Phase 1: Lower all non-stylesheet declarations (Objects, Functions, Components, Aliases).
-    fn lower_non_stylesheets(&mut self, hir: &[HirDeclaration]) -> Result<(), CodegenError> {
-        for declaration in hir {
+    fn lower_non_stylesheets(
+        &mut self,
+        hir: &SlynxHir,
+        ir: &mut SlynxIR,
+    ) -> Result<(), CodegenError> {
+        for declaration in &hir.declarations {
             match &declaration.kind {
                 HirDeclarationKind::Object => {
                     self.insert_object_fields_for(declaration.ty)?;
                 }
-                HirDeclarationKind::Function {
-                    args, statements, ..
-                } => {}
+                HirDeclarationKind::Function { .. } => {}
                 HirDeclarationKind::ComponentDeclaration { props, .. } => {
                     self.initialize_component(declaration, props)?;
                 }
@@ -98,7 +123,8 @@ impl Codegen {
     ///
     /// Uses `petgraph::algo::toposort` to compute a valid lowering order from the
     /// `uses` dependency graph.
-    fn lower_stylesheets(&mut self, hir: &[HirDeclaration]) -> Result<(), CodegenError> {
+    fn lower_stylesheets(&mut self, hir: &SlynxHir, _: &mut SlynxIR) -> Result<(), CodegenError> {
+        let hir = &hir.declarations;
         let all_stylesheets: Vec<usize> = (0..hir.len())
             .filter(|i| matches!(hir[*i].kind, HirDeclarationKind::StyleSheet { .. }))
             .collect();

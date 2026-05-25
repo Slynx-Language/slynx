@@ -1,9 +1,10 @@
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, TypeId,
+    DeclarationId, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir,
+    TypeId,
 };
-use slynx_ir::{IRPointer, IRTypeId, Label, Operand, Value};
+use slynx_ir::{FunctionBuilder, IRPointer, IRTypeId, Label, Operand, SlynxIR, Value};
 
-use crate::{Codegen, CodegenError};
+use crate::{Codegen, CodegenError, functions::FunctionContext};
 
 impl Codegen {
     fn lower_if_branch(
@@ -232,52 +233,37 @@ impl Codegen {
             Ok(end_label.get_argument_value(0))
         }
     }
-    ///Gets the new operands that are required to be inserted by the provided `value`. The final operand is the one with the actual value. Note that this function
-    ///might add instructions to the current context since an Expression can be a complex task
-    pub(crate) fn generate_operand(
-        &mut self,
-        value: &HirExpression,
-    ) -> Option<(IRPointer<Operand, 1>, IRTypeId)> {
-        let out = match value.kind {
-            HirExpressionKind::Bool(i) => {
-                let operand = Operand::Bool(i);
-                (self.insert_operands(&[operand]), self.types.bool_type())
-            }
-            HirExpressionKind::Int(i) => {
-                let operand = Operand::Int(i as i64);
-                (self.insert_operands(&[operand]), self.types.int_type())
-            }
-            HirExpressionKind::Float(f) => {
-                let operand = Operand::Float(f as f64);
-                (self.insert_operands(&[operand]), self.types.float_type())
-            }
-            _ => return None,
-        };
-        Some(out)
-    }
 
-    fn generate_operand_value(&mut self, op: Operand) -> Value {
+    fn generate_operand_value(op: Operand, ir: &mut SlynxIR) -> Value {
         let operand_ty = match op {
-            Operand::Bool(_) => self.ir.bool_type(),
-            Operand::Float(_) => self.ir.float_type(),
-            Operand::Int(_) => self.ir.int_type(),
-            Operand::String(_) => self.ir.str_type(),
+            Operand::Bool(_) => ir.bool_type(),
+            Operand::Float(_) => ir.float_type(),
+            Operand::Int(_) => ir.int_type(),
+            Operand::String(_) => ir.str_type(),
         };
-        let ptr = self.ir.create_single_operand(op);
-        Value::new_raw(ptr, ty)
+        let ptr = ir.create_single_operand(op);
+        Value::new_raw(ptr, operand_ty)
     }
 
     /// Returns an instruction pointer for the given expression.
-    pub(crate) fn lower_expression(
+    pub(crate) fn lower_expression<'a>(
         &mut self,
+        context: &mut FunctionContext<'a>,
         expr: &HirExpression,
+        hir: &SlynxHir,
     ) -> Result<IRPointer<Value, 1>, CodegenError> {
+        let ir = context.ir();
         let value = match &expr.kind {
             HirExpressionKind::Tuple(vetor) => self.lower_tuple_expression(vetor)?,
-            HirExpressionKind::StringLiteral(v) => self.generate_operand_value(Operand::String(*v)),
-            HirExpressionKind::Bool(v) => self.generate_operand_value(Operand::Bool(*v)),
-            HirExpressionKind::Float(f) => self.generate_operand_value(Operand::Float(*f as f64)),
-            HirExpressionKind::Int(i) => self.generate_operand_value(Operand::Int(*i as i64)),
+            HirExpressionKind::StringLiteral(v) => {
+                let string = self.intern_to_ir(hir, ir, *v);
+                Self::generate_operand_value(Operand::String(string), ir)
+            }
+            HirExpressionKind::Bool(v) => Self::generate_operand_value(Operand::Bool(*v), ir),
+            HirExpressionKind::Float(f) => {
+                Self::generate_operand_value(Operand::Float(*f as f64), ir)
+            }
+            HirExpressionKind::Int(i) => Self::generate_operand_value(Operand::Int(*i as i64), ir),
             HirExpressionKind::FunctionCall { name, args } => {
                 self.lower_function_call(*name, args)?
             }
@@ -285,10 +271,10 @@ impl Codegen {
                 self.handle_binary_expression(lhs, rhs, op)?
             }
             HirExpressionKind::Identifier(id) => {
-                if let Some(value) = temp.get_variable(*id) {
-                    self.get_value(value)
+                if let Some(value) = context.get_variable(*id) {
+                    value
                 } else {
-                    return Err(IRError::UnrecognizedVariable(*id));
+                    return Err(CodegenError::UnrecognizedVariable(*id));
                 }
             }
             HirExpressionKind::Object { name, fields } => {
@@ -304,6 +290,6 @@ impl Codegen {
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch)?,
         };
-        Ok(self.insert_value(value))
+        Ok(ir.insert_value(value))
     }
 }
