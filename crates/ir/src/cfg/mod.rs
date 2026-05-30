@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 
 use petgraph::{algo::Cycle, graph::NodeIndex, prelude::StableDiGraph};
 
-use crate::{IRPointer, IRStorage, InstructionType, Label, SlynxIR};
+use crate::{IRPointer, IRStorage, Label, Opcode, SlynxIR};
 
 type CfgGraph = StableDiGraph<BasicBlock, EdgeKind>;
 
@@ -40,6 +40,12 @@ pub struct ControlFlowGraph {
 }
 
 impl ControlFlowGraph {
+    /// Build a CFG from the instruction stream owned by `label_ptr`'s function.
+    ///
+    /// `label_ptr` is a pointer into `ir.labels` with dynamic length;
+    /// labels within that range are treated as the function's basic
+    /// blocks.  Successors are computed by inspecting the **last**
+    /// instruction of each block.
     pub fn new(label_ptr: IRPointer<Label, 1>, ir: &SlynxIR) -> Self {
         let mut label_to_node = HashMap::new();
         let mut graph = StableDiGraph::new();
@@ -49,8 +55,8 @@ impl ControlFlowGraph {
             if label_to_node.contains_key(&current) {
                 continue;
             }
-            let label = ir.get(current);
-            if let Some((successors, kinds)) = Self::get_sucessors_of(label, ir) {
+            let label = ir.get_idx(current.ptr());
+            if let Some((successors, kinds)) = Self::get_successors_of(label, ir) {
                 let index = graph.add_node(BasicBlock::new(current, successors.clone()));
                 label_to_node.insert(current, (index, kinds));
                 queue.extend(successors);
@@ -83,30 +89,33 @@ impl ControlFlowGraph {
         }
     }
 
-    pub fn get_sucessors_of(
+    /// Extract successors by looking at the terminator (last instruction)
+    /// of the given block.
+    fn get_successors_of(
         label: &Label,
         ir: &SlynxIR,
     ) -> Option<(Vec<IRPointer<Label, 1>>, Vec<EdgeKind>)> {
-        let viewer = ir.get_batch_view(label.instructions());
-        let instructions = viewer.flattened_values();
-        let mut sucessors = Vec::new();
-        let kind = match instructions.last()?.instruction_type {
-            InstructionType::Br(c) => {
-                sucessors.push(c);
-                vec![EdgeKind::Unconditional]
+        let range = label.instruction_range();
+        let last = ir.instructions[range].last()?;
+
+        match &last.opcode {
+            Opcode::Br(target) => {
+                Some((vec![*target], vec![EdgeKind::Unconditional]))
             }
-            InstructionType::Cbr {
+            Opcode::Cbr {
                 then_label,
                 else_label,
-                ..
             } => {
-                sucessors.push(then_label);
-                sucessors.push(else_label);
-                vec![EdgeKind::ConditionalTrue, EdgeKind::ConditionalFalse]
+                Some((
+                    vec![*then_label, *else_label],
+                    vec![EdgeKind::ConditionalTrue, EdgeKind::ConditionalFalse],
+                ))
             }
-            _ => vec![EdgeKind::Backedge],
-        };
-        Some((sucessors, kind))
+            _ => {
+                // No terminator or non-branching end → back-edge (treated as exit)
+                Some((vec![], vec![EdgeKind::Backedge]))
+            }
+        }
     }
 
     pub fn graph(&self) -> &CfgGraph {
@@ -115,7 +124,6 @@ impl ControlFlowGraph {
     pub fn entry(&self) -> IRPointer<Label, 1> {
         self.entry
     }
-    ///Returns a hashmap that maps a label(which is in fact used) to its index on the graph
     pub fn label_mappings(&self) -> &HashMap<IRPointer<Label, 1>, NodeIndex> {
         &self.label_to_node
     }
