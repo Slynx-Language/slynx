@@ -5,6 +5,7 @@ use crate::{
 /// Logical identifier for a type inside IR type storage.
 ///
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
 pub enum IRType {
     I8,
     U8,

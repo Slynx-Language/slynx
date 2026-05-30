@@ -1,125 +1,108 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{api::InstructionPtr, views::IRStorage};
 use common::SymbolsModule;
-use either::Either;
 
-use crate::{
-    Component, Formatter, Function, IRPointer, IRTypes, Instruction, Label, Operand, Slot, Value,
-};
+use crate::{Component, Function, IRPointer, IRTypes, Instruction, Label, Opcode, Value};
 
+/// The top-level IR store.
+///
+/// # Storage model
+///
+/// Everything is stored in flat, append-only `Vec`s:
+///
+/// * `instructions` — every instruction across all functions, in
+///   emission order.  A [`Value`] handle is simply an index into this
+///   array.
+/// * `labels` — every block label across all functions.
+/// * `functions` — every function.
+///
+/// There is **no** `instruction_pointers`, `values`, `operands`, or
+/// `slots` indirection layer.  Instruction operands are stored inline
+/// via [`SmallVec`](smallvec::SmallVec).
+///
+/// # DOD / cache-friendliness
+///
+/// The flat layout means that iterating over a function's instructions
+/// is a linear scan of a dense `Vec<Instruction>`.  There are no
+/// pointer-chasing `instruction_pointers` lookups.
 #[derive(Debug)]
-///All the IR containing contexts, labels, instructions and operands
 pub struct SlynxIR {
-    ///The contexts of this IR
+    /// All functions.
     pub(crate) functions: Vec<Function>,
-    ///The Components of this IR
+    /// All UI components.
     pub(crate) components: Vec<Component>,
-    ///The labels of this IR
+    /// All block labels across all functions.
     pub(crate) labels: Vec<Label>,
-    ///The instructions of this IR
+    /// **All** instructions, appended during lowering.
     pub(crate) instructions: Vec<Instruction>,
-    pub(crate) instruction_pointers: Vec<IRPointer<Instruction>>,
-    ///The operands of this IR
-    pub(crate) operands: Vec<Operand>,
-    ///The values of this IR
-    pub(crate) values: Vec<Value>,
-    pub(crate) slots: Vec<Slot>,
+    /// Type storage.
     pub(crate) types: IRTypes,
-    ///Pool of interned strings, accessed via StringHandle indices
-    pub(crate) strings: SymbolsModule<SlynxIR>,
+    /// Interned string pool.
+    pub strings: SymbolsModule<SlynxIR>,
 }
 
 impl SlynxIR {
-    ///Creates a new empty IR
     pub fn new() -> Self {
+        let types = IRTypes::new();
+        let void_ty = types.void_type();
         Self {
-            components: Vec::new(),
             functions: Vec::new(),
+            components: Vec::new(),
             labels: Vec::new(),
-            instructions: Vec::new(),
-            instruction_pointers: Vec::new(),
-            operands: Vec::new(),
-            values: Vec::new(),
-            slots: Vec::new(),
-            types: IRTypes::new(),
+            // Reserve index 0 with a dummy RawValue so that Value(0) never
+            // collides with the result of a real instruction (e.g. Arg(0)).
+            instructions: vec![Instruction {
+                opcode: Opcode::RawValue,
+                operands: smallvec::SmallVec::new(),
+                value_type: void_ty,
+            }],
+            types,
             strings: SymbolsModule::new(),
         }
     }
 
-    ///Inserts the provided `instr` on the given `label`. If `map` is `true` then the label will be able to read it when compiling, thus, otherwise, its just an intermediate instruction.
-    ///On `map=true`, is garanteed to be `Left` variant, otherwise `Right`
-    pub(crate) fn insert_instruction(
-        &mut self,
-        label: IRPointer<Label, 1>,
-        instr: Instruction,
-        map: bool,
-    ) -> InstructionPtr {
-        let ptr = self.instructions.len();
-        self.instructions.push(instr);
-        if map {
-            let outptr = self.instruction_pointers.len();
-            self.instruction_pointers.push(IRPointer::new(ptr, 1));
-            let label = self.get_mut(label);
-            label.insert_instruction();
-            Either::Left(IRPointer::new(outptr, 1))
-        } else {
-            Either::Right(IRPointer::new(ptr, 1))
-        }
-    }
+    // ── Label creation ──────────────────────────────────────────────
 
-    /// Produces a Slynx IR textual dump (SIR) following the README syntax.
+    /// Create a new label with the given `name` and record it as
+    /// belonging to `func`.  Returns the label's pointer.
     ///
-    /// This uses the helpers defined in the `visualize` module to format labels and
-    /// instructions in the human-readable SIR form described in `middleend/README.md`.
-    pub fn format_sir(&self) -> String {
-        let fmt = Formatter::new(self);
-        let mut out = fmt.format_types();
-        out.push_str(&&fmt.format_functions());
-        out
-    }
+    /// The label's `instruction_start` / `instruction_count` are
+    /// filled in later by [`FunctionBuilder::generate`].
+    pub(crate) fn insert_label(
+        &mut self,
+        func: IRPointer<Function, 1>,
+        label_name: &str,
+    ) -> IRPointer<Label, 1> {
+        // Update the function's label count.
+        self.functions[func.ptr()].insert_label();
 
-    ///Retrieves the next label pointer
-    pub(crate) fn get_next_mapeable_instruction_ptr(&self) -> IRPointer<IRPointer<Instruction>, 1> {
-        IRPointer::new(self.instruction_pointers.len(), 1)
-    }
-
-    ///Creates a new label and returns its pointer.
-    fn create_label(&mut self, name: &str) -> IRPointer<Label, 1> {
+        let name = self.strings.intern(label_name);
         let ptr = self.labels.len();
-        let name = self.strings.intern(name);
         self.labels.push(Label::new(name));
         IRPointer::new(ptr, 1)
     }
 
-    ///Inserts a new label into the given context and returns its pointer. Determines for the label to have the provided `label` name.
-    pub(crate) fn insert_label(
-        &mut self,
-        ir: IRPointer<Function, 1>,
-        label_name: &str,
-    ) -> IRPointer<Label, 1> {
-        self.functions[ir.ptr()].insert_label(); //this just increases the label count on the context
-        let label_ptr = self.create_label(label_name);
-        // Initialize the instruction pointer offset to the current end of instruction_pointers,
-        // so instructions inserted later are correctly attributed to this label.
-        let next = self.get_next_mapeable_instruction_ptr();
-        let mut ptr = next.with_length();
-        ptr.set_length(ptr.len() - 1);
-        self.get_mut(label_ptr).set_instructions_pointer(ptr);
-        label_ptr
+    // ── Value type queries ──────────────────────────────────────────
+
+    /// Look up the result type of the instruction that produced `v`.
+    pub fn value_type(&self, v: Value) -> crate::IRTypeId {
+        self.instructions[v.idx()].value_type
     }
 
-    pub fn insert_values(&mut self, value: &[Value]) -> IRPointer<Value> {
-        let ptr = self.values.len();
-        self.values.extend_from_slice(value);
-        IRPointer::new(ptr, value.len())
+    // ── Access by pointer ───────────────────────────────────────────
+
+    pub fn get_instruction(&self, v: Value) -> &Instruction {
+        &self.instructions[v.idx()]
     }
 
-    ///Inserts the given value and returns its pointer
-    pub fn insert_value(&mut self, value: Value) -> IRPointer<Value, 1> {
-        let ptr = self.values.len();
-        self.values.push(value);
-        IRPointer::new(ptr, 1)
+    // ── Formatting ──────────────────────────────────────────────────
+
+    /// Produce a textual dump of the IR (SIR format).
+    pub fn format_sir(&self) -> String {
+        let fmt = crate::Formatter::new(self);
+        let mut out = fmt.format_types();
+        out.push_str(&fmt.format_functions());
+        out
     }
 }
 

@@ -94,7 +94,8 @@ impl IRTypes {
 
     ///Returns the IRTypeId of the `field_index`th field of the given struct/component type.
     ///Panics if `ty` is not a Struct or Component, or if `field_index` is out of bounds.
-    pub fn get_field_type(&self, ty: IRTypeId, field_index: usize) -> IRTypeId {
+    pub fn get_field_type(&self, ty: IRTypeId, field_index: u16) -> IRTypeId {
+        let field_index = field_index as usize;
         match self.types[ty.0] {
             IRType::Struct(sid) => self.structs[sid.0].get_fields()[field_index],
             IRType::Component(cid) => self.components[cid.0].fields[field_index],
@@ -170,7 +171,7 @@ impl IRTypes {
             .unwrap()
     }
     ///Creates a new empty struct and returns its type ID
-    pub fn create_empty_struct(&mut self, name: SymbolPointer) -> (IRTypeId, IRStructId) {
+    pub(crate) fn create_empty_struct(&mut self, name: SymbolPointer) -> (IRTypeId, IRStructId) {
         let sout = self.structs.len();
         self.structs.push(IRStruct::new(Some(name)));
         let struct_id = IRStructId(sout);
@@ -179,7 +180,10 @@ impl IRTypes {
         (IRTypeId(out), struct_id)
     }
     ///Creates a new empty struct and returns its type ID
-    pub fn create_empty_component(&mut self, name: SymbolPointer) -> (IRTypeId, IRComponentId) {
+    pub(crate) fn create_empty_component(
+        &mut self,
+        name: SymbolPointer,
+    ) -> (IRTypeId, IRComponentId) {
         let sout = self.components.len();
         self.components.push(IRComponent::new(name));
         let out = self.types.len();
@@ -188,7 +192,7 @@ impl IRTypes {
         (IRTypeId(out), component_id)
     }
     ///Creates a new empty function type with return `void`
-    pub fn create_function_type(&mut self) -> (IRTypeId, IRFunctionId) {
+    pub(crate) fn create_function_type(&mut self) -> (IRTypeId, IRFunctionId) {
         let fout = self.functions.len();
         self.functions.push(IRFunction::new(&[], self.void_type()));
         let out = self.types.len();

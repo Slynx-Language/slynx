@@ -1,6 +1,10 @@
 use crate::{Function, IRFunction, IRStorage, IRType, IRTypeId, IRViewer, Label};
 
-impl<'a> IRViewer<'a, Label> {}
+impl<'a> IRViewer<'a, Label> {
+    pub fn get_name(&self) -> &str {
+        self.ir.strings.get_name(self.ir.get(self.ptr).name())
+    }
+}
 
 impl<'a> IRViewer<'a, Function> {
     pub fn raw_type(&self) -> &IRFunction {

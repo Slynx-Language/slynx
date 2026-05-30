@@ -1,15 +1,21 @@
-use crate::{IRPointer, Operand, SlynxIR};
-
-impl SlynxIR {
-    ///Inserts a slice of operands into the IR and returns a pointer to the first operand.
-    pub fn create_operands(&mut self, operands: &[Operand]) -> IRPointer<Operand> {
-        let operand_ptr = self.operands.len();
-        let out = IRPointer::new(operand_ptr, operands.len());
-        self.operands.extend_from_slice(operands);
-        out
-    }
-    ///Inserts a slice of operands into the IR and returns a pointer to the first operand.
-    pub fn create_single_operand(&mut self, operand: Operand) -> IRPointer<Operand, 1> {
-        self.create_operands(&[operand]).with_length()
-    }
-}
+// This file is intentionally left empty.
+//
+// The old `insert_values`, `insert_value`, `insert_operands`, `insert_single_operand`,
+// `create_literal` and `insert_literal` methods on `SlynxIR` have been **removed**.
+//
+// ── Rationale ──
+//
+// * Instruction operands are now stored **inline** via `SmallVec<[Value; 4]>`.
+//   No separate `ir.values` / `ir.operands` storage exists.
+// * Constants are emitted as `Opcode::Const(Operand)` instructions.
+// * The builder's `emit()` method appends directly to `ir.instructions` and returns
+//   a `Value` handle immediately.
+//
+// ── Migration ──
+//
+// Instead of:
+//   let val = ir.insert_value(Value::new_raw(op_ptr, ty));
+//   ir.insert_instruction(label, Instruction::raw(val, ty), false);
+//
+// Use:
+//   builder.emit_const(Operand::Bool(true), ty);

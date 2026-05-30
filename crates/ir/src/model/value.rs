@@ -1,111 +1,82 @@
-use std::ops::Deref;
+use crate::SymbolPointer;
 
-use crate::{IRPointer, IRTypeId, Instruction, SymbolPointer};
+/// A lightweight handle representing a value in the IR.
+///
+/// # SSA invariant
+///
+/// Every `Value` is defined exactly once.  The numeric index is the
+/// position of the defining [`Instruction`] in the function's flat
+/// instruction stream — i.e. `Value(n)` is the result of
+/// `function.instructions[n]`.
+///
+/// # Special ranges
+///
+/// | Range            | Kind                                   |
+/// |------------------|----------------------------------------|
+/// | `VOID`           | The canonical void / no-value sentinel |
+/// | `1..`            | Instruction result index               |
+///
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Value(pub u32);
 
-#[derive(Debug, Clone, Copy)]
-///A value that represents something on a slot. A slot is something on memory, anywhere, so this is practically a pointer to some value. But it's better to be
-///understood as a variable
-pub struct Slot {
-    pub(crate) ty: IRTypeId,
+impl Value {
+    /// Canonical void / no-value sentinel.
+    pub const VOID: Self = Self(0);
+
+    /// Create a `Value` that refers to instruction at position `idx`.
+    #[inline]
+    pub fn instruction(idx: u32) -> Self {
+        Self(idx)
+    }
+
+    /// Raw index into the owning function's instruction array.
+    #[inline]
+    pub fn idx(self) -> usize {
+        self.0 as usize
+    }
+
+    /// Returns `true` when this is the void sentinel.
+    #[inline]
+    pub fn is_void(self) -> bool {
+        self.0 == 0
+    }
 }
 
+// ── Operand (compile-time constant payload) ────────────────────────────────
+
+/// A compile-time constant value stored directly inside an [`Instruction`]
+/// (e.g. for `Const` or `RawValue` opcodes).
 #[derive(Debug, Clone)]
-///An operand that is used on a instruction. Mainly it's values that are used on the instructions
 pub enum Operand {
     Bool(bool),
     Int(i64),
     Float(f64),
-    ///Index into the SlynxIR string pool's entries. The backend resolves this to a StrHandle {offset, len}.
     String(SymbolPointer),
 }
 
-#[derive(Debug, Clone)]
-pub struct Value {
-    ///The kind of this value
-    kind: ValueKind,
-    ///The type of this value
-    ty: IRTypeId,
+impl From<bool> for Operand {
+    fn from(value: bool) -> Self {
+        Operand::Bool(value)
+    }
 }
-
-#[derive(Debug, Clone)]
-///A value inside the IR. Can be a function arg, a label arg or the result of a instruction
-pub enum ValueKind {
-    Void,
-    StructLiteral(IRPointer<Value>),
-    Raw(IRPointer<Operand, 1>),
-    Instruction(IRPointer<Instruction, 1>),
-    Slot(IRPointer<Slot, 1>),
-    LabelArg(usize),
-    FuncArg(usize),
-    ComponentChild(usize),
+impl From<i64> for Operand {
+    fn from(value: i64) -> Self {
+        Operand::Int(value)
+    }
 }
-
-impl Value {
-    ///Creates a new struct with the given `ty` and `values`. It should be asserted to be a struct on the IR when generating
-    pub fn new_struct(ty: IRTypeId, values: IRPointer<Value>) -> Self {
-        Self {
-            kind: ValueKind::StructLiteral(values),
-            ty,
-        }
+impl From<f64> for Operand {
+    fn from(value: f64) -> Self {
+        Operand::Float(value)
     }
-    ///Creates a new value that maps to the `arg_index` argument of the label it is being inserted at
-    pub fn new_label_arg(ty: IRTypeId, arg_index: usize) -> Self {
-        Self {
-            kind: ValueKind::LabelArg(arg_index),
-            ty,
-        }
-    }
-    //Creates a new value that maps to a instruction
-    pub fn new_instruction(ptr: IRPointer<Instruction, 1>, ty: IRTypeId) -> Self {
-        Self {
-            kind: ValueKind::Instruction(ptr),
-            ty,
-        }
-    }
-    //Creates a new value that maps to a instruction
-    pub fn new_func_arg(index: usize, ty: IRTypeId) -> Self {
-        Self {
-            kind: ValueKind::FuncArg(index),
-            ty,
-        }
-    }
-    //Creates a new value that maps to a instruction
-    pub fn new_void(ty: IRTypeId) -> Self {
-        Self {
-            kind: ValueKind::Void,
-            ty,
-        }
-    }
-    //Creates a new value that maps to a instruction
-    pub fn new_raw(operand: IRPointer<Operand, 1>, ty: IRTypeId) -> Self {
-        Self {
-            kind: ValueKind::Raw(operand),
-            ty,
-        }
-    }
-    //Creates a new value that maps to a instruction
-    pub fn new_slot(ptr: IRPointer<Slot, 1>, ty: IRTypeId) -> Self {
-        Self {
-            kind: ValueKind::Slot(ptr),
-            ty,
-        }
-    }
-    //Creates a new value that maps to a instruction
-    pub fn new_component_child(index: usize, ty: IRTypeId) -> Self {
-        Self {
-            kind: ValueKind::ComponentChild(index),
-            ty,
-        }
-    }
-    ///Retrieves the IR type of this Value
-    pub fn ir_type(&self) -> IRTypeId {
-        self.ty
+}
+impl From<SymbolPointer> for Operand {
+    fn from(value: SymbolPointer) -> Self {
+        Operand::String(value)
     }
 }
 
-impl Deref for Value {
-    type Target = ValueKind;
-    fn deref(&self) -> &Self::Target {
-        &self.kind
-    }
+#[derive(Debug, Clone, Copy)]
+pub struct Slot {
+    pub(crate) ty: crate::IRTypeId,
 }

@@ -10,8 +10,8 @@ pub enum IRSpecializedComponentType {
 #[derive(Debug, Clone)]
 pub struct IRComponent {
     pub(crate) name: SymbolPointer,
-    pub(crate) fields: SmallVec<[IRTypeId; 16]>,
-    pub(crate) children: SmallVec<[IRTypeId; 16]>,
+    pub(crate) fields: SmallVec<[IRTypeId; 4]>,
+    pub(crate) children: SmallVec<[IRTypeId; 4]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

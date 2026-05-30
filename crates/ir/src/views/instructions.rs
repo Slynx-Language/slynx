@@ -1,7 +1,7 @@
-use crate::{IRViewer, Instruction, InstructionType};
+use crate::{IRViewer, Instruction, Opcode};
 
 impl<'a> IRViewer<'a, Instruction> {
-    pub fn raw_type(&self) -> &InstructionType {
-        &self.value().instruction_type
+    pub fn raw_opcode(&self) -> &Opcode {
+        &self.value().opcode
     }
 }
