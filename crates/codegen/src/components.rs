@@ -1,168 +1,153 @@
 use slynx_hir::{
     ComponentMemberDeclaration, HirComponentExpression, HirDeclaration,
-    HirSpecializedComponentExpression, HirStyleUsage, HirType,
+    HirExpression, HirExpressionKind, HirSpecializedComponentExpression, HirStyleUsage,
+    HirType, SlynxHir, TypeId, VariableId,
 };
-use slynx_ir::{Function, IRPointer, IRType, IRTypeId, Value};
+use slynx_ir::{
+    ComponentBuilder, ComponentValueBuilder, Function, IRPointer, IRTypeId,
+    Opcode, SlynxIR, Value,
+};
 
-use crate::{Codegen, CodegenError};
+use crate::{Codegen, CodegenError, ChildInitWork, functions::FunctionContext};
 
-/// Holds pointers to the two functions generated for a stylesheet, plus
-/// the IR type of the style struct:
-///   - `init_func`: the constructor (e.g. `__init_Maria`) that builds the style struct
-///   - `apply_func`: the apply function (e.g. `Maria`) that reads the struct and emits @sapply
-///   - `struct_ty`:  the IR type of the style struct (used to produce constructor call values)
-///
-/// This data is produced by [`get_style_application`] and is consumed by
-/// [`initialize_component`] to emit the style's `@initcall`.
+fn collect_var_ids_from_expr(expr: &HirExpression, out: &mut Vec<VariableId>) {
+    match &expr.kind {
+        HirExpressionKind::Identifier(id) => {
+            if !out.contains(id) {
+                out.push(*id);
+            }
+        }
+        HirExpressionKind::Binary { lhs, rhs, .. } => {
+            collect_var_ids_from_expr(lhs, out);
+            collect_var_ids_from_expr(rhs, out);
+        }
+        HirExpressionKind::Tuple(items) => {
+            for item in items {
+                collect_var_ids_from_expr(item, out);
+            }
+        }
+        HirExpressionKind::FieldAccess { expr, .. } => {
+            collect_var_ids_from_expr(expr, out);
+        }
+        _ => {}
+    }
+}
+
+/// Map a VariableId to its property index in the component type.
+/// Looks up the variable name from the HIR symbols resolver,
+/// then finds the property with that name in the component's props list.
+fn var_id_to_prop_index(
+    hir: &SlynxHir,
+    comp_ty: &TypeId,
+    var_id: VariableId,
+) -> Option<usize> {
+    let name = hir
+        .modules
+        .symbols_resolver
+        .variables()
+        .get(&var_id)
+        .copied()?;
+    if let HirType::Component { props } = hir.get_type(comp_ty) {
+        props.iter().position(|p| p.name() == name)
+    } else {
+        None
+    }
+}
+
 pub struct StyleApplyData {
-    init_func: IRPointer<Function, 1>,
-    apply_func: IRPointer<Function, 1>,
-    struct_ty: IRTypeId,
-}
-
-/// Internal bookkeeping for one specialized child's style, used when building
-/// the component's UI instruction list in [`initialize_component`].
-struct StyleEntry {
-    child_idx: usize,
-    apply_func: IRPointer<Function, 1>,
-    struct_value_ptr: IRPointer<Value, 1>,
-}
-
-struct ChildrenValue<'a> {
-    values: Vec<Value>,
-    expressions: Vec<(usize, &'a HirSpecializedComponentExpression)>,
+    pub init_func: IRPointer<Function, 1>,
+    pub apply_func: IRPointer<Function, 1>,
+    pub struct_ty: IRTypeId,
 }
 
 impl Codegen {
-    /// Resolves a [`HirStyleUsage`] into the IR function pointers and struct type
-    /// for a stylesheet.
-    ///
-    /// The returned [`StyleApplyData`] contains:
-    /// - `init_func`  – call this to produce the style struct value
-    /// - `apply_func` – call this with (component, struct) to apply every property
-    /// - `struct_ty`  – the IR type of the style struct
     fn get_style_application(
-        &mut self,
+        &self,
         style_usage: &HirStyleUsage,
     ) -> Result<StyleApplyData, CodegenError> {
         let style = self
-            .temp
-            .get_style(style_usage.style)
+            .styles
+            .get(&style_usage.style)
             .ok_or(CodegenError::DeclarationNotRecognized(style_usage.style))?;
         Ok(StyleApplyData {
             init_func: style.init_func,
             apply_func: style.apply_func,
-            struct_ty: style.strct,
+            struct_ty: style.struct_ty,
         })
     }
 
-    /// Lowers a [`HirComponentExpression`] into a component IR value and emits
-    /// `SetField` (`propset`) instructions for its properties and children in the
-    /// **current function Function**.
-    ///
-    /// The returned `(Value, Option<StyleApplyData>)` pair carries the component
-    /// value and, if the expression is a specialized (Div/Text) node with a
-    /// `style:` clause, the style's application data. Callers that build the
-    /// component's top-level `@initcall` list (see [`initialize_component`]) use
-    /// this style data to emit a second `@initcall` for the style apply function.
-    ///
-    /// ## When this is called
-    /// - **Inside a component declaration** (via [`initialize_component`]) for each
-    ///   top-level child – the style data is handled later.
-    /// - **Inside a function body** (via [`get_value_for`]) – the style data is
-    ///   discarded because function-level component expressions are inlined into
-    ///   the parent component's init.
     pub(crate) fn get_component_expression(
         &mut self,
         value: &HirComponentExpression,
+        hir: &SlynxHir,
+        ctx: &mut FunctionContext,
     ) -> Result<(Value, Option<StyleApplyData>), CodegenError> {
-        let mut style_usage: Option<&HirStyleUsage> = None;
-        let ty = match value {
-            HirComponentExpression::Specialized(HirSpecializedComponentExpression::Text {
-                style,
-                ..
-            }) => {
-                style_usage = style.as_ref();
-                self.types.specialized_text_type()
-            }
-            HirComponentExpression::Specialized(HirSpecializedComponentExpression::Div {
-                style,
-                ..
-            }) => {
-                style_usage = style.as_ref();
-                self.types.specialized_div_type()
-            }
-            HirComponentExpression::Normal { name, .. } => self.temp.get_type(*name)?,
-        };
-
-        let label = self.temp.current_label();
-        let instruction =
-            self.insert_instruction(label, Instruction::component(ty, IRPointer::null()), false);
-        let instruction_ptr = self.dereference_instruction_ptr(instruction).with_length();
-        let comp_value = Value::new_instruction(instruction_ptr, ty);
-
-        match value {
+        let (decl_id, ty, style_usage, all_values) = match value {
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Text {
                 text,
-                style: _,
+                style,
             }) => {
-                let text_value = self.generate_value_for(text)?;
-                let vals = self.insert_values(&[comp_value.clone(), self.get_value(text_value)]);
-                self.insert_instruction(
-                    label,
-                    Instruction::setfield(0, vals.with_length(), self.types.str_type()),
-                    true,
-                );
+                let ty = ctx.ir().specialized_text_type();
+                let text_value = self.lower_expression(text, hir, ctx)?;
+                (None, ty, style.as_ref(), vec![text_value])
             }
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Div {
                 children,
-                style: _,
+                style,
             }) => {
-                for (i, child) in children.iter().enumerate() {
-                    let (child_value, _) = self.get_component_expression(child)?;
-                    let vals = self.insert_values(&[comp_value.clone(), child_value]);
-                    self.insert_instruction(
-                        label,
-                        Instruction::setfield(
-                            i,
-                            vals.with_length(),
-                            self.types.generic_component_type(),
-                        ),
-                        true,
-                    );
+                let ty = ctx.ir().specialized_div_type();
+                let mut values = Vec::with_capacity(children.len());
+                for child in children {
+                    let (child_value, _) = self.get_component_expression(child, hir, ctx)?;
+                    values.push(child_value);
                 }
+                (None, ty, style.as_ref(), values)
             }
             HirComponentExpression::Normal {
+                name,
                 properties,
                 children,
                 ..
             } => {
-                for prop in properties {
-                    let prop_value = self.generate_value_for(prop.expr())?;
-                    let vals =
-                        self.insert_values(&[comp_value.clone(), self.get_value(prop_value)]);
-                    self.insert_instruction(
-                        label,
-                        Instruction::setfield(
-                            prop.index(),
-                            vals.with_length(),
-                            self.types.generic_component_type(),
-                        ),
-                        true,
-                    );
+                let ty = self
+                    .get_mapped_type(name)
+                    .ok_or(CodegenError::IRTypeNotRecognized(*name))?;
+
+                let mut all_values = Vec::new();
+                if let HirType::Component { props } = hir.get_type(name) {
+                    let num_props = props.len();
+                    let mut prop_values = vec![Value::VOID; num_props];
+                    for prop in properties {
+                        let val = self.lower_expression(prop.expr(), hir, ctx)?;
+                        prop_values[prop.index()] = val;
+                    }
+                    all_values.extend(prop_values);
                 }
-                for (i, child) in children.iter().enumerate() {
-                    let (child_value, _) = self.get_component_expression(child)?;
-                    let vals = self.insert_values(&[comp_value.clone(), child_value]);
-                    self.insert_instruction(
-                        label,
-                        Instruction::setfield(
-                            i,
-                            vals.with_length(),
-                            self.types.generic_component_type(),
-                        ),
-                        true,
-                    );
+                for child in children {
+                    let (child_value, _) = self.get_component_expression(child, hir, ctx)?;
+                    all_values.push(child_value);
+                }
+                (Some(*name), ty, None, all_values)
+            }
+        };
+
+        let mut cvb = ComponentValueBuilder::new(ctx, ty);
+        for val in &all_values {
+            cvb.add_argument(*val);
+        }
+        let comp_value = cvb.generate();
+
+        // Emit child initcalls for default children in the function body,
+        // where actual property values are available as operands.
+        if let Some(decl_id) = decl_id {
+            if let Some(work_items) = self.component_child_inits.get(&decl_id) {
+                for work in work_items {
+                    let child_val = ctx.emit(Opcode::Component, smallvec::smallvec![], work.child_type);
+                    let mut args = vec![child_val];
+                    for &prop_idx in &work.parent_prop_indices {
+                        args.push(all_values[prop_idx]);
+                    }
+                    ctx.initcall(work.init_func, &args);
                 }
             }
         }
@@ -174,322 +159,192 @@ impl Codegen {
         };
         Ok((comp_value, style_application))
     }
-
-    /// Returns the IR type for a component expression without emitting any code.
-    pub fn get_type_of_component_expression(
-        &mut self,
+    pub(crate) fn get_type_of_component_expression(
+        &self,
         expr: &HirComponentExpression,
+        ir: &SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
-        let v = match expr {
+        match expr {
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Text {
                 ..
-            }) => self.types.specialized_text_type(),
+            }) => Ok(ir.specialized_text_type()),
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Div {
                 ..
-            }) => self.types.specialized_div_type(),
-            HirComponentExpression::Normal { name, .. } => self.get_ir_type(name)?,
-        };
-        Ok(v)
-    }
-
-    /// Emits `SetField` (`propset`) instructions inside the component's **init
-    /// function** for a specialized (Div/Text) child's built-in properties (text
-    /// content, child components).
-    ///
-    /// Style application is NOT emitted here — it is handled at a higher level
-    /// in [`initialize_component`] via a separate `@initcall` so that the apply
-    /// function can be called separately from the init function.
-    fn emit_specialized_component_init(
-        &mut self,
-        expr: &HirSpecializedComponentExpression,
-        p0: IRPointer<Value, 1>,
-    ) -> Result<(), CodegenError> {
-        let label = temp.current_label();
-        match expr {
-            HirSpecializedComponentExpression::Text { text, style: _ } => {
-                let text_value = self.generate_value_for(text)?;
-                let vals = self.insert_values(&[self.get_value(p0), self.get_value(text_value)]);
-                self.insert_instruction(
-                    label,
-                    Instruction::setfield(0, vals.with_length(), self.types.str_type()),
-                    true,
-                );
-            }
-            HirSpecializedComponentExpression::Div { children, style: _ } => {
-                for (i, child) in children.iter().enumerate() {
-                    let (child_value, _) = self.get_component_expression(child)?;
-                    let vals = self.insert_values(&[self.get_value(p0), child_value]);
-                    self.insert_instruction(
-                        label,
-                        Instruction::setfield(
-                            i,
-                            vals.with_length(),
-                            self.types.generic_component_type(),
-                        ),
-                        true,
-                    );
-                }
-            }
+            }) => Ok(ir.specialized_div_type()),
+            HirComponentExpression::Normal { name, .. } => self
+                .get_mapped_type(name)
+                .ok_or(CodegenError::IRTypeNotRecognized(*name)),
         }
-        Ok(())
     }
 
-    ///Retrieves the arguments required for the given `usage` style
-    pub fn get_usage_args(
+    pub(crate) fn get_usage_args(
         &mut self,
         usage: &HirStyleUsage,
-    ) -> Result<IRPointer<Value>, CodegenError> {
+        hir: &SlynxHir,
+        ctx: &mut FunctionContext,
+    ) -> Result<Vec<Value>, CodegenError> {
         let mut out = Vec::with_capacity(usage.params.len());
         for param in &usage.params {
-            let value = self.generate_value_for(param)?;
-            let value = self.get_value(value);
+            let value = self.lower_expression(param, hir, ctx)?;
             out.push(value);
         }
-        Ok(self.insert_values(&out))
+        Ok(out)
     }
 
-    /// Populates the IR component type's field list from the HIR type definition.
-    fn populate_component_type_fields(
+    fn build_child_init(
         &mut self,
-        decl: &HirDeclaration,
-        component_id: IRComponentId,
-    ) -> Result<(), CodegenError> {
-        let Some(HirType::Component { props: ty_props }) =
-            self.temp.types_module().get_component(&decl.ty)
-        else {
-            unreachable!("{:?} should map to an Component, but it doesn't", decl);
-        };
-        for prop_type in ty_props.iter().map(|prop| prop.prop_type()) {
-            let ty = self.get_ir_type(prop_type)?;
-            let comp_ty = self.types.get_component_type_mut(component_id);
-            comp_ty.insert_field(ty);
-        }
-        Ok(())
-    }
-
-    /// Creates IR values for each top-level child of the component and collects
-    /// specialized children (Div/Text) for later init / style handling.
-    ///
-    /// Returns `(ir_values, specialized_children)`.
-    fn create_component_child_values<'a>(
-        &mut self,
-        decl: &HirDeclaration,
-        props: &'a [ComponentMemberDeclaration],
-        component_id: IRComponentId,
-    ) -> Result<ChildrenValue<'a>, CodegenError> {
-        let mut ir_values = Vec::new();
-        let mut specialized_children: Vec<(usize, &HirSpecializedComponentExpression)> = Vec::new();
-
-        for (idx, prop) in props.iter().enumerate() {
-            match prop {
-                ComponentMemberDeclaration::Property { value: None, .. } => {}
-                ComponentMemberDeclaration::Property {
-                    value: Some(value),
-                    index,
-                    ..
-                } => {
-                    let value = self.generate_value_for(value)?;
-                    temp.get_component_mut(decl.id)
-                        .default_properties
-                        .push((value, *index as u8));
-                }
-                ComponentMemberDeclaration::Child(c) => {
-                    let ty = self.get_type_of_component_expression(c)?;
-                    {
-                        let comp_ty = self.types.get_component_type_mut(component_id);
-                        comp_ty.insert_child(ty);
-                    }
-                    let inst = self.insert_instruction(
-                        temp.current_label(),
-                        Instruction::component(ty, IRPointer::null()),
-                        false,
-                    );
-                    let inst_ptr = self.dereference_instruction_ptr(inst).with_length();
-                    let value = Value::new_instruction(inst_ptr, ty);
-                    ir_values.push(value);
-
-                    if let HirComponentExpression::Specialized(spec) = c {
-                        specialized_children.push((idx, spec));
-                    }
-                }
-            }
-        }
-
-        Ok(ChildrenValue {
-            values: ir_values,
-            expressions: specialized_children,
-        })
-    }
-
-    /// Builds the init function for the first specialized child.
-    ///
-    /// Sets up a new function (e.g. `PedrinhoInit`) that takes the child value as
-    /// `p0` and emits `SetField` instructions for its built-in properties, ending
-    /// with a `ret`. Stores the init function pointer in
-    /// `self.components[comp_ptr].init_func`.
-    ///
-    /// Returns the init function pointer.
-    fn build_init_function(
-        &mut self,
-        decl: &HirDeclaration,
-        comp_ptr: IRPointer<crate::Component, 1>,
-        first_spec: &HirSpecializedComponentExpression,
+        child: &HirSpecializedComponentExpression,
+        parent_prop_vars: &[(VariableId, IRTypeId)],
+        hir: &SlynxHir,
+        ir: &mut SlynxIR,
     ) -> Result<IRPointer<Function, 1>, CodegenError> {
-        let init_func = self.temp.get_init_function(decl.id);
-        self.components[comp_ptr.ptr()].init_func = Some(init_func);
-
-        let prev_function = self.temp.current_function();
-        let prev_label = self.temp.current_label();
-
-        self.temp.set_current_function(init_func);
-
-        let label = self.insert_label(init_func, "entry");
-        self.get_context_mut(init_func)
-            .set_label_ptr(label.with_length());
-        let next = self.get_next_mapeable_instruction_ptr();
-        let mut ptr = next.with_length();
-        ptr.set_length(ptr.len() - 1);
-        self.get_label_mut(label).set_instructions_pointer(ptr);
-        temp.set_current_label(label);
-
-        let spec_type = match first_spec {
-            HirSpecializedComponentExpression::Text { .. } => self.types.specialized_text_type(),
-            HirSpecializedComponentExpression::Div { .. } => self.types.specialized_div_type(),
+        let child_ty = match child {
+            HirSpecializedComponentExpression::Text { .. } => ir.specialized_text_type(),
+            HirSpecializedComponentExpression::Div { .. } => ir.specialized_div_type(),
         };
-        let arg_ptr = IRPointer::new(self.values.len(), 1);
-        {
-            let ctx_ty = self.get_context(init_func).ty();
-            let void_ty = self.types.void_type();
-            let IRType::Function(func_id) = self.types.get_type(ctx_ty) else {
-                unreachable!()
-            };
-            let func = self.types.get_function_type_mut(func_id);
-            func.insert_arg_types(&[spec_type]);
-            func.set_return_type(void_ty);
+
+        let void_ty = ir.void_type();
+        let fptr = ir.create_function("__child_init");
+
+        let builder = ir.build_function(fptr);
+        let mut ctx = FunctionContext::new(builder);
+        let entry = ctx.create_label("entry");
+        ctx.switch_to_block(entry).unwrap();
+
+        let mut arg_types = vec![child_ty];
+        arg_types.extend(parent_prop_vars.iter().map(|(_, ty)| *ty));
+        let args = ctx.set_function_type(arg_types, void_ty).to_vec();
+
+        let child_value = args[0];
+        for (i, (var_id, _)) in parent_prop_vars.iter().enumerate() {
+            ctx.add_variable(*var_id, args[i + 1]);
         }
-        self.insert_value(self.create_func_arg_value(0));
 
-        self.emit_specialized_component_init(first_spec, arg_ptr)?;
-
-        let void_value = self.insert_value(self.create_void_value());
-        self.insert_instruction(
-            self.temp.current_label(),
-            Instruction::ret(void_value, self.types.void_type()),
-            true,
-        );
-
-        self.temp.set_current_function(prev_function);
-        self.temp.set_current_label(prev_label);
-
-        Ok(init_func)
-    }
-
-    /// Emits constructor calls for style structs, the component's `@initcall`, and
-    /// style apply `@initcall`s for every specialized child with a style clause.
-    ///
-    /// This corresponds to Phase 3 of component initialization. The constructor
-    /// calls (step 3.1) go into the global instruction pool; the `@initcall`
-    /// instructions (steps 3.2 & 3.3) form `self.components[comp_ptr].ui_instruction`.
-    fn emit_initcalls(
-        &mut self,
-        comp_ptr: IRPointer<crate::Component, 1>,
-        init_func: IRPointer<Function, 1>,
-        specialized_children: &[(usize, &HirSpecializedComponentExpression)],
-    ) -> Result<(), CodegenError> {
-        let void_ty = self.types.void_type();
-
-        let mut style_entries: Vec<StyleEntry> = Vec::new();
-        for (child_idx, spec) in specialized_children {
-            let style_usage = match spec {
-                HirSpecializedComponentExpression::Text { style, .. } => style.as_ref(),
-                HirSpecializedComponentExpression::Div { style, .. } => style.as_ref(),
-            };
-            if let Some(usage) = style_usage {
-                let style_data = self.get_style_application(usage)?;
-                let args = self.get_usage_args(usage)?;
-
-                let cons_call = self.insert_instruction(
-                    self.temp.current_label(),
-                    Instruction::call(style_data.init_func, style_data.struct_ty, args),
-                    false,
-                );
-                let cons_ptr = self.dereference_instruction_ptr(cons_call);
-                let struct_value = self.insert_value(Value::new_instruction(
-                    cons_ptr.with_length(),
-                    style_data.struct_ty,
-                ));
-
-                style_entries.push(StyleEntry {
-                    child_idx: *child_idx,
-                    apply_func: style_data.apply_func,
-                    struct_value_ptr: struct_value,
-                });
+        match child {
+            HirSpecializedComponentExpression::Text { text, style } => {
+                if let Some(style_usage) = style {
+                    let style_data = self.get_style_application(style_usage)?;
+                    let param_values = self.get_usage_args(style_usage, hir, &mut ctx)?;
+                    let struct_val =
+                        ctx.call(style_data.init_func, &param_values, style_data.struct_ty);
+                    ctx.call(style_data.apply_func, &[child_value, struct_val], void_ty);
+                }
+                let text_value = self.lower_expression(text, hir, &mut ctx)?;
+                ctx.set_field(child_value, 0, text_value);
+            }
+            HirSpecializedComponentExpression::Div { children, style } => {
+                if let Some(style_usage) = style {
+                    let style_data = self.get_style_application(style_usage)?;
+                    let param_values = self.get_usage_args(style_usage, hir, &mut ctx)?;
+                    let struct_val =
+                        ctx.call(style_data.init_func, &param_values, style_data.struct_ty);
+                    ctx.call(style_data.apply_func, &[child_value, struct_val], void_ty);
+                }
+                for (i, cexpr) in children.iter().enumerate() {
+                    let (child_val, _) = self.get_component_expression(cexpr, hir, &mut ctx)?;
+                    ctx.set_field(child_value, i as u16, child_val);
+                }
             }
         }
 
-        let comp_val = self.create_component_child_value(0, comp_ptr);
-        let initcall_vals = self.insert_values(&[comp_val]);
-        let initcall_ptr = self.insert_instruction(
-            self.temp.current_label(),
-            Instruction::initcall(init_func, initcall_vals, void_ty),
-            false,
-        );
-        let inst_ptr = self.dereference_instruction_ptr(initcall_ptr);
-
-        for entry in &style_entries {
-            let comp_val = self.create_component_child_value(entry.child_idx, comp_ptr);
-            let style_vals =
-                self.insert_values(&[comp_val, self.get_value(entry.struct_value_ptr)]);
-            self.insert_instruction(
-                self.temp.current_label(),
-                Instruction::initcall(entry.apply_func, style_vals, void_ty),
-                false,
-            );
-        }
-
-        let ui_len = 1 + style_entries.len();
-        self.components[comp_ptr.ptr()].ui_instruction = IRPointer::new(inst_ptr.ptr(), ui_len);
-
-        Ok(())
+        ctx.ret(Value::VOID);
+        ctx.finish();
+        Ok(fptr)
     }
 
-    /// Initializes a component declaration from HIR into IR.
-    ///
-    /// This is the main entry point for lowering a [`HirDeclarationKind::ComponentDeclaration`].
-    /// It delegates to helper methods for each phase:
-    ///
-    /// 1. [`populate_component_type_fields`] — inserts field types into the IR
-    ///    component type.
-    /// 2. [`create_component_child_values`] — creates IR values for each child
-    ///    and collects specialized children.
-    /// 3. [`build_init_function`] — creates an init function for the first
-    ///    specialized child (if any).
-    /// 4. [`emit_initcalls`] — emits `@initcall` instructions for init and
-    ///    style application.
     pub(crate) fn initialize_component(
         &mut self,
         decl: &HirDeclaration,
         props: &[ComponentMemberDeclaration],
+        hir: &SlynxHir,
+        ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
-        let component_type = self.get_ir_type(&decl.ty)?;
-        let IRType::Component(component_id) = self.ir.get(component_type) else {
-            unreachable!("Something errored that type of component simply isnt Component on ir");
+        let ptr = *self
+            .components
+            .get(&decl.id)
+            .expect("Component should have been hoisted");
+        let property_types = if let HirType::Component { props } = hir.get_type(&decl.ty) {
+            props
+                .iter()
+                .map(|prop| self.get_or_create_ir_type(prop.prop_type(), hir, ir))
+                .collect::<Result<Vec<_>, CodegenError>>()?
+        } else {
+            Vec::new()
         };
 
-        self.populate_component_type_fields(decl, component_id)?;
+        // For each specialized child with a style usage, build the __child_init function
+        // and record the parent property indices needed at instantiation time.
+        for prop in props {
+            if let ComponentMemberDeclaration::Child(HirComponentExpression::Specialized(
+                child_spec,
+            )) = prop
+            {
+                let style_usage = match child_spec {
+                    HirSpecializedComponentExpression::Text { style, .. } => style,
+                    HirSpecializedComponentExpression::Div { style, .. } => style,
+                };
+                let mut extra_vars: Vec<(VariableId, IRTypeId)> = Vec::new();
+                if let Some(usage) = style_usage {
+                    for param in &usage.params {
+                        let mut collected = Vec::new();
+                        collect_var_ids_from_expr(param, &mut collected);
+                        for var_id in collected {
+                            if !extra_vars.iter().any(|(v, _)| *v == var_id) {
+                                let ir_ty =
+                                    self.get_or_create_ir_type(&param.ty, hir, ir)?;
+                                extra_vars.push((var_id, ir_ty));
+                            }
+                        }
+                    }
+                }
 
-        let comp_ptr = self.temp.get_component(decl.id).ptr;
-        let ChildrenValue {
-            values: ir_values,
-            expressions: specialized_children,
-        } = self.create_component_child_values(decl, props, component_id)?;
+                // Map VariableIds to property indices for use at instantiation.
+                let mut parent_prop_indices = Vec::with_capacity(extra_vars.len());
+                for (var_id, _) in &extra_vars {
+                    // This should always succeed for valid HIR.
+                    let prop_idx = var_id_to_prop_index(hir, &decl.ty, *var_id).unwrap_or(0);
+                    parent_prop_indices.push(prop_idx);
+                }
 
-        self.components[comp_ptr.ptr()].values = self.insert_values(&ir_values);
+                let init_func = self.build_child_init(child_spec, &extra_vars, hir, ir)?;
+                let child_type = match child_spec {
+                    HirSpecializedComponentExpression::Text { .. } => ir.specialized_text_type(),
+                    HirSpecializedComponentExpression::Div { .. } => ir.specialized_div_type(),
+                };
 
-        if let Some((_, first_spec)) = specialized_children.first() {
-            let init_func = self.build_init_function(decl, comp_ptr, first_spec)?;
-            self.emit_initcalls(comp_ptr, init_func, &specialized_children)?;
+                self.component_child_inits
+                    .entry(decl.ty)
+                    .or_default()
+                    .push(ChildInitWork {
+                        child_type,
+                        init_func,
+                        parent_prop_indices,
+                    });
+            }
         }
+
+        // Phase 1: collect child types
+        let child_types: Vec<IRTypeId> = props
+            .iter()
+            .filter_map(|p| match p {
+                ComponentMemberDeclaration::Child(c) => {
+                    Some(self.get_type_of_component_expression(c, ir))
+                }
+                ComponentMemberDeclaration::Property { .. } => None,
+            })
+            .collect::<Result<Vec<_>, CodegenError>>()?;
+
+        // Phase 2: use ComponentBuilder (no initcalls in preamble)
+        let mut builder = ComponentBuilder::new(ptr, ir);
+
+        for child_ty in &child_types {
+            builder.add_child(*child_ty);
+        }
+        for ty in &property_types {
+            builder.add_field(*ty);
+        }
+
+        builder.generate();
 
         Ok(())
     }
