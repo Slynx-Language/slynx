@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use common::Span;
-use slynx_hir::{HIRError, HirType, Result, SlynxHir, TypeId, modules::TypesModule};
+use common::{Span, SymbolPointer};
+use slynx_hir::{HIRError, HirType, Result, SlynxHir, TypeId};
 
 ///A struct that handles all the monomorphization on the code
 pub struct Monomorphizer {
@@ -9,15 +9,15 @@ pub struct Monomorphizer {
 }
 
 impl Monomorphizer {
-    pub fn resolve(hir: &SlynxHir, types_module: &mut TypesModule) -> Result<()> {
+    pub fn resolve(hir: &mut SlynxHir) -> Result<()> {
         let mut this = Self {
             reference_cache: HashMap::new(),
         };
         for decl in hir.declarations.iter() {
-            this.resolve_reference(hir, decl.ty, decl.span, types_module)?;
+            this.resolve_reference(hir, decl.ty, decl.span)?;
         }
         for (key, value) in this.reference_cache {
-            let HirType::Reference { rf, .. } = types_module.get_type_mut(&key) else {
+            let HirType::Reference { rf, .. } = hir.get_type_mut(&key) else {
                 continue;
             };
             *rf = value;
@@ -26,24 +26,14 @@ impl Monomorphizer {
     }
     /// Resolves a reference. If the provided `id` is a reference to a concrete type, doesnt do anything, otherwise(thus, a reference)
     /// to another reference) it resolves it to make the reference point to the concrete type. This only caches it for later mutability
-    pub fn resolve_reference(
-        &mut self,
-        _hir: &SlynxHir,
-        id: TypeId,
-        span: Span,
-        types_module: &TypesModule,
-    ) -> Result<()> {
+    pub fn resolve_reference(&mut self, hir: &SlynxHir, id: TypeId, span: Span) -> Result<()> {
         let mut current = id;
         let mut visited = HashSet::from([id]);
-        while let HirType::Reference { rf, .. } = types_module.get_type(&current)
-            && let HirType::Reference { .. } = types_module.get_type(rf)
+        while let HirType::Reference { rf, .. } = hir.get_type(&current)
+            && let HirType::Reference { .. } = hir.get_type(rf)
         {
-            if !visited.insert(*rf) {
-                if let Some(ty) = types_module.get_type_name(&id) {
-                    return Err(HIRError::recursive(*ty, span));
-                } else {
-                    unreachable!("Types module should have mappings to the name of a type");
-                }
+            if visited.insert(*rf) {
+                return Err(HIRError::recursive(SymbolPointer::new(0, 0), span));
             }
             current = *rf;
         }
