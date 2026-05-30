@@ -157,7 +157,7 @@ pub struct SlynxHir {
     /// This is the primary interface for working with the HIR's namespace and
     /// type system. It provides methods for creating variables, looking up
     /// declarations, and managing nested scopes.
-    pub(crate) modules: HirModules,
+    pub modules: HirModules,
 
     /// All top-level declarations generated from the source.
     ///

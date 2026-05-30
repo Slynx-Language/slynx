@@ -54,4 +54,8 @@ impl SlynxHir {
                 .ok_or(HIRError::type_unrecognized(name, *span)),
         }
     }
+
+    pub fn get_name_of_type(&self, ty: TypeId) -> Option<SymbolPointer> {
+        self.modules.types_module.get_type_name(&ty).cloned()
+    }
 }
