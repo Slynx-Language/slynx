@@ -10,7 +10,7 @@ use slynx_hir::{
     SlynxHir, VariableId,
     modules::{DeclarationsModule, TypesModule},
 };
-use slynx_ir::SlynxIR;
+use slynx_ir::{IRError, SlynxIR};
 use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
 use slynx_parser::{ASTDeclaration, Parser};

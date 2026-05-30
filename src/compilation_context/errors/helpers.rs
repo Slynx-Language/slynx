@@ -4,7 +4,7 @@ use std::{
 };
 
 use slynx_hir::{HIRError, HIRErrorKind, SlynxHir};
-
+use slynx_ir::IRError;
 use slynx_lexer::error::LexerError;
 use slynx_parser::error::ParseError;
 use slynx_typechecker::error::{TypeError, TypeErrorKind};
@@ -169,14 +169,14 @@ pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
 }
 
 /// this function converts a [`IRError`] into a [`Vec<SlynxSuggestion>`]
-// pub fn suggestions_from_ir(err: &IRError) -> Vec<SlynxSuggestion> {
-//     match &err {
-//         IRError::DeclarationNotRecognized(sla) => vec![SlynxSuggestion::DeclarationNotRecognized(
-//             format!("{}", sla.as_raw()),
-//         )],
-//         _ => vec![],
-//     }
-// }
+pub fn suggestions_from_ir(err: &IRError) -> Vec<SlynxSuggestion> {
+    match &err {
+        IRError::DeclarationNotRecognized(sla) => vec![SlynxSuggestion::DeclarationNotRecognized(
+            format!("{}", sla.as_raw()),
+        )],
+        _ => vec![],
+    }
+}
 
 /// this function converts a [`HIRError`] into a [`Vec<SlynxSuggestion>`]
 pub fn suggestions_from_hir(hir: &SlynxHir, err: &HIRError) -> Vec<SlynxSuggestion> {
@@ -235,7 +235,7 @@ mod tests {
     /// tests that [`suggestions_from_ir`] returns [`SlynxSuggestion::DeclarationNotRecognized`] for [`IRError::DeclarationNotRecognized`]
     fn test_suggestions_ir() {
         let id = DeclarationId::from_raw(42);
-        let err = LoweringError::DeclarationNotRecognized(id);
+        let err = IRError::DeclarationNotRecognized(id);
         let result = suggestions_from_ir(&err);
         assert_eq!(
             result,
