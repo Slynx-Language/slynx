@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use common::{Span, SymbolPointer};
+use common::Span;
 use slynx_hir::{HIRError, HirType, Result, SlynxHir, TypeId};
 
 ///A struct that handles all the monomorphization on the code
@@ -32,8 +32,12 @@ impl Monomorphizer {
         while let HirType::Reference { rf, .. } = hir.get_type(&current)
             && let HirType::Reference { .. } = hir.get_type(rf)
         {
-            if visited.insert(*rf) {
-                return Err(HIRError::recursive(SymbolPointer::new(0, 0), span));
+            if !visited.insert(*rf) {
+                let name = hir
+                    .get_name_of_type(*rf)
+                    .expect("Expected type to have a name");
+
+                return Err(HIRError::recursive(name, span));
             }
             current = *rf;
         }
