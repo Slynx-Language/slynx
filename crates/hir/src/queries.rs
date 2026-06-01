@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use common::Span;
 
 use crate::{DeclarationId, HIRError, HirType, Result, SlynxHir, SymbolPointer, TypeId};
@@ -26,12 +28,18 @@ impl SlynxHir {
         self.get_name(*ptr)
     }
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
-    pub fn get_type_from_ref(&self, ref_ty: TypeId) -> &HirType {
-        if let HirType::Reference { rf, .. } = self.get_type(&ref_ty) {
-            self.get_type(rf)
-        } else {
-            unreachable!("The provided ref_ty should be of type Reference");
+    pub fn get_type_from_ref(&self, mut ref_ty: TypeId, span: &Span) -> Result<&HirType> {
+        let mut visited = HashSet::new();
+        while let HirType::Reference { rf, .. } = self.get_type(&ref_ty) {
+            if !visited.insert(ref_ty) {
+                let name = self
+                    .get_name_of_type(ref_ty)
+                    .expect("Type should contain a name");
+                return Err(HIRError::recursive(name, *span));
+            }
+            ref_ty = *rf;
         }
+        Ok(self.get_type(&ref_ty))
     }
     /// Resolves the [`TypeId`] for the given plain type name string.
     ///

@@ -49,10 +49,9 @@ impl SlynxHir {
         }
         let mut resultant_fields = Vec::with_capacity(fields.len());
         let mut non_recognized_fields = Vec::with_capacity(fields.len());
-
         let HirType::Struct {
             fields: field_types,
-        } = self.get_type_from_ref(ty).clone()
+        } = self.get_type_from_ref(ty, &span).cloned()?
         else {
             unreachable!();
         };
@@ -115,7 +114,9 @@ impl SlynxHir {
         match field_method {
             FieldMethod::Type(rf, index) => {
                 let object_ref = self.resolve_object_reference_type(*rf, span)?;
-                let HirType::Struct { fields } = self.get_type_from_ref(object_ref).clone() else {
+                let HirType::Struct { fields } =
+                    self.get_type_from_ref(object_ref, span).cloned()?
+                else {
                     unreachable!("object layouts should always resolve to structs");
                 };
                 Ok(fields[*index])
@@ -127,7 +128,7 @@ impl SlynxHir {
                 let object_ref = self.resolve_object_reference_type(variable_ty, span)?;
                 let (layout, fields) = match (
                     self.get_object_fields(object_ref),
-                    self.get_type_from_ref(object_ref),
+                    self.get_type_from_ref(object_ref, span)?,
                 ) {
                     (Some(layout), HirType::Struct { fields }) => (layout, fields),
                     (None, _) => unreachable!("object reference should carry a layout"),

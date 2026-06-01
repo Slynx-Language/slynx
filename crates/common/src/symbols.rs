@@ -13,7 +13,7 @@ impl<T> SymbolPointer<T> {
 
 impl<T> Clone for SymbolPointer<T> {
     fn clone(&self) -> Self {
-        Self(self.0, self.1)
+        *self
     }
 }
 

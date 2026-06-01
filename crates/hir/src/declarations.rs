@@ -241,7 +241,7 @@ impl SlynxHir {
                     ty: None,
                     ..
                 } => {
-                    let name = self.intern_name(&name);
+                    let name = self.intern_name(name);
                     Some(Ok(ComponentProperty::new(
                         *modifier,
                         name,
@@ -329,18 +329,19 @@ impl SlynxHir {
         target: &GenericIdentifier,
         span: Span,
     ) -> Result<()> {
+        let alias_name = self.intern_name(&name.identifier);
         let intern_name = self.intern_name(&target.identifier);
         let target_ty = self.get_type_of_name(intern_name, &target.span)?;
 
         let Some(alias_ty) = self
             .modules
             .types_module
-            .get_type_from_name_mut(&intern_name)
+            .get_type_from_name_mut(&alias_name)
         else {
-            return Err(HIRError::name_unrecognized(intern_name, name.span));
+            return Err(HIRError::name_unrecognized(alias_name, name.span));
         };
         *alias_ty = HirType::new_ref(target_ty);
-        let Some((decl, ty)) = self.modules.get_declaration_by_name(&intern_name) else {
+        let Some((decl, ty)) = self.modules.get_declaration_by_name(&alias_name) else {
             return Err(HIRError::name_unrecognized(intern_name, name.span));
         };
         self.declarations

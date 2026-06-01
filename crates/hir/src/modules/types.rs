@@ -218,16 +218,4 @@ impl TypesModule {
             .get(name)
             .map(|id| &mut self.types[id.as_raw() as usize])
     }
-    /// Follows a [`HirType::Reference`] and returns the inner type it points to.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the type at `id` is not a [`HirType::Reference`].
-    pub fn get_type_from_ref(&self, id: &TypeId) -> &HirType {
-        if let HirType::Reference { rf, .. } = self.get_type(id) {
-            self.get_type(rf)
-        } else {
-            unreachable!("The provided ref_ty should be of type Reference");
-        }
-    }
 }
