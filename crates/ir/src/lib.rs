@@ -1,3 +1,4 @@
+mod error;
 mod queries;
 mod views;
 pub use views::*;
@@ -14,6 +15,7 @@ mod visualize;
 
 pub use cfg::*;
 
+pub use error::*;
 pub use ir::*;
 pub use model::*;
 

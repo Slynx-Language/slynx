@@ -78,8 +78,7 @@ impl Label {
 
     /// Range `start .. end` into the enclosing function's instructions.
     pub fn instruction_range(&self) -> std::ops::Range<usize> {
-        self.instruction_start as usize
-            ..(self.instruction_start + self.instruction_count) as usize
+        self.instruction_start as usize..(self.instruction_start + self.instruction_count) as usize
     }
 
     // ── Name ──

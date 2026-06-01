@@ -41,6 +41,12 @@ pub struct SlynxIR {
     pub strings: SymbolsModule<SlynxIR>,
 }
 
+impl Default for SlynxIR {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SlynxIR {
     pub fn new() -> Self {
         let types = IRTypes::new();

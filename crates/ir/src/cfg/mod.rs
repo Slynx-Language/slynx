@@ -99,18 +99,14 @@ impl ControlFlowGraph {
         let last = ir.instructions[range].last()?;
 
         match &last.opcode {
-            Opcode::Br(target) => {
-                Some((vec![*target], vec![EdgeKind::Unconditional]))
-            }
+            Opcode::Br(target) => Some((vec![*target], vec![EdgeKind::Unconditional])),
             Opcode::Cbr {
                 then_label,
                 else_label,
-            } => {
-                Some((
-                    vec![*then_label, *else_label],
-                    vec![EdgeKind::ConditionalTrue, EdgeKind::ConditionalFalse],
-                ))
-            }
+            } => Some((
+                vec![*then_label, *else_label],
+                vec![EdgeKind::ConditionalTrue, EdgeKind::ConditionalFalse],
+            )),
             _ => {
                 // No terminator or non-branching end → back-edge (treated as exit)
                 Some((vec![], vec![EdgeKind::Backedge]))

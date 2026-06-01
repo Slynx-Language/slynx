@@ -77,6 +77,4 @@ impl From<SymbolPointer> for Operand {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Slot {
-    pub(crate) ty: crate::IRTypeId,
-}
+pub struct Slot;

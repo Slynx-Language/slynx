@@ -1,8 +1,9 @@
 use smallvec::smallvec;
 
 use crate::{
-    Component, ComponentValueBuilder, Function, IRPointer, IRStorage, IRType, IRTypeId,
-    Instruction, Label, Opcode, Operand, SlynxIR, StyleProperty, Value,
+    Component, ComponentValueBuilder, Function, IRError, IRErrorDescription, IRErrorKind,
+    IRPointer, IRStorage, IRType, IRTypeId, Instruction, Label, Opcode, Operand, SlynxIR,
+    StyleProperty, Value,
 };
 
 // ── LabelBuilder (intermediate bookkeeping, dropped after generate()) ──────
@@ -123,7 +124,7 @@ impl<'a> FunctionBuilder<'a> {
     ///
     /// The first time a label is entered, `BlockParam` instructions are
     /// automatically emitted for each of the label's declared arguments.
-    pub fn switch_to_block(&mut self, label: IRPointer<Label, 1>) -> Result<(), ()> {
+    pub fn switch_to_block(&mut self, label: IRPointer<Label, 1>) -> Result<(), IRError> {
         // ── Seal existing block ──
         let curr_inst_count = self.ir.instructions.len() as u32;
         if self.label_open {
@@ -135,7 +136,10 @@ impl<'a> FunctionBuilder<'a> {
             .labels
             .iter()
             .position(|lb| lb.ptr == label)
-            .ok_or(())?;
+            .ok_or(IRError::new(
+                IRErrorKind::InvalidLabelSwitch,
+                crate::IRErrorDescription::InexistentLabel,
+            ))?;
 
         // Sealed-block discipline: reject re-entry.
         if self.label_open && idx == self.current_label_idx {
@@ -143,7 +147,10 @@ impl<'a> FunctionBuilder<'a> {
         }
         // If instruction_start != 0 we've been entered before → sealed.
         if self.labels[idx].instruction_start != 0 {
-            return Err(());
+            return Err(IRError::new(
+                IRErrorKind::InvalidLabelSwitch,
+                IRErrorDescription::SealedDescription,
+            ));
         }
 
         // ── Open target label ──
@@ -167,7 +174,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Convenience: alias for `switch_to_block`.
-    pub fn goto(&mut self, label: IRPointer<Label, 1>) -> Result<(), ()> {
+    pub fn goto(&mut self, label: IRPointer<Label, 1>) -> Result<(), IRError> {
         self.switch_to_block(label)
     }
 

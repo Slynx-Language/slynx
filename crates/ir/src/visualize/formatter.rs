@@ -15,7 +15,6 @@ pub struct Formatter<'a> {
     pub instructions: &'a [Instruction],
     pub types: &'a IRTypes,
     pub symbols: &'a SymbolsModule<SlynxIR>,
-    label_offset: usize,
     inline_set: HashSet<usize>,
 }
 
@@ -29,14 +28,12 @@ impl<'a> Formatter<'a> {
             instructions: &ir.instructions,
             types: &ir.types,
             symbols: &ir.strings,
-            label_offset: 0,
             inline_set: HashSet::new(),
         }
     }
 
-    fn with_label_offset(&self, offset: usize) -> Formatter<'a> {
+    fn new_from_this(&self) -> Formatter<'a> {
         Formatter {
-            label_offset: offset,
             inline_set: HashSet::new(),
             ..*self
         }
@@ -146,7 +143,7 @@ impl<'a> Formatter<'a> {
         );
 
         let labels_ptr = func.labels_ptr();
-        let fmt = self.with_label_offset(labels_ptr.ptr());
+        let fmt = self.new_from_this();
         for label in self.labels[labels_ptr.range()].iter() {
             out.push_str(&fmt.format_label(label));
         }

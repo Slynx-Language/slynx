@@ -1,4 +1,4 @@
-use crate::{Component, Function, Instruction, IRPointer, Label, SlynxIR};
+use crate::{Component, Function, IRPointer, Instruction, Label, SlynxIR};
 
 /// Trait providing indexed access to flat storage arrays inside [`SlynxIR`].
 pub trait IRStorage<T> {
