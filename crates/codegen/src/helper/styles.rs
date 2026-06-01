@@ -186,7 +186,7 @@ impl Codegen {
         let entry = ctx.create_label("entry");
         ctx.switch_to_block(entry).unwrap();
         ctx.set_function_type(arg_ir_types, struct_ty);
-        self.map_function_arguments(&mut ctx, &decl_args);
+        self.map_function_arguments(&mut ctx, decl_args);
         for statement in statements {
             if let HirStyleStatement::Statement(s) = statement {
                 self.lower_statement(s, hir, &mut ctx)?;

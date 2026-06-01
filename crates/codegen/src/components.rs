@@ -4,19 +4,17 @@ use slynx_hir::{
     VariableId,
 };
 use slynx_ir::{
-    ComponentBuilder, ComponentValueBuilder, Function, IRPointer, IRTypeId, Instruction, Opcode,
-    SlynxIR, Value,
+    ComponentBuilder, ComponentValueBuilder, Function, IRPointer, IRTypeId, Opcode, SlynxIR, Value,
 };
 
 use crate::{ChildInitWork, Codegen, CodegenError, functions::FunctionContext};
 
 fn collect_var_ids_from_expr(expr: &HirExpression, out: &mut Vec<VariableId>) {
     match &expr.kind {
-        HirExpressionKind::Identifier(id) => {
-            if !out.contains(id) {
-                out.push(*id);
-            }
+        HirExpressionKind::Identifier(id) if !out.contains(id) => {
+            out.push(*id);
         }
+
         HirExpressionKind::Binary { lhs, rhs, .. } => {
             collect_var_ids_from_expr(lhs, out);
             collect_var_ids_from_expr(rhs, out);
@@ -135,17 +133,16 @@ impl Codegen {
 
         // Emit child initcalls for default children in the function body,
         // where actual property values are available as operands.
-        if let Some(decl_id) = decl_id {
-            if let Some(work_items) = self.component_child_inits.get(&decl_id) {
-                for work in work_items {
-                    let child_val =
-                        ctx.emit(Opcode::Component, smallvec::smallvec![], work.child_type);
-                    let mut args = vec![child_val];
-                    for &prop_idx in &work.parent_prop_indices {
-                        args.push(all_values[prop_idx]);
-                    }
-                    ctx.initcall(work.init_func, &args);
+        if let Some(decl_id) = decl_id
+            && let Some(work_items) = self.component_child_inits.get(&decl_id)
+        {
+            for work in work_items {
+                let child_val = ctx.emit(Opcode::Component, smallvec::smallvec![], work.child_type);
+                let mut args = vec![child_val];
+                for &prop_idx in &work.parent_prop_indices {
+                    args.push(all_values[prop_idx]);
                 }
+                ctx.initcall(work.init_func, &args);
             }
         }
 

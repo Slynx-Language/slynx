@@ -1,6 +1,6 @@
 use common::Operator;
 use slynx_hir::{HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir};
-use slynx_ir::{IRStorage, Operand, Value};
+use slynx_ir::{IRStorage, Value};
 
 use crate::{Codegen, CodegenError, functions::FunctionContext};
 
@@ -70,9 +70,17 @@ impl Codegen {
                 Ok(None)
             }
             HirStatementKind::Variable { name, value } => {
-                let vty = self
-                    .get_or_create_ir_type(&value.ty, hir, context.ir())
-                    .expect("Type of variable creation should be hoisted before mapping function bodies");
+                let ty = value.ty;
+                let hir_ty = hir.get_type(&ty);
+                eprintln!(
+                    "[CODEGEN DBG] Variable Statement: name={:?}, value.ty={:?}, hir_type={:?}",
+                    name, ty, hir_ty
+                );
+                let expr_kind = &value.kind;
+                eprintln!("[CODEGEN DBG]   value.kind={:?}", expr_kind);
+                let vty = self.get_or_create_ir_type(&ty, hir, context.ir()).expect(
+                    "Type of variable creation should be hoisted before mapping function bodies",
+                );
                 let slot = context.allocate(vty);
                 let val = self.lower_expression(value, hir, context)?;
                 context.write(slot, val);
@@ -107,7 +115,7 @@ impl Codegen {
             .get_mut(end_label)
             .insert_arguments(&[bool_type]);
 
-        let false_val = context.emit_const(Operand::Bool(false).into(), bool_type);
+        let false_val = context.emit_const(false.into(), bool_type);
         context.branch_conditional(lhs_value, end_label, end_label, &[rhs_value], &[false_val]);
         context.switch_to_block(end_label).unwrap();
         context.block_param(end_label, 0)
@@ -126,7 +134,7 @@ impl Codegen {
             .get_mut(end_label)
             .insert_arguments(&[bool_type]);
 
-        let true_val = context.emit_const(Operand::Bool(true).into(), bool_type);
+        let true_val = context.emit_const(true.into(), bool_type);
         context.branch_conditional(lhs_value, end_label, end_label, &[true_val], &[rhs_value]);
         context.switch_to_block(end_label).unwrap();
         context.block_param(end_label, 0)

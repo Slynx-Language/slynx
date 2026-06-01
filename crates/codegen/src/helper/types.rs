@@ -16,9 +16,13 @@ impl Codegen {
         let IRType::Struct(obj) = ir.get_type(obj_handle) else {
             unreachable!();
         };
-        let fields = match hir.get_type(&decl) {
-            slynx_hir::HirType::Struct { fields } => fields.clone(),
-            _ => unreachable!("{:?} should map to an Object, but it doesn't", decl),
+        let mut current = decl;
+        let fields = loop {
+            match hir.get_type(&current) {
+                slynx_hir::HirType::Struct { fields } => break fields.clone(),
+                slynx_hir::HirType::Reference { rf, .. } => current = *rf,
+                _ => unreachable!("{:?} should map to an Object, but it doesn't", decl),
+            }
         };
         for field in &fields {
             let ty = self.get_or_create_ir_type(field, hir, ir)?;

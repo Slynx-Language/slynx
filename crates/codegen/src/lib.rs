@@ -14,7 +14,7 @@ use petgraph::{
     algo::toposort,
     graph::{DiGraph, NodeIndex},
 };
-use slynx_hir::{DeclarationId, HirDeclarationKind, SlynxHir, TypeId};
+use slynx_hir::{DeclarationId, HirDeclarationKind, HirType, SlynxHir, TypeId};
 use slynx_ir::{Component, Function, IRPointer, IRStorage, IRTypeId, SlynxIR};
 
 /// Per-component data for emitting child initcalls at instantiation time.
@@ -36,6 +36,12 @@ pub struct Codegen {
     /// Child-init work items queued by `initialize_component` and
     /// executed by `get_component_expression`.
     pub(crate) component_child_inits: HashMap<TypeId, Vec<ChildInitWork>>,
+}
+
+impl Default for Codegen {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Codegen {
@@ -80,6 +86,12 @@ impl Codegen {
                     let name = hir.get_declaration_name(declaration.id);
                     let obj = ir.create_struct(name);
                     self.types.insert(declaration.ty, obj);
+                    // declaration.ty is a Reference; also register the concrete
+                    // Struct TypeId so tuple fields (which resolve through the
+                    // Reference) can be found in get_or_create_ir_type.
+                    if let HirType::Reference { rf, .. } = hir.get_type(&declaration.ty) {
+                        self.types.insert(*rf, obj);
+                    }
                 }
                 HirDeclarationKind::Function { name, .. } => {
                     let name = hir.get_name(*name);

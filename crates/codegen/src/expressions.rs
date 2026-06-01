@@ -106,37 +106,6 @@ impl Codegen {
         Ok(ctx.get_field(value, field_index))
     }
 
-    fn lower_if_expression(
-        &mut self,
-        condition: &HirExpression,
-        then_branch: &[HirStatement],
-        else_branch: &Option<Vec<HirStatement>>,
-        hir: &SlynxHir,
-        ctx: &mut FunctionContext,
-    ) -> Result<Value, CodegenError> {
-        let cond = self.lower_expression(condition, hir, ctx)?;
-
-        let then_label = ctx.create_label("then_label");
-        let else_label = ctx.create_label("else_label");
-        let end_label = ctx.create_label("end_label");
-
-        ctx.branch_conditional(cond, then_label, else_label, &[], &[]);
-
-        ctx.switch_to_block(then_label).unwrap();
-        let _then_ty = self.lower_if_branch(then_branch, end_label, hir, ctx)?;
-
-        ctx.switch_to_block(else_label).unwrap();
-        let else_branch = else_branch.as_deref().unwrap_or(&[]);
-        let _else_ty = self.lower_if_branch(else_branch, end_label, hir, ctx)?;
-
-        ctx.switch_to_block(end_label).unwrap();
-        if ctx.ir().get(end_label).arguments().is_empty() {
-            Ok(Value::VOID)
-        } else {
-            Ok(ctx.block_param(end_label, 0))
-        }
-    }
-
     pub(crate) fn lower_expression<'a>(
         &mut self,
         expr: &HirExpression,
@@ -188,5 +157,36 @@ impl Codegen {
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
         };
         Ok(value)
+    }
+
+    fn lower_if_expression(
+        &mut self,
+        condition: &HirExpression,
+        then_branch: &[HirStatement],
+        else_branch: &Option<Vec<HirStatement>>,
+        hir: &SlynxHir,
+        ctx: &mut FunctionContext,
+    ) -> Result<Value, CodegenError> {
+        let cond = self.lower_expression(condition, hir, ctx)?;
+
+        let then_label = ctx.create_label("then_label");
+        let else_label = ctx.create_label("else_label");
+        let end_label = ctx.create_label("end_label");
+
+        ctx.branch_conditional(cond, then_label, else_label, &[], &[]);
+
+        ctx.switch_to_block(then_label).unwrap();
+        let _then_ty = self.lower_if_branch(then_branch, end_label, hir, ctx)?;
+
+        ctx.switch_to_block(else_label).unwrap();
+        let else_branch = else_branch.as_deref().unwrap_or(&[]);
+        let _else_ty = self.lower_if_branch(else_branch, end_label, hir, ctx)?;
+
+        ctx.switch_to_block(end_label).unwrap();
+        if ctx.ir().get(end_label).arguments().is_empty() {
+            Ok(Value::VOID)
+        } else {
+            Ok(ctx.block_param(end_label, 0))
+        }
     }
 }

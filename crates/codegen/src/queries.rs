@@ -27,7 +27,6 @@ impl Codegen {
                 let ir_fields = {
                     let mut out = Vec::with_capacity(fields.len());
                     for field in fields.clone() {
-                        let field = field.clone();
                         out.push(self.get_or_create_ir_type(&field, hir, ir)?);
                     }
                     out
