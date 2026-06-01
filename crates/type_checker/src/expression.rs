@@ -4,8 +4,6 @@
 //! It handles the resolution of function bodies, component property
 //! initialization, and ensures type safety through unification.
 
-use std::collections::HashSet;
-
 use super::{Result, TypeChecker};
 
 use crate::{TypeError, TypeErrorKind};
@@ -214,20 +212,17 @@ impl TypeChecker {
     }
 
     /// Resolves the type of a reference expression, returning the type it references.
-    pub fn get_type_from_ref(&self, mut ref_ty: TypeId, span: Span) -> Result<TypeId> {
-        let mut visited = HashSet::new();
-        while let HirType::Reference { rf, .. } = self.types_module.get_type(&ref_ty) {
-            if !visited.insert(ref_ty) {
-                return Err(TypeError {
-                    kind: TypeErrorKind::CyclicType {
-                        ty: self.types_module.get_type(&ref_ty).clone(),
-                    },
+    pub fn get_type_from_ref(&self, ref_ty: TypeId, span: Span) -> Result<TypeId> {
+        match self.types_module.get_type_from_ref(ref_ty, &span) {
+            Ok(v) => Ok(v),
+            Err(_) => {
+                let ty = self.types_module.get_type(&ref_ty).clone();
+                Err(TypeError {
+                    kind: TypeErrorKind::CyclicType { ty },
                     span,
-                });
+                })
             }
-            ref_ty = *rf;
         }
-        Ok(ref_ty)
     }
     /// Retrieves the type of the provided `expr`. Returns infer if it could not be inferred.
     pub(super) fn get_type_of_expr(&mut self, expr: &mut HirExpression) -> Result<TypeId> {
