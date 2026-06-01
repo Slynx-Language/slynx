@@ -19,7 +19,7 @@ fn typechecker_rejects_function_call_with_extra_arg() {
         span: template.span,
     });
 
-    let err = TypeChecker::check(&mut hir)
+    let err = TypeChecker::check(hir)
         .expect_err("type checker should reject function calls with extra args");
 
     match &err.kind {

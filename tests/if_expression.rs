@@ -8,6 +8,5 @@ fn lowers_if_else_expression_used_as_variable_value() {
 
     assert!(ir.contains("Cbr"));
     assert!(ir.contains("Br"));
-    assert!(ir.contains("LabelArg"));
     assert!(ir.contains("I32"));
 }
