@@ -272,14 +272,12 @@ impl TypeChecker {
                 expr.ty = self.resolve(&expr.ty, &expr.span)?;
             }
 
-            HirExpressionKind::Object { .. } => {
-                expr.ty = self.resolve(&expr.ty, &expr.span)?;
-            }
+            HirExpressionKind::Object { .. } => {}
             HirExpressionKind::FieldAccess {
                 expr: ref mut parent,
                 ..
             } => {
-                parent.ty = self.resolve(&parent.ty, &expr.span)?;
+                parent.ty = self.get_type_from_ref(parent.ty, expr.span)?;
                 expr.ty = self.resolve(&expr.ty, &expr.span)?;
             }
             HirExpressionKind::Component(ref mut component_expr) => {

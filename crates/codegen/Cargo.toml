@@ -1,7 +1,11 @@
 [package]
-name = "codegen"
+name = "slynx-codegen"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 slynx-hir.path="../hir"
+petgraph.workspace=true
+smallvec.workspace=true
+slynx-ir.path="../ir"
+common.path="../common"

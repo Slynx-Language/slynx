@@ -1,324 +1,374 @@
-use crate::{Function, IRTypeId, Label, Slot, StyleProperty, Value};
+use smallvec::SmallVec;
 
-use super::IRPointer;
+use crate::{Function, IRPointer, IRTypeId, Label, Operand, StyleProperty, Value};
 
+// ── Opcode ─────────────────────────────────────────────────────────────────
+
+/// Every instruction kind understood by the IR.
+///
+/// Opcodes that carry a payload (e.g. `Br`, `Call`) embed the relevant
+/// IR references directly — no separate lookup table required.
 #[derive(Debug, Clone)]
-pub enum UIInstruction {
-    /// Apply a style property to a component.
-    /// operands[0] = component, operands[1] = value
-    SApply {
-        /// Style property code from STYLES_TABLE.md
-        property_code: StyleProperty,
-    },
-    /// Initialize call: apply a style function to a component.
-    /// operands[0] = component, operands[1] = style struct value
-    InitCall(IRPointer<Function, 1>),
-}
+pub enum Opcode {
+    // ═══════════════════════════════════════════════════════════════════
+    //  Values
+    // ═══════════════════════════════════════════════════════════════════
+    /// A compile-time constant.  The sole operand (if present) is the
+    /// [`Operand`] itself, stored inline.
+    Const(Operand),
 
-#[derive(Debug, Clone)]
-///An enum that represents the type of instruction
-pub enum InstructionType {
-    ///Variant used for raw values. Their actual value is their operand
-    RawValue,
-    Struct,
-    Component,
-    ///Variant used for function calls. The `func` field is the pointer to the function
-    FunctionCall(IRPointer<Function, 1>),
-    ///Variant used for binary add. The type is determines by the `value_type` and the left and right hand side are the `operands`
+    /// The `n`-th function argument.  Produced during entry-block setup.
+    Arg(u32),
+
+    /// The `n`-th block (label) argument.
+    BlockParam(u32),
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Memory
+    // ═══════════════════════════════════════════════════════════════════
+    /// Allocate a stack slot of the instruction's value-type.
+    Allocate,
+
+    /// Write a value into a previously allocated slot.
+    /// Operands: `[slot, value]`.
+    Write,
+
+    /// Read from a slot.
+    /// Operands: `[slot]`.
+    Read,
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Arithmetic / Comparison / Bitwise
+    // ═══════════════════════════════════════════════════════════════════
     Add,
-    ///Variant used for binary sub. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Sub,
-    ///Variant used for binary mul. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Mul,
-    ///Variant used for binary div. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Div,
-    ///Variant used for binary cmp. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Cmp,
-    ///Variant used for binary gt. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Gt,
-    ///Variant used for binary gte. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Gte,
-    ///Variant used for binary lt. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Lt,
-    ///Variant used for binary lte. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Lte,
-    ///Variant used for binary AND. The type is determines by the `value_type` and the left and right hand side are the `operands`
     And,
-    ///Variant used for binary OR. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Or,
-    ///Variant used for binary RIGHT_SHIFT. The type is determines by the `value_type` and the left and right hand side are the `operands`
-    Shr,
-    ///Variant used for binary Arithmetic RIGHT_SHIFT. The type is determines by the `value_type` and the left and right hand side are the `operands`
-    AShr,
-    ///Variant used for binary LEFT_SHIFT. The type is determines by the `value_type` and the left and right hand side are the `operands`
-    Shl,
-    ///Variant used for binary XOR. The type is determines by the `value_type` and the left and right hand side are the `operands`
     Xor,
-    ///A branch operation that executes the code from the provided `branch`. If the branch's got arguments the `operands` of this instruction are used as the label args
+    Shl,
+    Shr,
+    AShr,
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Aggregates & fields
+    // ═══════════════════════════════════════════════════════════════════
+    /// Construct a struct literal.  Operands are the field values.
+    Struct,
+
+    /// Construct a component.  Operands are the component field values.
+    Component,
+
+    /// Extract field `index` from a struct/component.
+    /// Operands: `[object]`.
+    GetField(u16),
+
+    /// Set field `index` on a struct/component.
+    /// Operands: `[object, value]`.
+    SetField(u16),
+
+    GetChild(u16),
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Control flow
+    // ═══════════════════════════════════════════════════════════════════
+    /// Unconditional branch to a label.
+    /// Operands are the label's block arguments.
     Br(IRPointer<Label, 1>),
-    ///Conditional branch. Takes a boolean condition and two target labels with their arguments
+
+    /// Conditional branch.
+    /// Operands: `[condition]`.
     Cbr {
         then_label: IRPointer<Label, 1>,
         else_label: IRPointer<Label, 1>,
-        then_args: IRPointer<Value>,
-        else_args: IRPointer<Value>,
     },
-    Allocate(IRPointer<Slot, 1>),
-    Write(IRPointer<Slot, 1>),
-    Read,
-    Reinterpret,
-    GetField(usize),
-    SetField(usize),
-    ///Returns the operand
+
+    /// Return from the current function.
+    /// Operands: `[return_value]`.
     Ret,
-    UI(UIInstruction),
+
+    /// Call a function.  Operands are the call arguments.
+    Call(IRPointer<Function, 1>),
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Reinterpret / raw
+    // ═══════════════════════════════════════════════════════════════════
+    /// Reinterpret the bits of a value as a different type.
+    Reinterpret,
+
+    /// A "raw value" wrapper.  The sole operand is a [`Value`] that
+    /// holds the raw bits.
+    RawValue,
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  UI (framework-specific)
+    // ═══════════════════════════════════════════════════════════════════
+    /// Apply a style property to a UI component.
+    SApply {
+        property_code: StyleProperty,
+    },
+
+    /// Call a style initializer function on a component.
+    InitCall(IRPointer<Function, 1>),
 }
 
+// ── Instruction ────────────────────────────────────────────────────────────
+
+/// A single instruction in the IR.
+///
+/// # Memory layout
+///
+/// The struct keeps `operands` inline via a [`SmallVec`] so that
+/// common 0–4 operand instructions never heap-allocate.  Call and
+/// struct-literal instructions with many operands still pay only a
+/// single dynamic allocation for the operand vector.
+///
+/// # SSA
+///
+/// The result of an instruction is **implicit**: `Value(n)` is the
+/// result of `instructions[n]`.  No explicit result field is stored.
 #[derive(Debug, Clone)]
-///A instruction that determines the compiler something that it should execute
 pub struct Instruction {
-    pub operands: IRPointer<Value>,
-    pub instruction_type: InstructionType,
+    /// The operation this instruction performs.
+    pub opcode: Opcode,
+
+    /// SSA operand handles.  The length and interpretation depend on
+    /// `opcode` (see the variant-level documentation).
+    pub operands: SmallVec<[Value; 4]>,
+
+    /// The type this instruction produces.
     pub value_type: IRTypeId,
 }
 
-impl Instruction {
-    ///Creates a raw value instruction with the given `value` and `ty`
-    pub fn raw(value: IRPointer<Value, 1>, ty: IRTypeId) -> Instruction {
-        Instruction {
-            operands: value.with_length::<0>(),
-            instruction_type: InstructionType::RawValue,
-            value_type: ty,
-        }
+impl Opcode {
+    pub fn is_ui(&self) -> bool {
+        matches!(self, Opcode::InitCall(_) | Opcode::SApply { .. })
     }
+}
 
-    ///Gets the `index`'th propertie of the given `value`
-    pub fn getfield(index: usize, value: IRPointer<Value, 1>, ty: IRTypeId) -> Self {
-        Self {
-            operands: value.with_length(),
-            instruction_type: InstructionType::GetField(index),
-            value_type: ty,
+// ── Convenience constructors ───────────────────────────────────────────────
+
+macro_rules! binop_ctor {
+    ($name:ident, $variant:ident) => {
+        pub fn $name(ty: IRTypeId, operands: SmallVec<[Value; 4]>) -> Instruction {
+            Instruction {
+                opcode: Opcode::$variant,
+                operands,
+                value_type: ty,
+            }
         }
-    }
-    ///Sets on the first value of the target, the given `index`th property value to be the second value on `target`.
-    ///# Example
-    /// insert_value(obj)
-    /// insert_value(5)
-    /// insert_instruction(setfield(0, obj, value)); //will set obj.0 = value
-    pub fn setfield(index: usize, target: IRPointer<Value, 2>, ty: IRTypeId) -> Self {
-        Self {
-            operands: target.with_length(),
-            instruction_type: InstructionType::SetField(index),
-            value_type: ty,
-        }
-    }
-    ///Creates a call instruction that calls the function `func` with the arguments `args`. The provided `func_ret` is the return type of the function used as type of the instruction
+    };
+}
+
+impl Instruction {
+    /// Build a call instruction.
     pub fn call(
         func: IRPointer<Function, 1>,
-        func_ret: IRTypeId,
-        args: IRPointer<Value>,
-    ) -> Instruction {
-        Self {
+        args: SmallVec<[Value; 4]>,
+        ret_ty: IRTypeId,
+    ) -> Self {
+        Instruction {
+            opcode: Opcode::Call(func),
             operands: args,
-            instruction_type: InstructionType::FunctionCall(func),
-            value_type: func_ret,
+            value_type: ret_ty,
         }
     }
-    pub fn ret(value: IRPointer<Value, 1>, ty: IRTypeId) -> Self {
-        Self {
-            operands: value.with_length(),
-            instruction_type: InstructionType::Ret,
-            value_type: ty,
-        }
-    }
-    pub fn shr(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Shr,
-            value_type: ty,
-        }
-    }
-    pub fn ashr(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::AShr,
-            value_type: ty,
-        }
-    }
-    pub fn shl(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Shl,
+
+    /// Build an unconditional branch.
+    pub fn br(label: IRPointer<Label, 1>, args: SmallVec<[Value; 4]>, ty: IRTypeId) -> Self {
+        Instruction {
+            opcode: Opcode::Br(label),
+            operands: args,
             value_type: ty,
         }
     }
 
-    pub fn xor(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Xor,
-            value_type: ty,
-        }
-    }
-    pub fn and(ty: IRTypeId, values: IRPointer<Value, 2>) -> Instruction {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::And,
-            value_type: ty,
-        }
-    }
-    pub fn or(ty: IRTypeId, value: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: value.with_length(),
-            instruction_type: InstructionType::Or,
-            value_type: ty,
-        }
-    }
-    pub fn add(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Add,
-            value_type: ty,
-        }
-    }
-    pub fn sub(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Sub,
-            value_type: ty,
-        }
-    }
-    pub fn mul(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Mul,
-            value_type: ty,
-        }
-    }
-
-    pub fn div(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Div,
-            value_type: ty,
-        }
-    }
-    pub fn cmp(ty: IRTypeId, values: IRPointer<Value, 2>) -> Instruction {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Cmp,
-            value_type: ty,
-        }
-    }
-    pub fn gt(ty: IRTypeId, value: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: value.with_length(),
-            instruction_type: InstructionType::Gt,
-            value_type: ty,
-        }
-    }
-    pub fn gte(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Gte,
-            value_type: ty,
-        }
-    }
-    pub fn lt(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Lt,
-            value_type: ty,
-        }
-    }
-    pub fn lte(ty: IRTypeId, values: IRPointer<Value, 2>) -> Self {
-        Self {
-            operands: values.with_length(),
-            instruction_type: InstructionType::Lte,
-            value_type: ty,
-        }
-    }
-    pub fn br(label: IRPointer<Label, 1>, args: IRPointer<Value>, label_ret_ty: IRTypeId) -> Self {
-        Self {
-            operands: args,
-            instruction_type: InstructionType::Br(label),
-            value_type: label_ret_ty,
-        }
-    }
+    /// Build a conditional branch.
     pub fn cbr(
-        condition: IRPointer<Value, 1>,
+        cond: Value,
         then_label: IRPointer<Label, 1>,
         else_label: IRPointer<Label, 1>,
-        then_args: IRPointer<Value>,
-        else_args: IRPointer<Value>,
-        value_ty: IRTypeId,
+        then_args: SmallVec<[Value; 4]>,
+        else_args: SmallVec<[Value; 4]>,
+        ty: IRTypeId,
     ) -> Self {
-        Self {
-            operands: condition.with_length(),
-            instruction_type: InstructionType::Cbr {
+        let mut operands = SmallVec::with_capacity(1 + then_args.len() + else_args.len());
+        operands.push(cond);
+        operands.extend(then_args);
+        operands.extend(else_args);
+        Instruction {
+            opcode: Opcode::Cbr {
                 then_label,
                 else_label,
-                then_args,
-                else_args,
             },
-            value_type: value_ty,
-        }
-    }
-
-    pub fn allocate(slot: IRPointer<Slot, 1>, ty: IRTypeId) -> Self {
-        Self {
-            operands: IRPointer::null(),
-            instruction_type: InstructionType::Allocate(slot),
-            value_type: ty,
-        }
-    }
-    pub fn write(ty: IRTypeId, slot: IRPointer<Slot, 1>, value: IRPointer<Value, 1>) -> Self {
-        Self {
-            operands: value.with_length(),
-            instruction_type: InstructionType::Write(slot),
-            value_type: ty,
-        }
-    }
-    pub fn read(ty: IRTypeId, value: IRPointer<Value, 1>) -> Self {
-        Self {
-            operands: value.with_length(),
-            instruction_type: InstructionType::Read,
-            value_type: ty,
-        }
-    }
-
-    pub fn struct_literal(ty: IRTypeId, value: IRPointer<Value>) -> Self {
-        Self {
-            operands: value,
-            instruction_type: InstructionType::Struct,
-            value_type: ty,
-        }
-    }
-    pub fn component(ty: IRTypeId, value: IRPointer<Value>) -> Self {
-        Self {
-            operands: value,
-            instruction_type: InstructionType::Component,
-            value_type: ty,
-        }
-    }
-
-    pub fn sapply(property_code: StyleProperty, operands: IRPointer<Value>, ty: IRTypeId) -> Self {
-        Self {
             operands,
-            instruction_type: InstructionType::UI(UIInstruction::SApply { property_code }),
+            value_type: ty,
+        }
+    }
+
+    pub fn const_value(op: Operand, ty: IRTypeId) -> Self {
+        Instruction {
+            opcode: Opcode::Const(op),
+            operands: SmallVec::new(),
+            value_type: ty,
+        }
+    }
+
+    pub fn arg(index: u32, ty: IRTypeId) -> Self {
+        Instruction {
+            opcode: Opcode::Arg(index),
+            operands: SmallVec::new(),
+            value_type: ty,
+        }
+    }
+
+    pub fn block_param(index: u32, ty: IRTypeId) -> Self {
+        Instruction {
+            opcode: Opcode::BlockParam(index),
+            operands: SmallVec::new(),
+            value_type: ty,
+        }
+    }
+
+    // ── Standard constructors kept for backward compat ──
+
+    pub fn raw(ty: IRTypeId, value: Value) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(value);
+        Instruction {
+            opcode: Opcode::RawValue,
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn ret(ty: IRTypeId, value: Value) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(value);
+        Instruction {
+            opcode: Opcode::Ret,
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn read(ty: IRTypeId, slot: Value) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(slot);
+        Instruction {
+            opcode: Opcode::Read,
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn write(ty: IRTypeId, slot: Value, value: Value) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(slot);
+        operands.push(value);
+        Instruction {
+            opcode: Opcode::Write,
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn getfield(index: u16, object: Value, ty: IRTypeId) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(object);
+        Instruction {
+            opcode: Opcode::GetField(index),
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn setfield(index: u16, object: Value, value: Value, ty: IRTypeId) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(object);
+        operands.push(value);
+        Instruction {
+            opcode: Opcode::SetField(index),
+            operands,
+            value_type: ty,
+        }
+    }
+    pub fn getchild(index: u16, ty: IRTypeId) -> Self {
+        Instruction {
+            opcode: Opcode::GetChild(index),
+            operands: SmallVec::new(),
+            value_type: ty,
+        }
+    }
+    pub fn allocate(ty: IRTypeId) -> Self {
+        Instruction {
+            opcode: Opcode::Allocate,
+            operands: SmallVec::new(),
+            value_type: ty,
+        }
+    }
+
+    pub fn struct_literal(ty: IRTypeId, fields: SmallVec<[Value; 4]>) -> Self {
+        Instruction {
+            opcode: Opcode::Struct,
+            operands: fields,
+            value_type: ty,
+        }
+    }
+
+    pub fn component(ty: IRTypeId, fields: SmallVec<[Value; 4]>) -> Self {
+        Instruction {
+            opcode: Opcode::Component,
+            operands: fields,
+            value_type: ty,
+        }
+    }
+
+    pub fn sapply(
+        property_code: StyleProperty,
+        operands: SmallVec<[Value; 4]>,
+        ty: IRTypeId,
+    ) -> Self {
+        Instruction {
+            opcode: Opcode::SApply { property_code },
+            operands,
             value_type: ty,
         }
     }
 
     pub fn initcall(
         func: IRPointer<Function, 1>,
-        operands: IRPointer<Value>,
+        operands: SmallVec<[Value; 4]>,
         ty: IRTypeId,
     ) -> Self {
-        Self {
+        Instruction {
+            opcode: Opcode::InitCall(func),
             operands,
-            instruction_type: InstructionType::UI(UIInstruction::InitCall(func)),
             value_type: ty,
         }
     }
+
+    // ── Binary op constructors ──
+
+    binop_ctor!(add, Add);
+    binop_ctor!(sub, Sub);
+    binop_ctor!(mul, Mul);
+    binop_ctor!(div, Div);
+    binop_ctor!(cmp, Cmp);
+    binop_ctor!(gt, Gt);
+    binop_ctor!(gte, Gte);
+    binop_ctor!(lt, Lt);
+    binop_ctor!(lte, Lte);
+    binop_ctor!(and, And);
+    binop_ctor!(or, Or);
+    binop_ctor!(xor, Xor);
+    binop_ctor!(shl, Shl);
+    binop_ctor!(shr, Shr);
+    binop_ctor!(ashr, AShr);
 }

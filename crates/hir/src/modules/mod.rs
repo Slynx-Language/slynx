@@ -1,5 +1,7 @@
-use crate::{DeclarationId, Result, TypeId, VariableId, error::HIRError, model::HirType};
-use common::Span;
+use crate::{
+    DeclarationId, Result, SymbolPointer, TypeId, VariableId, error::HIRError, model::HirType,
+};
+use common::{Span, SymbolsModule};
 use slynx_parser::ObjectField;
 
 mod declarations;

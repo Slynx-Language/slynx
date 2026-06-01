@@ -25,12 +25,10 @@ mod statement;
 mod styles;
 use std::collections::HashMap;
 
-use common::SymbolPointer;
-
 use common::Span;
 use slynx_hir::modules::TypesModule;
 use slynx_hir::{ComponentProperty, HirStatement, HirStatementKind};
-use slynx_hir::{FieldMethod, HirType, SlynxHir, TypeId};
+use slynx_hir::{FieldMethod, HirType, SlynxHir, SymbolPointer, TypeId};
 
 pub type Result<T> = std::result::Result<T, TypeError>;
 
@@ -112,9 +110,9 @@ impl TypeChecker {
         })
     }
 
-    /// Checks the types of the provided `hir` and mutates them if needed. Any that could not be inferred but, yet is valid, is
-    /// at the end, returned as it's default type. Returns the type module to be used on the next steps
-    pub fn check(hir: &mut SlynxHir) -> Result<TypesModule> {
+    /// Checks the types of the provided `hir` and mutates them in place. Any that could not be inferred but, yet is valid, is
+    /// at the end, returned as it's default type. Returns the same `hir` with fully-resolved types.
+    pub fn check(mut hir: SlynxHir) -> Result<SlynxHir> {
         let mut inner = Self {
             types: HashMap::new(),
             structs: std::mem::take(&mut hir.modules.declarations_module.objects),
@@ -139,7 +137,9 @@ impl TypeChecker {
             inner.set_default(decl)?;
         }
 
-        Ok(inner.types_module)
+        hir.modules.declarations_module.objects = inner.structs;
+        hir.modules.types_module = inner.types_module;
+        Ok(hir)
     }
 
     fn substitute(&mut self, id: TypeId, ty: HirType) {
@@ -301,7 +301,7 @@ impl TypeChecker {
             let unified_prop = self.unify(prop_a.prop_type(), prop_b.prop_type(), span)?;
             unified_props.push(ComponentProperty::new(
                 *prop_a.visibility(),
-                prop_a.name().to_string(),
+                prop_a.name(),
                 unified_prop,
             ));
         }

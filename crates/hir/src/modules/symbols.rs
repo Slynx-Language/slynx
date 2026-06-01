@@ -3,20 +3,20 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-pub use common::symbols::*;
+use common::SymbolsModule;
 
-use crate::VariableId;
+use crate::{SlynxHir, SymbolPointer, VariableId};
 
 /// Wraps a [`SymbolsModule`] and additionally tracks the source-level symbol for each variable.
 #[derive(Debug, Default)]
 pub struct SymbolsResolver {
-    module: SymbolsModule,
+    module: SymbolsModule<SlynxHir>,
     /// Tracks the original source-level symbol for each variable id.
     variable_names: HashMap<VariableId, SymbolPointer>,
 }
 
 impl Deref for SymbolsResolver {
-    type Target = SymbolsModule;
+    type Target = SymbolsModule<SlynxHir>;
     fn deref(&self) -> &Self::Target {
         &self.module
     }
@@ -29,7 +29,7 @@ impl DerefMut for SymbolsResolver {
 
 impl SymbolsResolver {
     /// Creates a new [`SymbolsResolver`] wrapping the given [`SymbolsModule`].
-    pub fn new(module: SymbolsModule) -> Self {
+    pub fn new(module: SymbolsModule<SlynxHir>) -> Self {
         Self {
             module,
             variable_names: HashMap::new(),
@@ -46,11 +46,11 @@ impl SymbolsResolver {
         &self.variable_names
     }
     /// Returns a reference to the underlying [`SymbolsModule`].
-    pub fn symbols_module(&self) -> &SymbolsModule {
+    pub fn symbols_module(&self) -> &SymbolsModule<SlynxHir> {
         &self.module
     }
     /// Consumes this resolver and returns the underlying [`SymbolsModule`].
-    pub fn get_symbols_module(self) -> SymbolsModule {
+    pub fn get_symbols_module(self) -> SymbolsModule<SlynxHir> {
         self.module
     }
 }

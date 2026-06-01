@@ -1,43 +1,44 @@
+mod storage;
+pub use storage::*;
+mod component;
 mod function;
-use crate::{Component, Function, IRPointer, Label, SlynxIR};
+mod instructions;
 
-pub trait IRStorage<T> {
-    fn get_storage(&self) -> &[T];
-    fn get_storage_mut(&mut self) -> &mut [T];
-    fn get(&self, ptr: IRPointer<T, 1>) -> &T {
-        &self.get_storage()[ptr.ptr()]
-    }
-    fn get_mut(&mut self, ptr: IRPointer<T, 1>) -> &mut T {
-        &mut self.get_storage_mut()[ptr.ptr()]
-    }
-    fn get_ranged(&self, ptr: IRPointer<T, 0>) -> &[T] {
-        &self.get_storage()[ptr.range()]
-    }
-    fn get_ranged_mut(&mut self, ptr: IRPointer<T, 0>) -> &mut [T] {
-        &mut self.get_storage_mut()[ptr.range()]
-    }
-}
+use crate::{IRPointer, SlynxIR};
 
+/// A single-element view over an IR storage array.
 pub struct IRViewer<'a, T> {
-    ptr: IRPointer<T, 1>,
-    ir: &'a SlynxIR,
+    pub(crate) ptr: IRPointer<T, 1>,
+    pub(crate) ir: &'a SlynxIR,
 }
 
-macro_rules! impl_storage {
-    ($storage_type: ty, $storage_name: ident) => {
-        paste::paste! {
-            impl IRStorage<$storage_type> for SlynxIR {
-                fn get_storage(&self) -> &[$storage_type] {
-                    &self.$storage_name
-                }
-                fn get_storage_mut(&mut self) -> &mut [$storage_type] {
-                    &mut self.$storage_name
-                }
-            }
+impl<'a, T> IRViewer<'a, T>
+where
+    SlynxIR: IRStorage<T>,
+{
+    pub fn value(&self) -> &T {
+        self.ir.get_idx(self.ptr.ptr())
+    }
+}
+
+/// A view over a range of elements in an IR storage array.
+pub struct IRBatchViewer<'a, T> {
+    pub(crate) ptr: IRPointer<T>,
+    pub(crate) ir: &'a SlynxIR,
+}
+
+impl<'a, T> IRBatchViewer<'a, T> {
+    pub fn at(&self, index: usize) -> IRViewer<'a, T> {
+        IRViewer {
+            ptr: self.ptr.ptr_to(index),
+            ir: self.ir,
         }
-    };
+    }
+    pub fn values(&self) -> &[T]
+    where
+        SlynxIR: IRStorage<T>,
+    {
+        let range = self.ptr.range();
+        &self.ir.get_storage()[range]
+    }
 }
-
-impl_storage!(Function, functions);
-impl_storage!(Label, labels);
-impl_storage!(Component, components);

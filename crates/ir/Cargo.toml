@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 common = {path = "../common"}
 color-eyre={workspace=true}
-smallvec={workspace=true}
+smallvec.workspace=true
 either = "1.15.0"
-petgraph = "0.8.3"
+petgraph.workspace=true
 paste = "1.0.15"

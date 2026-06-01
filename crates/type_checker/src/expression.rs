@@ -204,6 +204,7 @@ impl TypeChecker {
         };
 
         for (idx, f) in fields.iter_mut().enumerate() {
+            f.ty = self.get_type_of_expr(f)?;
             f.ty = self.unify(&fields_tys[idx], &f.ty, &f.span)?;
         }
 
@@ -211,11 +212,16 @@ impl TypeChecker {
     }
 
     /// Resolves the type of a reference expression, returning the type it references.
-    pub fn get_type_from_ref(&self, ref_ty: TypeId) -> &HirType {
-        if let HirType::Reference { rf, .. } = self.types_module.get_type(&ref_ty) {
-            self.types_module.get_type(rf)
-        } else {
-            unreachable!("The provided ref_ty should be of type Reference");
+    pub fn get_type_from_ref(&self, ref_ty: TypeId, span: Span) -> Result<TypeId> {
+        match self.types_module.get_type_from_ref(ref_ty, &span) {
+            Ok(v) => Ok(v),
+            Err(_) => {
+                let ty = self.types_module.get_type(&ref_ty).clone();
+                Err(TypeError {
+                    kind: TypeErrorKind::CyclicType { ty },
+                    span,
+                })
+            }
         }
     }
     /// Retrieves the type of the provided `expr`. Returns infer if it could not be inferred.
@@ -284,7 +290,8 @@ impl TypeChecker {
                 name,
                 ref mut fields,
             } => {
-                let obj = self.get_type_from_ref(name).clone();
+                let obj = self.get_type_from_ref(name, expr.span)?;
+                let obj = self.types_module.get_type(&obj).clone();
                 self.resolve_object_types(&obj, fields)?;
                 name
             }
@@ -299,7 +306,11 @@ impl TypeChecker {
             HirExpressionKind::Bool(_) => self.types_module.bool_id(),
         };
 
-        expr.ty = self.unify(&expected, &calc, &expr.span)?;
+        expr.ty = if expected == calc {
+            calc
+        } else {
+            self.unify(&expected, &calc, &expr.span)?
+        };
         Ok(expr.ty)
     }
 }

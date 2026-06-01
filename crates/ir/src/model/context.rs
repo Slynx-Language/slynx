@@ -1,6 +1,4 @@
-use common::SymbolPointer;
-
-use crate::IRTypeId;
+use crate::{IRTypeId, SymbolPointer};
 
 use super::{IRPointer, Label};
 

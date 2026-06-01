@@ -1,6 +1,4 @@
-use common::SymbolPointer;
-
-use crate::{IRStructId, IRType, IRTypeId, SlynxIR};
+use crate::{IRError, IRErrorDescription, IRErrorKind, IRStructId, IRType, IRTypeId, SlynxIR};
 
 pub struct StructBuilder<'a> {
     ir: &'a mut SlynxIR,
@@ -10,9 +8,12 @@ pub struct StructBuilder<'a> {
 
 impl<'a> StructBuilder<'a> {
     ///Creates a new Struct builder with the given `ty` and inner `ir` to build properly. Returns error if the given `ty` is not a struct type
-    pub fn new(ty: IRTypeId, ir: &'a mut SlynxIR) -> Result<Self, ()> {
+    pub fn new(ty: IRTypeId, ir: &'a mut SlynxIR) -> Result<Self, IRError> {
         let IRType::Struct(struct_id) = ir.types.get_type(ty) else {
-            return Err(());
+            return Err(IRError::new(
+                IRErrorKind::InvalidType,
+                IRErrorDescription::NotAStruct,
+            ));
         };
 
         Ok(Self {
