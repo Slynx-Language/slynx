@@ -1,7 +1,7 @@
-use common::SymbolPointer;
+use common::Span;
 
-use crate::{TypeId, VariableId, model::HirType};
-use std::collections::HashMap;
+use crate::{HIRError, Result, SymbolPointer, TypeId, VariableId, model::HirType};
+use std::collections::{HashMap, HashSet};
 
 const INT_IDX: usize = 0;
 const FLOAT_IDX: usize = 1;
@@ -220,16 +220,18 @@ impl TypesModule {
             .get(name)
             .map(|id| &mut self.types[id.as_raw() as usize])
     }
-    /// Follows a [`HirType::Reference`] and returns the inner type it points to.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the type at `id` is not a [`HirType::Reference`].
-    pub fn get_type_from_ref(&self, id: &TypeId) -> &HirType {
-        if let HirType::Reference { rf, .. } = self.get_type(id) {
-            self.get_type(rf)
-        } else {
-            unreachable!("The provided ref_ty should be of type Reference");
+    ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
+    pub fn get_type_from_ref(&self, mut ref_ty: TypeId, span: &Span) -> Result<TypeId> {
+        let mut visited = HashSet::new();
+        while let HirType::Reference { rf, .. } = self.get_type(&ref_ty) {
+            if !visited.insert(ref_ty) {
+                let name = self
+                    .get_type_name(&ref_ty)
+                    .expect("Type should contain a name");
+                return Err(HIRError::recursive(*name, *span));
+            }
+            ref_ty = *rf;
         }
+        Ok(ref_ty)
     }
 }

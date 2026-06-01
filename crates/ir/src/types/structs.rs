@@ -1,7 +1,6 @@
-use common::SymbolPointer;
 use smallvec::SmallVec;
 
-use crate::IRTypeId;
+use crate::{IRTypeId, SymbolPointer};
 
 #[derive(Debug, Default)]
 pub struct IRStruct {

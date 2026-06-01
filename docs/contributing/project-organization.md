@@ -120,8 +120,8 @@ Source
   ▼ crates/monomorphizer
   │   TypesModule (mutated)
   │
-  ▼ crates/slynx_ir
-  │   SlynxIR
+  ▼ crates/codegen
+  │   SlynxIR (populated)
   │
   ▼ src/compilation_context
       .sir file
@@ -226,22 +226,17 @@ src/
 ```
 src/
 ├── lib.rs         # Module declarations, re-exports
-├── ir/            # IR data definitions
+├── ir.rs          # SlynxIR struct — the central IR store
+├── api.rs         # Public IR accessors and instructions (InstructionPtr, dereference, create_struct)
+├── model/         # IR data definitions
 │   ├── mod.rs
-│   └── model/
-│       ├── mod.rs
-│       ├── context.rs
-│       ├── components.rs
-│       ├── instruction.rs
-│       ├── label.rs
-│       ├── ptr.rs
-│       ├── value.rs
-│       └── styles.rs
-├── api.rs         # Public IR accessors
-├── components.rs  # Component lowering
-├── contexts.rs    # Context management
-├── instructions.rs# Instruction builders
-├── temp.rs        # Transient state (TempIRData)
+│   ├── context.rs
+│   ├── components.rs
+│   ├── instruction.rs
+│   ├── label.rs
+│   ├── ptr.rs
+│   ├── value.rs
+│   └── styles.rs
 ├── types/         # IR type system
 │   ├── mod.rs
 │   ├── irtype.rs
@@ -249,6 +244,15 @@ src/
 │   ├── functions.rs
 │   ├── structs.rs
 │   └── tuple.rs
+├── views/         # Type-safe viewers over IR storage
+│   ├── mod.rs
+│   ├── function.rs
+│   ├── component.rs
+│   └── instructions.rs
+├── builder/       # Builders for constructing IR entities
+│   ├── mod.rs
+│   ├── functions.rs
+│   └── structs.rs
 ├── cfg/           # Control-flow graph
 │   └── mod.rs
 ├── visualize/     # IR pretty-printer
@@ -256,6 +260,28 @@ src/
 │   └── formatter.rs
 └── error.rs       # IRError
 ```
+
+### `crates/codegen`
+
+```
+src/
+├── lib.rs              # Codegen struct + generate() orchestrator
+├── error.rs            # CodegenError
+├── temporary_data.rs   # TempIRData — transient state during codegen
+├── instructions.rs     # Instruction helpers (binary expressions, etc.)
+├── contexts.rs         # Function/context initialization
+├── components.rs       # Component lowering
+├── ir_value.rs         # Value creation helpers
+└── helper/             # Simple utility functions (lowering support)
+    ├── mod.rs
+    ├── styles.rs
+    └── types.rs
+```
+
+The codegen crate sits between `slynx_ir` and `slynx_hir`: it consumes the HIR
+and produces a populated `SlynxIR`. Its main struct `Codegen` owns both a
+`SlynxHir` and a `SlynxIR` and drives the multi-phase lowering pipeline via
+`generate()`.
 
 ### `crates/common`
 
@@ -300,7 +326,8 @@ across phases.
 | hir | ⚠️ | `implementation/` folder — logic should be in `src/*.rs` |
 | checker | ✅ | — |
 | monomorphizer | ✅ | (single file is fine) |
-| slynx_ir | ❌ | `ir/model/` should be `src/model/`. `ir/helper/` should be flat `src/*.rs`. The `ir/` wrapper directory is redundant because the crate is already `slynx_ir`. |
+| slynx_ir | ⚠️ | `types/` and `model/` as separate dirs is clear but non-standard. `views/` and `builder/` are correct for their roles. |
+| codegen | ⚠️ | Still has `helper/` dir with non-trivial lowering logic (styles.rs, types.rs). Should be migrated to flat `src/*.rs`. |
 
 ---
 
@@ -323,20 +350,15 @@ that deviate from idiomatic practice:
 
 ### What could be improved ⚠️
 
-#### 1. `slynx_ir` has redundant nesting
+#### 1. `slynx_ir` model/types split
 
-```
-src/ir/model/       → should be  src/model/
-src/ir/helper/      → should be  src/*.rs (flat)
-src/ir/components.rs → should be  src/components.rs
-```
+The IR crate has two directories for type definitions:
+- `src/model/` — IR instruction model (Function, Component, Label, Value, Instruction, StyleProperty)
+- `src/types/` — The IR type system (IRType, IRTypes, structs, functions, components)
 
-The crate is named `slynx_ir`. Having an `ir/` subdirectory inside it is
-redundant — the entire crate IS the IR. Every file is already "IR" code.
-This adds 1-2 unnecessary directory levels to every import path.
-
-**Fix**: Flatten `ir/model/` → `model/`, `ir/helper/` → `*.rs`,
-`ir/*.rs` → `src/*.rs`. Remove the `ir/` wrapper.
+These serve different purposes, but having both at similar nesting levels
+can be confusing. They should either be merged into `src/model/` or both live
+under a shared namespace with clear names.
 
 #### 2. `lib.rs` in checker and HIR is too large
 
@@ -353,17 +375,7 @@ and re-exports, with logic in named files.
 **Fix**: Move unification from checker's `lib.rs` to `src/unify.rs`.
 Move HIR's `generate()` body to `src/generate.rs`.
 
-#### 3. `slynx_ir/src/ir/model/` + `slynx_ir/src/types/` — two type systems
-
-The IR crate has two directories defining types:
-- `src/ir/model/` — IR instruction model (Context, Label, Value, Instruction, StyleProperty)
-- `src/types/` — The IR type system (IRType, IRTypes, structs, functions, components)
-
-These serve different purposes, but having both at different nesting levels
-is confusing. They should either be merged into `src/model/` or both live
-at the same level with clear names.
-
-#### 5. `helpers/` in HIR is inconsistently used
+#### 3. `helpers/` in HIR is inconsistently used
 
 `helpers/expressions.rs`, `helpers/names.rs`, and `helpers/types.rs` contain
 one-liner accessors. This is correct per the helper definition above. However,
@@ -371,7 +383,7 @@ one-liner accessors. This is correct per the helper definition above. However,
 ~15 lines and does non-trivial lookup logic — this should arguably be in
 `src/names.rs` alongside the other name resolution functions.
 
-#### 6. Inline tests are sparse
+#### 4. Inline tests are sparse
 
 Rust convention is to include `#[cfg(test)] mod tests { ... }` at the bottom
 of implementation files. Most files in this project lack inline tests, relying
@@ -383,14 +395,13 @@ document edge cases.
 
 | Change | Crate | Effort |
 |---|---|---|
-| Flatten `ir/` → remove wrapper | slynx_ir | 1hr |
-| Move `ir/helper/` logic to flat `*.rs` | slynx_ir | 30min |
+| Merge `model/` + `types/` or rename clearly | slynx_ir | 30min |
 | Move `unify()` to `src/unify.rs` | checker | 15min |
 | Move `generate()` body to `src/generate.rs` | hir | 15min |
 | Add `pub use` re-exports to lib.rs | all | 10min each |
 | Add inline unit tests | all | ongoing |
 
-#### 7. Name Conventions
+#### 5. Name Conventions
 
 The name conventions on this project are intended to determine how a function should be named so it is easier to navigate and find functions.
 The convention SHOULD be implemented in every phase, except by parser phase, which is intended mainly for parsing, thus, is not included due to not saving nor managing much data.
@@ -398,5 +409,31 @@ The convention SHOULD be implemented in every phase, except by parser phase, whi
 'generate_*' -> A function that takes an input, and returns an output. Such as generating an Hir Function from a Function declaration from AST
 'get_*' -> Retrieves some information that was previously generated
 'create_*' -> A function that takes one or more input, and returns an output. The difference to `generate`is that the inputs are not bound to a phase specifically. So it can be 'create_add_expression' and not 'generate', because 'generate' would require something specific from a phase, in that case, a binary expression. So a 'generate_expression' function might be able to call 'create_add_expression'
+
+On the IR and codegen crates, `create_*` has a second, more specific meaning:
+it creates an **empty** instance of an IR entity, stores it in the IR registry,
+and returns its **ID/pointer** (e.g. `IRPointer<Function, 1>`). No further
+manipulation is done — the caller receives a handle to an uninitialized slot.
+
+Example:
+```rust
+// Creates an empty function in the IR, returns a pointer to it
+fn create_blank_function(&mut self, name: SymbolPointer) -> IRPointer<Function, 1>;
+```
+
+'build_*' -> Takes an existing ID/pointer and returns a **builder** that
+provides a typed API to incrementally fill in that entity's contents. The
+builder is consumed when the construction is finished.
+
+Example:
+```rust
+// Takes a function pointer, returns a builder that lets you add labels/instructions
+fn build_function(&mut self, func: IRPointer<Function, 1>) -> FunctionBuilder;
+
+// Takes a type ID, returns a builder that lets you add fields
+fn build_struct(&mut self, ty: IRTypeId) -> StructBuilder;
+```
+
+The pattern is always: `create_*` to allocate, `build_*` to populate.
 
 Internal functions that ARE NOT exposed are not required to follow this, since they're auxiliary functions, but yet should follow a pattern, which by now wont be determined

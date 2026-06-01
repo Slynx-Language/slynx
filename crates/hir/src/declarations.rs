@@ -14,7 +14,7 @@ use slynx_parser::{
 
 impl SlynxHir {
     ///Hoists a `stylesheet` declaration
-    pub fn hoist_stylesheet(&mut self, name: &str, args: &[TypedName]) {
+    pub(crate) fn hoist_stylesheet(&mut self, name: &str, args: &[TypedName]) {
         self.modules.create_declaration(
             name,
             HirType::Style {
@@ -24,7 +24,7 @@ impl SlynxHir {
     }
 
     ///Resolves a `stylesheet` declaration
-    pub fn resolve_stylesheet(
+    pub(crate) fn resolve_stylesheet(
         &mut self,
         name: &GenericIdentifier,
         args: &[TypedName],
@@ -42,8 +42,8 @@ impl SlynxHir {
             .iter()
             .map(|arg| {
                 let symbol = self.modules.intern_name(&arg.name);
-                let (ty, _) =
-                    self.retrieve_information_of_type(&arg.kind.identifier, &arg.kind.span)?;
+                let ty_symbol = self.modules.intern_name(&arg.kind.identifier);
+                let ty = self.get_type_of_name(ty_symbol, &arg.kind.span)?;
                 self.create_variable(symbol, ty, &arg.span).map(|v| (v, ty))
             })
             .collect::<Result<(Vec<_>, Vec<_>)>>()?;
@@ -73,7 +73,7 @@ impl SlynxHir {
     }
 
     ///Resolves a style usage from the given `usage` expression. It's expected to be a function call. The reason is cause the same syntax for function call is used when calling styles
-    pub fn resolve_style_usage(&mut self, usage: &ASTExpression) -> Result<HirStyleUsage> {
+    pub(crate) fn resolve_style_usage(&mut self, usage: &ASTExpression) -> Result<HirStyleUsage> {
         let (name, args) = match &usage.kind {
             ASTExpressionKind::FunctionCall { name, args } => (name, args),
             _ => unreachable!("Style usage should be a function call on parsing"),
@@ -94,17 +94,8 @@ impl SlynxHir {
         })
     }
 
-    ///Retrieves the type of something by knowing the provided `ref_ty` is a reference to it
-    pub fn get_type_from_ref(&self, ref_ty: crate::TypeId) -> &HirType {
-        if let HirType::Reference { rf, .. } = self.get_type(&ref_ty) {
-            self.get_type(rf)
-        } else {
-            unreachable!("The provided ref_ty should be of type Reference");
-        }
-    }
-
     /// Resolves an object declaration, filling in its field types and pushing the declaration.
-    pub fn resolve_object(
+    pub(crate) fn resolve_object(
         &mut self,
         name: &GenericIdentifier,
         fields: &[ObjectField],
@@ -117,8 +108,8 @@ impl SlynxHir {
                 if self.modules.intern_name(&field.name.name) == symbol_name {
                     Err(HIRError::recursive(symbol_name, field.name.span))
                 } else {
-                    self.retrieve_information_of_type(&field.name.kind.identifier, &field.name.span)
-                        .map(|v| v.0)
+                    let name = self.intern_name(&field.name.kind.identifier);
+                    self.get_type_of_name(name, &field.name.span)
                 }
             })
             .collect::<Result<Vec<_>>>()?;
@@ -142,7 +133,11 @@ impl SlynxHir {
     }
 
     /// Hoists a function declaration by registering its signature without processing its body.
-    pub fn hoist_function(&mut self, name: &GenericIdentifier, args: &[TypedName]) -> Result<()> {
+    pub(crate) fn hoist_function(
+        &mut self,
+        name: &GenericIdentifier,
+        args: &[TypedName],
+    ) -> Result<()> {
         let args = args.iter().map(|_| self.int32_type()).collect();
         let return_type = self.int32_type();
         self.modules
@@ -152,7 +147,7 @@ impl SlynxHir {
     }
 
     /// Resolves a function declaration, type-checking its body and pushing the HIR declaration.
-    pub fn resolve_function(
+    pub(crate) fn resolve_function(
         &mut self,
         name: &GenericIdentifier,
         args: &[TypedName],
@@ -170,16 +165,15 @@ impl SlynxHir {
         let (args, argsty) = args
             .iter()
             .map(|arg| {
+                let ty_symbol = self.modules.intern_name(&arg.kind.identifier);
                 let symbol = self.modules.intern_name(&arg.name);
-                let (ty, _) =
-                    self.retrieve_information_of_type(&arg.kind.identifier, &arg.kind.span)?;
+                let ty = self.get_type_of_name(ty_symbol, &arg.kind.span)?;
                 self.create_variable(symbol, ty, &arg.span).map(|v| (v, ty))
             })
             .collect::<Result<(Vec<_>, Vec<_>)>>()?;
         {
-            let ret_tyid = self
-                .retrieve_information_of_type(&return_type.identifier, span)?
-                .0;
+            let return_symbol = self.intern_name(&return_type.identifier);
+            let ret_tyid = self.get_type_of_name(return_symbol, span)?;
             let HirType::Function {
                 args,
                 return_type: ret,
@@ -218,7 +212,7 @@ impl SlynxHir {
     }
 
     /// Hoists a component declaration by registering its property layout without resolving children.
-    pub fn hoist_component(
+    pub(crate) fn hoist_component(
         &mut self,
         name: &GenericIdentifier,
         members: &[ComponentMember],
@@ -227,13 +221,32 @@ impl SlynxHir {
             .iter()
             .filter_map(|member| match &member.kind {
                 ComponentMemberKind::Property {
-                    name, modifier, ty, ..
+                    name,
+                    modifier,
+                    ty: Some(generic),
+                    ..
                 } => {
-                    let ty = match ty {
-                        Some(generic) => self.get_typeid_of_name(&generic.identifier, &member.span),
-                        _ => Ok(self.infer_type()),
+                    let name = self.intern_name(name);
+                    let ty_name = self.intern_name(&generic.identifier);
+                    let ty = match self.get_type_of_name(ty_name, &member.span) {
+                        Ok(v) => v,
+                        Err(e) => return Some(Err(e)),
                     };
-                    Some(ty.map(|ty| ComponentProperty::new(*modifier, name.clone(), ty)))
+
+                    Some(Ok(ComponentProperty::new(*modifier, name, ty)))
+                }
+                ComponentMemberKind::Property {
+                    name,
+                    modifier,
+                    ty: None,
+                    ..
+                } => {
+                    let name = self.intern_name(name);
+                    Some(Ok(ComponentProperty::new(
+                        *modifier,
+                        name,
+                        self.infer_type(),
+                    )))
                 }
                 ComponentMemberKind::Child(_) => None,
             })
@@ -245,7 +258,7 @@ impl SlynxHir {
     }
 
     /// Resolves the member definitions of a component body into [`ComponentMemberDeclaration`]s.
-    pub fn resolve_component_defs(
+    pub(crate) fn resolve_component_defs(
         &mut self,
         def: &[ComponentMember],
     ) -> Result<Vec<ComponentMemberDeclaration>> {
@@ -255,8 +268,8 @@ impl SlynxHir {
             match &def.kind {
                 ComponentMemberKind::Property { ty, rhs, name, .. } => {
                     let ty = if let Some(ty) = ty {
-                        self.retrieve_information_of_type(&ty.identifier, &ty.span)?
-                            .0
+                        let symbol = self.intern_name(&ty.identifier);
+                        self.get_type_of_name(symbol, &ty.span)?
                     } else {
                         self.infer_type()
                     };
@@ -265,14 +278,12 @@ impl SlynxHir {
                     } else {
                         None
                     };
-                    let name = self.modules.intern_name(name);
-                    let variable_id = self.create_variable(name, ty, &def.span)?;
                     out.push(ComponentMemberDeclaration::new_property(
-                        prop_idx,
-                        variable_id,
-                        rhs,
-                        def.span,
+                        prop_idx, rhs, def.span,
                     ));
+                    let name = self.modules.intern_name(name);
+
+                    self.create_variable(name, ty, &def.span)?;
                     prop_idx += 1;
                 }
                 ComponentMemberKind::Child(child) => {
@@ -285,7 +296,7 @@ impl SlynxHir {
     }
 
     ///Resolves a component declaration that contains the given `members` and the given `name`
-    pub fn resolve_component_declaration(
+    pub(crate) fn resolve_component_declaration(
         &mut self,
         members: &[ComponentMember],
         name: &GenericIdentifier,
@@ -312,15 +323,16 @@ impl SlynxHir {
     }
 
     ///Resolves an alias type, mapping the given `name` to the given `target`
-    pub fn resolve_alias(
+    pub(crate) fn resolve_alias(
         &mut self,
         name: &GenericIdentifier,
         target: &GenericIdentifier,
         span: Span,
     ) -> Result<()> {
-        let target_ty = self.get_typeid_of_name(&target.identifier, &target.span)?;
+        let alias_name = self.intern_name(&name.identifier);
+        let intern_name = self.intern_name(&target.identifier);
+        let target_ty = self.get_type_of_name(intern_name, &target.span)?;
 
-        let alias_name = self.modules.intern_name(&name.identifier);
         let Some(alias_ty) = self
             .modules
             .types_module
@@ -330,7 +342,7 @@ impl SlynxHir {
         };
         *alias_ty = HirType::new_ref(target_ty);
         let Some((decl, ty)) = self.modules.get_declaration_by_name(&alias_name) else {
-            return Err(HIRError::name_unrecognized(alias_name, name.span));
+            return Err(HIRError::name_unrecognized(intern_name, name.span));
         };
         self.declarations
             .push(HirDeclaration::new_alias(decl, ty, span));

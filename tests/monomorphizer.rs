@@ -14,9 +14,9 @@ fn rejects_cyclic_aliases_in_monomorphization() {
     let mut hir = SlynxHir::new();
     hir.generate(&declarations).expect("HIR should generate");
 
-    let mut types_module = TypeChecker::check(&mut hir).expect("type checking should pass");
+    let mut hir = TypeChecker::check(hir).expect("type checking should pass");
 
-    let err = Monomorphizer::resolve(&hir, &mut types_module)
+    let err = Monomorphizer::resolve(&mut hir)
         .expect_err("cyclic aliases should fail during monomorphization");
 
     match &err.kind {

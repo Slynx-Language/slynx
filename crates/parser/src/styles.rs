@@ -100,9 +100,13 @@ impl Parser {
     pub fn parse_stylesheet_statement(&mut self) -> Result<StyleSheetStatement, ParseError> {
         match self.peek()?.kind {
             TokenKind::Styles => self.parse_styles_statement(),
-            _ => self
-                .parse_statement()
-                .map(|arg| StyleSheetStatement::Statement(Box::new(arg))),
+            _ => {
+                let out = self
+                    .parse_statement()
+                    .map(|arg| StyleSheetStatement::Statement(Box::new(arg)));
+                self.expect(&TokenKind::SemiColon)?;
+                out
+            }
         }
     }
 
@@ -112,12 +116,10 @@ impl Parser {
             if let TokenKind::RBrace = self.peek()?.kind {
                 break Ok(statements);
             }
-            let stmt = statements.push_mut(self.parse_stylesheet_statement()?);
-            match stmt {
-                StyleSheetStatement::Statement(_) => {
-                    self.expect(&TokenKind::SemiColon)?;
-                }
-                _ => break Ok(statements),
+            let stmt = self.parse_stylesheet_statement()?;
+            statements.push(stmt);
+            if let TokenKind::Comma = self.peek()?.kind {
+                self.eat()?;
             }
         }
     }

@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 
 use common::SymbolPointer;
-use slynx_hir::{
-    VariableId,
-    modules::{DeclarationsModule, TypesModule},
-};
-use slynx_ir::{IRError, SlynxIR};
+use slynx_codegen::CodegenError;
+use slynx_hir::{SlynxHir, VariableId, modules::DeclarationsModule};
 
 use crate::{
     SlynxContext,
@@ -18,10 +15,9 @@ use crate::{
 impl SlynxContext {
     pub fn build_ir_generation_error(
         &self,
-        error: &IRError,
-        ir: &SlynxIR,
-        variable_names: &HashMap<VariableId, SymbolPointer>,
-        types_module: &TypesModule,
+        error: &CodegenError,
+        variable_names: &HashMap<VariableId, SymbolPointer<SlynxHir>>,
+        types_module: &SlynxHir,
         declarations_module: &DeclarationsModule,
     ) -> SlynxError {
         let source_code = self
@@ -35,13 +31,7 @@ impl SlynxContext {
             0,
             0,
             0,
-            format_ir_generation_error(
-                error,
-                ir,
-                variable_names,
-                types_module,
-                declarations_module,
-            ),
+            format_ir_generation_error(error, variable_names, types_module, declarations_module),
             self.file_name(),
             source_code,
             suggestions_from_ir(error),

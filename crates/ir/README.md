@@ -1,3 +1,6 @@
+Dev naming conventions:
+'create_*' simply make the IR create something and return it. So create_value, creates a Value. 'insert_*' instead might be able to create it and then insert into the IR. It MUST be specified by the docs of the function if it creates some intermediary
+
 # Slynx IR
 
 This document describes the intended textual form and semantics of the Slynx IR.

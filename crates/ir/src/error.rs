@@ -1,10 +1,23 @@
-use slynx_hir::{DeclarationId, TypeId, VariableId};
+#[derive(Debug)]
+pub enum IRErrorKind {
+    InvalidType,
+    InvalidLabelSwitch,
+}
 
 #[derive(Debug)]
-///An error that occurred on the IR
-pub enum IRError {
-    ///The provided type from the HIR was not recognized on the IR
-    IRTypeNotRecognized(TypeId),
-    DeclarationNotRecognized(DeclarationId),
-    UnrecognizedVariable(VariableId),
+pub enum IRErrorDescription {
+    NotAStruct,
+    InexistentLabel,
+    SealedDescription,
+}
+#[derive(Debug)]
+pub struct IRError {
+    pub kind: IRErrorKind,
+    pub description: IRErrorDescription,
+}
+
+impl IRError {
+    pub fn new(kind: IRErrorKind, description: IRErrorDescription) -> Self {
+        Self { kind, description }
+    }
 }

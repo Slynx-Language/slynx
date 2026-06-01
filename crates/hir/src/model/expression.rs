@@ -85,10 +85,10 @@
 //! - [`crate::hir::implementation::expression::resolve_expr`] — Expression resolution
 
 use crate::{
-    DeclarationId, ExpressionId, TypeId, VariableId,
+    DeclarationId, ExpressionId, SymbolPointer, TypeId, VariableId,
     model::{HirStatement, HirStyleUsage},
 };
-use common::{Operator, Span, SymbolPointer};
+use common::{Operator, Span};
 
 /// A property assignment within a component construction expression.
 ///

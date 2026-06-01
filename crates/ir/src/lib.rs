@@ -1,22 +1,25 @@
-mod api;
-pub mod cfg;
-mod components;
-mod contexts;
 mod error;
-mod helper;
-mod instructions;
+mod queries;
+mod views;
+pub use views::*;
+mod api;
+mod builder;
+pub use builder::*;
+pub mod cfg;
+
 mod ir;
-mod ir_value;
+
 mod model;
-mod temporary_data;
 mod types;
 mod visualize;
 
 pub use cfg::*;
+
 pub use error::*;
 pub use ir::*;
 pub use model::*;
-pub use petgraph;
-pub use temporary_data::*;
+
 pub use types::*;
 pub use visualize::*;
+
+pub type SymbolPointer = common::SymbolPointer<SlynxIR>;

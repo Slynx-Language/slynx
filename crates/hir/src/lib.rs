@@ -82,6 +82,7 @@ pub mod model;
 pub mod modules;
 /// Name resolution utilities.
 pub mod names;
+mod queries;
 mod statements;
 
 pub use crate::error::{HIRError, HIRErrorKind};
@@ -96,6 +97,7 @@ pub use model::*;
 /// This is the standard result type used throughout the HIR module, wrapping
 /// successful values or [`HIRError`] instances with detailed diagnostic information.
 pub type Result<T> = std::result::Result<T, HIRError>;
+pub type SymbolPointer = common::SymbolPointer<SlynxHir>;
 
 /// The main HIR structure coordinating high-level intermediate representation.
 ///

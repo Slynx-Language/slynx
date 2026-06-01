@@ -20,7 +20,7 @@ pub fn load_hir(path: &str) -> SlynxHir {
 }
 
 pub fn find_main_call_args(hir: &mut SlynxHir) -> Option<&mut Vec<HirExpression>> {
-    let pos = hir.declarations.iter().position(|v| matches!(v.kind, HirDeclarationKind::Function { name, .. } if hir.get_name_from_pointer(name) == "main"))?;
+    let pos = hir.declarations.iter().position(|v| matches!(v.kind, HirDeclarationKind::Function { name, .. } if hir.get_name(name) == "main"))?;
     let HirDeclaration {
         kind: HirDeclarationKind::Function { statements, .. },
         ..

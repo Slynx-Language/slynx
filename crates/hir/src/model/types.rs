@@ -52,8 +52,8 @@
 //! - [`crate::hir::TypeId`] — Type identifiers
 //! - [`crate::hir::modules::TypesModule`] — Type management
 
-use crate::{TypeId, VariableId};
-use common::SymbolPointer;
+use crate::{SymbolPointer, TypeId, VariableId};
+
 use slynx_parser::VisibilityModifier;
 
 /// A method for accessing fields on types.
@@ -138,7 +138,7 @@ pub enum FieldMethod {
 /// }
 /// ```
 #[derive(Debug, Clone)]
-pub struct ComponentProperty(VisibilityModifier, String, TypeId);
+pub struct ComponentProperty(VisibilityModifier, SymbolPointer, TypeId);
 
 impl ComponentProperty {
     /// Creates a new component property.
@@ -152,7 +152,7 @@ impl ComponentProperty {
     /// # Returns
     ///
     /// A new [`ComponentProperty`] instance.
-    pub fn new(visibility: VisibilityModifier, name: String, ty: TypeId) -> Self {
+    pub fn new(visibility: VisibilityModifier, name: SymbolPointer, ty: TypeId) -> Self {
         Self(visibility, name, ty)
     }
 
@@ -166,7 +166,7 @@ impl ComponentProperty {
     /// # Returns
     ///
     /// A new [`ComponentProperty`] with public visibility.
-    pub fn new_public(name: String, ty: TypeId) -> Self {
+    pub fn new_public(name: SymbolPointer, ty: TypeId) -> Self {
         Self::new(VisibilityModifier::Public, name, ty)
     }
 
@@ -180,7 +180,7 @@ impl ComponentProperty {
     /// # Returns
     ///
     /// A new [`ComponentProperty`] with private visibility.
-    pub fn new_private(name: String, ty: TypeId) -> Self {
+    pub fn new_private(name: SymbolPointer, ty: TypeId) -> Self {
         Self::new(VisibilityModifier::Private, name, ty)
     }
 
@@ -190,8 +190,8 @@ impl ComponentProperty {
     }
 
     /// Returns the property's name.
-    pub fn name(&self) -> &str {
-        &self.1
+    pub fn name(&self) -> SymbolPointer {
+        self.1
     }
 
     /// Returns the property's type ID.

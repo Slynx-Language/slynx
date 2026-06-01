@@ -1,12 +1,12 @@
 use crate::{
-    ExpressionId, HirComponentExpression, SlynxHir, TypeId, VariableId,
+    ExpressionId, HirComponentExpression, SlynxHir, SymbolPointer, TypeId, VariableId,
     model::{HirExpression, HirExpressionKind, HirStatement},
 };
-use common::{Operator, Span, SymbolPointer};
+use common::{Operator, Span};
 
 impl SlynxHir {
     /// Creates a tuple expression with the given type and values.
-    pub fn create_tuple_expression(
+    pub(crate) fn create_tuple_expression(
         &self,
         tuple_ty: TypeId,
         values: Vec<HirExpression>,
@@ -20,7 +20,7 @@ impl SlynxHir {
         }
     }
     /// Creates a field access expression on `parent` at the given `field` index.
-    pub fn create_field_access_expression(
+    pub(crate) fn create_field_access_expression(
         &self,
         parent: HirExpression,
         field: usize,
@@ -38,7 +38,7 @@ impl SlynxHir {
         }
     }
     /// Creates a boolean literal expression.
-    pub fn create_boolean_expression(&self, b: bool, span: Span) -> HirExpression {
+    pub(crate) fn create_boolean_expression(&self, b: bool, span: Span) -> HirExpression {
         HirExpression {
             id: ExpressionId::new(),
             ty: self.bool_type(),
@@ -47,7 +47,11 @@ impl SlynxHir {
         }
     }
     /// Creates a string literal expression.
-    pub fn create_strliteral_expression(&self, s: SymbolPointer, span: Span) -> HirExpression {
+    pub(crate) fn create_strliteral_expression(
+        &self,
+        s: SymbolPointer,
+        span: Span,
+    ) -> HirExpression {
         HirExpression {
             id: ExpressionId::new(),
             ty: self.str_type(),
@@ -56,7 +60,7 @@ impl SlynxHir {
         }
     }
     /// Creates an identifier expression referencing the given variable.
-    pub fn create_identifier_expression(
+    pub(crate) fn create_identifier_expression(
         &self,
         var: VariableId,
         ty: TypeId,
@@ -70,7 +74,7 @@ impl SlynxHir {
         }
     }
     /// Creates an int expression that must be inferred.
-    pub fn create_int_expression(&self, i: i32, span: Span) -> HirExpression {
+    pub(crate) fn create_int_expression(&self, i: i32, span: Span) -> HirExpression {
         HirExpression {
             kind: HirExpressionKind::Int(i),
             id: ExpressionId::new(),
@@ -80,7 +84,7 @@ impl SlynxHir {
     }
 
     /// Creates a float expression.
-    pub fn create_float_expression(&self, float: f32, span: Span) -> HirExpression {
+    pub(crate) fn create_float_expression(&self, float: f32, span: Span) -> HirExpression {
         HirExpression {
             kind: HirExpressionKind::Float(float),
             id: ExpressionId::new(),
@@ -89,7 +93,7 @@ impl SlynxHir {
         }
     }
     /// Creates a binary expression.
-    pub fn create_binary_expression(
+    pub(crate) fn create_binary_expression(
         &self,
         left: HirExpression,
         right: HirExpression,
@@ -109,7 +113,7 @@ impl SlynxHir {
         }
     }
     /// Creates a if expression.
-    pub fn create_if_expression(
+    pub(crate) fn create_if_expression(
         &self,
         condition: HirExpression,
         then_body: Vec<HirStatement>,
@@ -128,7 +132,7 @@ impl SlynxHir {
             span,
         }
     }
-    pub fn create_component_expression(
+    pub(crate) fn create_component_expression(
         &mut self,
         component: HirComponentExpression,
         ty: TypeId,

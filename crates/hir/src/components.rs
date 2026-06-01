@@ -27,7 +27,7 @@ impl SlynxHir {
                 let HirType::Component { props } = self.get_type(&ty) else {
                     unreachable!("The type should be a component instead");
                 };
-                match props.iter().position(|prop| prop.name() == prop_name) {
+                match props.iter().position(|prop| prop.name() == interned_name) {
                     None => Err(HIRError::name_unrecognized(interned_name, *span)),
                     Some(index)
                         if matches!(
@@ -56,7 +56,7 @@ impl SlynxHir {
     }
 
     /// Resolves the provided values on a component. The `ty` is the type of the component we are resolving it
-    pub fn resolve_component_members(
+    pub(crate) fn resolve_component_members(
         &mut self,
         members: &[ComponentMemberValue],
         ty: TypeId,
@@ -73,7 +73,7 @@ impl SlynxHir {
     /// Resolves the provided `values` as members of the `Text` specialized component.
     ///
     /// Expects exactly one `text` property assignment and no children.
-    pub fn resolve_specialize_text(
+    pub(crate) fn resolve_specialize_text(
         &mut self,
         values: &[ComponentMemberValue],
         span: &Span,
@@ -116,7 +116,7 @@ impl SlynxHir {
     }
 
     ///Resolves the provided `children` knowning it is a specialized div component
-    pub fn resolve_specialized_div(
+    pub(crate) fn resolve_specialized_div(
         &mut self,
         children: &[ComponentMemberValue],
         _: &Span,
@@ -151,7 +151,7 @@ impl SlynxHir {
         Ok(HirSpecializedComponentExpression::new_div(children, style))
     }
     ///Tries to resolve the given `child` as, either a specialized component, or a normal user defined component
-    pub fn try_resolve_specialized<'a>(
+    pub(crate) fn try_resolve_specialized<'a>(
         &mut self,
         child: &'a ComponentExpression,
     ) -> (
@@ -172,15 +172,15 @@ impl SlynxHir {
     }
 
     ///Resolves the provided `component` expression. If it's a specialized one, resolves as a `SpecializedComponent`, otherwise as a normal 'Component'
-    pub fn resolve_component_expression(
+    pub(crate) fn resolve_component_expression(
         &mut self,
         component: &ComponentExpression,
     ) -> Result<HirComponentExpression> {
         match self.try_resolve_specialized(component) {
             (Some(spec), None) => spec.map(HirComponentExpression::Specialized),
             (None, Some(component)) => {
-                let (id, _) =
-                    self.retrieve_information_of_type(&component.name.identifier, &component.span)?;
+                let name = self.intern_name(&component.name.identifier);
+                let id = self.get_type_of_name(name, &component.span)?;
                 let (properties, children) =
                     self.resolve_component_members(&component.values, id)?;
                 Ok(HirComponentExpression::new_normal(

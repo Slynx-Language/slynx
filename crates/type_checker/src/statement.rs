@@ -47,7 +47,7 @@ impl TypeChecker {
                 else {
                     unreachable!();
                 };
-                let _ = self.resolve_field_access_type(&mut lhs.ty, field_index, &lhs.span)?;
+                self.resolve_field_access_type(&mut lhs.ty, field_index, &lhs.span)?;
                 lhs.ty
             }
             HirType::VarReference(_) => lhs.ty,
@@ -72,8 +72,9 @@ impl TypeChecker {
                 self.resolve_while_statement(condition, body, return_type)?
             }
 
-            HirStatementKind::Variable { value, .. } => {
+            HirStatementKind::Variable { name, value } => {
                 value.ty = self.get_type_of_expr(value)?;
+                self.types_module.insert_variable(*name, value.ty);
             }
 
             HirStatementKind::Return { expr } => {

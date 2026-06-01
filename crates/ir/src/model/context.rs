@@ -1,12 +1,10 @@
-use common::SymbolPointer;
-
-use crate::IRTypeId;
+use crate::{IRTypeId, SymbolPointer};
 
 use super::{IRPointer, Label};
 
 #[derive(Debug, Clone)]
 ///A context is anything that can be executed. It contains labels and each determine what to do, the '$entry' label is the label that is initally executed when this context initializes to be executed, for sure, this after compilation
-pub struct Context {
+pub struct Function {
     name: SymbolPointer,
     ///Named labels that can have instructions and determine what on the code to be executed. The first label this points to is the `$entry` label
     labels: IRPointer<Label>,
@@ -14,7 +12,7 @@ pub struct Context {
     ty: IRTypeId,
 }
 
-impl Context {
+impl Function {
     pub fn new(name: SymbolPointer, ty: IRTypeId) -> Self {
         Self {
             name,
@@ -34,7 +32,11 @@ impl Context {
     pub fn ty(&self) -> IRTypeId {
         self.ty
     }
-
+    ///Retrieves the inner type of this context
+    #[inline]
+    pub fn ty_mut(&mut self) -> &mut IRTypeId {
+        &mut self.ty
+    }
     ///Sets the pointer part of the labels to the provided value.
     pub fn set_ptr(&mut self, ptr: usize) {
         self.labels.set_ptr(ptr);

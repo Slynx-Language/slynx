@@ -1,22 +1,5 @@
-use slynx_hir::HirExpression;
-
 use crate::{IRTypeId, IRTypes};
 
-/// Describes where a style property value originates.
-#[derive(Debug, Clone)]
-pub(crate) enum PropertySource<'a> {
-    /// The property is defined directly by this stylesheet's own `styles` block.
-    Own(&'a HirExpression),
-    /// The property is inherited from a parent stylesheet via a `uses` clause.
-    /// The `usize` is the index into the stylesheet's `usages` array.
-    Inherited(usize),
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ResolvedProperty<'a> {
-    pub property: StyleProperty,
-    pub source: PropertySource<'a>,
-}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 #[repr(u16)]
 pub enum StyleProperty {

@@ -433,12 +433,24 @@ dependencies = [
  "clap",
  "color-eyre",
  "common",
+ "slynx-codegen",
  "slynx-hir",
  "slynx-ir",
  "slynx-lexer",
  "slynx-monomorphizer",
  "slynx-parser",
  "slynx-typechecker",
+]
+
+[[package]]
+name = "slynx-codegen"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "petgraph",
+ "slynx-hir",
+ "slynx-ir",
+ "smallvec",
 ]
 
 [[package]]
@@ -459,7 +471,6 @@ dependencies = [
  "either",
  "paste",
  "petgraph",
- "slynx-hir",
  "smallvec",
 ]
 
