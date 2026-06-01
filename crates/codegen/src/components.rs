@@ -1,14 +1,14 @@
 use slynx_hir::{
-    ComponentMemberDeclaration, HirComponentExpression, HirDeclaration,
-    HirExpression, HirExpressionKind, HirSpecializedComponentExpression, HirStyleUsage,
-    HirType, SlynxHir, TypeId, VariableId,
+    ComponentMemberDeclaration, HirComponentExpression, HirDeclaration, HirExpression,
+    HirExpressionKind, HirSpecializedComponentExpression, HirStyleUsage, HirType, SlynxHir, TypeId,
+    VariableId,
 };
 use slynx_ir::{
-    ComponentBuilder, ComponentValueBuilder, Function, IRPointer, IRTypeId,
-    Opcode, SlynxIR, Value,
+    ComponentBuilder, ComponentValueBuilder, Function, IRPointer, IRTypeId, Instruction, Opcode,
+    SlynxIR, Value,
 };
 
-use crate::{Codegen, CodegenError, ChildInitWork, functions::FunctionContext};
+use crate::{ChildInitWork, Codegen, CodegenError, functions::FunctionContext};
 
 fn collect_var_ids_from_expr(expr: &HirExpression, out: &mut Vec<VariableId>) {
     match &expr.kind {
@@ -36,11 +36,7 @@ fn collect_var_ids_from_expr(expr: &HirExpression, out: &mut Vec<VariableId>) {
 /// Map a VariableId to its property index in the component type.
 /// Looks up the variable name from the HIR symbols resolver,
 /// then finds the property with that name in the component's props list.
-fn var_id_to_prop_index(
-    hir: &SlynxHir,
-    comp_ty: &TypeId,
-    var_id: VariableId,
-) -> Option<usize> {
+fn var_id_to_prop_index(hir: &SlynxHir, comp_ty: &TypeId, var_id: VariableId) -> Option<usize> {
     let name = hir
         .modules
         .symbols_resolver
@@ -142,7 +138,8 @@ impl Codegen {
         if let Some(decl_id) = decl_id {
             if let Some(work_items) = self.component_child_inits.get(&decl_id) {
                 for work in work_items {
-                    let child_val = ctx.emit(Opcode::Component, smallvec::smallvec![], work.child_type);
+                    let child_val =
+                        ctx.emit(Opcode::Component, smallvec::smallvec![], work.child_type);
                     let mut args = vec![child_val];
                     for &prop_idx in &work.parent_prop_indices {
                         args.push(all_values[prop_idx]);
@@ -193,6 +190,7 @@ impl Codegen {
 
     fn build_child_init(
         &mut self,
+        parent_name: &str,
         child: &HirSpecializedComponentExpression,
         parent_prop_vars: &[(VariableId, IRTypeId)],
         hir: &SlynxHir,
@@ -204,12 +202,13 @@ impl Codegen {
         };
 
         let void_ty = ir.void_type();
-        let fptr = ir.create_function("__child_init");
+
+        let fptr = ir.create_function(&format!("_init_{parent_name}"));
 
         let builder = ir.build_function(fptr);
         let mut ctx = FunctionContext::new(builder);
         let entry = ctx.create_label("entry");
-        ctx.switch_to_block(entry).unwrap();
+        ctx.goto(entry).unwrap();
 
         let mut arg_types = vec![child_ty];
         arg_types.extend(parent_prop_vars.iter().map(|(_, ty)| *ty));
@@ -271,10 +270,10 @@ impl Codegen {
         } else {
             Vec::new()
         };
-
+        let parent_name = hir.get_declaration_name(decl.id);
         // For each specialized child with a style usage, build the __child_init function
         // and record the parent property indices needed at instantiation time.
-        for prop in props {
+        for (child_index, prop) in props.iter().enumerate() {
             if let ComponentMemberDeclaration::Child(HirComponentExpression::Specialized(
                 child_spec,
             )) = prop
@@ -290,8 +289,7 @@ impl Codegen {
                         collect_var_ids_from_expr(param, &mut collected);
                         for var_id in collected {
                             if !extra_vars.iter().any(|(v, _)| *v == var_id) {
-                                let ir_ty =
-                                    self.get_or_create_ir_type(&param.ty, hir, ir)?;
+                                let ir_ty = self.get_or_create_ir_type(&param.ty, hir, ir)?;
                                 extra_vars.push((var_id, ir_ty));
                             }
                         }
@@ -306,7 +304,8 @@ impl Codegen {
                     parent_prop_indices.push(prop_idx);
                 }
 
-                let init_func = self.build_child_init(child_spec, &extra_vars, hir, ir)?;
+                let init_func =
+                    self.build_child_init(parent_name, child_spec, &extra_vars, hir, ir)?;
                 let child_type = match child_spec {
                     HirSpecializedComponentExpression::Text { .. } => ir.specialized_text_type(),
                     HirSpecializedComponentExpression::Div { .. } => ir.specialized_div_type(),
@@ -316,6 +315,7 @@ impl Codegen {
                     .entry(decl.ty)
                     .or_default()
                     .push(ChildInitWork {
+                        child_index,
                         child_type,
                         init_func,
                         parent_prop_indices,
@@ -343,7 +343,23 @@ impl Codegen {
         for ty in &property_types {
             builder.add_field(*ty);
         }
-
+        if let Some(child_inits) = self.component_child_inits.get(&decl.ty) {
+            for init in child_inits {
+                println!(
+                    "{:?} {}",
+                    init.parent_prop_indices.len(),
+                    hir.get_declaration_name(decl.id)
+                );
+                let child = builder.emit_child(init.child_index as u16);
+                let mut args = init
+                    .parent_prop_indices
+                    .iter()
+                    .map(|index| builder.emit_arg(*index as u32))
+                    .collect::<Vec<_>>();
+                args.insert(0, child);
+                builder.add_initial_call(init.init_func, args);
+            }
+        }
         builder.generate();
 
         Ok(())
