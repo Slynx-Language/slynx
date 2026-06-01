@@ -7,10 +7,7 @@ use std::{
 
 use common::SymbolPointer;
 use slynx_codegen::{Codegen, CodegenError};
-use slynx_hir::{
-    SlynxHir, VariableId,
-    modules::{DeclarationsModule, TypesModule},
-};
+use slynx_hir::{SlynxHir, VariableId, modules::DeclarationsModule};
 use slynx_ir::SlynxIR;
 use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
@@ -348,13 +345,9 @@ mod tests {
     use super::format_ir_generation_error;
 
     use slynx_codegen::CodegenError;
-    use slynx_hir::{
-        VariableId,
-        model::HirType,
-        modules::{BUILTIN_NAMES, DeclarationsModule, TypesModule},
-    };
+    use slynx_hir::SlynxHir;
+    use slynx_hir::{VariableId, model::HirType, modules::DeclarationsModule};
 
-    use slynx_ir::SlynxIR;
     use std::{
         collections::HashMap,
         fs,
@@ -387,49 +380,38 @@ mod tests {
 
     #[test]
     fn formats_variable_ir_errors_with_source_names() {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|name| symbols.intern(name));
-        let variable_name = symbols.intern("count");
-        let mut types = TypesModule::new(&builtins);
-        let mut variable_names = HashMap::new();
+        let hir = SlynxHir::new();
+        let variable_names = HashMap::new();
         let declarations = DeclarationsModule::new();
-        let ir = SlynxIR::new();
-
         let variable = VariableId::from_raw(77);
-        types.insert_variable(variable, types.int_id());
-        variable_names.insert(variable, variable_name);
 
         assert_eq!(
             format_ir_generation_error(
                 &CodegenError::UnrecognizedVariable(variable),
-                &ir,
                 &variable_names,
-                &types,
+                &hir,
                 &declarations
             ),
-            "IR internal error: variable 'count' is not recognized by the IR"
+            "IR internal error: variable id 77 is not recognized by the IR"
         );
     }
 
     #[test]
     fn formats_declaration_ir_errors_with_source_names() {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|name| symbols.intern(name));
-        let declaration_name = symbols.intern("Bordered");
-        let mut types = TypesModule::new(&builtins);
+        let mut hir = SlynxHir::new();
+        let declaration_name = hir.intern_name("Bordered");
+
         let variable_names = HashMap::new();
         let mut declarations = DeclarationsModule::new();
-        let ir = SlynxIR::new();
 
-        let ty = types.create_type(declaration_name, HirType::Component { props: Vec::new() });
+        let ty = hir.create_type(declaration_name, HirType::Component { props: Vec::new() });
         let declaration = declarations.create_declaration(declaration_name, ty);
 
         assert_ne!(
             format_ir_generation_error(
                 &CodegenError::DeclarationNotRecognized(declaration),
-                &ir,
                 &variable_names,
-                &types,
+                &hir,
                 &declarations
             ),
             "IR internal error: declaration 'Bordered' is not recognized by the IR"
@@ -438,22 +420,18 @@ mod tests {
 
     #[test]
     fn formats_type_ir_errors_with_source_names() {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|name| symbols.intern(name));
-        let type_name = symbols.intern("User");
-        let mut types = TypesModule::new(&builtins);
+        let mut hir = SlynxHir::new();
+        let type_name = hir.intern_name("User");
         let variable_names = HashMap::new();
         let declarations = DeclarationsModule::new();
-        let ir = SlynxIR::new();
 
-        let ty = types.create_type(type_name, HirType::Struct { fields: Vec::new() });
+        let ty = hir.create_type(type_name, HirType::Struct { fields: Vec::new() });
 
         assert_eq!(
             format_ir_generation_error(
                 &CodegenError::IRTypeNotRecognized(ty),
-                &ir,
                 &variable_names,
-                &types,
+                &hir,
                 &declarations
             ),
             "IR internal error: type 'User' is not recognized by the IR"

@@ -2,11 +2,7 @@ use std::collections::HashMap;
 
 use common::SymbolPointer;
 use slynx_codegen::CodegenError;
-use slynx_hir::{
-    SlynxHir, VariableId,
-    modules::{DeclarationsModule, TypesModule},
-};
-use slynx_ir::SlynxIR;
+use slynx_hir::{SlynxHir, VariableId, modules::DeclarationsModule};
 
 use crate::{
     SlynxContext,
