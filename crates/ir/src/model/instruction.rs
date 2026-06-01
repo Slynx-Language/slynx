@@ -73,6 +73,8 @@ pub enum Opcode {
     /// Operands: `[object, value]`.
     SetField(u16),
 
+    GetChild(u16),
+
     // ═══════════════════════════════════════════════════════════════════
     //  Control flow
     // ═══════════════════════════════════════════════════════════════════
@@ -142,6 +144,12 @@ pub struct Instruction {
 
     /// The type this instruction produces.
     pub value_type: IRTypeId,
+}
+
+impl Opcode {
+    pub fn is_ui(&self) -> bool {
+        matches!(self, Opcode::InitCall(_) | Opcode::SApply { .. })
+    }
 }
 
 // ── Convenience constructors ───────────────────────────────────────────────
@@ -291,7 +299,13 @@ impl Instruction {
             value_type: ty,
         }
     }
-
+    pub fn getchild(index: u16, ty: IRTypeId) -> Self {
+        Instruction {
+            opcode: Opcode::GetChild(index),
+            operands: SmallVec::new(),
+            value_type: ty,
+        }
+    }
     pub fn allocate(ty: IRTypeId) -> Self {
         Instruction {
             opcode: Opcode::Allocate,

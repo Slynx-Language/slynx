@@ -5,11 +5,13 @@ use crate::{
     Opcode, Operand, SlynxIR, Value,
 };
 
+#[derive(Debug)]
 pub struct InitialCall {
     func_ptr: IRPointer<Function, 1>,
     args: Vec<Value>,
 }
 
+#[derive(Debug)]
 pub struct ComponentBuilder<'a> {
     component_id: IRPointer<Component, 1>,
     fields: Vec<IRTypeId>,
@@ -31,6 +33,14 @@ impl<'a> ComponentBuilder<'a> {
         }
     }
 
+    pub fn emit_arg(&mut self, arg: u32) -> Value {
+        let idx = self.ir.instructions.len() as u32;
+        self.ir
+            .instructions
+            .push(Instruction::arg(arg, self.fields[arg as usize]));
+        Value::instruction(idx)
+    }
+
     /// Emit a `Component` instruction as a preamble to the initcalls,
     /// creating a temporary value of the given type.  The resulting
     /// [`Value`] can be passed to [`add_initial_call`].
@@ -39,11 +49,21 @@ impl<'a> ComponentBuilder<'a> {
             self.preamble_start = Some(self.ir.instructions.len());
         }
         let idx = self.ir.instructions.len() as u32;
-        self.ir.instructions.push(Instruction {
-            opcode: Opcode::Component,
-            operands: smallvec![],
-            value_type: ty,
-        });
+        self.ir
+            .instructions
+            .push(Instruction::component(ty, smallvec![]));
+        Value::instruction(idx)
+    }
+
+    pub fn emit_child(&mut self, index: u16) -> Value {
+        if self.preamble_start.is_none() {
+            self.preamble_start = Some(self.ir.instructions.len());
+        }
+        let idx = self.ir.instructions.len() as u32;
+        let component = self.ir.get(self.component_id);
+        self.ir
+            .instructions
+            .push(Instruction::getchild(index, component.ty));
         Value::instruction(idx)
     }
 
@@ -54,9 +74,7 @@ impl<'a> ComponentBuilder<'a> {
             self.preamble_start = Some(self.ir.instructions.len());
         }
         let idx = self.ir.instructions.len() as u32;
-        self.ir
-            .instructions
-            .push(Instruction::const_value(op, ty));
+        self.ir.instructions.push(Instruction::const_value(op, ty));
         Value::instruction(idx)
     }
 

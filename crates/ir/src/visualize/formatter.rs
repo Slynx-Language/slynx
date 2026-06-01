@@ -163,20 +163,57 @@ impl<'a> Formatter<'a> {
             .fields()
             .iter()
             .map(|v| self.fmt_type(&self.types.get_type(*v)))
-            .collect::<Vec<_>>()
-            .join(", ");
+            .collect::<Vec<_>>();
 
+        let fields = params
+            .iter()
+            .enumerate()
+            .map(|(idx, _)| format!("  %f{idx}: {} = p{idx};", params[idx]))
+            .collect::<Vec<_>>();
+
+        let children = comp_ty
+            .children()
+            .iter()
+            .enumerate()
+            .map(|(idx, c)| {
+                let ty = self.ir.get_type(*c);
+                let ty = if let IRType::Component(component) = ty {
+                    self.fmt_component_type(&component)
+                } else {
+                    self.fmt_type(&ty)
+                };
+
+                format!("  #c{idx}: {ty};")
+            })
+            .collect::<Vec<_>>();
         let mut out = format!(
-            "component %{}({params}) {{\n",
+            "component %{}({}) {{\n",
             self.symbols.get_name(comp_ty.name()),
+            params.join(","),
         );
-
+        if !fields.is_empty() {
+            out.push_str(&fields.join("\n"));
+            out.push('\n');
+        }
+        if !children.is_empty() {
+            out.push_str(&children.join("\n"));
+            out.push('\n');
+        }
         // UI instructions
         let ui_range = component.ui_instruction;
+        let inline_set = self.build_component_inline_set(component);
+        let fmt = Formatter {
+            inline_set,
+            ..*self
+        };
         for i in 0..ui_range.len() {
-            let inst = &self.instructions[ui_range.ptr() + i];
+            let idx = ui_range.ptr() + i;
+            if fmt.inline_set.contains(&idx) {
+                continue;
+            }
+            let inst = &self.instructions[idx];
             out.push_str("  ");
-            out.push_str(&self.format_instruction(inst));
+            out.push_str(&fmt.format_instruction(inst));
             out.push('\n');
         }
 
@@ -371,6 +408,7 @@ impl<'a> Formatter<'a> {
                 let args = self.fmt_operands(&instr.operands);
                 format!("{ty_str}{{{args}}};")
             }
+            Opcode::GetChild(index) => format!("#c{index}"),
         }
     }
 
@@ -394,12 +432,17 @@ impl<'a> Formatter<'a> {
                 }
             }
             _ => {
-                if self.inline_set.contains(&v.idx())
-                    && matches!(&instr.opcode, Opcode::Component | Opcode::Struct)
-                {
-                    self.format_instruction(instr)
-                        .trim_end_matches(';')
-                        .to_string()
+                if self.inline_set.contains(&v.idx()) {
+                    if matches!(
+                        &instr.opcode,
+                        Opcode::Component | Opcode::Struct | Opcode::GetChild(_)
+                    ) {
+                        self.format_instruction(instr)
+                            .trim_end_matches(';')
+                            .to_string()
+                    } else {
+                        format!("%t{}", v.idx())
+                    }
                 } else {
                     format!("%t{}", v.idx())
                 }
@@ -480,6 +523,19 @@ impl<'a> Formatter<'a> {
                         Opcode::Component | Opcode::Struct
                     )
             })
+            .map(|(idx, _)| idx)
+            .collect()
+    }
+
+    fn build_component_inline_set(&self, component: &Component) -> HashSet<usize> {
+        let ui_range = component.ui_instruction;
+        let mut counts = HashMap::new();
+        for i in 0..ui_range.len() {
+            self.count_refs(ui_range.ptr() + i, &mut counts);
+        }
+        counts
+            .into_iter()
+            .filter(|(_, count)| *count == 1)
             .map(|(idx, _)| idx)
             .collect()
     }
