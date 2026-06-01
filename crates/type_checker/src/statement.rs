@@ -47,7 +47,7 @@ impl TypeChecker {
                 else {
                     unreachable!();
                 };
-                let _ = self.resolve_field_access_type(&mut lhs.ty, field_index, &lhs.span)?;
+                self.resolve_field_access_type(&mut lhs.ty, field_index, &lhs.span)?;
                 lhs.ty
             }
             HirType::VarReference(_) => lhs.ty,
