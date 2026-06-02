@@ -64,3 +64,10 @@ pub use declarations::*;
 pub use expression::*;
 pub use statements::*;
 pub use types::*;
+
+use crate::{DeclarationId, VariableId};
+#[derive(Debug, Clone)]
+pub enum HirSymbol {
+    Variable(VariableId),
+    Declaration(DeclarationId),
+}

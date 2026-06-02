@@ -288,6 +288,125 @@ For `border`, `shadow` — define a custom struct type in both HIR and IR.
 
 ---
 
+---
+
+## Future Direction: Intrinsic Property Declarations
+
+The current approach requires editing compiler source (two `.rs` files) to add
+each new style property. This does not scale — every property change, addition,
+or removal becomes a compiler modification, and the compiler binary is
+hardcoded with the full property catalog.
+
+### Problem
+
+The numeric codes (`@sapply 0` = `BACKGROUND_COLOR`) are a **backend protocol**:
+the IR, codegen, and runtime must agree on what each code means. You cannot
+invent a new code in user/library code without the backend understanding it.
+The compiler also needs to know each property's type at compile time for
+type-checking `styles { opacity: 0.5 }`.
+
+### Proposed solution: `intrinsic styleProperty`
+
+Add a new top-level declaration kind that lets the std library declare style
+properties to the compiler:
+
+```slynx
+// In std/style.slx, compiled as part of the compiler's own build
+intrinsic styleProperty backgroundColor: Color = 0;
+intrinsic styleProperty foregroundColor: Color = 1;
+intrinsic styleProperty padding: Vec4 = 2;
+intrinsic styleProperty margin: Vec4 = 3;
+intrinsic styleProperty size: Vec4 = 4;
+intrinsic styleProperty fontSize: px = 5;
+intrinsic styleProperty fontWeight: u16 = 6;
+intrinsic styleProperty opacity: f32 = 7;
+intrinsic styleProperty border: Border = 8;
+intrinsic styleProperty shadow: Shadow = 9;
+```
+
+The types `Color`, `Vec4`, `Border`, `Shadow`, and `px` are **not** built into
+the compiler. The compiler knows only primitive types (`int`, `float`, `bool`,
+`str`, `void`). These compound types are themselves defined in the std/intrinsics
+library — either as objects or tuples — and are available by the time the style
+property declarations are processed. The compiler's type checker resolves them
+the same way it resolves any user-defined type.
+
+Each declaration registers a property in a compiler-wide table:
+- **name** — the Slynx identifier used in `styles { name: expr }`
+- **type** — the HIR/IR type for compile-time checking and codegen
+- **code** — the numeric backend protocol value
+
+The compiler processes these during its own bootstrap compilation to populate
+the property table. User code and library code then inherit the catalog
+without needing compiler source changes.
+
+### Why this approach
+
+| Concern | Current (hardcoded) | Intrinsic declarations |
+|---|---|---|
+| Add a property | Edit 2 `.rs` files, recompile | Edit 1 `.slx` file in std library |
+| New backend target with different codes | Recompile compiler per target | Library provides target-specific mapping |
+| Third-party properties | Not possible | Library declares them, compiler stays generic |
+| Type safety | Varied match arms must stay in sync | Single source of truth (the declaration) |
+| Property removal | Same 2 files, reverse | Delete one line |
+
+The bootstrapping cost is one-time: the compiler needs to learn the
+`intrinsic styleProperty` declaration kind. The phases involved are:
+
+| Phase | Work |
+|---|---|
+| Lexer | New token or keyword? (A keyword avoids special-casing) |
+| Parser | `parse_intrinsic_style_property()` → `ASTDeclarationKind::IntrinsicStyleProperty { name, type, code }` |
+| HIR | New `HirDeclarationKind::IntrinsicStyleProperty`, hoist property into a queryable table |
+| Checker | Validate type is a known type (or a built-in like `Color`, `Vec4`, `Border`) |
+| IR | Replace `StyleProperty` enum with a runtime-populated table. Lookup is by name, not by Rust enum discriminant. The `code()` method becomes a table query. |
+| Codegen | `from_name()` and `ir_type()` become table lookups, not match arms. |
+
+The hardcoded `StyleProperty` enum is replaced with a data-driven table:
+
+```rust
+struct StylePropertyEntry {
+    name: SmolStr,
+    code: u16,
+    ir_type: IRTypeId,
+}
+
+struct StylePropertyTable {
+    entries: Vec<StylePropertyEntry>,
+    by_name: HashMap<SmolStr, usize>,
+}
+```
+
+### Migration strategy
+
+1. Implement `intrinsic styleProperty` parsing, HIR, and checking
+2. Build the property table in IR from these declarations
+3. Move the 10 STYLES_TABLE properties from hardcoded Rust to `std/style.slx`
+4. Remove the `StyleProperty` enum and the `resolve_style_type()` match arm
+5. The std library is now the source of truth for the property catalog
+
+Compound properties like `Vec4` (padding, margin, size), `Border`,
+`Shadow`, `Color`, and `px` are defined as types in the std library
+(either as tuples or objects) before they are referenced by
+`intrinsic styleProperty` declarations. This aligns with the goal of
+partially bootstrapping the language — the type system bootstraps first
+(primitives in the compiler, compound types in the std library), then
+style properties reference those types.
+
+### Implementation notes
+
+- The `StylePropertyEntry::ir_type` must resolve to a type the IR already
+  knows about. Library-defined types (`Color`, `Vec4`, `Border`, `Shadow`,
+  `px`) are defined in the std library before they are referenced by style
+  property declarations. The compiler does not have special knowledge of
+  any of them — they are all just user-defined types as far as the
+  compiler is concerned.
+- Numeric codes remain `u16` and are versioned with the std library.
+- The backend protocol table (`STYLES_TABLE.md`) becomes documentation of
+  the std library's declarations, rather than the source of truth.
+
+---
+
 ## Known gaps
 
 - `default_expr()` in `crates/checker/src/expr.rs:563` ignores the `style` field

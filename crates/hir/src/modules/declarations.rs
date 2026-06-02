@@ -10,6 +10,8 @@ pub struct DeclarationsModule {
     declaration_types: Vec<TypeId>,
     /// Maps each object [`TypeId`] to its ordered list of field symbol pointers.
     pub objects: HashMap<TypeId, Vec<SymbolPointer>>,
+    ///Maps a enum type to its variants
+    pub enums: HashMap<TypeId, Vec<SymbolPointer>>,
 }
 
 impl DeclarationsModule {
@@ -19,6 +21,7 @@ impl DeclarationsModule {
             decls: HashMap::new(),
             objects: HashMap::new(),
             declaration_types: Vec::new(),
+            enums: HashMap::new(),
         }
     }
     /// Registers a new declaration with the given name symbol and type, returning its [`DeclarationId`].
@@ -28,6 +31,20 @@ impl DeclarationsModule {
         self.declaration_types.push(ty);
         id
     }
+
+    pub fn create_enum(
+        &mut self,
+        name: SymbolPointer,
+        variants: Vec<SymbolPointer>,
+        ty: TypeId,
+    ) -> DeclarationId {
+        let id = DeclarationId::from_raw(self.declaration_types.len() as u64);
+        self.decls.insert(id, name);
+        self.declaration_types.push(ty);
+        self.enums.insert(ty, variants);
+        id
+    }
+
     ///Creates an objct with the provided `name`, `ty` and `fields` and returns it's id
     pub fn create_object(
         &mut self,

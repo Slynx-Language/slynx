@@ -52,7 +52,7 @@
 //! - [`crate::hir::TypeId`] — Type identifiers
 //! - [`crate::hir::modules::TypesModule`] — Type management
 
-use crate::{SymbolPointer, TypeId, VariableId};
+use crate::{HirSymbol, SymbolPointer, TypeId, VariableId};
 
 use slynx_parser::VisibilityModifier;
 
@@ -107,7 +107,7 @@ pub enum FieldMethod {
     ///
     /// - `0` — The variable ID
     /// - `1` — The field name as a symbol
-    Variable(VariableId, SymbolPointer),
+    Symbol(HirSymbol, SymbolPointer),
 
     /// Access a field on a tuple.
     ///
@@ -562,6 +562,9 @@ pub enum HirType {
     ///
     /// Represents a component that can work with generic type parameters.
     GenericComponent,
+
+    ///An enum type. The type checking when this happens should be made related to the TypeId instead, thus enum A != enum B because of their TypeId are different
+    Enum,
 }
 
 impl HirType {

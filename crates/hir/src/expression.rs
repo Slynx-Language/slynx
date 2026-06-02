@@ -1,9 +1,7 @@
 use std::mem::discriminant;
 
 use crate::{
-    ExpressionId, Result, SlynxHir, SymbolPointer, TypeId,
-    error::{HIRError, HIRErrorKind},
-    model::{FieldMethod, HirExpression, HirExpressionKind, HirStatementKind, HirType},
+    ExpressionId, HirDeclarationKind, HirSymbol, Result, SlynxHir, SymbolPointer, TypeId, error::{HIRError, HIRErrorKind}, model::{FieldMethod, HirExpression, HirExpressionKind, HirStatementKind, HirType}
 };
 use common::{Operator, Span};
 use slynx_parser::{ASTExpression, ASTExpressionKind, ASTStatement, GenericIdentifier, NamedExpr};
@@ -121,7 +119,7 @@ impl SlynxHir {
                 };
                 Ok(fields[*index])
             }
-            FieldMethod::Variable(variable_id, field_name) => {
+            FieldMethod::Symbol(HirSymbol::Variable(variable_id), field_name) => {
                 let variable_ty = *self
                     .get_variable_type(*variable_id)
                     .expect("variable type should exist before field access lowering");
@@ -140,6 +138,13 @@ impl SlynxHir {
                     None => Err(HIRError::property_unrecognized(vec![*field_name], *span)),
                 }
             }
+            FieldMethod::Symbol(HirSymbol::Declaration(ty), field) => {
+                let decl = &self.declarations[ty.as_raw() as usize];
+                Ok(match decl.kind{
+                    HirDeclarationKind::Enum => decl.ty,
+                    _ => self.infer_type()
+                })
+            },
             FieldMethod::Tuple(rf, index) => self.resolve_tuple_access_type(*rf, *index, span),
         }
     }
@@ -368,7 +373,8 @@ impl SlynxHir {
             }
             ASTExpressionKind::Identifier(name) => {
                 let name = self.modules.intern_name(name);
-                let id = self.get_variable(name, &expr.span)?;
+                let symbol = self.resolve_name(name, &expr.span)?;
+                match
                 let tyid = self.create_type(name, HirType::VarReference(id));
                 Ok(self.create_identifier_expression(id, tyid, expr.span))
             }

@@ -106,7 +106,17 @@ impl HirModules {
             symbol,
         }
     }
-
+    ///Creates a new declaration with the given `name` and `ty`. returns its symbol, type id, and declaration id.
+    pub fn create_enum(&mut self, name: &str, variants: Vec<SymbolPointer>) -> DeclarationInfo {
+        let symbol = self.symbols_resolver.intern(name);
+        let tyid = self.types_module.create_type(symbol, HirType::Enum);
+        let decl_id = self.declarations_module.create_enum(symbol, variants, tyid);
+        DeclarationInfo {
+            id: decl_id,
+            ty: tyid,
+            symbol,
+        }
+    }
     /// Creates an object type with the given name and fields and registers it as a declaration.
     pub fn create_object(&mut self, name: &str, fields: &[ObjectField]) {
         let name = self.symbols_resolver.intern(name);

@@ -5,6 +5,7 @@ use crate::{
         ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirDeclarationKind,
         HirStatement, HirStyleUsage, HirType,
     },
+    modules::DeclarationInfo,
 };
 use common::Span;
 use slynx_parser::{
@@ -13,6 +14,13 @@ use slynx_parser::{
 };
 
 impl SlynxHir {
+    pub(crate) fn hoist_enum(&mut self, name: &str, variants: &[String]) -> DeclarationInfo {
+        let variants = variants
+            .iter()
+            .map(|variant| self.intern_name(variant))
+            .collect();
+        self.modules.create_enum(name, variants)
+    }
     ///Hoists a `stylesheet` declaration
     pub(crate) fn hoist_stylesheet(&mut self, name: &str, args: &[TypedName]) {
         self.modules.create_declaration(
