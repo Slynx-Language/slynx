@@ -1,0 +1,37 @@
+stylesheet Fg(color: int) {
+    styles {
+        default {
+            foregroundColor: color
+        }
+    }
+}
+
+stylesheet Bg(color: int) uses Fg(color - 0x00ffff) {
+    styles {
+        default {
+            backgroundColor: color
+        }
+    }
+}
+
+component A {
+    Div {
+        style: Fg(0xff00ff),
+        Text {
+            text: "direct"
+        }
+    }
+}
+
+component B {
+    Div {
+        style: Bg(0x0000ff),
+        Text {
+            text: "inherited"
+        }
+    }
+}
+
+func main(): Component {
+    A {}
+}

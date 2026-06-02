@@ -1,0 +1,29 @@
+stylesheet Fg(color: int) {
+    styles {
+        foregroundColor: color,
+        hover.click(0.3) {
+            backgroundColor: color & 0x00ff00
+        }
+    }
+}
+
+stylesheet Bg(color: int) uses Fg(color) {
+    styles {
+        default {
+            backgroundColor: 0x0000ff
+        }
+    }
+}
+
+component Root {
+    Div {
+        style: Bg(0xff0000),
+        Text {
+            text: "hello"
+        }
+    }
+}
+
+func main(): Component {
+    Root {}
+}

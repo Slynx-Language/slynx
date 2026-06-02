@@ -1,0 +1,28 @@
+stylesheet Fg(color: int) {
+    styles {
+        default {
+            foregroundColor: color
+        }
+    }
+}
+
+stylesheet Bg() uses Fg(0x00ffff) {
+    styles {
+        default {
+            backgroundColor: 0x0000ff
+        }
+    }
+}
+
+component Root {
+    Div {
+        style: Bg(),
+        Text {
+            text: "hello"
+        }
+    }
+}
+
+func main(): Component {
+    Root {}
+}

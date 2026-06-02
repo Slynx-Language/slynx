@@ -1,0 +1,28 @@
+stylesheet Child() uses Parent() {
+    styles {
+        default {
+            backgroundColor: 0x0000ff
+        }
+    }
+}
+
+stylesheet Parent() {
+    styles {
+        default {
+            foregroundColor: 0xff0000
+        }
+    }
+}
+
+component Root {
+    Div {
+        style: Child(),
+        Text {
+            text: "hello"
+        }
+    }
+}
+
+func main(): Component {
+    Root {}
+}

@@ -1,9 +1,12 @@
-use frontend::hir::{
+#![allow(dead_code)]
+
+use slynx_hir::{
     SlynxHir,
-    definitions::{HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind},
+    model::HirDeclaration,
+    model::{HirDeclarationKind, HirExpression, HirExpressionKind, HirStatementKind},
 };
-use frontend::lexer::Lexer;
-use frontend::parser::Parser;
+use slynx_lexer::Lexer;
+use slynx_parser::Parser;
 
 pub fn load_hir(path: &str) -> SlynxHir {
     let source = std::fs::read_to_string(path).expect("source file should exist");
@@ -12,35 +15,32 @@ pub fn load_hir(path: &str) -> SlynxHir {
         .parse_declarations()
         .expect("source should parse");
     let mut hir = SlynxHir::new();
-    hir.generate(declarations).expect("HIR should generate");
+    hir.generate(&declarations).expect("HIR should generate");
     hir
 }
 
 pub fn find_main_call_args(hir: &mut SlynxHir) -> Option<&mut Vec<HirExpression>> {
-    for declaration in &mut hir.declarations {
-        let HirDeclarationKind::Function {
-            name, statements, ..
-        } = &mut declaration.kind
-        else {
+    let pos = hir.declarations.iter().position(|v| matches!(v.kind, HirDeclarationKind::Function { name, .. } if hir.get_name(name) == "main"))?;
+    let HirDeclaration {
+        kind: HirDeclarationKind::Function { statements, .. },
+        ..
+    } = &mut hir.declarations[pos]
+    else {
+        unreachable!()
+    };
+    for statement in statements {
+        let expr = match &mut statement.kind {
+            HirStatementKind::Variable { value, .. } => value,
+            HirStatementKind::Expression { expr } => expr,
+            HirStatementKind::Return { expr } => expr,
+            HirStatementKind::Assign { value, .. } => value,
+            HirStatementKind::While { .. } => continue,
+        };
+        let HirExpressionKind::FunctionCall { args, .. } = &mut expr.kind else {
             continue;
         };
-        if hir.symbols_module.get_name(*name) != "main" {
-            continue;
-        }
-
-        for statement in statements {
-            let expr = match &mut statement.kind {
-                HirStatementKind::Variable { value, .. } => value,
-                HirStatementKind::Expression { expr } => expr,
-                HirStatementKind::Return { expr } => expr,
-                HirStatementKind::Assign { value, .. } => value,
-                HirStatementKind::While { .. } => continue,
-            };
-            let HirExpressionKind::FunctionCall { args, .. } = &mut expr.kind else {
-                continue;
-            };
-            return Some(args);
-        }
+        return Some(args);
     }
+
     None
 }

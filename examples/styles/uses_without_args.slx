@@ -1,0 +1,24 @@
+stylesheet Base() {
+    styles {
+        foregroundColor: 0xff0000
+    }
+}
+
+stylesheet Derived() uses Base() {
+    styles {
+        backgroundColor: 0x00ff00
+    }
+}
+
+component Root {
+    Div {
+        style: Derived(),
+        Text {
+            text: "hello"
+        }
+    }
+}
+
+func main(): Component {
+    Root {}
+}

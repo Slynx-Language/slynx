@@ -1,0 +1,26 @@
+stylesheet Maria(color: int){
+	styles {
+		default {
+			backgroundColor: color
+		}
+	}
+}
+component Pedrinho {
+	Div {
+		style: Maria(0xff0000),
+		Text {
+			text: "Pedrinho leitazedo"
+		}
+	}
+}
+
+component Jorgin {
+	Text {
+		text: "Jorginho neguinho"
+	}
+	Pedrinho {}
+}
+
+func main(): Component {
+	Jorgin {}	
+} 

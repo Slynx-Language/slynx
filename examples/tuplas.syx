@@ -1,0 +1,4 @@
+
+func main (): float{
+    ((1,"jorge"), 1.0).1
+}

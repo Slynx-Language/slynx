@@ -1,0 +1,8 @@
+[package]
+name = "slynx-lexer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+color-eyre.workspace=true
+common = {path="../common"}

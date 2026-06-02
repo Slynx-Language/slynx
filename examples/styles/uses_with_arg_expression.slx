@@ -1,0 +1,35 @@
+stylesheet Bg(color: int) uses Fg(color - 0x00ffff) {
+    styles {
+        default {
+            backgroundColor: color
+        }
+    }
+}
+
+stylesheet Fg(color: int) {
+    styles {
+        default {
+            foregroundColor: color
+        }
+    }
+}
+
+component Pedrinho {
+    Div {
+        Text {
+            text: "Pedrinho leitazedo"
+        }
+    }
+}
+
+component Jorgin {
+    Text {
+        style: Fg(0xff00ff),
+        text: "Jorginho neguinho"
+    }
+    Pedrinho {}
+}
+
+func main(): Component {
+    Jorgin {}
+}

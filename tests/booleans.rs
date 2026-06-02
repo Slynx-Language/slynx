@@ -1,9 +1,8 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 #[test]
 fn test_variables() {
-    let context =
-        slynx::SlynxContext::new(Arc::new(PathBuf::from("slynx/booleans.slynx"))).unwrap();
+    let context = slynx::SlynxContext::new(PathBuf::from("examples/booleans.syx")).unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(

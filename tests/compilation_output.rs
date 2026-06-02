@@ -1,7 +1,6 @@
 use std::{
     fs,
     path::PathBuf,
-    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -20,7 +19,7 @@ fn temp_case_dir(name: &str) -> PathBuf {
 fn write_temp_source(case_dir: &PathBuf) -> PathBuf {
     fs::create_dir_all(case_dir).expect("temp case dir should be created");
     let source_path = case_dir.join("input.slynx");
-    let source = fs::read_to_string("slynx/booleans.slynx").expect("fixture should exist");
+    let source = fs::read_to_string("examples/booleans.syx").expect("fixture should exist");
     fs::write(&source_path, source).expect("temp source should be written");
     source_path
 }
@@ -31,7 +30,7 @@ fn compile_returns_output_before_writing() {
     let source_path = write_temp_source(&case_dir);
     let output_path = source_path.with_extension("sir");
 
-    let context = SlynxContext::new(Arc::new(source_path)).expect("context should be created");
+    let context = SlynxContext::new(source_path).expect("context should be created");
     let output = context.compile().expect("compilation should succeed");
 
     assert_eq!(output.output_path(), output_path.as_path());
@@ -68,7 +67,7 @@ fn build_stages_exposes_hir_and_ir_dumps_without_writing_files() {
     let hir_path = source_path.with_extension("hir");
     let ir_path = source_path.with_extension("ir");
 
-    let context = SlynxContext::new(Arc::new(source_path)).expect("context should be created");
+    let context = SlynxContext::new(source_path).expect("context should be created");
     let stages = context.build_stages().expect("stages should build");
 
     assert_eq!(stages.dump_path("hir"), hir_path);
@@ -89,7 +88,7 @@ fn build_stages_can_write_hir_ir_and_sir_outputs() {
     let ir_path = source_path.with_extension("ir");
     let sir_path = source_path.with_extension("sir");
 
-    let context = SlynxContext::new(Arc::new(source_path)).expect("context should be created");
+    let context = SlynxContext::new(source_path).expect("context should be created");
     let stages = context.build_stages().expect("stages should build");
 
     stages.write_hir().expect("hir dump should be written");

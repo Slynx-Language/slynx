@@ -1,0 +1,8 @@
+object Person {
+    age: int,
+}
+
+func main(): int {
+    let nested = ((Person(age: 22), "ok"), 42);
+    nested.1
+}

@@ -1,9 +1,8 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 #[test]
 fn test_common_comments() {
-    let context =
-        slynx::SlynxContext::new(Arc::new(PathBuf::from("slynx/common_comments.slynx"))).unwrap();
+    let context = slynx::SlynxContext::new(PathBuf::from("examples/commonComments.syx")).unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(

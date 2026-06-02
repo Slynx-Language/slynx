@@ -26,3 +26,10 @@ run:
 #Run the application in release mode.
 release:
 	cargo run --release
+
+#Checks if the compiler is running properly, according to CI/CD
+check:
+	cargo test --verbose
+	cargo fmt --all -- --check
+	cargo clippy --all-targets --all-features -- -D warnings
+	cargo build --verbose

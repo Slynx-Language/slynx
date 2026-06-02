@@ -1,0 +1,31 @@
+stylesheet A() {
+    styles {
+        default {
+            foregroundColor: 0xff0000
+        }
+    }
+}
+
+stylesheet B() {
+    styles {
+        default {
+            backgroundColor: 0x0000ff
+        }
+    }
+}
+
+stylesheet C() uses A(), B() {
+}
+
+component Root {
+    Div {
+        style: C(),
+        Text {
+            text: "hello"
+        }
+    }
+}
+
+func main(): Component {
+    Root {}
+}

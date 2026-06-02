@@ -1,0 +1,30 @@
+stylesheet A() {
+    styles {
+        foregroundColor: 0xff0000,
+    }
+}
+
+stylesheet B() uses A() {
+    styles {
+        backgroundColor: 0x00ff00,
+    }
+}
+
+stylesheet C() uses B() {
+    styles {
+        foregroundColor: 0x0000ff
+    }
+}
+
+component Root {
+    Div {
+        style: C(),
+        Text {
+            text: "hello"
+        }
+    }
+}
+
+func main(): Component {
+    Root {}
+}
