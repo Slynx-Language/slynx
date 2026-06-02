@@ -158,6 +158,8 @@ pub struct HirDeclaration {
 #[derive(Debug)]
 #[repr(C)]
 pub enum HirDeclarationKind {
+    Enum,
+
     /// A simple data object with fields.
     Object,
 
@@ -349,6 +351,14 @@ impl ComponentMemberDeclaration {
 }
 
 impl HirDeclaration {
+    pub fn new_enum(id: DeclarationId, ty: TypeId, span: Span) -> Self {
+        Self {
+            kind: HirDeclarationKind::Enum,
+            id,
+            ty,
+            span,
+        }
+    }
     /// Creates a new function declaration.
     ///
     /// # Arguments

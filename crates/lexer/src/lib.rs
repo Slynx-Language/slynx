@@ -348,6 +348,10 @@ impl Lexer {
                     idx -= 1;
                     let span = Span { start, end: idx };
                     match buffer.as_str() {
+                        "enum" => Token {
+                            kind: TokenKind::Enum,
+                            span,
+                        },
                         "while" => Token {
                             kind: TokenKind::While,
                             span,

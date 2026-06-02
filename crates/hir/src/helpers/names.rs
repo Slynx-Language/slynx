@@ -4,7 +4,7 @@ use crate::{HIRError, Result, SlynxHir, SymbolPointer, VariableId};
 
 impl SlynxHir {
     ///Tries to retrieve a variable with the provided `name` on the current active scope
-    pub fn get_variable(&mut self, symbol: SymbolPointer, span: &Span) -> Result<VariableId> {
+    pub fn get_variable(&self, symbol: SymbolPointer, span: &Span) -> Result<VariableId> {
         if let Some(variable) = self.modules.find_variable(symbol) {
             Ok(variable)
         } else {

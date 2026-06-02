@@ -3,6 +3,7 @@ mod component;
 pub mod conditionals;
 pub mod error;
 pub use error::*;
+mod enums;
 mod expr;
 mod functions;
 pub mod objects;

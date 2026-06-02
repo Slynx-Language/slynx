@@ -360,6 +360,11 @@ impl SlynxHir {
             ASTDeclarationKind::ComponentDeclaration { name, members, .. } => {
                 self.hoist_component(name, members)?
             }
+            ASTDeclarationKind::EnumDeclaration { name, variants } => {
+                let info = self.hoist_enum(&name.identifier, &variants);
+                self.declarations
+                    .push(HirDeclaration::new_enum(info.id, info.ty, ast.span));
+            }
         }
         Ok(())
     }
@@ -446,6 +451,7 @@ impl SlynxHir {
                 usages,
                 body,
             } => self.resolve_stylesheet(name, args, usages, body, ast.span),
+            ASTDeclarationKind::EnumDeclaration { .. } => Ok(()), //hoisted, and thats all what matters
         }
     }
 }

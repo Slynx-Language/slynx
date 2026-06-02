@@ -61,6 +61,7 @@ impl std::fmt::Display for TokenKind {
             Self::Int(value) => value.to_string(),
             Self::String(value) => value.to_string(),
             Self::Identifier(value) => value.to_string(),
+            Self::Enum => "enum".to_string(),
         };
         write!(f, "{}", result)
     }
@@ -123,13 +124,15 @@ pub enum TokenKind {
 
     Component,
     Func,
+    Enum,
+    StyleSheet,
+    Object,
+
     Pub,
     Prop,
     Alias,
-    StyleSheet,
-    Styles,
 
-    Object,
+    Styles,
 
     Let,
     Mut,

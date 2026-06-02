@@ -1,0 +1,11 @@
+enum Test{
+A,
+B,
+C,
+D
+}
+
+func main() : void{
+let a = Test.A;
+let b = Teste.B;
+}
