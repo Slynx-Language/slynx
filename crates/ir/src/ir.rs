@@ -35,6 +35,8 @@ pub struct SlynxIR {
     pub(crate) labels: Vec<Label>,
     /// **All** instructions, appended during lowering.
     pub(crate) instructions: Vec<Instruction>,
+    /// **All** instructions that are impured appended during lowering.
+    pub(crate) impure_instructions: Vec<Value>,
     /// Type storage.
     pub(crate) types: IRTypes,
     /// Interned string pool.
@@ -62,6 +64,7 @@ impl SlynxIR {
                 operands: smallvec::SmallVec::new(),
                 value_type: void_ty,
             }],
+            impure_instructions: Vec::new(),
             types,
             strings: SymbolsModule::new(),
         }

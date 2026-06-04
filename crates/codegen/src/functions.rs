@@ -114,8 +114,12 @@ impl Codegen {
         hir: &SlynxHir,
         statements: &[HirStatement],
     ) -> Result<(), CodegenError> {
-        for statement in statements {
-            self.lower_statement(statement, hir, ctx)?;
+        for (idx, statement) in statements.iter().enumerate() {
+            if let Some(value) = self.lower_statement(statement, hir, ctx)?
+                && idx == statements.len() - 1
+            {
+                ctx.ret(value);
+            }
         }
         Ok(())
     }

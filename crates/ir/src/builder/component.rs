@@ -16,6 +16,7 @@ pub struct ComponentBuilder<'a> {
     component_id: IRPointer<Component, 1>,
     fields: Vec<IRTypeId>,
     children: Vec<IRTypeId>,
+    child_values: Vec<Value>,
     initial_calls: Vec<InitialCall>,
     preamble_start: Option<usize>,
     ir: &'a mut SlynxIR,
@@ -28,6 +29,7 @@ impl<'a> ComponentBuilder<'a> {
             ir,
             fields: Vec::new(),
             children: Vec::new(),
+            child_values: Vec::new(),
             initial_calls: Vec::new(),
             preamble_start: None,
         }
@@ -53,6 +55,19 @@ impl<'a> ComponentBuilder<'a> {
             .instructions
             .push(Instruction::component(ty, smallvec![]));
         Value::instruction(idx)
+    }
+
+    /// Emit an `Opcode::Component` instruction for a child element and record its Value.
+    /// The emitted instruction is NOT part of the preamble/initcall range — it is stored
+    /// separately in `child_values` so the JS backend can emit `let cN = document.createElement(...)`.
+    pub fn emit_child_component(&mut self, ty: IRTypeId) -> Value {
+        let idx = self.ir.instructions.len() as u32;
+        self.ir
+            .instructions
+            .push(Instruction::component(ty, smallvec![]));
+        let val = Value::instruction(idx);
+        self.child_values.push(val);
+        val
     }
 
     pub fn emit_child(&mut self, index: u16) -> Value {
@@ -94,7 +109,7 @@ impl<'a> ComponentBuilder<'a> {
         self.initial_calls.push(InitialCall { func_ptr: f, args });
     }
 
-    pub fn generate(self) -> IRPointer<Component, 1> {
+    pub fn generate(mut self) -> IRPointer<Component, 1> {
         {
             let component = self.ir.get(self.component_id);
             let IRType::Component(ty) = self.ir.get_type(component.ty) else {
@@ -104,6 +119,10 @@ impl<'a> ComponentBuilder<'a> {
             ty.fields.extend_from_slice(&self.fields);
             ty.children.extend_from_slice(&self.children);
         }
+
+        // Store child Values on the Component (they are NOT part of ui_instruction)
+        let comp = self.ir.get_mut(self.component_id);
+        comp.child_values = std::mem::take(&mut self.child_values);
 
         let start = self.preamble_start.unwrap_or(self.ir.instructions.len());
         for initcall in self.initial_calls {

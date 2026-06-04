@@ -54,8 +54,8 @@ impl IRTypes {
     pub fn structs(&self) -> &[IRStruct] {
         &self.structs
     }
-    pub fn components(&self) -> &[IRStruct] {
-        &self.structs
+    pub fn components(&self) -> &[IRComponent] {
+        &self.components
     }
 
     ///Checks if the provided `ty` is some variant of unsigned int
