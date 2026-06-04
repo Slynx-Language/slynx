@@ -176,11 +176,10 @@ impl Codegen {
         ctx.branch_conditional(cond, then_label, else_label, &[], &[]);
 
         ctx.switch_to_block(then_label).unwrap();
-        let _then_ty = self.lower_if_branch(then_branch, end_label, hir, ctx)?;
+        self.lower_if_branch(then_branch, end_label, hir, ctx)?;
 
         ctx.switch_to_block(else_label).unwrap();
-        let else_branch = else_branch.as_deref().unwrap_or(&[]);
-        let _else_ty = self.lower_if_branch(else_branch, end_label, hir, ctx)?;
+        self.lower_if_branch(else_branch.as_deref().unwrap_or(&[]), end_label, hir, ctx)?;
 
         ctx.switch_to_block(end_label).unwrap();
         if ctx.ir().get(end_label).arguments().is_empty() {

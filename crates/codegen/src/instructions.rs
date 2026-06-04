@@ -70,11 +70,7 @@ impl Codegen {
                 Ok(None)
             }
             HirStatementKind::Variable { name, value } => {
-                let ty = value.ty;
-                let hir_ty = hir.get_type(&ty);
-                let expr_kind = &value.kind;
-
-                let vty = self.get_or_create_ir_type(&ty, hir, context.ir()).expect(
+                let vty = self.get_or_create_ir_type(&value.ty, hir, context.ir()).expect(
                     "Type of variable creation should be hoisted before mapping function bodies",
                 );
                 let slot = context.allocate(vty);
