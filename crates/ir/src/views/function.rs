@@ -1,8 +1,21 @@
-use crate::{Function, IRFunction, IRStorage, IRType, IRTypeId, IRViewer, Label};
+use crate::{Function, IRFunction, IRStorage, IRType, IRTypeId, IRViewer, Label, Value};
 
 impl<'a> IRViewer<'a, Label> {
     pub fn get_name(&self) -> &str {
         self.ir.strings.get_name(self.ir.get(self.ptr).name())
+    }
+    pub fn get_instructions(&self) -> Vec<Value> {
+        self.value()
+            .instruction_range()
+            .map(|v| Value::instruction(v as u32))
+            .collect()
+    }
+}
+
+impl<'a> std::ops::Deref for IRViewer<'a, Label> {
+    type Target = Label;
+    fn deref(&self) -> &Self::Target {
+        self.value()
     }
 }
 
