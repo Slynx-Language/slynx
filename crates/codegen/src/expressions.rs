@@ -1,3 +1,4 @@
+use common::Operator;
 use slynx_hir::{
     DeclarationId, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir,
     TypeId,
@@ -104,6 +105,75 @@ impl Codegen {
     ) -> Result<Value, CodegenError> {
         let value = self.lower_expression(expr, hir, ctx)?;
         Ok(ctx.get_field(value, field_index))
+    }
+
+    fn generate_logic_and_instruction<'a>(
+        &mut self,
+        lhs_value: Value,
+        rhs_value: Value,
+        context: &mut FunctionContext<'a>,
+    ) -> Value {
+        let bool_type = context.ir().bool_type();
+        let end_label = context.create_label("and_end");
+        context
+            .ir()
+            .get_mut(end_label)
+            .insert_arguments(&[bool_type]);
+
+        let false_val = context.emit_const(false.into(), bool_type);
+        context.branch_conditional(lhs_value, end_label, end_label, &[rhs_value], &[false_val]);
+        context.switch_to_block(end_label).unwrap();
+        context.block_param(end_label, 0)
+    }
+
+    fn generate_logic_or_instruction<'a>(
+        &mut self,
+        lhs_value: Value,
+        rhs_value: Value,
+        context: &mut FunctionContext<'a>,
+    ) -> Value {
+        let bool_type = context.ir().bool_type();
+        let end_label = context.create_label("or_end");
+        context
+            .ir()
+            .get_mut(end_label)
+            .insert_arguments(&[bool_type]);
+
+        let true_val = context.emit_const(true.into(), bool_type);
+        context.branch_conditional(lhs_value, end_label, end_label, &[true_val], &[rhs_value]);
+        context.switch_to_block(end_label).unwrap();
+        context.block_param(end_label, 0)
+    }
+    pub(crate) fn handle_binary_expression<'a>(
+        &mut self,
+        lhs: &HirExpression,
+        rhs: &HirExpression,
+        op: &Operator,
+        hir: &SlynxHir,
+        context: &mut FunctionContext<'a>,
+    ) -> Result<Value, CodegenError> {
+        let a = self.lower_expression(lhs, hir, context)?;
+        let b = self.lower_expression(rhs, hir, context)?;
+
+        let result = match op {
+            Operator::LogicAnd => self.generate_logic_and_instruction(a, b, context),
+            Operator::LogicOr => self.generate_logic_or_instruction(a, b, context),
+            Operator::RightShift => context.shr(a, b),
+            Operator::LeftShift => context.shl(a, b),
+            Operator::Xor => context.xor(a, b),
+            Operator::Add => context.add(a, b),
+            Operator::Sub => context.sub(a, b),
+            Operator::Star => context.mul(a, b),
+            Operator::Slash => context.div(a, b),
+            Operator::Equals => context.cmp(a, b),
+            Operator::GreaterThan => context.gt(a, b),
+            Operator::GreaterThanOrEqual => context.gte(a, b),
+            Operator::LessThan => context.lt(a, b),
+            Operator::LessThanOrEqual => context.lte(a, b),
+            Operator::And => context.and(a, b),
+            Operator::Or => context.or(a, b),
+        };
+        Ok(result)
     }
 
     pub(crate) fn lower_expression<'a>(

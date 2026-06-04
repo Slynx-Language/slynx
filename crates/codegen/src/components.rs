@@ -221,8 +221,33 @@ impl Codegen {
                     }
 
                     for (child_index, child_expr) in children.iter().enumerate() {
-                        let (child_val, _) =
+                        let (child_val, child_style) =
                             self.get_component_expression(child_expr, hir, &mut ctx)?;
+
+                        if let Some(ref child_style_data) = child_style {
+                            let child_style_usage = match child_expr {
+                                HirComponentExpression::Specialized(
+                                    HirSpecializedComponentExpression::Text { style: Some(usage), .. },
+                                ) => usage,
+                                HirComponentExpression::Specialized(
+                                    HirSpecializedComponentExpression::Div { style: Some(usage), .. },
+                                ) => usage,
+                                _ => unreachable!(),
+                            };
+                            let param_values =
+                                self.get_usage_args(child_style_usage, hir, &mut ctx)?;
+                            let struct_val = ctx.call(
+                                child_style_data.init_func,
+                                &param_values,
+                                child_style_data.struct_ty,
+                            );
+                            ctx.call(
+                                child_style_data.apply_func,
+                                &[child_val, struct_val],
+                                void_ty,
+                            );
+                        }
+
                         ctx.set_field(*child_value, child_index as u16, child_val);
                     }
                 }
