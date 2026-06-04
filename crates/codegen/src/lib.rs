@@ -19,9 +19,9 @@ use slynx_ir::{Component, Function, IRPointer, IRStorage, IRTypeId, SlynxIR};
 
 /// Per-component data for emitting child initcalls at instantiation time.
 pub(crate) struct ChildInitWork {
-    pub child_type: IRTypeId,
+    pub children_type: Vec<IRTypeId>,
     ///Index of the child inside the component
-    pub child_index: usize,
+    pub children_index: Vec<usize>,
     pub init_func: IRPointer<Function, 1>,
     /// Indices into the parent component's property list.
     pub parent_prop_indices: Vec<usize>,

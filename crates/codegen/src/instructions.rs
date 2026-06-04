@@ -51,7 +51,7 @@ impl Codegen {
                 field_index,
             } => {
                 let parent = self.lower_expression(parent, hir, context)?;
-                context.set_field(value, *field_index as u16, parent);
+                context.set_field(parent, *field_index as u16, value);
             }
             _ => unreachable!("LHS of assignment must be Identifier or FieldAccess"),
         }
@@ -72,12 +72,8 @@ impl Codegen {
             HirStatementKind::Variable { name, value } => {
                 let ty = value.ty;
                 let hir_ty = hir.get_type(&ty);
-                eprintln!(
-                    "[CODEGEN DBG] Variable Statement: name={:?}, value.ty={:?}, hir_type={:?}",
-                    name, ty, hir_ty
-                );
                 let expr_kind = &value.kind;
-                eprintln!("[CODEGEN DBG]   value.kind={:?}", expr_kind);
+
                 let vty = self.get_or_create_ir_type(&ty, hir, context.ir()).expect(
                     "Type of variable creation should be hoisted before mapping function bodies",
                 );
