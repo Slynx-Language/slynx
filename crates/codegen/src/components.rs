@@ -227,10 +227,16 @@ impl Codegen {
                         if let Some(ref child_style_data) = child_style {
                             let child_style_usage = match child_expr {
                                 HirComponentExpression::Specialized(
-                                    HirSpecializedComponentExpression::Text { style: Some(usage), .. },
+                                    HirSpecializedComponentExpression::Text {
+                                        style: Some(usage),
+                                        ..
+                                    },
                                 ) => usage,
                                 HirComponentExpression::Specialized(
-                                    HirSpecializedComponentExpression::Div { style: Some(usage), .. },
+                                    HirSpecializedComponentExpression::Div {
+                                        style: Some(usage),
+                                        ..
+                                    },
                                 ) => usage,
                                 _ => unreachable!(),
                             };
@@ -287,17 +293,16 @@ impl Codegen {
 
         let mut spec_children = Vec::new();
         for (child_index, prop) in props.iter().enumerate() {
-            match prop {
-                ComponentMemberDeclaration::Child(HirComponentExpression::Specialized(spec)) => {
-                    let ty = Self::get_specialized_type(spec, ir);
-                    spec_children.push(spec);
-                    initcall_info.children_index.push(child_index);
-                    initcall_info.children_type.push(ty);
-                }
-                _ => {}
+            if let ComponentMemberDeclaration::Child(HirComponentExpression::Specialized(spec)) =
+                prop
+            {
+                let ty = Self::get_specialized_type(spec, ir);
+                spec_children.push(spec);
+                initcall_info.children_index.push(child_index);
+                initcall_info.children_type.push(ty);
             }
         }
-        let init_func = self.build_child_init(parent_name, &spec_children, &extra_vars, hir, ir)?;
+        let init_func = self.build_child_init(parent_name, &spec_children, extra_vars, hir, ir)?;
         initcall_info.init_func = init_func;
         self.component_child_inits
             .entry(ty)

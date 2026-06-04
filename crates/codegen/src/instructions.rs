@@ -1,6 +1,5 @@
-use common::Operator;
 use slynx_hir::{HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir};
-use slynx_ir::{IRStorage, Value};
+use slynx_ir::Value;
 
 use crate::{Codegen, CodegenError, functions::FunctionContext};
 

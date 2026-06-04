@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet, hash_map::Entry};
 
 use common::SymbolsModule;
 
@@ -172,15 +172,14 @@ impl<'a> Formatter<'a> {
 
             // Build inline set for this label (instructions that render inline)
             let inline_set = self.build_inline_set(label.value());
-            let label_inst_set: HashSet<usize> =
-                impure_values.iter().map(|v| v.idx()).collect();
+            let label_inst_set: HashSet<usize> = impure_values.iter().map(|v| v.idx()).collect();
 
             for &v in impure_values {
                 let real_idx = v.idx();
                 if inline_set.contains(&real_idx) {
                     continue;
                 }
-                if !var_names.contains_key(&real_idx) {
+                if let Entry::Vacant(_) = var_names.entry(real_idx) {
                     let instr = &self.instructions[real_idx];
                     if self.produces_value(instr) {
                         let prefix = if matches!(instr.opcode, Opcode::Allocate) {
@@ -197,14 +196,9 @@ impl<'a> Formatter<'a> {
             // Assign names to unmapped deps too
             for &v in impure_values {
                 let mut deps = BTreeSet::new();
-                self.collect_unmapped_deps_with(
-                    v.idx(),
-                    &label_inst_set,
-                    &inline_set,
-                    &mut deps,
-                );
+                self.collect_unmapped_deps_with(v.idx(), &label_inst_set, &inline_set, &mut deps);
                 for dep_idx in deps {
-                    if !var_names.contains_key(&dep_idx) {
+                    if let Entry::Vacant(_) = var_names.entry(dep_idx) {
                         let instr = &self.instructions[dep_idx];
                         if self.produces_value(instr) {
                             let prefix = if matches!(instr.opcode, Opcode::Allocate) {
@@ -532,12 +526,7 @@ impl<'a> Formatter<'a> {
                 let comp = self.fmt_operands(&instr.operands);
                 let view = self.ir.get_view(*func);
                 let name = view.get_name();
-                if instr.operands.len() < 1 {
-                    format!("@initcall {name}, {comp};")
-                } else {
-                    // The second operand is the style struct
-                    format!("@initcall {name}, {comp};")
-                }
+                format!("@initcall {name}, {comp};")
             }
             Opcode::Struct | Opcode::Component => {
                 let ty_str = self.fmt_type(&self.types.get_type(instr.value_type));
@@ -562,11 +551,10 @@ impl<'a> Formatter<'a> {
             Opcode::Arg(n) => return format!("p{n}"),
             Opcode::BlockParam(n) => return format!("lp{n}"),
             Opcode::Const(op) => return self.fmt_operand(op),
-            Opcode::RawValue => {
-                if !instr.operands.is_empty() {
-                    return self.fmt_value(instr.operands[0]);
-                }
+            Opcode::RawValue if !instr.operands.is_empty() => {
+                return self.fmt_value(instr.operands[0]);
             }
+
             _ => {}
         }
 
