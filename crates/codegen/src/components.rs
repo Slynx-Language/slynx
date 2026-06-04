@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use slynx_hir::{
     ComponentMemberDeclaration, HirComponentExpression, HirDeclaration, HirExpression,
     HirExpressionKind, HirSpecializedComponentExpression, HirStyleUsage, HirType, SlynxHir, TypeId,
@@ -85,10 +83,7 @@ impl Codegen {
             }) => {
                 let ty = ctx.ir().specialized_text_type();
                 let text_value = self.lower_expression(text, hir, ctx)?;
-                let mut builder = ComponentValueBuilder::new(ctx, ty);
-                builder.add_argument(text_value);
-                let value = builder.generate();
-                (ty, style.as_ref(), vec![value])
+                (ty, style.as_ref(), vec![text_value])
             }
             HirComponentExpression::Specialized(HirSpecializedComponentExpression::Div {
                 children,
@@ -200,11 +195,10 @@ impl Codegen {
         children_ty.extend(parent_prop_vars.iter().map(|(_, ty)| *ty));
         let args = ctx.set_function_type(children_ty, void_ty).to_vec();
 
-        let child_value = args[0];
         for (i, (var_id, _)) in parent_prop_vars.iter().enumerate() {
-            ctx.add_variable(*var_id, args[i + 1]);
+            ctx.add_variable(*var_id, args[children.len() + i]);
         }
-        for child in children {
+        for (child, child_value) in children.iter().zip(&args) {
             match child {
                 HirSpecializedComponentExpression::Text { text, style } => {
                     if let Some(style_usage) = style {
@@ -212,10 +206,10 @@ impl Codegen {
                         let param_values = self.get_usage_args(style_usage, hir, &mut ctx)?;
                         let struct_val =
                             ctx.call(style_data.init_func, &param_values, style_data.struct_ty);
-                        ctx.call(style_data.apply_func, &[child_value, struct_val], void_ty);
+                        ctx.call(style_data.apply_func, &[*child_value, struct_val], void_ty);
                     }
                     let text_value = self.lower_expression(text, hir, &mut ctx)?;
-                    ctx.set_field(child_value, 0, text_value);
+                    ctx.set_field(*child_value, 0, text_value);
                 }
                 HirSpecializedComponentExpression::Div { children, style } => {
                     if let Some(style_usage) = style {
@@ -223,11 +217,13 @@ impl Codegen {
                         let param_values = self.get_usage_args(style_usage, hir, &mut ctx)?;
                         let struct_val =
                             ctx.call(style_data.init_func, &param_values, style_data.struct_ty);
-                        ctx.call(style_data.apply_func, &[child_value, struct_val], void_ty);
+                        ctx.call(style_data.apply_func, &[*child_value, struct_val], void_ty);
                     }
-                    for (i, cexpr) in children.iter().enumerate() {
-                        let (child_val, _) = self.get_component_expression(cexpr, hir, &mut ctx)?;
-                        ctx.set_field(child_value, i as u16, child_val);
+
+                    for (child_index, child_expr) in children.iter().enumerate() {
+                        let (child_val, _) =
+                            self.get_component_expression(child_expr, hir, &mut ctx)?;
+                        ctx.set_field(*child_value, child_index as u16, child_val);
                     }
                 }
             }
@@ -385,7 +381,7 @@ impl Codegen {
                     let child_only_idx = prop_idx_to_child_val[*index]
                         .expect("child_index should map to a child-only index");
                     let child = child_values[child_only_idx];
-                    args.insert(0, child);
+                    args.push(child);
                 }
                 builder.add_initial_call(init.init_func, args);
             }
