@@ -150,6 +150,26 @@ impl Opcode {
     pub fn is_ui(&self) -> bool {
         matches!(self, Opcode::InitCall(_) | Opcode::SApply { .. })
     }
+    ///Checks if the Opcode executes something and so cannot be discarted directly
+    pub fn is_impure(&self) -> bool {
+        matches!(
+            self,
+            Opcode::Allocate
+                | Opcode::Write
+                | Opcode::SetField(_)
+                | Opcode::InitCall(_)
+                | Opcode::SApply { .. }
+                | Opcode::Br(_)
+                | Opcode::Cbr { .. }
+                | Opcode::Ret
+        )
+    }
+    pub fn is_inlineable(&self) -> bool {
+        matches!(
+            self,
+            Opcode::Const(_) | Opcode::Arg(_) | Opcode::BlockParam(_) | Opcode::RawValue
+        )
+    }
 }
 
 // ── Convenience constructors ───────────────────────────────────────────────
