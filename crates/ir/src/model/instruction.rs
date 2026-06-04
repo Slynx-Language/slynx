@@ -157,6 +157,7 @@ impl Opcode {
             Opcode::Allocate
                 | Opcode::Write
                 | Opcode::SetField(_)
+                | Opcode::Call(_)
                 | Opcode::InitCall(_)
                 | Opcode::SApply { .. }
                 | Opcode::Br(_)
