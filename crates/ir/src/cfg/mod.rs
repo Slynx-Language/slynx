@@ -96,7 +96,9 @@ impl ControlFlowGraph {
         ir: &SlynxIR,
     ) -> Option<(Vec<IRPointer<Label, 1>>, Vec<EdgeKind>)> {
         let range = label.instruction_range();
-        let last = ir.instructions[range].last()?;
+        let last = ir.impure_instructions[range]
+            .last()
+            .map(|&v| &ir.instructions[v.idx()])?;
 
         match &last.opcode {
             Opcode::Br(target) => Some((vec![*target], vec![EdgeKind::Unconditional])),

@@ -4,11 +4,8 @@ impl<'a> IRViewer<'a, Label> {
     pub fn get_name(&self) -> &str {
         self.ir.strings.get_name(self.ir.get(self.ptr).name())
     }
-    pub fn get_instructions(&self) -> Vec<Value> {
-        self.value()
-            .instruction_range()
-            .map(|v| Value::instruction(v as u32))
-            .collect()
+    pub fn get_instructions(&self) -> &[Value] {
+        &self.ir.impure_instructions[self.value().instruction_range()]
     }
 }
 

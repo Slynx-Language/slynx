@@ -16,6 +16,7 @@ struct LabelBuilder {
     ptr: IRPointer<Label, 1>,
     instruction_start: u32,
     instruction_count: u32,
+    block_param_base: u32,
 }
 
 // ── FunctionBuilder ────────────────────────────────────────────────────────
@@ -113,6 +114,7 @@ impl<'a> FunctionBuilder<'a> {
             ptr: label,
             instruction_start: 0,
             instruction_count: 0,
+            block_param_base: 0,
         });
         label
     }
@@ -126,7 +128,7 @@ impl<'a> FunctionBuilder<'a> {
     /// automatically emitted for each of the label's declared arguments.
     pub fn switch_to_block(&mut self, label: IRPointer<Label, 1>) -> Result<(), IRError> {
         // ── Seal existing block ──
-        let curr_inst_count = self.ir.instructions.len() as u32;
+        let curr_inst_count = self.ir.impure_instructions.len() as u32;
         if self.label_open {
             let prev = &mut self.labels[self.current_label_idx];
             prev.instruction_count = curr_inst_count - prev.instruction_start;
@@ -156,19 +158,16 @@ impl<'a> FunctionBuilder<'a> {
         // ── Open target label ──
         self.current_label_idx = idx;
         let lb = &mut self.labels[idx];
-        lb.instruction_start = self.ir.instructions.len() as u32;
+        lb.instruction_start = self.ir.impure_instructions.len() as u32;
+        lb.block_param_base = self.ir.instructions.len() as u32;
         self.label_open = true;
 
         // Emit BlockParam pseudo-instructions for the label's arguments.
         let arg_types: Vec<_> = self.ir.get(label).arguments().to_vec();
-        let start = lb.instruction_start;
         for (i, &arg_ty) in arg_types.iter().enumerate() {
             let inst = Instruction::block_param(i as u32, arg_ty);
             self.ir.instructions.push(inst);
         }
-        // Adjust instruction_start to include the BlockParam instructions.
-        // These are part of this label's instruction range.
-        lb.instruction_start = start;
 
         Ok(())
     }
@@ -178,12 +177,10 @@ impl<'a> FunctionBuilder<'a> {
         self.switch_to_block(label)
     }
 
-    // ── Core emission ────────────────────────────────────────────────
-
     /// Emit an instruction and return its resulting [`Value`].
     ///
     /// The returned `Value` numerically equals the instruction's index
-    /// in `SlynxIR.instructions`.
+    /// in `SlynxIR.instructions`. Appends a new value on the current label if its an impure instruction
     #[inline]
     pub fn emit(
         &mut self,
@@ -195,34 +192,26 @@ impl<'a> FunctionBuilder<'a> {
             self.label_open,
             "must switch to a block before emitting instructions"
         );
+        let is_impure = opcode.is_impure();
         let idx = self.ir.instructions.len() as u32;
         self.ir.instructions.push(Instruction {
             opcode,
             operands: operands.into(),
             value_type,
         });
-        // Maintain label instruction count
-        self.labels[self.current_label_idx].instruction_count += 1;
-        Value::instruction(idx)
+        let value = Value::instruction(idx);
+        if is_impure {
+            self.ir.impure_instructions.push(value);
+            self.labels[self.current_label_idx].instruction_count += 1;
+        }
+        value
     }
     pub fn emit_void(
         &mut self,
         opcode: Opcode,
         operands: impl Into<smallvec::SmallVec<[Value; 4]>>,
     ) -> Value {
-        debug_assert!(
-            self.label_open,
-            "must switch to a block before emitting instructions"
-        );
-        let idx = self.ir.instructions.len() as u32;
-        self.ir.instructions.push(Instruction {
-            opcode,
-            operands: operands.into(),
-            value_type: self.ir.void_type(),
-        });
-        // Maintain label instruction count
-        self.labels[self.current_label_idx].instruction_count += 1;
-        Value::instruction(idx)
+        self.emit(opcode, operands, self.ir.void_type())
     }
 
     /// Look up the result type of the instruction that produced `v`.
@@ -237,43 +226,32 @@ impl<'a> FunctionBuilder<'a> {
         ComponentValueBuilder::new(self, ty)
     }
 
-    // ── Convenience helpers ──────────────────────────────────────────
-
-    /// Emit a constant (`Const`) instruction.
     pub fn emit_const(&mut self, operand: Operand, ty: IRTypeId) -> Value {
         self.emit(Opcode::Const(operand), smallvec![], ty)
     }
 
-    /// Emit a BlockParam reference (used internally by `switch_to_block`).
     pub fn block_param(&self, label: IRPointer<Label, 1>, index: usize) -> Value {
-        // Find the label builder to get the instruction_start
         let lb = self
             .labels
             .iter()
             .find(|lb| lb.ptr == label)
             .expect("label not found");
-        Value::instruction(lb.instruction_start + index as u32)
+        Value::instruction(lb.block_param_base + index as u32)
     }
 
-    // ── Finalisation ─────────────────────────────────────────────────
-
-    /// Finalize the function: write label metadata and return the
-    /// function pointer.
     pub fn generate(mut self) -> IRPointer<Function, 1> {
-        // Seal the last block
         if self.label_open {
             let last = &mut self.labels[self.current_label_idx];
-            last.instruction_count = self.ir.instructions.len() as u32 - last.instruction_start;
+            last.instruction_count =
+                self.ir.impure_instructions.len() as u32 - last.instruction_start;
         }
 
-        // Persist label instruction ranges onto the SlynxIR labels.
         for lb in &self.labels {
             let label = self.ir.get_mut(lb.ptr);
             label.instruction_start = lb.instruction_start;
             label.instruction_count = lb.instruction_count;
         }
 
-        // Set the function's label pointer.
         if let Some(first) = self.labels.first() {
             self.ir
                 .get_mut(self.func_id)
@@ -282,8 +260,6 @@ impl<'a> FunctionBuilder<'a> {
         self.func_id
     }
 }
-
-// ── Binary / arithmetic convenience methods ────────────────────────────────
 
 macro_rules! impl_binop {
     ($($name:ident => $op:ident),+ $(,)?) => {
@@ -315,8 +291,6 @@ impl_binop! {
     shr => Shr,
     ashr => AShr,
 }
-
-// ── Manual helpers ────────────────────────────────────────────────────────
 
 impl FunctionBuilder<'_> {
     pub fn call(
