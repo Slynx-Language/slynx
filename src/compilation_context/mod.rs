@@ -1,5 +1,5 @@
 mod errors;
-mod module_loader;
+
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -8,7 +8,11 @@ use std::{
 
 use common::SymbolPointer;
 use slynx_codegen::{Codegen, CodegenError};
-use slynx_hir::{SlynxHir, VariableId, modules::DeclarationsModule};
+use slynx_hir::{
+    SlynxHir, VariableId,
+    module_loader::{FileModule, ModuleLoader},
+    modules::DeclarationsModule,
+};
 use slynx_ir::SlynxIR;
 use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;

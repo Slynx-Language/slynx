@@ -68,6 +68,7 @@
 //! - [`HIRErrorKind::MissingProperty`] — Missing required object fields
 
 #![warn(rustdoc::broken_intra_doc_links)]
+pub mod module_loader;
 
 mod components;
 mod declarations;
@@ -85,8 +86,10 @@ pub mod names;
 mod queries;
 mod statements;
 
+mod file;
+
 pub use crate::error::{HIRError, HIRErrorKind};
-use crate::modules::HirModules;
+use crate::{module_loader::FileId, modules::HirModules};
 use slynx_parser::{ASTDeclaration, ASTDeclarationKind};
 
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
@@ -159,7 +162,7 @@ pub struct SlynxHir {
     /// declarations, and managing nested scopes.
     pub modules: HirModules,
 
-    /// All top-level declarations generated from the source.
+    /// All top-level declarations generated from the sources.
     ///
     /// This vector contains every function, component, object, and type alias
     /// defined in the source code, in the order they were processed.
@@ -169,7 +172,7 @@ pub struct SlynxHir {
     /// - Its [`HirDeclarationKind`] describing what kind of declaration it is
     /// - The declaration's [`TypeId`]
     /// - The source [`Span`] for error reporting
-    pub declarations: Vec<HirDeclaration>,
+    pub files: Vec<HirModule>,
 }
 
 impl SlynxHir {
@@ -194,7 +197,7 @@ impl SlynxHir {
     pub fn new() -> Self {
         Self {
             modules: HirModules::new(),
-            declarations: Vec::new(),
+            files: Vec::new(),
         }
     }
 
@@ -282,15 +285,17 @@ impl SlynxHir {
     /// - [`hoist`](SlynxHir::hoist) — Phase 1: Declaration registration
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`modules::HirModules`] — Scope and symbol management during generation
-    pub fn generate(&mut self, ast: &[ASTDeclaration]) -> Result<()> {
-        // Phase 1: Hoist all declarations to register them in their scopes
-        for ast in ast {
-            self.hoist(ast)?;
+    pub fn generate(&mut self, modules: &[FileModule]) -> Result<()> {
+        for module in modules {
+            for ast in &module.declarations {
+                self.hoist(ast, module.id)?;
+            }
         }
 
-        // Phase 2: Resolve all declaration bodies to build complete HIR
-        for ast in ast {
-            self.resolve(ast)?;
+        for module in modules {
+            for ast in &module.declarations {
+                self.resolve(ast, module.id)?;
+            }
         }
 
         Ok(())
@@ -341,7 +346,8 @@ impl SlynxHir {
     /// - [`generate`](SlynxHir::generate) — Main entry point (calls this in phase 1)
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`implementation::declarations::hoist_function`](crate::hir::implementation::declarations::hoist_function)
-    fn hoist(&mut self, ast: &ASTDeclaration) -> Result<()> {
+    fn hoist(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
+        println!("{file:?}");
         match &ast.kind {
             ASTDeclarationKind::StyleSheet { name, args, .. } => {
                 self.hoist_stylesheet(&name.identifier, args)
@@ -359,6 +365,9 @@ impl SlynxHir {
             }
             ASTDeclarationKind::ComponentDeclaration { name, members, .. } => {
                 self.hoist_component(name, members)?
+            }
+            ASTDeclarationKind::Import(_) => {
+                //modules loader already solved so
             }
         }
         Ok(())
@@ -421,7 +430,7 @@ impl SlynxHir {
     /// - [`generate`](SlynxHir::generate) — Main entry point (calls this in phase 2)
     /// - [`hoist`](SlynxHir::hoist) — Phase 1: Declaration registration
     /// - [`implementation::declarations::resolve_function`](crate::hir::implementation::declarations::resolve_function)
-    fn resolve(&mut self, ast: &ASTDeclaration) -> Result<()> {
+    fn resolve(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
         match &ast.kind {
             ASTDeclarationKind::ObjectDeclaration { name, fields, .. } => {
                 self.resolve_object(name, fields, ast.span)
@@ -446,6 +455,7 @@ impl SlynxHir {
                 usages,
                 body,
             } => self.resolve_stylesheet(name, args, usages, body, ast.span),
+            ASTDeclarationKind::Import(_) => Ok(()), //module loader already handled so,
         }
     }
 }
