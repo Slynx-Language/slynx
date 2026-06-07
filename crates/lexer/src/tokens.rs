@@ -14,8 +14,6 @@ impl std::fmt::Display for TokenKind {
             Self::And => "&&".to_string(),
             Self::Or => "||".to_string(),
 
-            Self::If => "if".to_string(),
-            Self::Else => "else".to_string(),
             Self::Dot => ".".to_string(),
             Self::LParen => "(".to_string(),
             Self::RParen => ")".to_string(),
@@ -39,6 +37,9 @@ impl std::fmt::Display for TokenKind {
             Self::Arrow => "->".to_string(),
             Self::Comma => ",".to_string(),
             Self::Colon => ":".to_string(),
+
+            Self::If => "if".to_string(),
+            Self::Else => "else".to_string(),
             Self::StyleSheet => "stylesheet".to_string(),
             Self::Styles => "styles".to_string(),
             Self::Component => "component".to_string(),
@@ -51,12 +52,15 @@ impl std::fmt::Display for TokenKind {
             Self::Mut => "mut".to_string(),
             Self::True => "true".to_string(),
             Self::False => "false".to_string(),
+            Self::Import => "import".to_string(),
+
             Self::ShiftRight => "<<".to_string(),
             Self::ShiftLeft => ">>".to_string(),
             Self::Xor => "^".to_string(),
             Self::BitAnd => "&".to_string(),
             Self::BitOr => "|".to_string(),
             Self::BitNot => "~".to_string(),
+
             Self::Float(value) => value.to_string(),
             Self::Int(value) => value.to_string(),
             Self::String(value) => value.to_string(),
@@ -136,6 +140,8 @@ pub enum TokenKind {
 
     True,
     False,
+
+    Import,
 }
 
 impl std::fmt::Display for Token {
