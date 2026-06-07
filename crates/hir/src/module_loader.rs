@@ -5,9 +5,9 @@ use slynx_parser::{ASTDeclaration, ASTDeclarationKind, ASTPath, ParseError, Pars
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, PartialOrd, Ord, Eq)]
 ///An ID to represent a file
-pub struct FileId(u64);
+pub struct FileId(u32);
 impl FileId {
-    pub fn as_raw(&self) -> u64 {
+    pub fn as_raw(&self) -> u32 {
         self.0
     }
     fn next(&self) -> Self {

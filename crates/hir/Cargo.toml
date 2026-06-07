@@ -7,3 +7,4 @@ edition = "2024"
 color-eyre.workspace=true
 common = {path="../common"}
 slynx-parser = {path="../parser"}
+slynx-lexer = {path="../lexer"}

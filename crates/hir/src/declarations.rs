@@ -303,7 +303,7 @@ impl SlynxHir {
         span: Span,
     ) -> Result<()> {
         self.modules.enter_scope();
-        let symbol = self.modules.intern_name(&name.identifier);
+        let symbol = self.intern_name(&name.identifier);
         let Some((decl, ty)) = self.modules.get_declaration_by_name(&symbol) else {
             return Err(HIRError::name_unrecognized(symbol, span));
         };
@@ -333,11 +333,7 @@ impl SlynxHir {
         let intern_name = self.intern_name(&target.identifier);
         let target_ty = self.get_type_of_name(intern_name, &target.span)?;
 
-        let Some(alias_ty) = self
-            .modules
-            .types_module
-            .get_type_from_name_mut(&alias_name)
-        else {
+        let Some(alias_ty) = self.types_module.get_type_from_name_mut(&alias_name) else {
             return Err(HIRError::name_unrecognized(alias_name, name.span));
         };
         *alias_ty = HirType::new_ref(target_ty);

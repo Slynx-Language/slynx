@@ -89,7 +89,12 @@ mod statements;
 mod file;
 
 pub use crate::error::{HIRError, HIRErrorKind};
-use crate::{module_loader::FileId, modules::HirModules};
+use crate::{
+    file::HirFile,
+    module_loader::{FileId, SourceNode},
+    modules::{BUILTIN_NAMES, DeclarationsModule, HirModules, SymbolsResolver, TypesModule},
+};
+use common::SymbolsModule;
 use slynx_parser::{ASTDeclaration, ASTDeclarationKind};
 
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
@@ -155,6 +160,10 @@ pub type SymbolPointer = common::SymbolPointer<SlynxHir>;
 /// - [`modules::HirModules`] — Scopes and symbol management
 #[derive(Debug, Default)]
 pub struct SlynxHir {
+    /// Resolver for interning and looking up symbol names.
+    pub symbols_resolver: SymbolsResolver,
+    /// Module managing all types and their IDs.
+    pub types_module: TypesModule,
     /// Manages all modules, scopes, symbols, and type information.
     ///
     /// This is the primary interface for working with the HIR's namespace and
@@ -172,7 +181,7 @@ pub struct SlynxHir {
     /// - Its [`HirDeclarationKind`] describing what kind of declaration it is
     /// - The declaration's [`TypeId`]
     /// - The source [`Span`] for error reporting
-    pub files: Vec<HirModule>,
+    pub files: Vec<HirFile>,
 }
 
 impl SlynxHir {
@@ -195,7 +204,11 @@ impl SlynxHir {
     /// - [`modules::HirModules::new`](crate::hir::modules::HirModules::new)
     #[inline]
     pub fn new() -> Self {
+        let mut symbols = SymbolsModule::new();
+        let builtins = BUILTIN_NAMES.map(|v| symbols.intern(v));
         Self {
+            symbols_resolver: SymbolsResolver::new(symbols),
+            types_module: TypesModule::new(&builtins),
             modules: HirModules::new(),
             files: Vec::new(),
         }
@@ -285,7 +298,7 @@ impl SlynxHir {
     /// - [`hoist`](SlynxHir::hoist) — Phase 1: Declaration registration
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`modules::HirModules`] — Scope and symbol management during generation
-    pub fn generate(&mut self, modules: &[FileModule]) -> Result<()> {
+    pub fn generate(&mut self, modules: &[SourceNode]) -> Result<()> {
         for module in modules {
             for ast in &module.declarations {
                 self.hoist(ast, module.id)?;
@@ -353,8 +366,9 @@ impl SlynxHir {
                 self.hoist_stylesheet(&name.identifier, args)
             }
             ASTDeclarationKind::Alias { name, target } => {
-                self.modules
-                    .create_alias(&target.identifier, &name.identifier);
+                let alias_symbol = self.intern_name(&name.identifier);
+                self.intern_name(&target.identifier);
+                self.create_empty_alias(alias_symbol, file);
             }
             ASTDeclarationKind::ObjectDeclaration { name, fields } => {
                 self.modules.create_object(&name.identifier, fields)

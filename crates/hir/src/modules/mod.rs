@@ -1,7 +1,7 @@
 use crate::{
     DeclarationId, Result, SymbolPointer, TypeId, VariableId, error::HIRError, model::HirType,
 };
-use common::{Span, SymbolsModule};
+use common::Span;
 use slynx_parser::ObjectField;
 
 mod declarations;
@@ -16,12 +16,6 @@ pub use types::*;
 #[derive(Debug, Default)]
 /// A modules object to handle creation of symbols, declarations, types, scopes, etc.
 pub struct HirModules {
-    /// Module tracking all top-level declarations.
-    pub declarations_module: DeclarationsModule,
-    /// Resolver for interning and looking up symbol names.
-    pub symbols_resolver: SymbolsResolver,
-    /// Module managing all types and their IDs.
-    pub types_module: TypesModule,
     /// Module managing lexical scopes and variable bindings.
     pub scope_module: ScopeModule,
 }
@@ -36,12 +30,7 @@ pub struct DeclarationInfo {
 impl HirModules {
     /// Creates a new [`HirModules`] with built-in types pre-registered.
     pub fn new() -> Self {
-        let mut symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|v| symbols.intern(v));
         Self {
-            declarations_module: DeclarationsModule::new(),
-            symbols_resolver: SymbolsResolver::new(symbols),
-            types_module: TypesModule::new(&builtins),
             scope_module: ScopeModule::new(),
         }
     }
@@ -87,14 +76,6 @@ impl HirModules {
 
 //specific for declarations
 impl HirModules {
-    ///Creates an type alias with the given `name`. Its initial type is `infer`. Because of hoisting, and so, the type this refers to might be defined after it
-    pub fn create_alias(&mut self, target: &str, name: &str) {
-        self.symbols_resolver.intern(target);
-        let symbol = self.symbols_resolver.intern(name);
-        let ty = self.types_module.create_type(symbol, HirType::Infer);
-        self.declarations_module.create_declaration(symbol, ty);
-    }
-
     ///Creates a new declaration with the given `name` and `ty`. returns its symbol, type id, and declaration id.
     pub fn create_declaration(&mut self, name: &str, ty: HirType) -> DeclarationInfo {
         let symbol = self.symbols_resolver.intern(name);
