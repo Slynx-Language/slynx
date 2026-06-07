@@ -1,4 +1,5 @@
 mod errors;
+mod module_loader;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -245,7 +246,7 @@ impl SlynxContext {
     }
 
     ///Builds the Slynx HIR from the given `ast`. And type checks the HIR. The result hir is already typed. Also returns the types module to be used if needed to get information about the types on the Hir.
-    pub fn build_hir(&self, ast: &[ASTDeclaration]) -> Result<SlynxHir, SlynxError> {
+    pub fn build_hir(&self, ast: &[FileModule]) -> Result<SlynxHir, SlynxError> {
         let mut hir = SlynxHir::new();
         hir.generate(ast)
             .map_err(|e| self.handle_hir_error(&hir, &e))?;
@@ -274,9 +275,8 @@ impl SlynxContext {
     ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
     ///before materializing the default `.sir` output.
     pub fn build_stages(self) -> Result<CompilationStages, SlynxError> {
-        let stream = self.build_tokens()?;
-        let decls = self.build_parser(stream)?;
-        let hir = self.build_hir(&decls)?;
+        let modules = ModuleLoader::load((*self.entry_point).clone()).unwrap();
+        let hir = self.build_hir(&modules)?;
         let dump = format_hir_dump(&hir);
         let ir = self.build_ir(hir)?;
 
