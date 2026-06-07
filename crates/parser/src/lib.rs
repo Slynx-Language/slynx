@@ -2,6 +2,7 @@ mod ast;
 mod component;
 pub mod conditionals;
 pub mod error;
+mod import;
 pub use error::*;
 mod expr;
 mod functions;
@@ -87,6 +88,10 @@ impl Parser {
         let mut out = Vec::new();
         while let Ok(token) = self.peek() {
             match &token.kind {
+                TokenKind::Import => {
+                    let span = self.eat()?.span;
+                    out.push(self.parse_import(span)?);
+                }
                 TokenKind::Alias => {
                     let Token { span, .. } = self.eat()?;
                     out.push(self.parse_alias(span)?);

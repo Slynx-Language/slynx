@@ -85,7 +85,19 @@ impl Parser {
     }
 
     pub fn parse_styles_statement(&mut self) -> Result<StyleSheetStatement, ParseError> {
-        let styles_span = self.expect(&TokenKind::Styles)?.span;
+        let styles_span = {
+            let tk = self.expect_identifier()?;
+            let TokenKind::Identifier(ref s) = tk.kind else {
+                unreachable!();
+            };
+            if s != "styles" {
+                return Err(ParseError::UnexpectedToken(
+                    tk,
+                    "Expected 'styles'".to_string(),
+                ));
+            }
+            tk.span
+        };
         self.expect(&TokenKind::LBrace)?;
         let mut styles = Vec::new();
         let style_block = self.parse_style_block(StyleState::new_base())?;
@@ -99,7 +111,7 @@ impl Parser {
 
     pub fn parse_stylesheet_statement(&mut self) -> Result<StyleSheetStatement, ParseError> {
         match self.peek()?.kind {
-            TokenKind::Styles => self.parse_styles_statement(),
+            TokenKind::Identifier(ref s) if s == "styles" => self.parse_styles_statement(),
             _ => {
                 let out = self
                     .parse_statement()
