@@ -405,10 +405,6 @@ impl Lexer {
                             kind: TokenKind::StyleSheet,
                             span,
                         },
-                        "styles" => Token {
-                            kind: TokenKind::Styles,
-                            span,
-                        },
                         "import" => Token {
                             kind: TokenKind::Import,
                             span,

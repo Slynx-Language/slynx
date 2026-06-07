@@ -41,7 +41,7 @@ impl std::fmt::Display for TokenKind {
             Self::If => "if".to_string(),
             Self::Else => "else".to_string(),
             Self::StyleSheet => "stylesheet".to_string(),
-            Self::Styles => "styles".to_string(),
+
             Self::Component => "component".to_string(),
             Self::Func => "func".to_string(),
             Self::Pub => "pub".to_string(),
@@ -131,7 +131,6 @@ pub enum TokenKind {
     Prop,
     Alias,
     StyleSheet,
-    Styles,
 
     Object,
 
