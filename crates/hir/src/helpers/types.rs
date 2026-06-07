@@ -1,4 +1,4 @@
-use crate::{SlynxHir, SymbolPointer, TypeId, VariableId, model::HirType};
+use crate::{SlynxHir, SymbolPointer, TypeId, VariableId, model::HirType, module_loader::FileId};
 
 impl SlynxHir {
     /// Retrieves the id of the `infer` type.
@@ -48,8 +48,8 @@ impl SlynxHir {
     }
 
     /// Returns the field layout (as a slice of symbol pointers) for the object with the given [`TypeId`].
-    pub fn get_object_fields(&self, ty: TypeId) -> Option<&[SymbolPointer]> {
-        self.declarations_module.get_object_body(ty)
+    pub fn get_object_fields(&self, ty: TypeId, file: FileId) -> Option<&[SymbolPointer]> {
+        self.get_file(file).declarations.get_object_body(ty)
     }
 
     /// Returns the [`TypeId`] of the given variable, if it exists.

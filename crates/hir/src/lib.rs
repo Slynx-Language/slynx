@@ -164,13 +164,6 @@ pub struct SlynxHir {
     pub symbols_resolver: SymbolsResolver,
     /// Module managing all types and their IDs.
     pub types_module: TypesModule,
-    /// Manages all modules, scopes, symbols, and type information.
-    ///
-    /// This is the primary interface for working with the HIR's namespace and
-    /// type system. It provides methods for creating variables, looking up
-    /// declarations, and managing nested scopes.
-    pub modules: HirModules,
-
     /// All top-level declarations generated from the sources.
     ///
     /// This vector contains every function, component, object, and type alias
@@ -447,20 +440,20 @@ impl SlynxHir {
     fn resolve(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
         match &ast.kind {
             ASTDeclarationKind::ObjectDeclaration { name, fields, .. } => {
-                self.resolve_object(name, fields, ast.span)
+                self.resolve_object(file, name, fields, ast.span)
             }
             ASTDeclarationKind::FuncDeclaration {
                 name,
                 args,
                 body,
                 return_type,
-            } => self.resolve_function(name, args, return_type, body, &ast.span),
+            } => self.resolve_function(file, name, args, return_type, body, &ast.span),
             ASTDeclarationKind::ComponentDeclaration { members, name } => {
-                self.resolve_component_declaration(members, name, ast.span)
+                self.resolve_component_declaration(file, members, name, ast.span)
             }
 
             ASTDeclarationKind::Alias { name, target } => {
-                self.resolve_alias(name, target, ast.span)
+                self.resolve_alias(file, name, target, ast.span)
             }
 
             ASTDeclarationKind::StyleSheet {
@@ -468,7 +461,7 @@ impl SlynxHir {
                 args,
                 usages,
                 body,
-            } => self.resolve_stylesheet(name, args, usages, body, ast.span),
+            } => self.resolve_stylesheet(file, name, args, usages, body, ast.span),
             ASTDeclarationKind::Import(_) => Ok(()), //module loader already handled so,
         }
     }

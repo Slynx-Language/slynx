@@ -4,6 +4,7 @@ use crate::{
     ExpressionId, Result, SlynxHir, SymbolPointer, TypeId,
     error::{HIRError, HIRErrorKind},
     model::{FieldMethod, HirExpression, HirExpressionKind, HirStatementKind, HirType},
+    module_loader::FileId,
 };
 use common::{Operator, Span};
 use slynx_parser::{ASTExpression, ASTExpressionKind, ASTStatement, GenericIdentifier, NamedExpr};
@@ -289,6 +290,7 @@ impl SlynxHir {
 
     fn generate_field_access_expression(
         &mut self,
+        file: FileId,
         parent: &ASTExpression,
         field: &str,
         span: Span,
@@ -298,7 +300,7 @@ impl SlynxHir {
         let HirExpression { ref ty, .. } = parent;
         match self.get_type(ty) {
             HirType::Reference { rf, .. }
-                if let Some(decl) = self.get_object_fields(*rf)
+                if let Some(decl) = self.get_object_fields(*rf, file)
                     && let Some(index) = Self::find_name_index(decl, field_symbol) =>
             {
                 let ty = self.create_unnamed_type(HirType::type_field(*ty, index));
@@ -315,7 +317,7 @@ impl SlynxHir {
             HirType::Field(_) => {
                 let object_ref = self.resolve_object_reference_type(*ty, &span)?;
                 let field = self.modules.intern_name(field);
-                let Some(layout) = self.get_object_fields(object_ref) else {
+                let Some(layout) = self.get_object_fields(object_ref, file) else {
                     unreachable!("object reference should carry a layout");
                 };
                 match Self::find_name_index(layout, field) {
@@ -338,6 +340,7 @@ impl SlynxHir {
     /// Ty only serves to tell the type of the expression if it's needed to infer and check if it doesnt correspond
     pub(crate) fn generate_expression(
         &mut self,
+        file: FileId,
         expr: &ASTExpression,
         ty: Option<TypeId>,
     ) -> Result<HirExpression> {
@@ -390,7 +393,7 @@ impl SlynxHir {
                 self.generate_object_expression(ty, fields, expr.span)
             }
             ASTExpressionKind::FieldAccess { parent, field } => {
-                self.generate_field_access_expression(parent, field, expr.span)
+                self.generate_field_access_expression(file, parent, field, expr.span)
             }
         }
     }

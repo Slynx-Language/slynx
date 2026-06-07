@@ -11,7 +11,7 @@ pub struct DeclarationsModule {
     declaration_types: Vec<TypeId>,
     /// Maps each object [`TypeId`] to its ordered list of field symbol pointers.
     pub objects: HashMap<TypeId, Vec<SymbolPointer>>,
-    declarations: Vec<HirDeclaration>,
+    pub(crate) declarations: Vec<HirDeclaration>,
 }
 
 impl DeclarationsModule {

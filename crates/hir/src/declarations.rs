@@ -5,6 +5,7 @@ use crate::{
         ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirDeclarationKind,
         HirStatement, HirStyleUsage, HirType,
     },
+    module_loader::FileId,
 };
 use common::Span;
 use slynx_parser::{
@@ -26,6 +27,7 @@ impl SlynxHir {
     ///Resolves a `stylesheet` declaration
     pub(crate) fn resolve_stylesheet(
         &mut self,
+        file: FileId,
         name: &GenericIdentifier,
         args: &[TypedName],
         usages: &[ASTExpression],
@@ -65,9 +67,10 @@ impl SlynxHir {
             .map(|usage| self.resolve_style_usage(usage))
             .collect::<Result<Vec<_>>>()?;
 
-        self.declarations.push(HirDeclaration::new_stylesheet(
-            args, statements, usages, span, id, typeid,
-        ));
+        self.get_file_mut(file)
+            .create_declaration(HirDeclaration::new_stylesheet(
+                args, statements, usages, span, id, typeid,
+            ));
         self.modules.exit_scope();
         Ok(())
     }
@@ -97,6 +100,7 @@ impl SlynxHir {
     /// Resolves an object declaration, filling in its field types and pushing the declaration.
     pub(crate) fn resolve_object(
         &mut self,
+        file: FileId,
         name: &GenericIdentifier,
         fields: &[ObjectField],
         span: Span,
@@ -126,8 +130,8 @@ impl SlynxHir {
         };
 
         ty_field.append(&mut fields);
-        self.declarations
-            .push(HirDeclaration::new_object(decl, declty, span));
+        self.get_file_mut(file)
+            .create_declaration(HirDeclaration::new_object(decl, declty, span));
 
         Ok(())
     }
@@ -149,6 +153,7 @@ impl SlynxHir {
     /// Resolves a function declaration, type-checking its body and pushing the HIR declaration.
     pub(crate) fn resolve_function(
         &mut self,
+        file: FileId,
         name: &GenericIdentifier,
         args: &[TypedName],
         return_type: &GenericIdentifier,
@@ -204,9 +209,10 @@ impl SlynxHir {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        self.declarations.push(HirDeclaration::new_function(
-            statements, args, symbol, *span, decl, tyid,
-        ));
+        self.get_file_mut(file)
+            .create_declaration(HirDeclaration::new_function(
+                statements, args, symbol, *span, decl, tyid,
+            ));
         self.modules.exit_scope();
         Ok(())
     }
@@ -298,6 +304,7 @@ impl SlynxHir {
     ///Resolves a component declaration that contains the given `members` and the given `name`
     pub(crate) fn resolve_component_declaration(
         &mut self,
+        file: FileId,
         members: &[ComponentMember],
         name: &GenericIdentifier,
         span: Span,
@@ -309,7 +316,7 @@ impl SlynxHir {
         };
 
         let defs = self.resolve_component_defs(members)?;
-        self.declarations.push(HirDeclaration {
+        self.get_file_mut(file).create_declaration(HirDeclaration {
             id: decl,
             kind: HirDeclarationKind::ComponentDeclaration {
                 props: defs,
@@ -325,6 +332,7 @@ impl SlynxHir {
     ///Resolves an alias type, mapping the given `name` to the given `target`
     pub(crate) fn resolve_alias(
         &mut self,
+        file: FileId,
         name: &GenericIdentifier,
         target: &GenericIdentifier,
         span: Span,
@@ -340,8 +348,8 @@ impl SlynxHir {
         let Some((decl, ty)) = self.modules.get_declaration_by_name(&alias_name) else {
             return Err(HIRError::name_unrecognized(intern_name, name.span));
         };
-        self.declarations
-            .push(HirDeclaration::new_alias(decl, ty, span));
+        self.get_file_mut(file)
+            .create_declaration(HirDeclaration::new_alias(decl, ty, span));
         Ok(())
     }
 }
