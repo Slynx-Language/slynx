@@ -38,8 +38,9 @@ fn var_id_to_prop_index(hir: &SlynxHir, comp_ty: &TypeId, var_id: VariableId) ->
     let name = hir
         .symbols_resolver
         .variables()
-        .get(&var_id)
-        .copied()?;
+        .get(&var_id)?
+        .value()
+        .clone();
     if let HirType::Component { props } = hir.get_type(comp_ty) {
         props.iter().position(|p| p.name() == name)
     } else {

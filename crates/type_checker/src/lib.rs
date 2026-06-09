@@ -114,6 +114,7 @@ impl TypeChecker {
         let mut decl_types = HashMap::new();
         for file in &hir.files {
             for decl in file.declarations() {
+                let decl = decl.1;
                 decl_types.insert(decl.id, decl.ty);
             }
         }
@@ -126,13 +127,23 @@ impl TypeChecker {
 
         // Phase 1: resolve infer types
         for file in &mut hir.files {
-            for decl in &mut file.declarations.declarations {
+            for idx in 0..file.declarations().count() {
+                let decl = file
+                    .declarations
+                    .declarations
+                    .get_mut(idx)
+                    .expect("Declaration should've been initialized");
                 inner.check_decl(decl)?;
             }
         }
         // Phase 2: set defaults for remaining infer types
         for file in &mut hir.files {
-            for decl in &mut file.declarations.declarations {
+            for idx in 0..file.declarations().count() {
+                let decl = file
+                    .declarations
+                    .declarations
+                    .get_mut(idx)
+                    .expect("Declaration should've been initialized");
                 inner.set_default(decl)?;
             }
         }

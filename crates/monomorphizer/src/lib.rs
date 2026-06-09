@@ -15,6 +15,7 @@ impl Monomorphizer {
         };
         for file in &hir.files {
             for decl in file.declarations() {
+                let decl = decl.1;
                 this.resolve_reference(hir, decl.ty, decl.span)?;
             }
         }

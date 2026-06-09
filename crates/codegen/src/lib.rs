@@ -82,6 +82,7 @@ impl Codegen {
     fn hoist_declarations(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) {
         for file in &hir.files {
             for declaration in file.declarations() {
+                let declaration = declaration.1;
                 match &declaration.kind {
                     HirDeclarationKind::Object => {
                         let name = hir.get_declaration_name(declaration.id);
@@ -134,6 +135,7 @@ impl Codegen {
     fn stylesheet_pre_pass(&mut self, hir: &SlynxHir, _ir: &mut SlynxIR) {
         for file in &hir.files {
             for declaration in file.declarations() {
+                let declaration = declaration.1;
                 if let HirDeclarationKind::StyleSheet {
                     ref usages,
                     ref statements,
@@ -158,6 +160,7 @@ impl Codegen {
     ) -> Result<(), CodegenError> {
         for file in &hir.files {
             for declaration in file.declarations() {
+                let declaration = declaration.1;
                 match &declaration.kind {
                     HirDeclarationKind::Object => {
                         self.insert_object_fields_for(declaration.ty, hir, ir)?;
@@ -173,14 +176,14 @@ impl Codegen {
                         self.initialize_function(
                             *function_ptr,
                             declaration.ty,
-                            statements,
-                            args,
+                            &statements,
+                            &args,
                             hir,
                             ir,
                         )?;
                     }
                     HirDeclarationKind::ComponentDeclaration { props, .. } => {
-                        self.initialize_component(declaration, props, hir, ir)?;
+                        self.initialize_component(declaration, &props, hir, ir)?;
                     }
                     HirDeclarationKind::Alias => {}
                     HirDeclarationKind::StyleSheet { .. } => {}
@@ -196,9 +199,10 @@ impl Codegen {
             let mut decls = Vec::new();
             let mut idx = HashMap::new();
             for file in &hir.files {
-                for d in file.declarations() {
-                    idx.insert(d.id, decls.len());
-                    decls.push(d);
+                for decl in file.declarations() {
+                    let declaration = decl.1;
+                    idx.insert(declaration.id, decls.len());
+                    decls.push(declaration);
                 }
             }
             (decls, idx)
