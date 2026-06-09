@@ -86,12 +86,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "autocfg"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
-
-[[package]]
 name = "backtrace"
 version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -202,7 +196,6 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "lasso",
- "rart",
 ]
 
 [[package]]
@@ -365,15 +358,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-traits"
-version = "0.2.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
-dependencies = [
- "autocfg",
-]
-
-[[package]]
 name = "object"
 version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -399,6 +383,16 @@ name = "owo-colors"
 version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
+
+[[package]]
+name = "parking_lot"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
+dependencies = [
+ "lock_api",
+ "parking_lot_core",
+]
 
 [[package]]
 name = "parking_lot_core"
@@ -453,16 +447,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
 dependencies = [
  "proc-macro2",
-]
-
-[[package]]
-name = "rart"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc146e0ff42e2e9e600003d63f43c17d98615762b295c3eb23aa559cad4f4ac7"
-dependencies = [
- "num-traits",
- "simdeez",
 ]
 
 [[package]]
@@ -525,22 +509,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "simdeez"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e08cb8b1603106d47fbd32f34f5e4f332bb07c02c7b2c6ebad893e6f6ba53f9e"
-dependencies = [
- "cfg-if",
- "paste",
-]
-
-[[package]]
 name = "slynx"
 version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
  "common",
+ "dashmap",
  "slynx-codegen",
  "slynx-hir",
  "slynx-ir",
@@ -569,6 +544,7 @@ dependencies = [
  "color-eyre",
  "common",
  "dashmap",
+ "parking_lot",
  "slynx-lexer",
  "slynx-parser",
 ]
