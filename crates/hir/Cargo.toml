@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 color-eyre.workspace=true
 boxcar.workspace=true
+dashmap.workspace=true
 common = {path="../common"}
 slynx-parser = {path="../parser"}
 slynx-lexer = {path="../lexer"}

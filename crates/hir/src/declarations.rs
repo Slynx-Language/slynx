@@ -75,7 +75,7 @@ impl SlynxHir {
             })
             .collect::<Result<(Vec<_>, Vec<_>)>>()?;
         {
-            let HirType::Style { args } = self.get_type_mut(&typeid) else {
+            let HirType::Style { args } = self.get_type_mut(typeid) else {
                 unreachable!("Type of stylesheet should be style");
             };
             for (index, argty) in argsty.iter().enumerate() {
@@ -154,7 +154,7 @@ impl SlynxHir {
             unreachable!("Type of custom object should be a reference to its real type");
         };
         let rf = *rf;
-        let HirType::Struct { fields: ty_field } = self.get_type_mut(&rf) else {
+        let HirType::Struct { fields: ty_field } = self.get_type_mut(rf) else {
             unreachable!("Type of object should be a Struct ty");
         };
 
@@ -213,7 +213,7 @@ impl SlynxHir {
             let HirType::Function {
                 args,
                 return_type: ret,
-            } = self.get_type_mut(&tyid)
+            } = self.get_type_mut(tyid)
             else {
                 unreachable!("Type of function should be function");
             };

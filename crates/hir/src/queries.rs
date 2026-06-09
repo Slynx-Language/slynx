@@ -20,7 +20,7 @@ impl SlynxHir {
         self.types_module.get_type(ty)
     }
     ///Gets the HIR type of the given `ty`
-    pub fn get_type_mut(&mut self, ty: &TypeId) -> &mut HirType {
+    pub fn get_type_mut(&mut self, ty: TypeId) -> &mut HirType {
         self.types_module.get_type_mut(ty)
     }
 
@@ -34,7 +34,7 @@ impl SlynxHir {
             .types_module
             .get_type_name(&ty)
             .expect("Declaration should contain a name");
-        self.get_name(*ptr)
+        self.get_name(ptr)
     }
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
     pub fn get_type_from_ref(&self, ref_ty: TypeId, span: &Span) -> Result<&HirType> {
@@ -57,13 +57,12 @@ impl SlynxHir {
             _ => self
                 .types_module
                 .get_id(&name)
-                .cloned()
                 .ok_or(HIRError::type_unrecognized(name, *span)),
         }
     }
 
     pub fn get_name_of_type(&self, ty: TypeId) -> Option<SymbolPointer> {
-        self.types_module.get_type_name(&ty).cloned()
+        self.types_module.get_type_name(&ty)
     }
 
     pub fn get_file(&self, id: FileId) -> &HirFile {

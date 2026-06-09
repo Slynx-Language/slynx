@@ -103,7 +103,7 @@ impl SlynxHir {
                     .get_variable_type(variable_id)
                     .expect("variable type should exist before tuple access lowering");
 
-                self.resolve_tuple_access_type(file, *variable_ty, index, span)
+                self.resolve_tuple_access_type(file, variable_ty, index, span)
             }
             HirType::Field(field_method) => {
                 let field_ty = self.resolve_field_method_type(file, &field_method, span)?;
@@ -135,7 +135,7 @@ impl SlynxHir {
                 Ok(fields[*index])
             }
             FieldMethod::Variable(variable_id, field_name) => {
-                let variable_ty = *self
+                let variable_ty = self
                     .get_variable_type(*variable_id)
                     .expect("variable type should exist before field access lowering");
                 let object_ref = self.resolve_object_reference_type(file, variable_ty, span)?;
@@ -148,7 +148,7 @@ impl SlynxHir {
                     (_, _) => unreachable!("object layouts should always resolve to structs"),
                 };
 
-                match Self::find_name_index(layout, *field_name) {
+                match Self::find_name_index(&layout, *field_name) {
                     Some(index) => Ok(fields[index]),
                     None => Err(HIRError::property_unrecognized(vec![*field_name], *span)),
                 }
@@ -171,7 +171,7 @@ impl SlynxHir {
         let current_ty = self.get_type(&ty).clone();
         match current_ty {
             HirType::VarReference(variable_id) => {
-                let variable_ty = *self
+                let variable_ty = self
                     .get_variable_type(variable_id)
                     .expect("variable type should exist before field access lowering");
                 self.resolve_object_reference_type(file, variable_ty, span)
@@ -326,7 +326,7 @@ impl SlynxHir {
         match self.get_type(ty) {
             HirType::Reference { rf, .. }
                 if let Some(decl) = self.get_object_fields(*rf, file)
-                    && let Some(index) = Self::find_name_index(decl, field_symbol) =>
+                    && let Some(index) = Self::find_name_index(&decl, field_symbol) =>
             {
                 let ty = self.create_unnamed_type(HirType::type_field(*ty, index));
                 Ok(self.create_field_access_expression(parent, index, ty, span))
@@ -345,7 +345,7 @@ impl SlynxHir {
                 let Some(layout) = self.get_object_fields(object_ref, file) else {
                     unreachable!("object reference should carry a layout");
                 };
-                match Self::find_name_index(layout, field) {
+                match Self::find_name_index(&layout, field) {
                     Some(index) => {
                         let field_ty =
                             self.create_unnamed_type(HirType::type_field(object_ref, index));

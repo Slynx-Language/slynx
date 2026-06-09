@@ -1,7 +1,8 @@
 use common::Span;
+use dashmap::DashMap;
 
 use crate::{HIRError, Result, SymbolPointer, TypeId, VariableId, model::HirType};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 const INT_IDX: usize = 0;
 const FLOAT_IDX: usize = 1;
@@ -77,23 +78,23 @@ impl BuiltinTypes {
 #[derive(Debug, Default)]
 pub struct TypesContext {
     ///A hashmap that maps a name of a global name to its type. This is not for variables, but only for global types, such as structs, functions and components
-    type_names: HashMap<SymbolPointer, TypeId>,
+    type_names: DashMap<SymbolPointer, TypeId>,
     ///Maps the type ids to its their name forms
-    name_of_types: HashMap<TypeId, SymbolPointer>,
+    name_of_types: DashMap<TypeId, SymbolPointer>,
     ///Maps a variable to it's type
-    pub variables: HashMap<VariableId, TypeId>,
+    pub variables: DashMap<VariableId, TypeId>,
     /// Maps each object [`TypeId`] to its ordered list of field symbol pointers.
-    pub objects: HashMap<TypeId, Vec<SymbolPointer>>,
+    pub objects: DashMap<TypeId, Vec<SymbolPointer>>,
 
-    types: Vec<HirType>,
+    types: boxcar::Vec<HirType>,
     builtins: BuiltinTypes,
 }
 impl TypesContext {
     /// Creates a new [`TypesContext`] with built-in types pre-registered under the given symbol names.
     pub fn new(builtin_names: &[SymbolPointer; BUILTIN_TYPES_SIZE]) -> Self {
-        let mut types = Vec::with_capacity(BUILTIN_TYPES_SIZE);
-        let mut type_names = HashMap::new();
-        let mut name_of_types = HashMap::new();
+        let types = boxcar::Vec::with_capacity(BUILTIN_TYPES_SIZE);
+        let type_names = DashMap::new();
+        let name_of_types = DashMap::new();
         for ty in BUILTIN_TYPES.iter() {
             types.push(ty.clone());
         }
@@ -105,15 +106,15 @@ impl TypesContext {
         Self {
             type_names,
             name_of_types,
-            variables: HashMap::new(),
-            objects: HashMap::new(),
+            variables: DashMap::new(),
+            objects: DashMap::new(),
             types,
             builtins: BuiltinTypes::new(),
         }
     }
 
     /// Creates a new tuple type with the given field types and returns its [`TypeId`].
-    pub fn create_tuple_type(&mut self, fields: Vec<TypeId>) -> TypeId {
+    pub fn create_tuple_type(&self, fields: Vec<TypeId>) -> TypeId {
         self.create_unnamed_type(HirType::Tuple { fields })
     }
     /// Returns the [`TypeId`] of the built-in `int` type.
@@ -145,13 +146,13 @@ impl TypesContext {
         self.builtins.bool
     }
     ///Inserts a new variable on this Context
-    pub fn insert_variable(&mut self, varid: VariableId, ty: TypeId) {
+    pub fn insert_variable(&self, varid: VariableId, ty: TypeId) {
         self.variables.insert(varid, ty);
     }
 
     ///Inserts the provided `ty` to have the provided `name`
-    pub fn create_type(&mut self, name: SymbolPointer, ty: HirType) -> TypeId {
-        let raw = self.types.len() as u64;
+    pub fn create_type(&self, name: SymbolPointer, ty: HirType) -> TypeId {
+        let raw = self.types.count() as u64;
         let v = TypeId::from_raw(raw);
         self.type_names.insert(name, v);
         self.name_of_types.insert(v, name);
@@ -178,15 +179,15 @@ impl TypesContext {
     }
 
     ///Simply inserts the provided `ty` inside this Context. Doesn't map it to anything
-    pub fn create_unnamed_type(&mut self, ty: HirType) -> TypeId {
-        let id = TypeId::from_raw(self.types.len() as u64);
+    pub fn create_unnamed_type(&self, ty: HirType) -> TypeId {
+        let id = TypeId::from_raw(self.types.count() as u64);
         self.types.push(ty);
         id
     }
 
     ///Retrieves the TypeId of the provided `name` on the currentContext
-    pub fn get_id(&self, name: &SymbolPointer) -> Option<&TypeId> {
-        self.type_names.get(name)
+    pub fn get_id(&self, name: &SymbolPointer) -> Option<TypeId> {
+        self.type_names.get(name).map(|ty| *ty.value())
     }
     /// Returns the [`HirType`] for the given [`TypeId`].
     ///
@@ -197,16 +198,18 @@ impl TypesContext {
         &self.types[id.as_raw() as usize]
     }
     /// Returns the name symbol associated with the given [`TypeId`], if any.
-    pub fn get_type_name(&self, id: &TypeId) -> Option<&SymbolPointer> {
-        self.name_of_types.get(id)
+    pub fn get_type_name(&self, id: &TypeId) -> Option<SymbolPointer> {
+        self.name_of_types.get(id).map(|s| *s.value())
     }
     /// Returns the [`TypeId`] of the given variable, if it has been registered.
-    pub fn get_variable(&self, id: &VariableId) -> Option<&TypeId> {
-        self.variables.get(id)
+    pub fn get_variable(&self, id: &VariableId) -> Option<TypeId> {
+        self.variables.get(id).map(|v| *v.value())
     }
     /// Returns the [`HirType`] associated with the given name symbol, if it exists.
     pub fn get_type_from_name(&self, name: &SymbolPointer) -> Option<&HirType> {
-        self.type_names.get(name).map(|id| self.get_type(id))
+        self.type_names
+            .get(name)
+            .map(|id| self.get_type(id.value()))
     }
 
     /// Returns a mutable reference to the [`HirType`] for the given [`TypeId`].
@@ -214,18 +217,25 @@ impl TypesContext {
     /// # Panics
     ///
     /// Panics if `id` does not correspond to a registered type.
-    pub fn get_type_mut(&mut self, id: &TypeId) -> &mut HirType {
-        &mut self.types[id.as_raw() as usize]
+    pub fn get_type_mut(&mut self, id: TypeId) -> &mut HirType {
+        self.types
+            .get_mut(id.as_raw() as usize)
+            .expect("Get type mut should've returned. Bug found on multithreading shit")
     }
     /// Returns a mutable reference to the [`HirType`] associated with the given name symbol, if it exists.
     pub fn get_type_from_name_mut(&mut self, name: &SymbolPointer) -> Option<&mut HirType> {
-        self.type_names
-            .get(name)
-            .map(|id| &mut self.types[id.as_raw() as usize])
+        let Some(id) = self.type_names.get(name).map(|v| v.clone()) else {
+            return None;
+        };
+        let ty = self.get_type_mut(id);
+        Some(ty)
     }
     ///Retrieves the body of the object with provided `id`
-    pub fn get_object_body(&self, id: &TypeId) -> Option<&[SymbolPointer]> {
-        self.objects.get(id).map(|v| &**v)
+    pub fn get_object_body(&self, id: &TypeId) -> Option<Vec<SymbolPointer>> {
+        let Some(body) = self.objects.get(id) else {
+            return None;
+        };
+        Some(body.value().clone())
     }
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
     pub fn get_type_from_ref(&self, mut ref_ty: TypeId, span: &Span) -> Result<TypeId> {
@@ -235,7 +245,7 @@ impl TypesContext {
                 let name = self
                     .get_type_name(&ref_ty)
                     .expect("Type should contain a name");
-                return Err(HIRError::recursive(*name, *span));
+                return Err(HIRError::recursive(name, *span));
             }
             ref_ty = *rf;
         }
