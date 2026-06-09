@@ -11,7 +11,7 @@ impl SlynxHir {
         span: &Span,
     ) -> Result<VariableId> {
         if let Some(variable) = self.get_file(fileid).scopes.get_name(&symbol) {
-            Ok(variable.clone())
+            Ok(variable)
         } else {
             Err(HIRError::name_unrecognized(symbol, *span))
         }

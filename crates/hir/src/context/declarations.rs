@@ -3,7 +3,7 @@ use crate::{
 };
 use common::VisibilityModifier;
 use dashmap::DashMap;
-use std::{collections::HashMap, sync::atomic::AtomicU32};
+use std::sync::atomic::AtomicU32;
 
 /// A top level Context that keeps track of all the declarations on the Hir.
 /// Since declarations are avaible only on the top level this is being implemented by thinking in so
@@ -70,7 +70,7 @@ impl DeclarationsContext {
 
     /// Returns the visibility of the declaration with the given id.
     pub fn get_visibility(&self, id: LocalDeclId) -> VisibilityModifier {
-        self.visibilities[id.as_raw() as usize]
+        self.visibilities[id.as_raw()]
     }
 
     ///Returns the informations of a declaration with the provided `symbol`. The informations are its ID and its type. Returns none if it doesn't exist
@@ -80,7 +80,7 @@ impl DeclarationsContext {
     ) -> Option<(LocalDeclId, TypeId)> {
         if let Some(symbol) = self.decls.iter().find(|v| v.value() == symbol) {
             let key = *symbol.key();
-            Some((key, self.declaration_types[key.as_raw() as usize]))
+            Some((key, self.declaration_types[key.as_raw()]))
         } else {
             None
         }
@@ -92,7 +92,7 @@ impl DeclarationsContext {
     ///
     /// Panics if `id` does not correspond to a registered declaration.
     pub fn get_declaration_type(&self, id: LocalDeclId) -> TypeId {
-        self.declaration_types[id.as_raw() as usize]
+        self.declaration_types[id.as_raw()]
     }
 
     /// Registers an import alias so that the `alias` name resolves to the original
@@ -115,8 +115,6 @@ impl DeclarationsContext {
 
     /// If `name` is an import alias, returns the original declaration data.
     pub fn get_import_alias(&self, name: &SymbolPointer) -> Option<(DeclarationId, TypeId)> {
-        self.import_aliases
-            .get(name)
-            .map(|value| value.value().clone())
+        self.import_aliases.get(name).map(|value| *value.value())
     }
 }

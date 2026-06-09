@@ -19,7 +19,7 @@ impl TypeChecker {
     /// If the type is not a struct, a `TypeError` is returned.
     pub fn get_struct_from_ref(&self, ty: &TypeId, span: &Span) -> Result<TypeId> {
         match &*self.types_module.get_type(ty) {
-            HirType::Reference { rf, .. } => self.get_struct_from_ref(&rf, span),
+            HirType::Reference { rf, .. } => self.get_struct_from_ref(rf, span),
             HirType::Struct { .. } => Ok(*ty),
             v => Err(TypeError {
                 kind: TypeErrorKind::NotAStruct(v.clone()),

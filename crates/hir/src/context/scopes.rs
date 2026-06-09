@@ -37,7 +37,7 @@ impl HIRScope {
 
     ///Retrieves the id of the provided `name` on the scope
     pub fn get_name(&self, name: &SymbolPointer) -> Option<VariableId> {
-        self.names.get(name).map(|name| name.value().clone())
+        self.names.get(name).map(|name| *name.value())
     }
 }
 

@@ -35,12 +35,7 @@ fn collect_var_ids_from_expr(expr: &HirExpression, out: &mut Vec<VariableId>) {
 /// Looks up the variable name from the HIR symbols resolver,
 /// then finds the property with that name in the component's props list.
 fn var_id_to_prop_index(hir: &SlynxHir, comp_ty: &TypeId, var_id: VariableId) -> Option<usize> {
-    let name = hir
-        .symbols_resolver
-        .variables()
-        .get(&var_id)?
-        .value()
-        .clone();
+    let name = *hir.symbols_resolver.variables().get(&var_id)?.value();
     if let HirType::Component { props } = &*hir.get_type(comp_ty) {
         props.iter().position(|p| p.name() == name)
     } else {

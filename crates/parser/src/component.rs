@@ -188,7 +188,8 @@ impl Parser {
         }
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
         span.end = end.end;
-        Ok(ASTDeclaration { visibility: Default::default(),
+        Ok(ASTDeclaration {
+            visibility: Default::default(),
             kind: ASTDeclarationKind::ComponentDeclaration {
                 name: ty,
                 members: defs,

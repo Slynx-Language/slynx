@@ -165,7 +165,7 @@ impl TypesContext {
     }
 
     ///Returns the inner object from the provided `ty`, returns None if the type is not a object
-    pub fn get_object(&self, ty: &TypeId) -> Option<TypeReader> {
+    pub fn get_object(&self, ty: &TypeId) -> Option<TypeReader<'_>> {
         let mut visited = HashSet::new();
         let mut current = *ty;
         loop {
@@ -182,7 +182,7 @@ impl TypesContext {
     }
 
     ///Returns the inner component from the provided `ty`, returns None if the type is not a object
-    pub fn get_component(&self, ty: &TypeId) -> Option<TypeReader> {
+    pub fn get_component(&self, ty: &TypeId) -> Option<TypeReader<'_>> {
         let mut visited = HashSet::new();
         let mut current = *ty;
         loop {
@@ -214,7 +214,7 @@ impl TypesContext {
     /// # Panics
     ///
     /// Panics if `id` does not correspond to a registered type.
-    pub fn get_type(&self, id: &TypeId) -> TypeReader {
+    pub fn get_type(&self, id: &TypeId) -> TypeReader<'_> {
         self.types[id.as_raw() as usize].read()
     }
     /// Returns the name symbol associated with the given [`TypeId`], if any.
@@ -226,7 +226,7 @@ impl TypesContext {
         self.variables.get(id).map(|v| *v.value())
     }
     /// Returns the [`HirType`] associated with the given name symbol, if it exists.
-    pub fn get_type_from_name(&self, name: &SymbolPointer) -> Option<TypeReader> {
+    pub fn get_type_from_name(&self, name: &SymbolPointer) -> Option<TypeReader<'_>> {
         self.type_names
             .get(name)
             .map(|id| self.get_type(id.value()))
@@ -248,17 +248,13 @@ impl TypesContext {
         &self,
         name: &SymbolPointer,
     ) -> Option<RwLockWriteGuard<'_, RawRwLock, HirType>> {
-        let Some(id) = self.type_names.get(name).map(|v| v.clone()) else {
-            return None;
-        };
+        let id = self.type_names.get(name).map(|v| *v)?;
         let ty = self.get_type_mut(id);
         Some(ty)
     }
     ///Retrieves the body of the object with provided `id`
     pub fn get_object_body(&self, id: &TypeId) -> Option<Vec<SymbolPointer>> {
-        let Some(body) = self.objects.get(id) else {
-            return None;
-        };
+        let body = self.objects.get(id)?;
         Some(body.value().clone())
     }
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it

@@ -6,7 +6,10 @@ use std::{
 use std::fmt::Write;
 
 use slynx_codegen::CodegenError;
-use slynx_hir::{HIRError, HIRErrorKind, SlynxHir};
+use slynx_hir::{
+    HIRError, HIRErrorKind, SlynxHir,
+    module_loader::{SourceError, SourceErrorKind},
+};
 
 use slynx_lexer::error::LexerError;
 use slynx_parser::error::ParseError;
@@ -180,6 +183,15 @@ pub fn suggestions_from_ir(err: &CodegenError) -> Vec<SlynxSuggestion> {
             vec![SlynxSuggestion::DeclarationNotRecognized(buf)]
         }
         _ => vec![],
+    }
+}
+
+/// this function converts a [`SourceError`] into a [`Vec<SlynxSuggestion>`]
+pub fn suggestions_from_source(err: &SourceError) -> Vec<SlynxSuggestion> {
+    match err.kind() {
+        SourceErrorKind::Lexing(lex_err) => suggestions_from_lexer(lex_err),
+        SourceErrorKind::Parsing(parse_err) => suggestions_from_parser(parse_err),
+        SourceErrorKind::InexsitantSource(_, _, _) => vec![],
     }
 }
 

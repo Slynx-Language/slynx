@@ -162,6 +162,19 @@ impl SlynxContext {
         Ok(())
     }
 
+    ///Registers a file that was already loaded by the source loader.
+    ///Computes line metadata from the provided source without re-reading from disk.
+    pub fn register_loaded_file(&mut self, path: Arc<PathBuf>, source: String) {
+        let lines = source
+            .chars()
+            .enumerate()
+            .filter_map(|(idx, c)| if c == '\n' { Some(idx) } else { None })
+            .collect::<Vec<_>>();
+
+        self.files.insert(path.clone(), source);
+        self.lines.insert(path, lines);
+    }
+
     fn char_index_to_byte_offset(source: &str, char_index: usize) -> usize {
         if char_index == 0 {
             return 0;
@@ -276,8 +289,18 @@ impl SlynxContext {
 
     ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
     ///before materializing the default `.sir` output.
-    pub fn build_stages(self) -> Result<CompilationStages, SlynxError> {
-        let modules = SourceLoader::load((*self.entry_point).clone()).unwrap();
+    pub fn build_stages(mut self) -> Result<CompilationStages, SlynxError> {
+        let entry = (*self.entry_point).clone();
+        let modules = {
+            let mut on_load = |path: &Path, source: &str| {
+                self.register_loaded_file(Arc::new(path.to_path_buf()), source.to_string());
+            };
+            SourceLoader::load(entry, &mut on_load)
+        };
+        let modules = match modules {
+            Ok(modules) => modules,
+            Err(e) => return Err(self.handle_source_error(&e)),
+        };
         let hir = self.build_hir(&modules)?;
         let dump = format_hir_dump(&hir);
         let ir = self.build_ir(hir)?;

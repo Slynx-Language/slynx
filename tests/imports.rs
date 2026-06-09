@@ -40,5 +40,8 @@ fn import_using_name_not_in_specified_module_errors() {
     let result = slynx::compile_to_ir(PathBuf::from(
         "examples/imports/test_wrong_module_import.slx",
     ));
-    assert!(result.is_err(), "should error: BgGreen is not exported by styles.slx");
+    assert!(
+        result.is_err(),
+        "should error: BgGreen is not exported by styles.slx"
+    );
 }

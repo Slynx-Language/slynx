@@ -17,7 +17,7 @@ pub fn format_ir_generation_error(
         CodegenError::UnrecognizedVariable(id) => {
             if let Some(name) = variable_names
                 .get(id)
-                .map(|v| v.value().clone())
+                .map(|v| *v.value())
                 .map(|symbol| hir.get_name(symbol))
             {
                 format!("IR internal error: variable '{name}' is not recognized by the IR")

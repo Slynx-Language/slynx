@@ -455,7 +455,7 @@ impl TypeChecker {
                 }
             }
             HirType::Component { props } => props.iter().any(|prop| {
-                self.is_recursive_type(ty_ref, &*self.types_module.get_type(prop.prop_type()))
+                self.is_recursive_type(ty_ref, &self.types_module.get_type(prop.prop_type()))
             }),
             _ => false,
         }

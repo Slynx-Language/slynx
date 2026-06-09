@@ -179,14 +179,14 @@ impl Codegen {
                         self.initialize_function(
                             *function_ptr,
                             declaration.ty,
-                            &statements,
-                            &args,
+                            statements,
+                            args,
                             hir,
                             ir,
                         )?;
                     }
                     HirDeclarationKind::ComponentDeclaration { props, .. } => {
-                        self.initialize_component(declaration, &props, hir, ir)?;
+                        self.initialize_component(declaration, props, hir, ir)?;
                     }
                     HirDeclarationKind::Alias => {}
                     HirDeclarationKind::StyleSheet { .. } => {}

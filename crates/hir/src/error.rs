@@ -234,9 +234,18 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::AmbiguousDeclaration`] error.
-    pub fn ambiguous_declaration(name: SymbolPointer, first: FileId, second: FileId, span: Span) -> Self {
+    pub fn ambiguous_declaration(
+        name: SymbolPointer,
+        first: FileId,
+        second: FileId,
+        span: Span,
+    ) -> Self {
         Self {
-            kind: HIRErrorKind::AmbiguousDeclaration { name, first, second },
+            kind: HIRErrorKind::AmbiguousDeclaration {
+                name,
+                first,
+                second,
+            },
             span,
         }
     }
@@ -279,8 +288,16 @@ impl std::fmt::Display for HIRError {
             HIRErrorKind::InvalidStyleDefinition { .. } => {
                 write!(f, "Invalid style definition name")
             }
-            HIRErrorKind::AmbiguousDeclaration { name: _, first, second } => {
-                write!(f, "Ambiguous declaration found in files {:?} and {:?}", first, second)
+            HIRErrorKind::AmbiguousDeclaration {
+                name: _,
+                first,
+                second,
+            } => {
+                write!(
+                    f,
+                    "Ambiguous declaration found in files {:?} and {:?}",
+                    first, second
+                )
             }
         }
     }

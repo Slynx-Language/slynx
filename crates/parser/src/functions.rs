@@ -55,7 +55,8 @@ impl Parser {
             TokenKind::Arrow => {
                 let expr = self.parse_expression()?;
                 let end = self.expect(&TokenKind::SemiColon)?.span.end;
-                Ok(ASTDeclaration { visibility: Default::default(),
+                Ok(ASTDeclaration {
+                    visibility: Default::default(),
                     span: Span {
                         start: span.start,
                         end,
@@ -83,7 +84,8 @@ impl Parser {
                     self.finish_current_parse()?;
                 }
                 let end = self.expect(&TokenKind::RBrace)?.span.end;
-                Ok(ASTDeclaration { visibility: Default::default(),
+                Ok(ASTDeclaration {
+                    visibility: Default::default(),
                     span: Span {
                         start: span.start,
                         end,

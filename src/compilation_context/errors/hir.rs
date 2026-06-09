@@ -92,9 +92,16 @@ impl SlynxContext {
                 let name = hir.get_name(*name);
                 format!("Invalid style definition '{name}'")
             }
-            HIRErrorKind::AmbiguousDeclaration { name, first, second } => {
+            HIRErrorKind::AmbiguousDeclaration {
+                name,
+                first,
+                second,
+            } => {
                 let name = hir.get_name(*name);
-                format!("The name '{name}' is ambiguous: it was found in files {:?} and {:?}", first, second)
+                format!(
+                    "The name '{name}' is ambiguous: it was found in files {:?} and {:?}",
+                    first, second
+                )
             }
         }
     }
