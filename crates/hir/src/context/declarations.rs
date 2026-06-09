@@ -21,7 +21,7 @@ impl DeclarationsContext {
     /// Creates a new, empty [`DeclarationsContext`].
     pub fn new() -> Self {
         DeclarationsContext {
-            next_id: 0,
+            next_id: AtomicU32::new(0),
             decls: DashMap::new(),
             declaration_types: boxcar::Vec::new(),
             visibilities: boxcar::Vec::new(),
