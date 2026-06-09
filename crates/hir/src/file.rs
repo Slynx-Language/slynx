@@ -37,7 +37,7 @@ impl HirFile {
     }
     ///Creates a imutable variable with the given `name` on this file. Its registering on the types context and on symbol resolver is hir responsability
     pub(crate) fn create_variable(
-        &mut self,
+        &self,
         symbol: SymbolPointer,
         span: &Span,
         mutable: bool,

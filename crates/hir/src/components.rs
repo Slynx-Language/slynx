@@ -9,11 +9,11 @@ use crate::{
 ///Module that implements anything related Specialized Component on the HIR
 use common::Span;
 use common::VisibilityModifier;
-use slynx_parser::{ComponentExpression, ComponentMemberValue, };
+use slynx_parser::{ComponentExpression, ComponentMemberValue};
 
 impl SlynxHir {
     fn resolve_component_member(
-        &mut self,
+        &self,
         file: FileId,
         member: &ComponentMemberValue,
         ty: TypeId,
@@ -60,7 +60,7 @@ impl SlynxHir {
 
     /// Resolves the provided values on a component. The `ty` is the type of the component we are resolving it
     pub(crate) fn resolve_component_members(
-        &mut self,
+        &self,
         file: FileId,
         members: &[ComponentMemberValue],
         ty: TypeId,
@@ -78,7 +78,7 @@ impl SlynxHir {
     ///
     /// Expects exactly one `text` property assignment and no children.
     pub(crate) fn resolve_specialize_text(
-        &mut self,
+        &self,
         file: FileId,
         values: &[ComponentMemberValue],
         span: &Span,
@@ -122,7 +122,7 @@ impl SlynxHir {
 
     ///Resolves the provided `children` knowning it is a specialized div component
     pub(crate) fn resolve_specialized_div(
-        &mut self,
+        &self,
         file: FileId,
         children: &[ComponentMemberValue],
         _: &Span,
@@ -158,7 +158,7 @@ impl SlynxHir {
     }
     ///Tries to resolve the given `child` as, either a specialized component, or a normal user defined component
     pub(crate) fn try_resolve_specialized<'a>(
-        &mut self,
+        &self,
         file: FileId,
         child: &'a ComponentExpression,
     ) -> (
@@ -180,7 +180,7 @@ impl SlynxHir {
 
     ///Resolves the provided `component` expression. If it's a specialized one, resolves as a `SpecializedComponent`, otherwise as a normal 'Component'
     pub(crate) fn resolve_component_expression(
-        &mut self,
+        &self,
         file: FileId,
         component: &ComponentExpression,
     ) -> Result<HirComponentExpression> {

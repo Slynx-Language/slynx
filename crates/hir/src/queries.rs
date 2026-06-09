@@ -7,7 +7,7 @@ use crate::{
 
 impl SlynxHir {
     ///Interns the given `s` string and returns its logical pointer
-    pub fn intern_name(&mut self, s: &str) -> SymbolPointer {
+    pub fn intern_name(&self, s: &str) -> SymbolPointer {
         self.symbols_resolver.intern(s)
     }
 

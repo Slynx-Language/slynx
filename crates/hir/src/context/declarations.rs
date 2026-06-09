@@ -52,7 +52,7 @@ impl DeclarationsContext {
     }
 
     pub fn register_declaration_metadata(
-        &mut self,
+        &self,
         name: SymbolPointer,
         ty: TypeId,
         visibility: VisibilityModifier,

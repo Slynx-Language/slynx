@@ -12,7 +12,7 @@ use slynx_parser::{ASTExpression, ASTExpressionKind, ASTStatement, GenericIdenti
 impl SlynxHir {
     ///Generates a new object expression for the given `ty` object, and the given `fields`.
     pub(crate) fn generate_object_expression(
-        &mut self,
+        &self,
         file: FileId,
         ty: TypeId,
         fields: &[NamedExpr],
@@ -196,7 +196,7 @@ impl SlynxHir {
 
     /// Resolves an `if` expression, type-checking the condition and both branches.
     pub(crate) fn resolve_if_expression(
-        &mut self,
+        &self,
         file: FileId,
         condition: &ASTExpression,
         if_body: &[ASTStatement],
@@ -235,7 +235,7 @@ impl SlynxHir {
 
     ///Generates a new tuple expression
     fn generate_tuple(
-        &mut self,
+        &self,
         file: FileId,
         values: &[ASTExpression],
         span: Span,
@@ -252,7 +252,7 @@ impl SlynxHir {
     }
     ///Generates a new tuple expression
     fn generate_tuple_access(
-        &mut self,
+        &self,
         file: FileId,
         tuple: &ASTExpression,
         index: usize,
@@ -265,7 +265,7 @@ impl SlynxHir {
     }
 
     fn generate_funcall(
-        &mut self,
+        &self,
         file: FileId,
         name: &GenericIdentifier,
         args: &[ASTExpression],
@@ -314,7 +314,7 @@ impl SlynxHir {
     }
 
     fn generate_field_access_expression(
-        &mut self,
+        &self,
         file: FileId,
         parent: &ASTExpression,
         field: &str,
@@ -364,7 +364,7 @@ impl SlynxHir {
     /// Resolves the provided `expr` trying to infer its type, if not able, keeps as infer, and on later phases fallsback to the default value.
     /// Ty only serves to tell the type of the expression if it's needed to infer and check if it doesnt correspond
     pub(crate) fn generate_expression(
-        &mut self,
+        &self,
         file: FileId,
         expr: &ASTExpression,
         ty: Option<TypeId>,
@@ -432,7 +432,7 @@ impl SlynxHir {
 
     ///Resolves the binary operation with the provided `lhs` and `rhs`.
     pub(crate) fn resolve_binary(
-        &mut self,
+        &self,
         file: FileId,
         lhs: &ASTExpression,
         op: Operator,

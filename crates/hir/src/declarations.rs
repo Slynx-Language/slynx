@@ -114,7 +114,7 @@ impl SlynxHir {
 
     ///Resolves a style usage from the given `usage` expression. It's expected to be a function call. The reason is cause the same syntax for function call is used when calling styles
     pub(crate) fn resolve_style_usage(
-        &mut self,
+        &self,
         fileid: FileId,
         usage: &ASTExpression,
     ) -> Result<HirStyleUsage> {

@@ -133,7 +133,7 @@ impl SlynxHir {
         }
     }
     pub(crate) fn create_component_expression(
-        &mut self,
+        &self,
         component: HirComponentExpression,
         ty: TypeId,
         span: Span,
