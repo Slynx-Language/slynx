@@ -27,7 +27,8 @@ impl SlynxHir {
                 span,
             } => {
                 let interned_name = self.intern_name(prop_name);
-                let HirType::Component { props } = self.get_type(&ty) else {
+                let reader = self.get_type(&ty);
+                let HirType::Component { props } = &*reader else {
                     unreachable!("The type should be a component instead");
                 };
                 match props.iter().position(|prop| prop.name() == interned_name) {

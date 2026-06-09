@@ -1,5 +1,6 @@
 use common::Span;
 use dashmap::DashMap;
+use parking_lot::{RawRwLock, RwLock, RwLockReadGuard, lock_api::RwLockWriteGuard};
 
 use crate::{HIRError, Result, SymbolPointer, TypeId, VariableId, model::HirType};
 use std::collections::HashSet;
@@ -33,6 +34,9 @@ pub const BUILTIN_NAMES: [&str; BUILTIN_TYPES_SIZE] = [
     "GenericComponent",
     "bool",
 ];
+
+pub type TypeReader<'a> = RwLockReadGuard<'a, HirType>;
+pub type TypeWriter<'a> = RwLockWriteGuard<'a, RawRwLock, HirType>;
 
 /// Holds the pre-allocated [`TypeId`]s for each built-in primitive type.
 #[derive(Debug, Clone)]
@@ -86,7 +90,7 @@ pub struct TypesContext {
     /// Maps each object [`TypeId`] to its ordered list of field symbol pointers.
     pub objects: DashMap<TypeId, Vec<SymbolPointer>>,
 
-    types: boxcar::Vec<HirType>,
+    types: boxcar::Vec<RwLock<HirType>>,
     builtins: BuiltinTypes,
 }
 impl TypesContext {
@@ -96,7 +100,7 @@ impl TypesContext {
         let type_names = DashMap::new();
         let name_of_types = DashMap::new();
         for ty in BUILTIN_TYPES.iter() {
-            types.push(ty.clone());
+            types.push(RwLock::new(ty.clone()));
         }
         for (idx, name_symbol) in builtin_names.iter().enumerate() {
             let id = TypeId::from_raw(idx as u64);
@@ -156,24 +160,26 @@ impl TypesContext {
         let v = TypeId::from_raw(raw);
         self.type_names.insert(name, v);
         self.name_of_types.insert(v, name);
-        self.types.push(ty);
+        self.types.push(RwLock::new(ty));
         v
     }
 
     ///Returns the inner object from the provided `ty`, returns None if the type is not a object
-    pub fn get_object(&self, ty: &TypeId) -> Option<&HirType> {
-        match self.get_type(ty) {
-            v @ HirType::Struct { .. } => Some(v),
-            HirType::Reference { rf, .. } => self.get_object(rf),
+    pub fn get_object(&self, ty: &TypeId) -> Option<TypeReader> {
+        let guard = self.get_type(ty);
+        match &*guard {
+            HirType::Struct { .. } => Some(guard),
+            HirType::Reference { rf, .. } => self.get_object(&rf),
             _ => None,
         }
     }
 
     ///Returns the inner component from the provided `ty`, returns None if the type is not a object
-    pub fn get_component(&self, ty: &TypeId) -> Option<&HirType> {
-        match self.get_type(ty) {
-            v @ HirType::Component { .. } => Some(v),
-            HirType::Reference { rf, .. } => self.get_component(rf),
+    pub fn get_component(&self, ty: &TypeId) -> Option<TypeReader> {
+        let guard = self.get_type(ty);
+        match &*guard {
+            HirType::Component { .. } => Some(guard),
+            HirType::Reference { rf, .. } => self.get_component(&rf),
             _ => None,
         }
     }
@@ -181,7 +187,7 @@ impl TypesContext {
     ///Simply inserts the provided `ty` inside this Context. Doesn't map it to anything
     pub fn create_unnamed_type(&self, ty: HirType) -> TypeId {
         let id = TypeId::from_raw(self.types.count() as u64);
-        self.types.push(ty);
+        self.types.push(RwLock::new(ty));
         id
     }
 
@@ -194,8 +200,8 @@ impl TypesContext {
     /// # Panics
     ///
     /// Panics if `id` does not correspond to a registered type.
-    pub fn get_type(&self, id: &TypeId) -> &HirType {
-        &self.types[id.as_raw() as usize]
+    pub fn get_type(&self, id: &TypeId) -> TypeReader {
+        self.types[id.as_raw() as usize].read()
     }
     /// Returns the name symbol associated with the given [`TypeId`], if any.
     pub fn get_type_name(&self, id: &TypeId) -> Option<SymbolPointer> {
@@ -206,7 +212,7 @@ impl TypesContext {
         self.variables.get(id).map(|v| *v.value())
     }
     /// Returns the [`HirType`] associated with the given name symbol, if it exists.
-    pub fn get_type_from_name(&self, name: &SymbolPointer) -> Option<&HirType> {
+    pub fn get_type_from_name(&self, name: &SymbolPointer) -> Option<TypeReader> {
         self.type_names
             .get(name)
             .map(|id| self.get_type(id.value()))
@@ -217,13 +223,17 @@ impl TypesContext {
     /// # Panics
     ///
     /// Panics if `id` does not correspond to a registered type.
-    pub fn get_type_mut(&mut self, id: TypeId) -> &mut HirType {
+    pub fn get_type_mut(&self, id: TypeId) -> RwLockWriteGuard<'_, RawRwLock, HirType> {
         self.types
-            .get_mut(id.as_raw() as usize)
+            .get(id.as_raw() as usize)
             .expect("Get type mut should've returned. Bug found on multithreading shit")
+            .write()
     }
     /// Returns a mutable reference to the [`HirType`] associated with the given name symbol, if it exists.
-    pub fn get_type_from_name_mut(&mut self, name: &SymbolPointer) -> Option<&mut HirType> {
+    pub fn get_type_from_name_mut(
+        &self,
+        name: &SymbolPointer,
+    ) -> Option<RwLockWriteGuard<'_, RawRwLock, HirType>> {
         let Some(id) = self.type_names.get(name).map(|v| v.clone()) else {
             return None;
         };
@@ -238,16 +248,17 @@ impl TypesContext {
         Some(body.value().clone())
     }
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
-    pub fn get_type_from_ref(&self, mut ref_ty: TypeId, span: &Span) -> Result<TypeId> {
+    pub fn get_type_from_ref(&self, ref_ty: TypeId, span: &Span) -> Result<TypeId> {
         let mut visited = HashSet::new();
-        while let HirType::Reference { rf, .. } = self.get_type(&ref_ty) {
+        let mut guard = self.get_type(&ref_ty);
+        while let HirType::Reference { rf, .. } = &*guard {
             if !visited.insert(ref_ty) {
                 let name = self
                     .get_type_name(&ref_ty)
                     .expect("Type should contain a name");
                 return Err(HIRError::recursive(name, *span));
             }
-            ref_ty = *rf;
+            guard = self.get_type(rf);
         }
         Ok(ref_ty)
     }

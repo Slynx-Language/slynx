@@ -6,10 +6,9 @@ use std::{
     sync::Arc,
 };
 
-use common::SymbolPointer;
-use slynx_codegen::{Codegen, CodegenError};
+use slynx_codegen::Codegen;
 use slynx_hir::{
-    SlynxHir, VariableId,
+    SlynxHir,
     module_loader::{SourceLoader, SourceNode},
 };
 use slynx_ir::SlynxIR;
@@ -314,7 +313,6 @@ mod tests {
     use slynx_hir::{VariableId, model::HirType};
 
     use std::{
-        collections::HashMap,
         fs,
         path::PathBuf,
         sync::Arc,
@@ -361,7 +359,7 @@ mod tests {
 
     #[test]
     fn formats_type_ir_errors_with_source_names() {
-        let mut hir = SlynxHir::new();
+        let hir = SlynxHir::new();
         let type_name = hir.intern_name("User");
         let variable_names = DashMap::new();
 

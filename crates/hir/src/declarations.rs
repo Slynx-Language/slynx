@@ -59,7 +59,7 @@ impl SlynxHir {
 
     ///Resolves a `stylesheet` declaration
     pub(crate) fn resolve_stylesheet(
-        &mut self,
+        &self,
         fileid: FileId,
         name: &GenericIdentifier,
         args: &[TypedName],
@@ -69,7 +69,7 @@ impl SlynxHir {
     ) -> Result<()> {
         let symbol = self.intern_name(&name.identifier);
         let (id, typeid) = self.find_declaration_by_name(&symbol, name.span)?;
-        self.get_file_mut(fileid).scopes.enter_scope();
+        self.get_file(fileid).scopes.enter_scope();
 
         let (args, argsty) = args
             .iter()
@@ -82,7 +82,8 @@ impl SlynxHir {
             })
             .collect::<Result<(Vec<_>, Vec<_>)>>()?;
         {
-            let HirType::Style { args } = self.get_type_mut(typeid) else {
+            let mut writer = self.get_type_mut(typeid);
+            let HirType::Style { args } = &mut *writer else {
                 unreachable!("Type of stylesheet should be style");
             };
             for (index, argty) in argsty.iter().enumerate() {

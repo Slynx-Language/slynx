@@ -2,7 +2,9 @@ use common::{Span, VisibilityModifier};
 
 use crate::{
     DeclarationId, HIRError, HirDeclaration, HirType, Result, SlynxHir, SymbolPointer, TypeId,
-    file::HirFile, module_loader::FileId,
+    context::{TypeReader, TypeWriter},
+    file::HirFile,
+    module_loader::FileId,
 };
 
 impl SlynxHir {
@@ -16,11 +18,11 @@ impl SlynxHir {
         self.symbols_resolver.retrieve(s)
     }
     ///Gets the HIR type of the given `ty`
-    pub fn get_type(&self, ty: &TypeId) -> &HirType {
+    pub fn get_type(&self, ty: &TypeId) -> TypeReader {
         self.types_module.get_type(ty)
     }
     ///Gets the HIR type of the given `ty`
-    pub fn get_type_mut(&mut self, ty: TypeId) -> &mut HirType {
+    pub fn get_type_mut(&self, ty: TypeId) -> TypeWriter {
         self.types_module.get_type_mut(ty)
     }
 
@@ -37,7 +39,7 @@ impl SlynxHir {
         self.get_name(ptr)
     }
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
-    pub fn get_type_from_ref(&self, ref_ty: TypeId, span: &Span) -> Result<&HirType> {
+    pub fn get_type_from_ref(&self, ref_ty: TypeId, span: &Span) -> Result<TypeReader> {
         let ty = self.types_module.get_type_from_ref(ref_ty, span)?;
         Ok(self.get_type(&ty))
     }

@@ -197,7 +197,7 @@ impl SlynxHir {
     /// - [`modules::HirModules::new`](crate::hir::modules::HirModules::new)
     #[inline]
     pub fn new() -> Self {
-        let mut symbols = SymbolsModule::new();
+        let symbols = SymbolsModule::new();
         let builtins = BUILTIN_NAMES.map(|v| symbols.intern(v));
         Self {
             symbols_resolver: SymbolsResolver::new(symbols),
@@ -376,7 +376,7 @@ impl SlynxHir {
     /// - [`generate`](SlynxHir::generate) — Main entry point (calls this in phase 1)
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`implementation::declarations::hoist_function`](crate::hir::implementation::declarations::hoist_function)
-    fn hoist(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
+    fn hoist(&self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
         match &ast.kind {
             ASTDeclarationKind::StyleSheet { name, args, .. } => {
                 self.hoist_stylesheet(file, &name.identifier, args, ast.visibility)

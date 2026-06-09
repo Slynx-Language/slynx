@@ -1,7 +1,7 @@
 use std::mem::discriminant;
 
 use crate::{
-    DeclarationId, ExpressionId, Result, SlynxHir, SymbolPointer, TypeId,
+    ExpressionId, Result, SlynxHir, SymbolPointer, TypeId,
     error::{HIRError, HIRErrorKind},
     model::{FieldMethod, HirExpression, HirExpressionKind, HirStatementKind, HirType},
     module_loader::FileId,
@@ -53,7 +53,7 @@ impl SlynxHir {
         let mut non_recognized_fields = Vec::with_capacity(fields.len());
         let HirType::Struct {
             fields: field_types,
-        } = self.get_type_from_ref(ty, &span).cloned()?
+        } = self.get_type_from_ref(ty, &span)?.clone()
         else {
             unreachable!();
         };
@@ -127,8 +127,7 @@ impl SlynxHir {
         match field_method {
             FieldMethod::Type(rf, index) => {
                 let object_ref = self.resolve_object_reference_type(file, *rf, span)?;
-                let HirType::Struct { fields } =
-                    self.get_type_from_ref(object_ref, span).cloned()?
+                let HirType::Struct { fields } = self.get_type_from_ref(object_ref, span)?.clone()
                 else {
                     unreachable!("object layouts should always resolve to structs");
                 };
@@ -139,10 +138,8 @@ impl SlynxHir {
                     .get_variable_type(*variable_id)
                     .expect("variable type should exist before field access lowering");
                 let object_ref = self.resolve_object_reference_type(file, variable_ty, span)?;
-                let (layout, fields) = match (
-                    self.get_object_fields(object_ref, file),
-                    self.get_type_from_ref(object_ref, span)?,
-                ) {
+                let reader = self.get_type_from_ref(object_ref, span)?;
+                let (layout, fields) = match (self.get_object_fields(object_ref, file), &*reader) {
                     (Some(layout), HirType::Struct { fields }) => (layout, fields),
                     (None, _) => unreachable!("object reference should carry a layout"),
                     (_, _) => unreachable!("object layouts should always resolve to structs"),
@@ -277,7 +274,7 @@ impl SlynxHir {
         let HirType::Function {
             return_type,
             args: expect_args,
-        } = ty
+        } = &*ty
         else {
             return Err(HIRError::not_a_func(func_symbol, ty.clone(), span));
         };
@@ -289,7 +286,7 @@ impl SlynxHir {
                 span,
             ));
         }
-        let return_type = *return_type;
+        let return_type = return_type;
         let exprs = match args
             .iter()
             .map(|v| self.generate_expression(file, v, None))
@@ -304,7 +301,7 @@ impl SlynxHir {
 
         Ok(HirExpression {
             id: ExpressionId::new(),
-            ty: return_type,
+            ty: *return_type,
             kind: HirExpressionKind::FunctionCall {
                 name: decl,
                 args: exprs,
@@ -323,7 +320,8 @@ impl SlynxHir {
         let field_symbol = self.intern_name(field);
         let parent = self.generate_expression(file, parent, None)?;
         let HirExpression { ref ty, .. } = parent;
-        match self.get_type(ty) {
+        let reader = self.get_type(ty);
+        match &*reader {
             HirType::Reference { rf, .. }
                 if let Some(decl) = self.get_object_fields(*rf, file)
                     && let Some(index) = Self::find_name_index(&decl, field_symbol) =>
@@ -441,7 +439,9 @@ impl SlynxHir {
     ) -> Result<HirExpression> {
         let mut lhs = self.generate_expression(file, lhs, ty)?;
         let mut rhs = self.generate_expression(file, rhs, ty)?;
-        match discriminant(self.get_type(&lhs.ty)) == discriminant(self.get_type(&rhs.ty)) {
+        let lhs_reader = self.get_type(&lhs.ty);
+        let rhs_reader = self.get_type(&rhs.ty);
+        match discriminant(&*lhs_reader) == discriminant(&*rhs_reader) {
             false if lhs.ty == self.infer_type() => lhs.ty = rhs.ty,
             false if rhs.ty == self.infer_type() => rhs.ty = lhs.ty,
             _ => {}

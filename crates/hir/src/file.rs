@@ -24,7 +24,7 @@ impl HirFile {
             scopes: ScopeContext::new(),
         }
     }
-    pub fn create_declaration(&mut self, mut decl: HirDeclaration) {
+    pub fn create_declaration(&self, mut decl: HirDeclaration) {
         let id = decl.id.local_id.as_raw();
         let len = self.declarations.declarations.count();
         assert!(

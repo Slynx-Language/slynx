@@ -55,7 +55,8 @@ impl SlynxHir {
             if let Some(fields) = self.types_module.get_object_body(&current) {
                 return Some(fields);
             }
-            match self.types_module.get_type(&current) {
+            let guard = self.types_module.get_type(&current);
+            match &*guard {
                 HirType::Reference { rf, .. } => current = *rf,
                 _ => return None,
             }

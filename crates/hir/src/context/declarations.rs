@@ -14,7 +14,7 @@ pub struct DeclarationsContext {
     declaration_types: boxcar::Vec<TypeId>,
     visibilities: boxcar::Vec<VisibilityModifier>,
     pub declarations: boxcar::Vec<HirDeclaration>,
-    import_aliases: HashMap<SymbolPointer, (DeclarationId, TypeId)>,
+    import_aliases: DashMap<SymbolPointer, (DeclarationId, TypeId)>,
 }
 
 impl DeclarationsContext {
@@ -26,7 +26,7 @@ impl DeclarationsContext {
             declaration_types: boxcar::Vec::new(),
             visibilities: boxcar::Vec::new(),
             declarations: boxcar::Vec::new(),
-            import_aliases: HashMap::new(),
+            import_aliases: DashMap::new(),
         }
     }
 
@@ -94,7 +94,7 @@ impl DeclarationsContext {
     /// Registers an import alias so that the `alias` name resolves to the original
     /// declaration identified by `(original_file, original_local, original_ty)`.
     pub fn register_import_alias(
-        &mut self,
+        &self,
         alias: SymbolPointer,
         original_file: FileId,
         original_local: LocalDeclId,
@@ -111,6 +111,8 @@ impl DeclarationsContext {
 
     /// If `name` is an import alias, returns the original declaration data.
     pub fn get_import_alias(&self, name: &SymbolPointer) -> Option<(DeclarationId, TypeId)> {
-        self.import_aliases.get(name).copied()
+        self.import_aliases
+            .get(name)
+            .map(|value| value.value().clone())
     }
 }

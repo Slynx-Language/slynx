@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
+use std::ops::{Deref, DerefMut};
 
 use common::SymbolsModule;
 use dashmap::DashMap;
