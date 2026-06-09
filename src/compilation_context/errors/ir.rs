@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use common::SymbolPointer;
 use slynx_codegen::CodegenError;
-use slynx_hir::{SlynxHir, VariableId, modules::DeclarationsModule};
+use slynx_hir::{SlynxHir, VariableId};
 
 use crate::{
     SlynxContext,
@@ -17,8 +17,7 @@ impl SlynxContext {
         &self,
         error: &CodegenError,
         variable_names: &HashMap<VariableId, SymbolPointer<SlynxHir>>,
-        types_module: &SlynxHir,
-        declarations_module: &DeclarationsModule,
+        hir: &SlynxHir,
     ) -> SlynxError {
         let source_code = self
             .get_entry_point_source()
@@ -31,7 +30,7 @@ impl SlynxContext {
             0,
             0,
             0,
-            format_ir_generation_error(error, variable_names, types_module, declarations_module),
+            format_ir_generation_error(error, variable_names, hir),
             self.file_name(),
             source_code,
             suggestions_from_ir(error),

@@ -10,8 +10,7 @@ use common::SymbolPointer;
 use slynx_codegen::{Codegen, CodegenError};
 use slynx_hir::{
     SlynxHir, VariableId,
-    module_loader::{FileModule, ModuleLoader},
-    modules::DeclarationsModule,
+    module_loader::{SourceNode, SourceLoader},
 };
 use slynx_ir::SlynxIR;
 use slynx_lexer::{Lexer, TokenStream};
@@ -250,7 +249,7 @@ impl SlynxContext {
     }
 
     ///Builds the Slynx HIR from the given `ast`. And type checks the HIR. The result hir is already typed. Also returns the types module to be used if needed to get information about the types on the Hir.
-    pub fn build_hir(&self, ast: &[FileModule]) -> Result<SlynxHir, SlynxError> {
+    pub fn build_hir(&self, ast: &[SourceNode]) -> Result<SlynxHir, SlynxError> {
         let mut hir = SlynxHir::new();
         hir.generate(ast)
             .map_err(|e| self.handle_hir_error(&hir, &e))?;
@@ -268,18 +267,18 @@ impl SlynxContext {
 
     ///Builds a new IR from the given `hir`. It's assumed that it is already implemented
     pub fn build_ir(&self, hir: SlynxHir) -> Result<SlynxIR, SlynxError> {
-        let variables = hir.modules.symbols_resolver.variables().clone();
+        let variables = hir.symbols_resolver.variables().clone();
 
         let mut codegen = Codegen::new();
         codegen.generate(&hir).map_err(|e| {
-            self.build_ir_generation_error(&e, &variables, &hir, &hir.modules.declarations_module)
+            self.build_ir_generation_error(&e, &variables, &hir)
         })
     }
 
     ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
     ///before materializing the default `.sir` output.
     pub fn build_stages(self) -> Result<CompilationStages, SlynxError> {
-        let modules = ModuleLoader::load((*self.entry_point).clone()).unwrap();
+        let modules = SourceLoader::load((*self.entry_point).clone()).unwrap();
         let hir = self.build_hir(&modules)?;
         let dump = format_hir_dump(&hir);
         let ir = self.build_ir(hir)?;
@@ -296,10 +295,10 @@ impl SlynxContext {
 
 fn format_hir_dump(hir: &SlynxHir) -> String {
     format!(
-        "HIR Declarations:\n{:#?}\n\nDeclarations Module:\n{:#?}\n\nVariable Names:\n{:#?}",
-        hir.declarations,
-        hir.modules.types_module,
-        hir.modules.symbols_resolver.variables()
+        "HIR Files:\n{:#?}\n\nDeclarations Module:\n{:#?}\n\nVariable Names:\n{:#?}",
+        hir.files,
+        hir.types_module,
+        hir.symbols_resolver.variables()
     )
 }
 
@@ -307,7 +306,6 @@ fn format_ir_generation_error(
     error: &CodegenError,
     variable_names: &HashMap<VariableId, SymbolPointer<SlynxHir>>,
     hir: &SlynxHir,
-    declarations_module: &DeclarationsModule,
 ) -> String {
     match error {
         CodegenError::UnrecognizedVariable(id) => {
@@ -325,7 +323,8 @@ fn format_ir_generation_error(
             }
         }
         CodegenError::DeclarationNotRecognized(id) => {
-            let name = hir.get_name_of_type(declarations_module.get_declaration_type(*id));
+            let ty = hir.find_declaration(*id).ty;
+            let name = hir.get_name_of_type(ty);
             name.map(|symbol| hir.get_name(symbol))
                 .unwrap_or("Unrecognized Declaration? This is a bug")
                 .to_string()
@@ -350,7 +349,7 @@ mod tests {
 
     use slynx_codegen::CodegenError;
     use slynx_hir::SlynxHir;
-    use slynx_hir::{VariableId, model::HirType, modules::DeclarationsModule};
+    use slynx_hir::{VariableId, model::HirType};
 
     use std::{
         collections::HashMap,
@@ -386,7 +385,6 @@ mod tests {
     fn formats_variable_ir_errors_with_source_names() {
         let hir = SlynxHir::new();
         let variable_names = HashMap::new();
-        let declarations = DeclarationsModule::new();
         let variable = VariableId::from_raw(77);
 
         assert_eq!(
@@ -394,31 +392,8 @@ mod tests {
                 &CodegenError::UnrecognizedVariable(variable),
                 &variable_names,
                 &hir,
-                &declarations
             ),
             "IR internal error: variable id 77 is not recognized by the IR"
-        );
-    }
-
-    #[test]
-    fn formats_declaration_ir_errors_with_source_names() {
-        let mut hir = SlynxHir::new();
-        let declaration_name = hir.intern_name("Bordered");
-
-        let variable_names = HashMap::new();
-        let mut declarations = DeclarationsModule::new();
-
-        let ty = hir.create_type(declaration_name, HirType::Component { props: Vec::new() });
-        let declaration = declarations.create_declaration(declaration_name, ty);
-
-        assert_ne!(
-            format_ir_generation_error(
-                &CodegenError::DeclarationNotRecognized(declaration),
-                &variable_names,
-                &hir,
-                &declarations
-            ),
-            "IR internal error: declaration 'Bordered' is not recognized by the IR"
         );
     }
 
@@ -427,7 +402,6 @@ mod tests {
         let mut hir = SlynxHir::new();
         let type_name = hir.intern_name("User");
         let variable_names = HashMap::new();
-        let declarations = DeclarationsModule::new();
 
         let ty = hir.create_type(type_name, HirType::Struct { fields: Vec::new() });
 
@@ -436,7 +410,6 @@ mod tests {
                 &CodegenError::IRTypeNotRecognized(ty),
                 &variable_names,
                 &hir,
-                &declarations
             ),
             "IR internal error: type 'User' is not recognized by the IR"
         );
