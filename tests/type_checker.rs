@@ -51,23 +51,11 @@ fn rejects_function_without_return_value_for_non_void_return_type() {
 #[test]
 fn preserves_non_expression_tail_statement_in_function_body() {
     let hir = load_source("func main(): void { let x = 12; }").unwrap();
-    let main_symbol = hir
-        .retrieve_symbol("main")
-        .expect("main symbol should exist");
 
-    let main_fn = hir
-        .files
-        .iter()
-        .flat_map(|f| f.declarations())
-        .find(|declaration| {
-            matches!(
-                declaration.1.kind,
-                HirDeclarationKind::Function { ref name, .. } if *name == main_symbol
-            )
-        })
-        .expect("main function should exist");
+    let reader = hir.files[0].read();
+    let main_fn = &reader.declarations()[0].kind;
 
-    let HirDeclarationKind::Function { statements, .. } = &main_fn.1.kind else {
+    let HirDeclarationKind::Function { statements, .. } = &main_fn else {
         unreachable!();
     };
 

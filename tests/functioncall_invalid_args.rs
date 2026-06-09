@@ -1,7 +1,6 @@
 mod common;
 
 use slynx_hir::HIRErrorKind;
-use slynx_typechecker::{TypeChecker, error::TypeErrorKind};
 
 use crate::common::load_source;
 
