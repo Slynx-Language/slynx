@@ -166,21 +166,35 @@ impl TypesContext {
 
     ///Returns the inner object from the provided `ty`, returns None if the type is not a object
     pub fn get_object(&self, ty: &TypeId) -> Option<TypeReader> {
-        let guard = self.get_type(ty);
-        match &*guard {
-            HirType::Struct { .. } => Some(guard),
-            HirType::Reference { rf, .. } => self.get_object(&rf),
-            _ => None,
+        let mut visited = HashSet::new();
+        let mut current = *ty;
+        loop {
+            if !visited.insert(current) {
+                return None;
+            }
+            let guard = self.get_type(&current);
+            match &*guard {
+                HirType::Struct { .. } => return Some(guard),
+                HirType::Reference { rf, .. } => current = *rf,
+                _ => return None,
+            }
         }
     }
 
     ///Returns the inner component from the provided `ty`, returns None if the type is not a object
     pub fn get_component(&self, ty: &TypeId) -> Option<TypeReader> {
-        let guard = self.get_type(ty);
-        match &*guard {
-            HirType::Component { .. } => Some(guard),
-            HirType::Reference { rf, .. } => self.get_component(&rf),
-            _ => None,
+        let mut visited = HashSet::new();
+        let mut current = *ty;
+        loop {
+            if !visited.insert(current) {
+                return None;
+            }
+            let guard = self.get_type(&current);
+            match &*guard {
+                HirType::Component { .. } => return Some(guard),
+                HirType::Reference { rf, .. } => current = *rf,
+                _ => return None,
+            }
         }
     }
 
@@ -250,16 +264,21 @@ impl TypesContext {
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
     pub fn get_type_from_ref(&self, ref_ty: TypeId, span: &Span) -> Result<TypeId> {
         let mut visited = HashSet::new();
-        let mut guard = self.get_type(&ref_ty);
-        while let HirType::Reference { rf, .. } = &*guard {
-            if !visited.insert(ref_ty) {
-                let name = self
-                    .get_type_name(&ref_ty)
-                    .expect("Type should contain a name");
-                return Err(HIRError::recursive(name, *span));
+        let mut current = ref_ty;
+        loop {
+            let guard = self.get_type(&current);
+            match &*guard {
+                HirType::Reference { rf, .. } => {
+                    if !visited.insert(current) {
+                        let name = self
+                            .get_type_name(&current)
+                            .expect("Type should contain a name");
+                        return Err(HIRError::recursive(name, *span));
+                    }
+                    current = *rf;
+                }
+                _ => return Ok(current),
             }
-            guard = self.get_type(rf);
         }
-        Ok(ref_ty)
     }
 }

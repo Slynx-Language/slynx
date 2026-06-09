@@ -270,13 +270,16 @@ impl SlynxHir {
     ) -> Result<HirExpression> {
         let func_symbol = self.intern_name(&name.identifier);
         let (decl, tyid) = self.find_declaration_by_name(&func_symbol, span)?;
-        let ty = self.get_type(&tyid);
-        let HirType::Function {
-            return_type,
-            args: expect_args,
-        } = &*ty
-        else {
-            return Err(HIRError::not_a_func(func_symbol, ty.clone(), span));
+        let (return_type, expect_args) = {
+            let ty = self.get_type(&tyid);
+            let HirType::Function {
+                return_type,
+                args: expect_args,
+            } = &*ty
+            else {
+                return Err(HIRError::not_a_func(func_symbol, ty.clone(), span));
+            };
+            (*return_type, expect_args.clone())
         };
         if expect_args.len() != args.len() {
             return Err(HIRError::invalid_funcall_arg_length(
@@ -286,7 +289,6 @@ impl SlynxHir {
                 span,
             ));
         }
-        let return_type = return_type;
         let exprs = match args
             .iter()
             .map(|v| self.generate_expression(file, v, None))
@@ -301,7 +303,7 @@ impl SlynxHir {
 
         Ok(HirExpression {
             id: ExpressionId::new(),
-            ty: *return_type,
+            ty: return_type,
             kind: HirExpressionKind::FunctionCall {
                 name: decl,
                 args: exprs,
@@ -320,10 +322,10 @@ impl SlynxHir {
         let field_symbol = self.intern_name(field);
         let parent = self.generate_expression(file, parent, None)?;
         let HirExpression { ref ty, .. } = parent;
-        let reader = self.get_type(ty);
-        match &*reader {
+        let ty_kind = self.get_type(ty).clone();
+        match ty_kind {
             HirType::Reference { rf, .. }
-                if let Some(decl) = self.get_object_fields(*rf, file)
+                if let Some(decl) = self.get_object_fields(rf, file)
                     && let Some(index) = Self::find_name_index(&decl, field_symbol) =>
             {
                 let ty = self.create_unnamed_type(HirType::type_field(*ty, index));
@@ -334,7 +336,7 @@ impl SlynxHir {
             }
 
             HirType::VarReference(rf) => {
-                let ty = self.create_unnamed_type(HirType::variable_field(*rf, field_symbol));
+                let ty = self.create_unnamed_type(HirType::variable_field(rf, field_symbol));
                 Ok(self.create_field_access_expression(parent, usize::MAX, ty, span))
             }
             HirType::Field(_) => {
@@ -353,7 +355,7 @@ impl SlynxHir {
                 }
             }
             u => Err(HIRError {
-                kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u.clone() },
+                kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u },
                 span,
             }),
         }
@@ -439,9 +441,15 @@ impl SlynxHir {
     ) -> Result<HirExpression> {
         let mut lhs = self.generate_expression(file, lhs, ty)?;
         let mut rhs = self.generate_expression(file, rhs, ty)?;
-        let lhs_reader = self.get_type(&lhs.ty);
-        let rhs_reader = self.get_type(&rhs.ty);
-        match discriminant(&*lhs_reader) == discriminant(&*rhs_reader) {
+        let lhs_disc = {
+            let lhs_reader = self.get_type(&lhs.ty);
+            discriminant(&*lhs_reader)
+        };
+        let rhs_disc = {
+            let rhs_reader = self.get_type(&rhs.ty);
+            discriminant(&*rhs_reader)
+        };
+        match lhs_disc == rhs_disc {
             false if lhs.ty == self.infer_type() => lhs.ty = rhs.ty,
             false if rhs.ty == self.infer_type() => rhs.ty = lhs.ty,
             _ => {}

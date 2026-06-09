@@ -70,8 +70,9 @@ impl SlynxHir {
     ) -> Result<()> {
         let symbol = self.intern_name(&name.identifier);
         let (id, typeid) = self.find_declaration_by_name(&symbol, name.span)?;
-        let mut file = self.get_file_mut(fileid);
-        file.scopes.enter_scope();
+
+        // Hold write lock only for scope entry.
+        self.get_file_mut(fileid).scopes.enter_scope();
 
         let (args, argsty) = args
             .iter()
@@ -102,6 +103,8 @@ impl SlynxHir {
             .map(|usage| self.resolve_style_usage(fileid, usage))
             .collect::<Result<Vec<_>>>()?;
 
+        // Re-acquire write lock only for declaration creation and scope exit.
+        let mut file = self.get_file_mut(fileid);
         file.create_declaration(HirDeclaration::new_stylesheet(
             args,
             statements,
@@ -207,8 +210,9 @@ impl SlynxHir {
     ) -> Result<()> {
         let symbol = self.intern_name(&name.identifier);
         let (decl, tyid) = self.find_declaration_by_name(&symbol, name.span)?;
-        let mut file = self.get_file_mut(fileid);
-        file.scopes.enter_scope();
+
+        // Hold write lock only for scope entry, release before subcalls that need read locks.
+        self.get_file_mut(fileid).scopes.enter_scope();
 
         let (args, argsty) = args
             .iter()
@@ -252,6 +256,9 @@ impl SlynxHir {
                 }
             })
             .collect::<Result<Vec<_>>>()?;
+
+        // Re-acquire write lock only for declaration creation and scope exit.
+        let mut file = self.get_file_mut(fileid);
         file.create_declaration(HirDeclaration::new_function(
             statements, args, symbol, *span, decl, tyid,
         ));

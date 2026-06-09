@@ -30,6 +30,10 @@ impl DeclarationsContext {
         }
     }
 
+    pub fn get_declaration(&self, local: LocalDeclId) -> &HirDeclaration {
+        &self.declarations[local.as_raw()]
+    }
+
     pub(crate) fn reserve_id(&self) -> LocalDeclId {
         let next = self
             .next_id

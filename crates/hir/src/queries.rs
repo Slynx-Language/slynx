@@ -75,11 +75,13 @@ impl SlynxHir {
         self.files[id.as_raw() as usize].write()
     }
 
-    pub fn find_declaration(&self, id: DeclarationId) -> parking_lot::MappedRwLockReadGuard<'_, HirDeclaration> {
-        parking_lot::RwLockReadGuard::map(
-            self.files[id.file_id.as_raw() as usize].read(),
-            |f| &f.declarations.declarations[id.local_id.as_raw()],
-        )
+    pub fn find_declaration(
+        &self,
+        id: DeclarationId,
+    ) -> parking_lot::MappedRwLockReadGuard<'_, HirDeclaration> {
+        parking_lot::RwLockReadGuard::map(self.files[id.file_id.as_raw() as usize].read(), |f| {
+            &f.declarations.declarations[id.local_id.as_raw()]
+        })
     }
 
     pub fn find_declaration_by_name(
