@@ -1,8 +1,8 @@
-use common::Span;
+use common::{Span, VisibilityModifier};
 
 use crate::{
-    DeclarationId, HIRError, HirType, Result, SlynxHir, SymbolPointer, TypeId, file::HirFile,
-    module_loader::FileId,
+    DeclarationId, HIRError, HirDeclaration, HirType, Result, SlynxHir, SymbolPointer, TypeId,
+    file::HirFile, module_loader::FileId,
 };
 
 impl SlynxHir {
@@ -71,5 +71,66 @@ impl SlynxHir {
     }
     pub fn get_file_mut(&mut self, id: FileId) -> &mut HirFile {
         &mut self.files[id.as_raw() as usize]
+    }
+
+    pub fn find_declaration(&self, id: DeclarationId) -> &HirDeclaration {
+        &self.files[id.file_id.as_raw() as usize]
+            .declarations
+            .declarations[id.local_id.as_raw()]
+    }
+
+    pub fn find_declaration_by_name(
+        &self,
+        name: &SymbolPointer,
+        span: Span,
+    ) -> Result<(DeclarationId, TypeId)> {
+        // 1. Check import aliases first
+        for file in &self.files {
+            if let Some(alias_data) = file.declarations.get_import_alias(name) {
+                return Ok(alias_data);
+            }
+        }
+        // 2. Check regular declarations
+        let mut result: Option<(DeclarationId, TypeId)> = None;
+        for file in &self.files {
+            if let Some((local, ty)) = file.declarations.get_declaration_data_by_name(name) {
+                if let Some((decl, _)) = result {
+                    return Err(HIRError::ambiguous_declaration(
+                        *name,
+                        decl.file_id,
+                        file.file,
+                        span,
+                    ));
+                }
+                let id = DeclarationId::new(file.file, local);
+                result = Some((id, ty));
+            }
+        }
+
+        result.ok_or_else(|| HIRError::name_unrecognized(*name, span))
+    }
+
+    /// Looks up a declaration by name, but only within the given set of files.
+    pub fn find_declaration_in_files(
+        &self,
+        name: &SymbolPointer,
+        file_ids: &[FileId],
+        span: Span,
+    ) -> Result<(DeclarationId, TypeId)> {
+        for &fid in file_ids {
+            let file = self.get_file(fid);
+            // Check import aliases registered in this file first
+            if let Some(alias_data) = file.declarations.get_import_alias(name) {
+                return Ok(alias_data);
+            }
+            if let Some((local, ty)) = file.declarations.get_declaration_data_by_name(name) {
+                if file.declarations.get_visibility(local) != VisibilityModifier::Public {
+                    return Err(HIRError::name_unrecognized(*name, span));
+                }
+                let id = DeclarationId::new(file.file, local);
+                return Ok((id, ty));
+            }
+        }
+        Err(HIRError::name_unrecognized(*name, span))
     }
 }

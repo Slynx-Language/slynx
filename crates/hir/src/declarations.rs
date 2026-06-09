@@ -1,5 +1,5 @@
 use crate::{
-    Result, SlynxHir,
+    DeclarationId, Result, SlynxHir,
     error::HIRError,
     model::{
         ComponentMemberDeclaration, ComponentProperty, HirDeclaration, HirDeclarationKind,
@@ -14,39 +14,64 @@ use slynx_parser::{
 };
 
 impl SlynxHir {
+    pub(crate) fn create_empty_object(
+        &mut self,
+        file: FileId,
+        name: &GenericIdentifier,
+        fields: &[ObjectField],
+    ) {
+        let name = self.intern_name(&name.identifier);
+        let def_fields = fields
+            .iter()
+            .map(|f| self.intern_name(&f.name.name))
+            .collect();
+        let struct_ty = self
+            .types_module
+            .create_unnamed_type(HirType::new_struct(Vec::new()));
+        let ty = self
+            .types_module
+            .create_type(name, HirType::new_ref(struct_ty));
+        self.get_file_mut(file)
+            .declarations
+            .register_object(name, ty, Vec::new());
+        self.types_module.objects.insert(ty, def_fields);
+    }
     ///Hoists a `stylesheet` declaration
-    pub(crate) fn hoist_stylesheet(&mut self, name: &str, args: &[TypedName]) {
-        self.modules.create_declaration(
+    pub(crate) fn hoist_stylesheet(&mut self, file: FileId, name: &str, args: &[TypedName]) {
+        let name = self.intern_name(name);
+        let ty = self.types_module.create_type(
             name,
             HirType::Style {
                 args: args.iter().map(|_| self.void_type()).collect(),
             },
         );
+        self.get_file_mut(file)
+            .declarations
+            .register_declaration_metadata(name, ty);
     }
 
     ///Resolves a `stylesheet` declaration
     pub(crate) fn resolve_stylesheet(
         &mut self,
-        file: FileId,
+        fileid: FileId,
         name: &GenericIdentifier,
         args: &[TypedName],
         usages: &[ASTExpression],
         body: &[StyleSheetStatement],
         span: Span,
     ) -> Result<()> {
-        let symbol = self.modules.intern_name(&name.identifier);
-        let Some((id, typeid)) = self.modules.get_declaration_by_name(&symbol) else {
-            return Err(HIRError::name_unrecognized(symbol, name.span));
-        };
-        self.modules.enter_scope();
+        let symbol = self.intern_name(&name.identifier);
+        let (id, typeid) = self.find_declaration_by_name(&symbol, name.span)?;
+        self.get_file_mut(fileid).scopes.enter_scope();
 
         let (args, argsty) = args
             .iter()
             .map(|arg| {
-                let symbol = self.modules.intern_name(&arg.name);
-                let ty_symbol = self.modules.intern_name(&arg.kind.identifier);
+                let symbol = self.intern_name(&arg.name);
+                let ty_symbol = self.intern_name(&arg.kind.identifier);
                 let ty = self.get_type_of_name(ty_symbol, &arg.kind.span)?;
-                self.create_variable(symbol, ty, &arg.span).map(|v| (v, ty))
+                self.create_variable(fileid, symbol, ty, &arg.span)
+                    .map(|v| (v, ty))
             })
             .collect::<Result<(Vec<_>, Vec<_>)>>()?;
         {
@@ -59,36 +84,43 @@ impl SlynxHir {
         }
         let statements = body
             .iter()
-            .map(|statement| self.resolve_stylesheet_statement(statement))
+            .map(|statement| self.resolve_stylesheet_statement(fileid, statement))
             .collect::<Result<Vec<_>>>()?;
 
         let usages = usages
             .iter()
-            .map(|usage| self.resolve_style_usage(usage))
+            .map(|usage| self.resolve_style_usage(fileid, usage))
             .collect::<Result<Vec<_>>>()?;
+        let file = self.get_file_mut(fileid);
+        file.create_declaration(HirDeclaration::new_stylesheet(
+            args,
+            statements,
+            usages,
+            span,
+            DeclarationId::new(fileid, id.local_id),
+            typeid,
+        ));
+        file.scopes.exit_scope();
 
-        self.get_file_mut(file)
-            .create_declaration(HirDeclaration::new_stylesheet(
-                args, statements, usages, span, id, typeid,
-            ));
-        self.modules.exit_scope();
         Ok(())
     }
 
     ///Resolves a style usage from the given `usage` expression. It's expected to be a function call. The reason is cause the same syntax for function call is used when calling styles
-    pub(crate) fn resolve_style_usage(&mut self, usage: &ASTExpression) -> Result<HirStyleUsage> {
+    pub(crate) fn resolve_style_usage(
+        &mut self,
+        fileid: FileId,
+        usage: &ASTExpression,
+    ) -> Result<HirStyleUsage> {
         let (name, args) = match &usage.kind {
             ASTExpressionKind::FunctionCall { name, args } => (name, args),
             _ => unreachable!("Style usage should be a function call on parsing"),
         };
-        let symbol = self.modules.intern_name(&name.identifier);
-        let Some((decl, tyid)) = self.modules.get_declaration_by_name(&symbol) else {
-            return Err(HIRError::name_unrecognized(symbol, name.span));
-        };
+        let symbol = self.intern_name(&name.identifier);
+        let (decl, tyid) = self.find_declaration_by_name(&symbol, name.span)?;
         debug_assert!(matches!(self.get_type(&tyid), HirType::Style { .. }));
         let params = args
             .iter()
-            .map(|expr| self.generate_expression(expr, None))
+            .map(|expr| self.generate_expression(fileid, expr, None))
             .collect::<Result<_>>()?;
         Ok(HirStyleUsage {
             style: decl,
@@ -100,16 +132,14 @@ impl SlynxHir {
     /// Resolves an object declaration, filling in its field types and pushing the declaration.
     pub(crate) fn resolve_object(
         &mut self,
-        file: FileId,
         name: &GenericIdentifier,
         fields: &[ObjectField],
-        span: Span,
     ) -> Result<()> {
         let mut fields = fields
             .iter()
             .map(|field| {
-                let symbol_name = self.modules.intern_name(&name.identifier);
-                if self.modules.intern_name(&field.name.name) == symbol_name {
+                let symbol_name = self.intern_name(&name.identifier);
+                if self.intern_name(&field.name.name) == symbol_name {
                     Err(HIRError::recursive(symbol_name, field.name.span))
                 } else {
                     let name = self.intern_name(&field.name.kind.identifier);
@@ -117,10 +147,9 @@ impl SlynxHir {
                 }
             })
             .collect::<Result<Vec<_>>>()?;
-        let identifier_symbol = self.modules.intern_name(&name.identifier);
-        let Some((decl, declty)) = self.modules.get_declaration_by_name(&identifier_symbol) else {
-            return Err(HIRError::name_unrecognized(identifier_symbol, name.span));
-        };
+        let identifier_symbol = self.intern_name(&name.identifier);
+        let (_, declty) = self.find_declaration_by_name(&identifier_symbol, name.span)?;
+
         let HirType::Reference { rf, .. } = self.get_type(&declty) else {
             unreachable!("Type of custom object should be a reference to its real type");
         };
@@ -130,8 +159,6 @@ impl SlynxHir {
         };
 
         ty_field.append(&mut fields);
-        self.get_file_mut(file)
-            .create_declaration(HirDeclaration::new_object(decl, declty, span));
 
         Ok(())
     }
@@ -139,13 +166,19 @@ impl SlynxHir {
     /// Hoists a function declaration by registering its signature without processing its body.
     pub(crate) fn hoist_function(
         &mut self,
+        file: FileId,
         name: &GenericIdentifier,
         args: &[TypedName],
     ) -> Result<()> {
         let args = args.iter().map(|_| self.int32_type()).collect();
         let return_type = self.int32_type();
-        self.modules
-            .create_declaration(&name.identifier, HirType::new_function(args, return_type));
+        let symbol = self.intern_name(&name.identifier);
+        let ty = self
+            .types_module
+            .create_type(symbol, HirType::new_function(args, return_type));
+        self.get_file_mut(file)
+            .declarations
+            .register_declaration_metadata(symbol, ty);
 
         Ok(())
     }
@@ -153,27 +186,25 @@ impl SlynxHir {
     /// Resolves a function declaration, type-checking its body and pushing the HIR declaration.
     pub(crate) fn resolve_function(
         &mut self,
-        file: FileId,
+        fileid: FileId,
         name: &GenericIdentifier,
         args: &[TypedName],
         return_type: &GenericIdentifier,
         body: &[ASTStatement],
         span: &Span,
     ) -> Result<()> {
-        let symbol = self.modules.intern_name(&name.identifier);
-        let Some((decl, tyid)) = self.modules.get_declaration_by_name(&symbol) else {
-            return Err(HIRError::name_unrecognized(symbol, name.span));
-        };
-
-        self.modules.enter_scope();
+        let symbol = self.intern_name(&name.identifier);
+        let (decl, tyid) = self.find_declaration_by_name(&symbol, name.span)?;
+        self.get_file_mut(fileid).scopes.enter_scope();
 
         let (args, argsty) = args
             .iter()
             .map(|arg| {
-                let ty_symbol = self.modules.intern_name(&arg.kind.identifier);
-                let symbol = self.modules.intern_name(&arg.name);
+                let ty_symbol = self.intern_name(&arg.kind.identifier);
+                let symbol = self.intern_name(&arg.name);
                 let ty = self.get_type_of_name(ty_symbol, &arg.kind.span)?;
-                self.create_variable(symbol, ty, &arg.span).map(|v| (v, ty))
+                self.create_variable(fileid, symbol, ty, &arg.span)
+                    .map(|v| (v, ty))
             })
             .collect::<Result<(Vec<_>, Vec<_>)>>()?;
         {
@@ -202,24 +233,24 @@ impl SlynxHir {
                         kind: ASTStatementKind::Expression(expr),
                         ..
                     } if is_last => self
-                        .generate_expression(expr, None)
+                        .generate_expression(fileid, expr, None)
                         .map(HirStatement::new_return),
-                    statement => self.resolve_statement(statement),
+                    statement => self.resolve_statement(fileid, statement),
                 }
             })
             .collect::<Result<Vec<_>>>()?;
-
-        self.get_file_mut(file)
-            .create_declaration(HirDeclaration::new_function(
-                statements, args, symbol, *span, decl, tyid,
-            ));
-        self.modules.exit_scope();
+        let file = self.get_file_mut(fileid);
+        file.create_declaration(HirDeclaration::new_function(
+            statements, args, symbol, *span, decl, tyid,
+        ));
+        file.scopes.exit_scope();
         Ok(())
     }
 
     /// Hoists a component declaration by registering its property layout without resolving children.
     pub(crate) fn hoist_component(
         &mut self,
+        file: FileId,
         name: &GenericIdentifier,
         members: &[ComponentMember],
     ) -> Result<()> {
@@ -238,7 +269,6 @@ impl SlynxHir {
                         Ok(v) => v,
                         Err(e) => return Some(Err(e)),
                     };
-
                     Some(Ok(ComponentProperty::new(*modifier, name, ty)))
                 }
                 ComponentMemberKind::Property {
@@ -257,15 +287,20 @@ impl SlynxHir {
                 ComponentMemberKind::Child(_) => None,
             })
             .collect::<Result<Vec<_>>>()?;
-
-        self.modules
-            .create_declaration(&name.identifier, HirType::new_component(props));
+        let symbol = self.intern_name(&name.identifier);
+        let ty = self
+            .types_module
+            .create_type(symbol, HirType::new_component(props));
+        self.get_file_mut(file)
+            .declarations
+            .register_declaration_metadata(symbol, ty);
         Ok(())
     }
 
     /// Resolves the member definitions of a component body into [`ComponentMemberDeclaration`]s.
     pub(crate) fn resolve_component_defs(
         &mut self,
+        fileid: FileId,
         def: &[ComponentMember],
     ) -> Result<Vec<ComponentMemberDeclaration>> {
         let mut out = Vec::with_capacity(def.len());
@@ -280,20 +315,20 @@ impl SlynxHir {
                         self.infer_type()
                     };
                     let rhs = if let Some(rhs) = rhs {
-                        Some(self.generate_expression(rhs, Some(ty))?)
+                        Some(self.generate_expression(fileid, rhs, Some(ty))?)
                     } else {
                         None
                     };
                     out.push(ComponentMemberDeclaration::new_property(
                         prop_idx, rhs, def.span,
                     ));
-                    let name = self.modules.intern_name(name);
+                    let name = self.intern_name(name);
 
-                    self.create_variable(name, ty, &def.span)?;
+                    self.create_variable(fileid, name, ty, &def.span)?;
                     prop_idx += 1;
                 }
                 ComponentMemberKind::Child(child) => {
-                    let component = self.resolve_component_expression(child)?;
+                    let component = self.resolve_component_expression(fileid, child)?;
                     out.push(ComponentMemberDeclaration::Child(component));
                 }
             }
@@ -304,19 +339,19 @@ impl SlynxHir {
     ///Resolves a component declaration that contains the given `members` and the given `name`
     pub(crate) fn resolve_component_declaration(
         &mut self,
-        file: FileId,
+        fileid: FileId,
         members: &[ComponentMember],
         name: &GenericIdentifier,
         span: Span,
     ) -> Result<()> {
-        self.modules.enter_scope();
         let symbol = self.intern_name(&name.identifier);
-        let Some((decl, ty)) = self.modules.get_declaration_by_name(&symbol) else {
-            return Err(HIRError::name_unrecognized(symbol, span));
-        };
+        let defs = self.resolve_component_defs(fileid, members)?;
 
-        let defs = self.resolve_component_defs(members)?;
-        self.get_file_mut(file).create_declaration(HirDeclaration {
+        let (decl, ty) = self.find_declaration_by_name(&symbol, span)?;
+
+        let file = self.get_file_mut(fileid);
+        file.scopes.enter_scope();
+        file.create_declaration(HirDeclaration {
             id: decl,
             kind: HirDeclarationKind::ComponentDeclaration {
                 props: defs,
@@ -324,32 +359,27 @@ impl SlynxHir {
             },
             ty,
             span,
+            visibility: Default::default(),
         });
-        self.modules.exit_scope();
+        file.scopes.exit_scope();
         Ok(())
     }
 
     ///Resolves an alias type, mapping the given `name` to the given `target`
     pub(crate) fn resolve_alias(
         &mut self,
-        file: FileId,
         name: &GenericIdentifier,
         target: &GenericIdentifier,
-        span: Span,
     ) -> Result<()> {
         let alias_name = self.intern_name(&name.identifier);
         let intern_name = self.intern_name(&target.identifier);
         let target_ty = self.get_type_of_name(intern_name, &target.span)?;
-
-        let Some(alias_ty) = self.types_module.get_type_from_name_mut(&alias_name) else {
-            return Err(HIRError::name_unrecognized(alias_name, name.span));
-        };
-        *alias_ty = HirType::new_ref(target_ty);
-        let Some((decl, ty)) = self.modules.get_declaration_by_name(&alias_name) else {
-            return Err(HIRError::name_unrecognized(intern_name, name.span));
-        };
-        self.get_file_mut(file)
-            .create_declaration(HirDeclaration::new_alias(decl, ty, span));
+        {
+            let Some(alias_ty) = self.types_module.get_type_from_name_mut(&alias_name) else {
+                return Err(HIRError::name_unrecognized(alias_name, name.span));
+            };
+            *alias_ty = HirType::new_ref(target_ty);
+        }
         Ok(())
     }
 }
