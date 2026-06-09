@@ -219,21 +219,20 @@ impl SlynxContext {
         let line_idx = match lines.binary_search(&clamped_index) {
             Ok(line) | Err(line) => line,
         };
-
-        let line_start_char = if line_idx == 0 {
-            0
-        } else {
-            lines[line_idx - 1] + 1
-        };
         let line_end_char = if line_idx < lines.len() {
             lines[line_idx]
         } else {
             char_len
         };
+        let line_start_char = if line_idx == 0 {
+            0
+        } else {
+            line_end_char.min(lines[line_idx - 1] + 1)
+        };
 
         let start = Self::char_index_to_byte_offset(source, line_start_char);
         let end = Self::char_index_to_byte_offset(source, line_end_char);
-        let column = clamped_index.saturating_sub(line_start_char) + 1;
+        let column = end.min(clamped_index.saturating_sub(line_start_char) + 1);
 
         LineInfo {
             line: line_idx + 1,
