@@ -13,8 +13,10 @@ impl Monomorphizer {
         let mut this = Self {
             reference_cache: HashMap::new(),
         };
-        for decl in hir.declarations.iter() {
-            this.resolve_reference(hir, decl.ty, decl.span)?;
+        for file in &hir.files {
+            for decl in file.declarations() {
+                this.resolve_reference(hir, decl.ty, decl.span)?;
+            }
         }
         for (key, value) in this.reference_cache {
             let HirType::Reference { rf, .. } = hir.get_type_mut(&key) else {

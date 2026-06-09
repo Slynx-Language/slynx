@@ -12,7 +12,11 @@ fn rejects_cyclic_aliases_in_monomorphization() {
         .parse_declarations()
         .expect("source should parse");
     let mut hir = SlynxHir::new();
-    hir.generate(&declarations).expect("HIR should generate");
+    let modules = vec![slynx_hir::module_loader::SourceNode::new(
+        slynx_hir::module_loader::FileId::from_raw(0),
+        declarations,
+    )];
+    hir.generate(&modules).expect("HIR should generate");
 
     let mut hir = TypeChecker::check(hir).expect("type checking should pass");
 
@@ -20,7 +24,7 @@ fn rejects_cyclic_aliases_in_monomorphization() {
         .expect_err("cyclic aliases should fail during monomorphization");
 
     match &err.kind {
-        HIRErrorKind::RecursiveType { ty } => assert_eq!(*ty, hir.modules.intern_name("A")),
+        HIRErrorKind::RecursiveType { ty } => assert_eq!(*ty, hir.intern_name("A")),
         other => panic!("expected RecursiveType, got {other:?}"),
     }
 }
