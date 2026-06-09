@@ -12,7 +12,7 @@ const GENERIC_COMPONENT_IDX: usize = 5;
 const BOOL_IDX: usize = 6;
 const BUILTIN_TYPES_SIZE: usize = 7;
 
-/// The set of built-in primitive types pre-registered in every [`TypesModule`].
+/// The set of built-in primitive types pre-registered in every [`TypesContext`].
 pub const BUILTIN_TYPES: [HirType; BUILTIN_TYPES_SIZE] = [
     HirType::Int,
     HirType::Float,
@@ -75,19 +75,21 @@ impl BuiltinTypes {
 
 /// Manages all types in the HIR, including built-ins, user-defined types, and variables.
 #[derive(Debug, Default)]
-pub struct TypesModule {
+pub struct TypesContext {
     ///A hashmap that maps a name of a global name to its type. This is not for variables, but only for global types, such as structs, functions and components
     type_names: HashMap<SymbolPointer, TypeId>,
     ///Maps the type ids to its their name forms
     name_of_types: HashMap<TypeId, SymbolPointer>,
     ///Maps a variable to it's type
     pub variables: HashMap<VariableId, TypeId>,
+    /// Maps each object [`TypeId`] to its ordered list of field symbol pointers.
+    pub objects: HashMap<TypeId, Vec<SymbolPointer>>,
 
     types: Vec<HirType>,
     builtins: BuiltinTypes,
 }
-impl TypesModule {
-    /// Creates a new [`TypesModule`] with built-in types pre-registered under the given symbol names.
+impl TypesContext {
+    /// Creates a new [`TypesContext`] with built-in types pre-registered under the given symbol names.
     pub fn new(builtin_names: &[SymbolPointer; BUILTIN_TYPES_SIZE]) -> Self {
         let mut types = Vec::with_capacity(BUILTIN_TYPES_SIZE);
         let mut type_names = HashMap::new();
@@ -104,6 +106,7 @@ impl TypesModule {
             type_names,
             name_of_types,
             variables: HashMap::new(),
+            objects: HashMap::new(),
             types,
             builtins: BuiltinTypes::new(),
         }
@@ -141,7 +144,7 @@ impl TypesModule {
     pub fn bool_id(&self) -> TypeId {
         self.builtins.bool
     }
-    ///Inserts a new variable on this module
+    ///Inserts a new variable on this Context
     pub fn insert_variable(&mut self, varid: VariableId, ty: TypeId) {
         self.variables.insert(varid, ty);
     }
@@ -174,14 +177,14 @@ impl TypesModule {
         }
     }
 
-    ///Simply inserts the provided `ty` inside this module. Doesn't map it to anything
+    ///Simply inserts the provided `ty` inside this Context. Doesn't map it to anything
     pub fn create_unnamed_type(&mut self, ty: HirType) -> TypeId {
         let id = TypeId::from_raw(self.types.len() as u64);
         self.types.push(ty);
         id
     }
 
-    ///Retrieves the TypeId of the provided `name` on the current module
+    ///Retrieves the TypeId of the provided `name` on the currentContext
     pub fn get_id(&self, name: &SymbolPointer) -> Option<&TypeId> {
         self.type_names.get(name)
     }
@@ -219,6 +222,10 @@ impl TypesModule {
         self.type_names
             .get(name)
             .map(|id| &mut self.types[id.as_raw() as usize])
+    }
+    ///Retrieves the body of the object with provided `id`
+    pub fn get_object_body(&self, id: &TypeId) -> Option<&[SymbolPointer]> {
+        self.objects.get(id).map(|v| &**v)
     }
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
     pub fn get_type_from_ref(&self, mut ref_ty: TypeId, span: &Span) -> Result<TypeId> {
