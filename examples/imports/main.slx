@@ -1,0 +1,22 @@
+import styles;
+import another using BgGreen as Bg;
+component Aba {
+	Text {
+		text: "Abababa"
+	}
+}
+
+component Teste {
+	Div {
+		style: Bg(0x7f),
+		Text {
+			style: Background(0xff0000),
+			text: "Jorge"
+		}
+	}
+	Aba {}
+}
+
+func main(): Component {
+	Teste {}
+}
