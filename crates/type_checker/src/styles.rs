@@ -21,13 +21,15 @@ impl TypeChecker {
         }
     }
     pub fn resolve_style_usage(&mut self, style_usage: &mut HirStyleUsage) -> Result<()> {
-        let HirType::Style { args } = self
-            .types_module
-            .get_type(&self.decl_types[&style_usage.style])
-        else {
-            unreachable!("Type of style should be style");
+        let args = {
+            let reader = self
+                .types_module
+                .get_type(&self.decl_types[&style_usage.style]);
+            let HirType::Style { args } = &*reader else {
+                unreachable!("Type of style should be style");
+            };
+            args.clone()
         };
-        let args = args.clone();
         for (idx, param) in style_usage.params.iter_mut().enumerate() {
             param.ty = self.unify(&args[idx], &param.ty, &param.span)?;
         }
@@ -42,10 +44,13 @@ impl TypeChecker {
             .iter_mut()
             .map(|param| self.get_type_of_expr(param))
             .collect::<Result<Vec<_>>>()?;
-        let slynx_hir::HirType::Style { args } = self.types_module.get_type(&decl_ty) else {
-            unreachable!("Type of style should be Style");
+        let args = {
+            let reader = self.types_module.get_type(&decl_ty);
+            let slynx_hir::HirType::Style { args } = &*reader else {
+                unreachable!("Type of style should be Style");
+            };
+            args.clone()
         };
-        let args = args.clone();
         if usage.params.len() != args.len() {
             return Err(TypeError::invalid_funcall_args(
                 args.len(),

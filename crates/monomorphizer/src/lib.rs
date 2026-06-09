@@ -14,12 +14,14 @@ impl Monomorphizer {
             reference_cache: HashMap::new(),
         };
         for file in &hir.files {
+            let file = file.read();
             for decl in file.declarations() {
+                let decl = decl.1;
                 this.resolve_reference(hir, decl.ty, decl.span)?;
             }
         }
         for (key, value) in this.reference_cache {
-            let HirType::Reference { rf, .. } = hir.get_type_mut(&key) else {
+            let HirType::Reference { rf, .. } = &mut *hir.get_type_mut(key) else {
                 continue;
             };
             *rf = value;
@@ -31,8 +33,8 @@ impl Monomorphizer {
     pub fn resolve_reference(&mut self, hir: &SlynxHir, id: TypeId, span: Span) -> Result<()> {
         let mut current = id;
         let mut visited = HashSet::from([id]);
-        while let HirType::Reference { rf, .. } = hir.get_type(&current)
-            && let HirType::Reference { .. } = hir.get_type(rf)
+        while let HirType::Reference { rf, .. } = &*hir.get_type(&current)
+            && let HirType::Reference { .. } = &*hir.get_type(rf)
         {
             if !visited.insert(*rf) {
                 let name = hir

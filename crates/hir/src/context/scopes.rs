@@ -1,7 +1,6 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut, Index, IndexMut},
-};
+use std::ops::{Deref, DerefMut, Index, IndexMut};
+
+use dashmap::DashMap;
 
 use crate::{SymbolPointer, VariableId};
 
@@ -9,8 +8,8 @@ use crate::{SymbolPointer, VariableId};
 #[derive(Debug)]
 pub struct HIRScope {
     ///A map to a name to an id. This can be used to save variables for example
-    names: HashMap<SymbolPointer, VariableId>,
-    mutables: Vec<VariableId>,
+    names: DashMap<SymbolPointer, VariableId>,
+    mutables: boxcar::Vec<VariableId>,
 }
 
 impl Default for HIRScope {
@@ -23,13 +22,13 @@ impl HIRScope {
     /// Creates a new, empty [`HIRScope`].
     pub fn new() -> Self {
         Self {
-            mutables: Vec::new(),
-            names: HashMap::new(),
+            mutables: boxcar::Vec::new(),
+            names: DashMap::new(),
         }
     }
 
     ///Inserts the provided `symbol` on this scope
-    pub fn create_name(&mut self, symbol: SymbolPointer, var: VariableId, mutable: bool) {
+    pub fn create_name(&self, symbol: SymbolPointer, var: VariableId, mutable: bool) {
         self.names.insert(symbol, var);
         if mutable {
             self.mutables.push(var);
@@ -37,8 +36,8 @@ impl HIRScope {
     }
 
     ///Retrieves the id of the provided `name` on the scope
-    pub fn get_name(&self, name: &SymbolPointer) -> Option<&VariableId> {
-        self.names.get(name)
+    pub fn get_name(&self, name: &SymbolPointer) -> Option<VariableId> {
+        self.names.get(name).map(|name| name.value().clone())
     }
 }
 

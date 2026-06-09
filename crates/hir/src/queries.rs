@@ -2,25 +2,28 @@ use common::{Span, VisibilityModifier};
 
 use crate::{
     DeclarationId, HIRError, HirDeclaration, HirType, Result, SlynxHir, SymbolPointer, TypeId,
-    file::HirFile, module_loader::FileId,
+    context::{TypeReader, TypeWriter},
+    file::HirFile,
+    module_loader::FileId,
 };
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 
 impl SlynxHir {
     ///Interns the given `s` string and returns its logical pointer
-    pub fn intern_name(&mut self, s: &str) -> SymbolPointer {
+    pub fn intern_name(&self, s: &str) -> SymbolPointer {
         self.symbols_resolver.intern(s)
     }
 
     ///Retrieves the symbol pointer for the given `s` if it exists, thus, was internalized
     pub fn retrieve_symbol(&self, s: &str) -> Option<SymbolPointer> {
-        self.symbols_resolver.retrieve(s).cloned()
+        self.symbols_resolver.retrieve(s)
     }
     ///Gets the HIR type of the given `ty`
-    pub fn get_type(&self, ty: &TypeId) -> &HirType {
+    pub fn get_type(&self, ty: &TypeId) -> TypeReader {
         self.types_module.get_type(ty)
     }
     ///Gets the HIR type of the given `ty`
-    pub fn get_type_mut(&mut self, ty: &TypeId) -> &mut HirType {
+    pub fn get_type_mut(&self, ty: TypeId) -> TypeWriter {
         self.types_module.get_type_mut(ty)
     }
 
@@ -34,10 +37,10 @@ impl SlynxHir {
             .types_module
             .get_type_name(&ty)
             .expect("Declaration should contain a name");
-        self.get_name(*ptr)
+        self.get_name(ptr)
     }
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
-    pub fn get_type_from_ref(&self, ref_ty: TypeId, span: &Span) -> Result<&HirType> {
+    pub fn get_type_from_ref(&self, ref_ty: TypeId, span: &Span) -> Result<TypeReader> {
         let ty = self.types_module.get_type_from_ref(ref_ty, span)?;
         Ok(self.get_type(&ty))
     }
@@ -57,26 +60,28 @@ impl SlynxHir {
             _ => self
                 .types_module
                 .get_id(&name)
-                .cloned()
                 .ok_or(HIRError::type_unrecognized(name, *span)),
         }
     }
 
     pub fn get_name_of_type(&self, ty: TypeId) -> Option<SymbolPointer> {
-        self.types_module.get_type_name(&ty).cloned()
+        self.types_module.get_type_name(&ty)
     }
 
-    pub fn get_file(&self, id: FileId) -> &HirFile {
-        &self.files[id.as_raw() as usize]
+    pub fn get_file(&self, id: FileId) -> RwLockReadGuard<'_, HirFile> {
+        self.files[id.as_raw() as usize].read()
     }
-    pub fn get_file_mut(&mut self, id: FileId) -> &mut HirFile {
-        &mut self.files[id.as_raw() as usize]
+    pub fn get_file_mut(&self, id: FileId) -> RwLockWriteGuard<'_, HirFile> {
+        self.files[id.as_raw() as usize].write()
     }
 
-    pub fn find_declaration(&self, id: DeclarationId) -> &HirDeclaration {
-        &self.files[id.file_id.as_raw() as usize]
-            .declarations
-            .declarations[id.local_id.as_raw()]
+    pub fn find_declaration(
+        &self,
+        id: DeclarationId,
+    ) -> parking_lot::MappedRwLockReadGuard<'_, HirDeclaration> {
+        parking_lot::RwLockReadGuard::map(self.files[id.file_id.as_raw() as usize].read(), |f| {
+            &f.declarations.declarations[id.local_id.as_raw()]
+        })
     }
 
     pub fn find_declaration_by_name(
@@ -86,13 +91,14 @@ impl SlynxHir {
     ) -> Result<(DeclarationId, TypeId)> {
         // 1. Check import aliases first
         for file in &self.files {
-            if let Some(alias_data) = file.declarations.get_import_alias(name) {
+            if let Some(alias_data) = file.read().declarations.get_import_alias(name) {
                 return Ok(alias_data);
             }
         }
         // 2. Check regular declarations
         let mut result: Option<(DeclarationId, TypeId)> = None;
         for file in &self.files {
+            let file = file.read();
             if let Some((local, ty)) = file.declarations.get_declaration_data_by_name(name) {
                 if let Some((decl, _)) = result {
                     return Err(HIRError::ambiguous_declaration(

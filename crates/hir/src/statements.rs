@@ -12,7 +12,7 @@ use slynx_parser::{ASTStatement, ASTStatementKind, NamedExpr, StyleBlock, StyleS
 impl SlynxHir {
     /// Resolves an AST statement into a typed [`HirStatement`].
     pub(crate) fn resolve_statement(
-        &mut self,
+        &self,
         fileid: FileId,
         statement: &ASTStatement,
     ) -> Result<HirStatement> {
@@ -60,7 +60,7 @@ impl SlynxHir {
 
     ///Transforms the given `statement` into an HIR style statement
     pub(crate) fn resolve_stylesheet_statement(
-        &mut self,
+        &self,
         fileid: FileId,
         statement: &StyleSheetStatement,
     ) -> Result<HirStyleStatement> {
@@ -75,7 +75,7 @@ impl SlynxHir {
     }
 
     ///Type of styles is made by its name.
-    pub(crate) fn resolve_style_type(&mut self, name: &str, span: Span) -> Result<TypeId> {
+    pub(crate) fn resolve_style_type(&self, name: &str, span: Span) -> Result<TypeId> {
         let ty = match name {
             "backgroundColor" | "foregroundColor" => self.int32_type(),
             _ => {
@@ -88,7 +88,7 @@ impl SlynxHir {
 
     ///Transforms the given `definitions` in a vector of `StyleDefinition`
     pub(crate) fn resolve_style_definitions(
-        &mut self,
+        &self,
         fileid: FileId,
         definitions: &[NamedExpr],
     ) -> Result<Vec<StylesDefinition>> {
@@ -105,7 +105,7 @@ impl SlynxHir {
 
     ///Resolves the given `styles` blocks, and creates `HirStyleBlock`s based on them
     pub(crate) fn resolve_stylesblock(
-        &mut self,
+        &self,
         fileid: FileId,
         styles: &[StyleBlock],
     ) -> Result<Vec<HirStyleBlock>> {

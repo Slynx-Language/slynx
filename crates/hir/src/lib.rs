@@ -95,6 +95,7 @@ use crate::{
     module_loader::{FileId, SourceNode},
 };
 use common::SymbolsModule;
+use parking_lot::RwLock;
 use slynx_parser::{ASTDeclaration, ASTDeclarationKind};
 
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
@@ -174,7 +175,7 @@ pub struct SlynxHir {
     /// - Its [`HirDeclarationKind`] describing what kind of declaration it is
     /// - The declaration's [`TypeId`]
     /// - The source [`Span`] for error reporting
-    pub files: Vec<HirFile>,
+    pub files: Vec<RwLock<HirFile>>,
 }
 
 impl SlynxHir {
@@ -197,7 +198,7 @@ impl SlynxHir {
     /// - [`modules::HirModules::new`](crate::hir::modules::HirModules::new)
     #[inline]
     pub fn new() -> Self {
-        let mut symbols = SymbolsModule::new();
+        let symbols = SymbolsModule::new();
         let builtins = BUILTIN_NAMES.map(|v| symbols.intern(v));
         Self {
             symbols_resolver: SymbolsResolver::new(symbols),
@@ -291,14 +292,14 @@ impl SlynxHir {
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`modules::HirModules`] — Scope and symbol management during generation
     pub fn generate(&mut self, modules: &[SourceNode]) -> Result<()> {
+        // Phase 0: allocate file slots (requires &mut self for Vec growth)
         for module in modules {
             let idx = module.id.as_raw() as usize;
-
             if idx >= self.files.len() {
                 self.files
-                    .resize_with(idx + 1, || HirFile::new(FileId::from_raw(0)));
+                    .resize_with(idx + 1, || RwLock::new(HirFile::new(FileId::from_raw(0))));
             }
-            self.files[idx] = HirFile::new(module.id);
+            *self.files[idx].write() = HirFile::new(module.id);
         }
         for module in modules {
             for ast in &module.declarations {
@@ -376,50 +377,31 @@ impl SlynxHir {
     /// - [`generate`](SlynxHir::generate) — Main entry point (calls this in phase 1)
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`implementation::declarations::hoist_function`](crate::hir::implementation::declarations::hoist_function)
-    fn hoist(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
+    fn hoist(&self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
         match &ast.kind {
             ASTDeclarationKind::StyleSheet { name, args, .. } => {
-                self.hoist_stylesheet(file, &name.identifier, args)
+                self.hoist_stylesheet(file, &name.identifier, args, ast.visibility)
             }
             ASTDeclarationKind::Alias { name, target } => {
                 let alias_symbol = self.intern_name(&name.identifier);
                 self.intern_name(&target.identifier);
-                self.create_empty_alias(alias_symbol, file);
+                self.create_empty_alias(alias_symbol, file, ast.visibility);
             }
             ASTDeclarationKind::ObjectDeclaration { name, fields } => {
-                self.create_empty_object(file, name, fields)
+                self.create_empty_object(file, name, fields, ast.visibility)
             }
 
             ASTDeclarationKind::FuncDeclaration { name, args, .. } => {
-                self.hoist_function(file, name, args)?
+                self.hoist_function(file, name, args, ast.visibility)?
             }
             ASTDeclarationKind::ComponentDeclaration { name, members, .. } => {
-                self.hoist_component(file, name, members)?
+                self.hoist_component(file, name, members, ast.visibility)?
             }
             ASTDeclarationKind::Import(_) => {
                 //modules loader already solved so
             }
         }
-        // Apply visibility from AST to the newly registered declaration metadata.
-        if !matches!(ast.kind, ASTDeclarationKind::Import(_)) {
-            let symbol = match &ast.kind {
-                ASTDeclarationKind::Alias { name, .. }
-                | ASTDeclarationKind::ObjectDeclaration { name, .. }
-                | ASTDeclarationKind::FuncDeclaration { name, .. }
-                | ASTDeclarationKind::ComponentDeclaration { name, .. }
-                | ASTDeclarationKind::StyleSheet { name, .. } => self.intern_name(&name.identifier),
-                ASTDeclarationKind::Import(_) => unreachable!(),
-            };
-            if let Some((local, _)) = self
-                .get_file(file)
-                .declarations
-                .get_declaration_data_by_name(&symbol)
-            {
-                self.get_file_mut(file)
-                    .declarations
-                    .set_visibility(local, ast.visibility);
-            }
-        }
+
         Ok(())
     }
 

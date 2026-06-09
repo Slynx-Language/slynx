@@ -81,7 +81,9 @@ impl Codegen {
     /// Phase 0: Hoist declarations.
     fn hoist_declarations(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) {
         for file in &hir.files {
+            let file = file.read();
             for declaration in file.declarations() {
+                let declaration = declaration.1;
                 match &declaration.kind {
                     HirDeclarationKind::Object => {
                         let name = hir.get_declaration_name(declaration.id);
@@ -90,7 +92,7 @@ impl Codegen {
                         // declaration.ty is a Reference; also register the concrete
                         // Struct TypeId so tuple fields (which resolve through the
                         // Reference) can be found in get_or_create_ir_type.
-                        if let HirType::Reference { rf, .. } = hir.get_type(&declaration.ty) {
+                        if let HirType::Reference { rf, .. } = &*hir.get_type(&declaration.ty) {
                             self.types.insert(*rf, obj);
                         }
                     }
@@ -133,7 +135,9 @@ impl Codegen {
     /// Pre-pass: compute property codes for all stylesheets.
     fn stylesheet_pre_pass(&mut self, hir: &SlynxHir, _ir: &mut SlynxIR) {
         for file in &hir.files {
+            let file = file.read();
             for declaration in file.declarations() {
+                let declaration = declaration.1;
                 if let HirDeclarationKind::StyleSheet {
                     ref usages,
                     ref statements,
@@ -157,7 +161,9 @@ impl Codegen {
         ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
         for file in &hir.files {
+            let file = file.read();
             for declaration in file.declarations() {
+                let declaration = declaration.1;
                 match &declaration.kind {
                     HirDeclarationKind::Object => {
                         self.insert_object_fields_for(declaration.ty, hir, ir)?;
@@ -173,14 +179,14 @@ impl Codegen {
                         self.initialize_function(
                             *function_ptr,
                             declaration.ty,
-                            statements,
-                            args,
+                            &statements,
+                            &args,
                             hir,
                             ir,
                         )?;
                     }
                     HirDeclarationKind::ComponentDeclaration { props, .. } => {
-                        self.initialize_component(declaration, props, hir, ir)?;
+                        self.initialize_component(declaration, &props, hir, ir)?;
                     }
                     HirDeclarationKind::Alias => {}
                     HirDeclarationKind::StyleSheet { .. } => {}
@@ -192,20 +198,26 @@ impl Codegen {
 
     /// Phase 2: Lower stylesheets in dependency order.
     fn lower_stylesheets(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) -> Result<(), CodegenError> {
-        let (flat_decls, decl_to_idx): (Vec<&slynx_hir::HirDeclaration>, _) = {
+        let (flat_decls, decl_to_idx): (Vec<_>, _) = {
             let mut decls = Vec::new();
             let mut idx = HashMap::new();
             for file in &hir.files {
-                for d in file.declarations() {
-                    idx.insert(d.id, decls.len());
-                    decls.push(d);
+                let file = file.read();
+                for decl in file.declarations() {
+                    let declaration = decl.1;
+                    idx.insert(declaration.id, decls.len());
+                    decls.push(declaration.id);
                 }
             }
             (decls, idx)
         };
-
         let all_stylesheets: Vec<usize> = (0..flat_decls.len())
-            .filter(|i| matches!(flat_decls[*i].kind, HirDeclarationKind::StyleSheet { .. }))
+            .filter(|i| {
+                let id = flat_decls[*i];
+                let reader = hir.get_file(id.file_id);
+                let decl = reader.declarations.get_declaration(id.local_id);
+                matches!(decl.kind, HirDeclarationKind::StyleSheet { .. })
+            })
             .collect();
 
         if all_stylesheets.is_empty() {
@@ -220,7 +232,10 @@ impl Codegen {
         }
 
         for &idx in &all_stylesheets {
-            if let HirDeclarationKind::StyleSheet { ref usages, .. } = flat_decls[idx].kind {
+            let id = flat_decls[idx];
+            let reader = hir.get_file(id.file_id);
+            let decl = reader.declarations.get_declaration(id.local_id);
+            if let HirDeclarationKind::StyleSheet { ref usages, .. } = decl.kind {
                 for usage in usages {
                     let parent_idx = decl_to_idx[&usage.style];
                     if let Some(&parent_node) = node_indices.get(&parent_idx) {
@@ -236,7 +251,10 @@ impl Codegen {
         };
 
         for &idx in &order {
-            self.lower_stylesheet(flat_decls[idx], hir, ir)?;
+            let id = flat_decls[idx];
+            let reader = hir.get_file(id.file_id);
+            let decl = reader.declarations.get_declaration(id.local_id);
+            self.lower_stylesheet(decl, hir, ir)?;
         }
         Ok(())
     }

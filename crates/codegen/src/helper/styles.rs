@@ -169,7 +169,7 @@ impl Codegen {
             unreachable!()
         };
 
-        let hir_type_args = if let slynx_hir::HirType::Style { args } = hir.get_type(&decl.ty) {
+        let hir_type_args = if let slynx_hir::HirType::Style { args } = &*hir.get_type(&decl.ty) {
             args.clone()
         } else {
             Vec::new()

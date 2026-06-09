@@ -1,17 +1,20 @@
+use common::VisibilityModifier;
+
 use crate::{DeclarationId, HirType, SlynxHir, SymbolPointer, TypeId, module_loader::FileId};
 
 impl SlynxHir {
     ///Creates an type alias with the given `name`. Its initial type is `infer`. Because of hoisting, and so, the type this refers to might be defined after it
     pub(crate) fn create_empty_alias(
-        &mut self,
+        &self,
         aliasname: SymbolPointer,
         file: FileId,
+        visibility: VisibilityModifier,
     ) -> DeclarationId {
         let ty = self.types_module.create_type(aliasname, HirType::Infer);
         let local_id = self
             .get_file_mut(file)
             .declarations
-            .register_declaration_metadata(aliasname, ty);
+            .register_declaration_metadata(aliasname, ty, visibility);
         DeclarationId::new(file, local_id)
     }
 

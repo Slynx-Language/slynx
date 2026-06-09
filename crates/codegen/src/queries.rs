@@ -23,7 +23,7 @@ impl Codegen {
             _ if ty == hir.str_type() => ir.str_type(),
             _ if ty == hir.component_type() => ir.generic_component_type(),
             _ if let Some(mapped) = self.get_mapped_type(&ty) => mapped,
-            _ if let HirType::Tuple { fields } = hir.get_type(&ty) => {
+            _ if let HirType::Tuple { fields } = &*hir.get_type(&ty) => {
                 let ir_fields = {
                     let mut out = Vec::with_capacity(fields.len());
                     for field in fields.clone() {
@@ -33,7 +33,7 @@ impl Codegen {
                 };
                 ir.create_or_get_tuple(ir_fields)
             }
-            _ if let HirType::Reference { rf, .. } = hir.get_type(&ty) => {
+            _ if let HirType::Reference { rf, .. } = &*hir.get_type(&ty) => {
                 let rf = *rf;
                 return self.get_or_create_ir_type(&rf, hir, ir);
             }

@@ -34,28 +34,29 @@ impl SlynxHir {
         self.types_module.generic_component_id()
     }
     ///Creates a new tuple type with the given `fields` and returns its typeid
-    pub fn create_tuple_type(&mut self, fields: Vec<TypeId>) -> TypeId {
+    pub fn create_tuple_type(&self, fields: Vec<TypeId>) -> TypeId {
         self.types_module.create_tuple_type(fields)
     }
 
     ///Creates a the given `ty` on the hir and returns its id. doesnt map a name to it
-    pub fn create_unnamed_type(&mut self, ty: HirType) -> TypeId {
+    pub fn create_unnamed_type(&self, ty: HirType) -> TypeId {
         self.types_module.create_unnamed_type(ty)
     }
     /// Inserts a named type into the HIR and returns its [`TypeId`].
-    pub fn create_type(&mut self, name: SymbolPointer, ty: HirType) -> TypeId {
+    pub fn create_type(&self, name: SymbolPointer, ty: HirType) -> TypeId {
         self.types_module.create_type(name, ty)
     }
 
     /// Returns the field layout (as a slice of symbol pointers) for the object with the given [`TypeId`].
     /// Walks reference chains (e.g. aliases) until it finds a TypeId registered in the objects map.
-    pub fn get_object_fields(&self, ty: TypeId, _file: FileId) -> Option<&[SymbolPointer]> {
+    pub fn get_object_fields(&self, ty: TypeId, _file: FileId) -> Option<Vec<SymbolPointer>> {
         let mut current = ty;
         loop {
             if let Some(fields) = self.types_module.get_object_body(&current) {
                 return Some(fields);
             }
-            match self.types_module.get_type(&current) {
+            let guard = self.types_module.get_type(&current);
+            match &*guard {
                 HirType::Reference { rf, .. } => current = *rf,
                 _ => return None,
             }
@@ -63,7 +64,7 @@ impl SlynxHir {
     }
 
     /// Returns the [`TypeId`] of the given variable, if it exists.
-    pub fn get_variable_type(&self, ty: VariableId) -> Option<&TypeId> {
+    pub fn get_variable_type(&self, ty: VariableId) -> Option<TypeId> {
         self.types_module.get_variable(&ty)
     }
 }

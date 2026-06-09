@@ -24,9 +24,9 @@ impl HirFile {
             scopes: ScopeContext::new(),
         }
     }
-    pub fn create_declaration(&mut self, mut decl: HirDeclaration) {
+    pub fn create_declaration(&self, mut decl: HirDeclaration) {
         let id = decl.id.local_id.as_raw();
-        let len = self.declarations.declarations.len();
+        let len = self.declarations.declarations.count();
         assert!(
             id == len,
             "create_declaration: local_id={id} != declarations.len()={len}, file_id={:?}",
@@ -37,7 +37,7 @@ impl HirFile {
     }
     ///Creates a imutable variable with the given `name` on this file. Its registering on the types context and on symbol resolver is hir responsability
     pub(crate) fn create_variable(
-        &mut self,
+        &self,
         symbol: SymbolPointer,
         span: &Span,
         mutable: bool,
@@ -50,7 +50,7 @@ impl HirFile {
             Ok(v)
         }
     }
-    pub fn declarations(&self) -> &[HirDeclaration] {
+    pub fn declarations(&self) -> &boxcar::Vec<HirDeclaration> {
         &self.declarations.declarations
     }
     pub fn get_declaration_type(&self, id: LocalDeclId) -> TypeId {
