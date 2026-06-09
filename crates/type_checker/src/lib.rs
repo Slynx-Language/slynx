@@ -20,15 +20,15 @@ mod declaration;
 mod defaults;
 pub mod error;
 pub use error::{IncompatibleComponentReason, TypeError, TypeErrorKind};
+use slynx_hir::context::TypesContext;
 mod expression;
 mod statement;
 mod styles;
 use std::collections::HashMap;
 
 use common::Span;
-use slynx_hir::modules::TypesModule;
-use slynx_hir::{ComponentProperty, HirStatement, HirStatementKind};
-use slynx_hir::{FieldMethod, HirType, SlynxHir, SymbolPointer, TypeId};
+use slynx_hir::{ComponentProperty, DeclarationId, HirStatement, HirStatementKind};
+use slynx_hir::{FieldMethod, HirType, SlynxHir, TypeId};
 
 pub type Result<T> = std::result::Result<T, TypeError>;
 
@@ -38,13 +38,12 @@ pub type Result<T> = std::result::Result<T, TypeError>;
 ///whose got `resolve` on their names. Since the idea is for them to try to resolve the types. The second part is that, after checking all the IR, if some code could not be infered,
 ///then it starts setting the default values for every of them. This is made with functions named as `default`. So every infers are get rid because the default type is provided.
 pub struct TypeChecker {
-    ///A an array of declaration types
-    declarations: Vec<TypeId>,
+    ///A map of declaration types keyed by declaration ID
+    decl_types: HashMap<DeclarationId, TypeId>,
     ///The types module from the HIR to be mutated
-    types_module: TypesModule,
+    types_module: TypesContext,
     /// The type of everything that is expected to have some
     types: HashMap<TypeId, HirType>,
-    structs: HashMap<TypeId, Vec<SymbolPointer>>,
 }
 
 impl TypeChecker {
@@ -52,30 +51,33 @@ impl TypeChecker {
         let mut current = *ty;
 
         loop {
-            match self.types_module.get_type(&current) {
-                HirType::Reference { rf, .. } => match self.types_module.get_type(rf) {
-                    HirType::Struct { .. } => return Ok(current),
-                    HirType::Reference { .. } => current = *rf,
-                    other => {
-                        return Err(TypeError {
-                            kind: TypeErrorKind::NotAStruct(other.clone()),
-                            span: *span,
-                        });
-                    }
-                },
-                HirType::VarReference(variable_id) => {
-                    current =
-                        self.types_module
-                            .get_variable(variable_id)
-                            .copied()
-                            .ok_or(TypeError {
-                                kind: TypeErrorKind::Unrecognized,
+            let ty = self.types_module.get_type(&current).clone();
+            match ty {
+                HirType::Reference { rf, .. } => {
+                    let inner = self.types_module.get_type(&rf).clone();
+                    match inner {
+                        HirType::Struct { .. } => return Ok(current),
+                        HirType::Reference { .. } => current = rf,
+                        other => {
+                            return Err(TypeError {
+                                kind: TypeErrorKind::NotAStruct(other),
                                 span: *span,
-                            })?;
+                            });
+                        }
+                    }
+                }
+                HirType::VarReference(variable_id) => {
+                    current = self
+                        .types_module
+                        .get_variable(&variable_id)
+                        .ok_or(TypeError {
+                            kind: TypeErrorKind::Unrecognized,
+                            span: *span,
+                        })?;
                 }
                 other => {
                     return Err(TypeError {
-                        kind: TypeErrorKind::NotAStruct(other.clone()),
+                        kind: TypeErrorKind::NotAStruct(other),
                         span: *span,
                     });
                 }
@@ -113,32 +115,47 @@ impl TypeChecker {
     /// Checks the types of the provided `hir` and mutates them in place. Any that could not be inferred but, yet is valid, is
     /// at the end, returned as it's default type. Returns the same `hir` with fully-resolved types.
     pub fn check(mut hir: SlynxHir) -> Result<SlynxHir> {
-        let mut inner = Self {
-            types: HashMap::new(),
-            structs: std::mem::take(&mut hir.modules.declarations_module.objects),
-            types_module: std::mem::take(&mut hir.modules.types_module),
-            declarations: Vec::new(),
-        };
-        // DeclarationId is currently assigned linearly in hoisting order,
-        // so declaration type lookup can stay append-only here.
-        for decl in &hir.declarations {
-            debug_assert_eq!(
-                decl.id.as_raw() as usize,
-                inner.declarations.len(),
-                "declaration id must stay linear with declarations table",
-            );
-            inner.declarations.push(decl.ty);
-        }
-        for decl in &mut hir.declarations {
-            inner.check_decl(decl)?;
-        }
-        // for the ones that couldn't be inferred, put their default
-        for decl in &mut hir.declarations {
-            inner.set_default(decl)?;
+        let mut decl_types = HashMap::new();
+        for file in &hir.files {
+            let file = file.read();
+            for decl in file.declarations() {
+                let decl = decl.1;
+                decl_types.insert(decl.id, decl.ty);
+            }
         }
 
-        hir.modules.declarations_module.objects = inner.structs;
-        hir.modules.types_module = inner.types_module;
+        let mut inner = Self {
+            types: HashMap::new(),
+            types_module: std::mem::take(&mut hir.types_module),
+            decl_types,
+        };
+
+        // Phase 1: resolve infer types
+        for file in &mut hir.files {
+            let mut file = file.write();
+            for idx in 0..file.declarations().count() {
+                let decl = file
+                    .declarations
+                    .declarations
+                    .get_mut(idx)
+                    .expect("Declaration should've been initialized");
+                inner.check_decl(decl)?;
+            }
+        }
+        // Phase 2: set defaults for remaining infer types
+        for file in &mut hir.files {
+            let mut file = file.write();
+            for idx in 0..file.declarations().count() {
+                let decl = file
+                    .declarations
+                    .declarations
+                    .get_mut(idx)
+                    .expect("Declaration should've been initialized");
+                inner.set_default(decl)?;
+            }
+        }
+
+        hir.types_module = inner.types_module;
         Ok(hir)
     }
 
@@ -153,7 +170,7 @@ impl TypeChecker {
             HirType::Field(FieldMethod::Type(rf, index)) => {
                 let ty = self.resolve(&rf, span)?;
                 let struct_id = self.get_struct_from_ref(&ty, span)?;
-                if let HirType::Struct { fields } = self.types_module.get_type(&struct_id) {
+                if let HirType::Struct { fields } = &*self.types_module.get_type(&struct_id) {
                     Ok(fields[index])
                 } else {
                     Err(TypeError {
@@ -169,7 +186,7 @@ impl TypeChecker {
                 self.resolve_tuple_index_type(&rf, index, span)
             }
             HirType::Field(FieldMethod::Variable(var_id, n)) => {
-                let object_ty = *self.types_module.get_variable(&var_id).ok_or(TypeError {
+                let object_ty = self.types_module.get_variable(&var_id).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
                     span: *span,
                 })?;
@@ -177,11 +194,11 @@ impl TypeChecker {
                 let concrete_type = self
                     .types_module
                     .get_type(&self.get_struct_from_ref(&object_ty, span)?);
-                let s_fields = self.structs.get(&layout_ty).ok_or(TypeError {
+                let s_fields = self.types_module.objects.get(&layout_ty).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
                     span: *span,
                 })?;
-                let HirType::Struct { fields } = concrete_type else {
+                let HirType::Struct { fields } = &*concrete_type else {
                     unreachable!("Type should be a struct. Fields only happen to structs");
                 };
                 if let Some(index) = s_fields.iter().position(|name| *name == n) {
@@ -195,7 +212,7 @@ impl TypeChecker {
             }
             HirType::Reference { rf, .. } => Ok(rf),
             HirType::VarReference(rf) => {
-                if let Some(ty) = self.types_module.get_variable(&rf).cloned() {
+                if let Some(ty) = self.types_module.get_variable(&rf) {
                     Ok(self.resolve(&ty, span)?)
                 } else {
                     unreachable!("Variable type should be defined here");
@@ -211,7 +228,7 @@ impl TypeChecker {
                     }
                     tys
                 };
-                let HirType::Component { props } = self.types_module.get_type_mut(ty) else {
+                let HirType::Component { props } = &mut *self.types_module.get_type_mut(*ty) else {
                     unreachable!();
                 };
                 props.clear();
@@ -305,11 +322,11 @@ impl TypeChecker {
                 unified_prop,
             ));
         }
-        if let HirType::Component { props } = self.types_module.get_type_mut(a) {
+        if let HirType::Component { props } = &mut *self.types_module.get_type_mut(*a) {
             props.clear();
             props.extend_from_slice(&unified_props);
         }
-        if let HirType::Component { props } = self.types_module.get_type_mut(b) {
+        if let HirType::Component { props } = &mut *self.types_module.get_type_mut(*b) {
             props.clear();
             props.extend_from_slice(&unified_props);
         }
@@ -388,10 +405,10 @@ impl TypeChecker {
             unreachable!()
         };
 
-        let Some(resolved_a) = self.types_module.get_variable(var_a).cloned() else {
+        let Some(resolved_a) = self.types_module.get_variable(var_a) else {
             unreachable!("Variable should have already been declared")
         };
-        let Some(resolved_b) = self.types_module.get_variable(var_b).cloned() else {
+        let Some(resolved_b) = self.types_module.get_variable(var_b) else {
             unreachable!("Variable2 should have already been declared")
         };
         self.unify(&resolved_a, &resolved_b, span)
@@ -400,24 +417,24 @@ impl TypeChecker {
     fn unify_with_ref(&mut self, rf: TypeId, ty: TypeId, span: &Span) -> Result<TypeId> {
         let resolved_ref = self.resolve(&rf, span)?;
         if !matches!(
-            self.types_module.get_type(&resolved_ref),
+            &*self.types_module.get_type(&resolved_ref),
             HirType::Reference { .. }
         ) {
             return self.unify(&resolved_ref, &ty, span);
         }
-        if let HirType::Reference { rf: refe, .. } = self.types_module.get_type(&ty)
+        if let HirType::Reference { rf: refe, .. } = &*self.types_module.get_type(&ty)
             && rf == *refe
         {
             return Ok(ty);
         }
-        let ty = self.types_module.get_type(&ty);
-        if self.is_recursive_type(rf, ty) {
+        let ty_hir = self.types_module.get_type(&ty).clone();
+        if self.is_recursive_type(rf, &ty_hir) {
             return Err(TypeError {
-                kind: TypeErrorKind::CyclicType { ty: ty.clone() },
+                kind: TypeErrorKind::CyclicType { ty: ty_hir },
                 span: *span,
             });
         }
-        self.substitute(rf, ty.clone());
+        self.substitute(rf, ty_hir);
         let ty = self.types_module.create_unnamed_type(HirType::Reference {
             rf,
             generics: Vec::new(),
@@ -438,7 +455,7 @@ impl TypeChecker {
                 }
             }
             HirType::Component { props } => props.iter().any(|prop| {
-                self.is_recursive_type(ty_ref, self.types_module.get_type(prop.prop_type()))
+                self.is_recursive_type(ty_ref, &self.types_module.get_type(prop.prop_type()))
             }),
             _ => false,
         }

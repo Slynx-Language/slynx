@@ -1,0 +1,2 @@
+import styles;
+pub stylesheet BgGreen(color: int) uses Background((color & 0xff) << 8) {}

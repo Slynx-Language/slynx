@@ -90,7 +90,7 @@ impl Codegen {
         let mut seen_codes: HashSet<StyleProperty> = HashSet::new();
 
         for (usage_idx, usage) in usages.iter().enumerate() {
-            let decl = &hir.declarations[usage.style.as_raw() as usize];
+            let decl = hir.find_declaration(usage.style);
             if let HirDeclarationKind::StyleSheet { ref statements, .. } = decl.kind {
                 let parent_props = self.collect_style_properties(statements);
                 for def in &parent_props {
@@ -169,7 +169,7 @@ impl Codegen {
             unreachable!()
         };
 
-        let hir_type_args = if let slynx_hir::HirType::Style { args } = hir.get_type(&decl.ty) {
+        let hir_type_args = if let slynx_hir::HirType::Style { args } = &*hir.get_type(&decl.ty) {
             args.clone()
         } else {
             Vec::new()

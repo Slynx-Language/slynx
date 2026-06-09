@@ -1,16 +1,12 @@
 stylesheet A() {
     styles {
-        default {
-            foregroundColor: 0xff0000
-        }
+        foregroundColor: 0xff0000
     }
 }
 
 stylesheet B() {
     styles {
-        default {
-            backgroundColor: 0x0000ff
-        }
+        backgroundColor: 0x0000ff
     }
 }
 

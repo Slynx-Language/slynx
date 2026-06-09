@@ -3,21 +3,10 @@ mod expression;
 mod types;
 
 use common::Span;
+pub use common::VisibilityModifier;
 pub use component::*;
 pub use expression::*;
 pub use types::*;
-#[derive(Default, Debug, Clone, Copy)]
-pub enum VisibilityModifier {
-    ///Property visible to everyone
-    Public,
-    ///Property visible only by the one defining it.
-    #[default]
-    Private,
-    ///Property visible only for the children. Only usable on Components.
-    ChildrenPublic,
-    ///Property visible only for the parents. Only usable on Components.
-    ParentPublic,
-}
 
 #[derive(Debug)]
 ///Some statement on the code, a statement not necessarily have value, in general expressions do.
@@ -54,6 +43,7 @@ pub enum ASTStatementKind {
 
 #[derive(Debug)]
 pub struct ASTDeclaration {
+    pub visibility: VisibilityModifier,
     pub kind: ASTDeclarationKind,
     pub span: Span,
 }
@@ -95,7 +85,25 @@ pub enum StyleSheetStatement {
 }
 
 #[derive(Debug)]
+pub struct ASTPath {
+    pub module_names: Vec<String>,
+}
+#[derive(Debug)]
+pub struct ImportUsage {
+    pub content_name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct FileImport {
+    pub path: ASTPath,
+    pub usages: Vec<ImportUsage>,
+}
+
+#[derive(Debug)]
 pub enum ASTDeclarationKind {
+    Import(FileImport),
+
     Alias {
         name: GenericIdentifier,
         target: GenericIdentifier,

@@ -55,11 +55,10 @@ impl TypeChecker {
             HirDeclarationKind::Object | HirDeclarationKind::Alias => {}
 
             HirDeclarationKind::Function { statements, .. } => {
-                let HirType::Function { return_type, .. } = self.types_module.get_type(&decl.ty)
-                else {
-                    unreachable!("Type of function should be function");
+                let return_type = match &*self.types_module.get_type(&decl.ty) {
+                    HirType::Function { return_type, .. } => *return_type,
+                    _ => unreachable!("Type of function should be function"),
                 };
-                let return_type = *return_type;
                 self.resolve_statements(statements, &return_type)?;
             }
             HirDeclarationKind::ComponentDeclaration { props, .. } => {
@@ -73,7 +72,7 @@ impl TypeChecker {
 
                 self.unify_component_properties(props, &mut declared_props)?;
 
-                *self.types_module.get_type_mut(&decl.ty) = HirType::Component {
+                *self.types_module.get_type_mut(decl.ty) = HirType::Component {
                     props: declared_props,
                 };
             }
@@ -94,10 +93,13 @@ impl TypeChecker {
                 children,
                 span,
             } => {
-                let HirType::Component { props } = self.types_module.get_type(name) else {
-                    unreachable!("Should've received a component type");
+                let props = {
+                    let reader = self.types_module.get_type(name);
+                    let HirType::Component { props } = &*reader else {
+                        unreachable!("Should've received a component type");
+                    };
+                    props.clone()
                 };
-                let props = props.clone();
 
                 for prop_expr in properties {
                     let prop_ty = *props[prop_expr.index()].prop_type();
@@ -139,7 +141,7 @@ impl TypeChecker {
             }
         }
 
-        *self.types_module.get_type_mut(&target) = HirType::Component {
+        *self.types_module.get_type_mut(target) = HirType::Component {
             props: declared_props,
         };
 

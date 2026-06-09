@@ -1,16 +1,12 @@
 stylesheet Base() {
     styles {
-        default {
-            foregroundColor: 0xff0000
-        }
+        foregroundColor: 0xff0000
     }
 }
 
 stylesheet Derived() uses Base() {
     styles {
-        default {
-            foregroundColor: 0x00ff00
-        }
+        foregroundColor: 0x00ff00
     }
 }
 

@@ -24,6 +24,7 @@ impl Parser {
         }
         let Token { span, .. } = self.expect(&TokenKind::RBrace)?;
         Ok(ASTDeclaration {
+            visibility: Default::default(),
             kind: ASTDeclarationKind::ObjectDeclaration { name, fields },
             span: Span {
                 start: start.start,

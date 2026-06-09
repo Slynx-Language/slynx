@@ -1,8 +1,6 @@
 stylesheet Fg(color: int) {
     styles {
-        default {
-            foregroundColor: color
-        }
+        foregroundColor: color
     }
 }
 

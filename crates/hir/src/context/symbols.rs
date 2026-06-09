@@ -1,9 +1,7 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
+use std::ops::{Deref, DerefMut};
 
 use common::SymbolsModule;
+use dashmap::DashMap;
 
 use crate::{SlynxHir, SymbolPointer, VariableId};
 
@@ -12,7 +10,7 @@ use crate::{SlynxHir, SymbolPointer, VariableId};
 pub struct SymbolsResolver {
     module: SymbolsModule<SlynxHir>,
     /// Tracks the original source-level symbol for each variable id.
-    variable_names: HashMap<VariableId, SymbolPointer>,
+    variable_names: DashMap<VariableId, SymbolPointer>,
 }
 
 impl Deref for SymbolsResolver {
@@ -32,17 +30,17 @@ impl SymbolsResolver {
     pub fn new(module: SymbolsModule<SlynxHir>) -> Self {
         Self {
             module,
-            variable_names: HashMap::new(),
+            variable_names: DashMap::new(),
         }
     }
 
     /// Associates the given variable ID with its source-level symbol pointer.
-    pub fn create_variable(&mut self, id: VariableId, symbol: SymbolPointer) {
+    pub fn create_variable(&self, id: VariableId, symbol: SymbolPointer) {
         self.variable_names.insert(id, symbol);
     }
 
     /// Returns the map from variable IDs to their source-level symbol pointers.
-    pub fn variables(&self) -> &HashMap<VariableId, SymbolPointer> {
+    pub fn variables(&self) -> &DashMap<VariableId, SymbolPointer> {
         &self.variable_names
     }
     /// Returns a reference to the underlying [`SymbolsModule`].

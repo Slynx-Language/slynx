@@ -1,6 +1,20 @@
 pub mod symbols;
 pub use symbols::*;
 
+/// Visibility of a declaration.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VisibilityModifier {
+    /// Visible to everyone.
+    Public,
+    /// Visible only within the defining file.
+    #[default]
+    Private,
+    /// Visible only to children (components only).
+    ChildrenPublic,
+    /// Visible only to parents (components only).
+    ParentPublic,
+}
+
 ///The representation of the bounds of something on the code.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Span {

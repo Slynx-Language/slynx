@@ -3,8 +3,13 @@ use std::{
     ops::{Range, RangeFrom, RangeTo},
 };
 
+use std::fmt::Write;
+
 use slynx_codegen::CodegenError;
-use slynx_hir::{HIRError, HIRErrorKind, SlynxHir};
+use slynx_hir::{
+    HIRError, HIRErrorKind, SlynxHir,
+    module_loader::{SourceError, SourceErrorKind},
+};
 
 use slynx_lexer::error::LexerError;
 use slynx_parser::error::ParseError;
@@ -173,12 +178,20 @@ pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
 pub fn suggestions_from_ir(err: &CodegenError) -> Vec<SlynxSuggestion> {
     match &err {
         CodegenError::DeclarationNotRecognized(sla) => {
-            vec![SlynxSuggestion::DeclarationNotRecognized(format!(
-                "{}",
-                sla.as_raw()
-            ))]
+            let mut buf = String::new();
+            let _ = write!(buf, "{sla:?}");
+            vec![SlynxSuggestion::DeclarationNotRecognized(buf)]
         }
         _ => vec![],
+    }
+}
+
+/// this function converts a [`SourceError`] into a [`Vec<SlynxSuggestion>`]
+pub fn suggestions_from_source(err: &SourceError) -> Vec<SlynxSuggestion> {
+    match err.kind() {
+        SourceErrorKind::Lexing(lex_err) => suggestions_from_lexer(lex_err),
+        SourceErrorKind::Parsing(parse_err) => suggestions_from_parser(parse_err),
+        SourceErrorKind::InexsitantSource(_, _, _) => vec![],
     }
 }
 
@@ -238,12 +251,16 @@ mod tests {
     #[test]
     /// tests that [`suggestions_from_ir`] returns [`SlynxSuggestion::DeclarationNotRecognized`] for [`IRError::DeclarationNotRecognized`]
     fn test_suggestions_ir() {
-        let id = DeclarationId::from_raw(42);
+        use slynx_hir::id::LocalDeclId;
+        use slynx_hir::module_loader::FileId;
+        let id = DeclarationId::new(FileId::from_raw(0), LocalDeclId::from_raw(0));
         let err = CodegenError::DeclarationNotRecognized(id);
         let result = suggestions_from_ir(&err);
         assert_eq!(
             result,
-            vec![SlynxSuggestion::DeclarationNotRecognized("42".to_string())]
+            vec![SlynxSuggestion::DeclarationNotRecognized(
+                "DeclarationId { file_id: FileId(0), local_id: LocalDeclId(0) }".to_string()
+            )]
         );
     }
 }

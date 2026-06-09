@@ -4,6 +4,7 @@ use crate::{
     ExpressionId, Result, SlynxHir, SymbolPointer, TypeId,
     error::{HIRError, HIRErrorKind},
     model::{FieldMethod, HirExpression, HirExpressionKind, HirStatementKind, HirType},
+    module_loader::FileId,
 };
 use common::{Operator, Span};
 use slynx_parser::{ASTExpression, ASTExpressionKind, ASTStatement, GenericIdentifier, NamedExpr};
@@ -11,12 +12,13 @@ use slynx_parser::{ASTExpression, ASTExpressionKind, ASTStatement, GenericIdenti
 impl SlynxHir {
     ///Generates a new object expression for the given `ty` object, and the given `fields`.
     pub(crate) fn generate_object_expression(
-        &mut self,
+        &self,
+        file: FileId,
         ty: TypeId,
         fields: &[NamedExpr],
         span: Span,
     ) -> Result<HirExpression> {
-        let Some(defined_layout) = self.get_object_fields(ty) else {
+        let Some(defined_layout) = self.get_object_fields(ty, file) else {
             unreachable!(
                 "The definition of this should have been defined during hoisting and the resolving of it"
             )
@@ -29,7 +31,7 @@ impl SlynxHir {
                     .filter_map(|field| {
                         fields
                             .iter()
-                            .any(|f| self.modules.intern_name(&f.name) == *field)
+                            .any(|f| self.intern_name(&f.name) == *field)
                             .then_some(*field)
                     })
                     .collect::<Vec<_>>();
@@ -39,7 +41,7 @@ impl SlynxHir {
                 let non_existent_fields = fields
                     .iter()
                     .filter_map(|provided_field| {
-                        let field_symbol = self.modules.intern_name(&provided_field.name);
+                        let field_symbol = self.intern_name(&provided_field.name);
                         (!defined_layout.contains(&field_symbol)).then_some(field_symbol)
                     })
                     .collect();
@@ -51,22 +53,22 @@ impl SlynxHir {
         let mut non_recognized_fields = Vec::with_capacity(fields.len());
         let HirType::Struct {
             fields: field_types,
-        } = self.get_type_from_ref(ty, &span).cloned()?
+        } = self.get_type_from_ref(ty, &span)?.clone()
         else {
             unreachable!();
         };
         for field in fields {
             if let Some(field_idx) = defined_layout
                 .iter()
-                .position(|defined_field| &self.modules.intern_name(&field.name) == defined_field)
+                .position(|defined_field| &self.intern_name(&field.name) == defined_field)
             {
                 let ty = field_types[field_idx];
                 resultant_fields.insert(
                     field_idx.max(resultant_fields.len()),
-                    self.generate_expression(&field.expr, Some(ty))?,
+                    self.generate_expression(file, &field.expr, Some(ty))?,
                 );
             } else {
-                let field_symbol = self.modules.intern_name(&field.name);
+                let field_symbol = self.intern_name(&field.name);
                 non_recognized_fields.push(field_symbol);
             }
         }
@@ -85,7 +87,13 @@ impl SlynxHir {
         }
     }
 
-    fn resolve_tuple_access_type(&self, ty: TypeId, index: usize, span: &Span) -> Result<TypeId> {
+    fn resolve_tuple_access_type(
+        &self,
+        file: FileId,
+        ty: TypeId,
+        index: usize,
+        span: &Span,
+    ) -> Result<TypeId> {
         // Follow the shape of the parent expression until we reach the concrete
         // tuple type that owns the requested index.
         let current_ty = self.get_type(&ty).clone();
@@ -95,13 +103,13 @@ impl SlynxHir {
                     .get_variable_type(variable_id)
                     .expect("variable type should exist before tuple access lowering");
 
-                self.resolve_tuple_access_type(*variable_ty, index, span)
+                self.resolve_tuple_access_type(file, variable_ty, index, span)
             }
             HirType::Field(field_method) => {
-                let field_ty = self.resolve_field_method_type(&field_method, span)?;
-                self.resolve_tuple_access_type(field_ty, index, span)
+                let field_ty = self.resolve_field_method_type(file, &field_method, span)?;
+                self.resolve_tuple_access_type(file, field_ty, index, span)
             }
-            HirType::Reference { rf, .. } => self.resolve_tuple_access_type(rf, index, span),
+            HirType::Reference { rf, .. } => self.resolve_tuple_access_type(file, rf, index, span),
             HirType::Tuple { fields } => fields
                 .get(index)
                 .copied()
@@ -110,61 +118,70 @@ impl SlynxHir {
         }
     }
 
-    fn resolve_field_method_type(&self, field_method: &FieldMethod, span: &Span) -> Result<TypeId> {
+    fn resolve_field_method_type(
+        &self,
+        file: FileId,
+        field_method: &FieldMethod,
+        span: &Span,
+    ) -> Result<TypeId> {
         match field_method {
             FieldMethod::Type(rf, index) => {
-                let object_ref = self.resolve_object_reference_type(*rf, span)?;
-                let HirType::Struct { fields } =
-                    self.get_type_from_ref(object_ref, span).cloned()?
+                let object_ref = self.resolve_object_reference_type(file, *rf, span)?;
+                let HirType::Struct { fields } = self.get_type_from_ref(object_ref, span)?.clone()
                 else {
                     unreachable!("object layouts should always resolve to structs");
                 };
                 Ok(fields[*index])
             }
             FieldMethod::Variable(variable_id, field_name) => {
-                let variable_ty = *self
+                let variable_ty = self
                     .get_variable_type(*variable_id)
                     .expect("variable type should exist before field access lowering");
-                let object_ref = self.resolve_object_reference_type(variable_ty, span)?;
-                let (layout, fields) = match (
-                    self.get_object_fields(object_ref),
-                    self.get_type_from_ref(object_ref, span)?,
-                ) {
+                let object_ref = self.resolve_object_reference_type(file, variable_ty, span)?;
+                let reader = self.get_type_from_ref(object_ref, span)?;
+                let (layout, fields) = match (self.get_object_fields(object_ref, file), &*reader) {
                     (Some(layout), HirType::Struct { fields }) => (layout, fields),
                     (None, _) => unreachable!("object reference should carry a layout"),
                     (_, _) => unreachable!("object layouts should always resolve to structs"),
                 };
 
-                match Self::find_name_index(layout, *field_name) {
+                match Self::find_name_index(&layout, *field_name) {
                     Some(index) => Ok(fields[index]),
                     None => Err(HIRError::property_unrecognized(vec![*field_name], *span)),
                 }
             }
-            FieldMethod::Tuple(rf, index) => self.resolve_tuple_access_type(*rf, *index, span),
+            FieldMethod::Tuple(rf, index) => {
+                self.resolve_tuple_access_type(file, *rf, *index, span)
+            }
         }
     }
 
-    fn resolve_object_reference_type(&self, ty: TypeId, span: &Span) -> Result<TypeId> {
+    fn resolve_object_reference_type(
+        &self,
+        file: FileId,
+        ty: TypeId,
+        span: &Span,
+    ) -> Result<TypeId> {
         // Chained accesses can arrive here through variables, aliases, or
         // previous field accesses, so normalize them into the object reference
         // that actually owns the named layout.
         let current_ty = self.get_type(&ty).clone();
         match current_ty {
             HirType::VarReference(variable_id) => {
-                let variable_ty = *self
+                let variable_ty = self
                     .get_variable_type(variable_id)
                     .expect("variable type should exist before field access lowering");
-                self.resolve_object_reference_type(variable_ty, span)
+                self.resolve_object_reference_type(file, variable_ty, span)
             }
             HirType::Field(field_method) => {
-                let field_ty = self.resolve_field_method_type(&field_method, span)?;
-                self.resolve_object_reference_type(field_ty, span)
+                let field_ty = self.resolve_field_method_type(file, &field_method, span)?;
+                self.resolve_object_reference_type(file, field_ty, span)
             }
             HirType::Reference { rf, .. } => {
-                if self.get_object_fields(ty).is_some() {
+                if self.get_object_fields(ty, file).is_some() {
                     Ok(ty)
                 } else {
-                    self.resolve_object_reference_type(rf, span)
+                    self.resolve_object_reference_type(file, rf, span)
                 }
             }
             other => Err(HIRError {
@@ -176,16 +193,17 @@ impl SlynxHir {
 
     /// Resolves an `if` expression, type-checking the condition and both branches.
     pub(crate) fn resolve_if_expression(
-        &mut self,
+        &self,
+        file: FileId,
         condition: &ASTExpression,
         if_body: &[ASTStatement],
         else_body: Option<&[ASTStatement]>,
         span: Span,
     ) -> Result<HirExpression> {
-        let condition = self.generate_expression(condition, Some(self.bool_type()))?;
+        let condition = self.generate_expression(file, condition, Some(self.bool_type()))?;
         let then_block: Vec<_> = if_body
             .iter()
-            .map(|stmt| self.resolve_statement(stmt))
+            .map(|stmt| self.resolve_statement(file, stmt))
             .collect::<Result<_>>()?;
         let then_type = match then_block.last().map(|s| &s.kind) {
             Some(HirStatementKind::Expression { expr }) => expr.ty,
@@ -195,7 +213,7 @@ impl SlynxHir {
         let else_block: Option<Vec<_>> = else_body
             .map(|body| {
                 body.iter()
-                    .map(|stmt| self.resolve_statement(stmt))
+                    .map(|stmt| self.resolve_statement(file, stmt))
                     .collect::<Result<_>>()
             })
             .transpose()?;
@@ -213,11 +231,16 @@ impl SlynxHir {
     }
 
     ///Generates a new tuple expression
-    fn generate_tuple(&mut self, values: &[ASTExpression], span: Span) -> Result<HirExpression> {
+    fn generate_tuple(
+        &self,
+        file: FileId,
+        values: &[ASTExpression],
+        span: Span,
+    ) -> Result<HirExpression> {
         let mut types = Vec::new();
         let mut hir_elements = Vec::new();
         for element in values {
-            let resolved = self.generate_expression(element, None)?;
+            let resolved = self.generate_expression(file, element, None)?;
             types.push(resolved.ty);
             hir_elements.push(resolved);
         }
@@ -226,34 +249,37 @@ impl SlynxHir {
     }
     ///Generates a new tuple expression
     fn generate_tuple_access(
-        &mut self,
+        &self,
+        file: FileId,
         tuple: &ASTExpression,
         index: usize,
         span: Span,
     ) -> Result<HirExpression> {
-        let tuple = self.generate_expression(tuple, None)?;
+        let tuple = self.generate_expression(file, tuple, None)?;
         let tuple_field_ty =
             self.create_unnamed_type(HirType::Field(FieldMethod::Tuple(tuple.ty, index)));
         Ok(self.create_field_access_expression(tuple, index, tuple_field_ty, span))
     }
 
     fn generate_funcall(
-        &mut self,
+        &self,
+        file: FileId,
         name: &GenericIdentifier,
         args: &[ASTExpression],
         span: Span,
     ) -> Result<HirExpression> {
-        let func_symbol = self.modules.intern_name(&name.identifier);
-        let Some((decl, tyid)) = self.modules.get_declaration_by_name(&func_symbol) else {
-            return Err(HIRError::name_unrecognized(func_symbol, span));
-        };
-        let ty = self.get_type(&tyid);
-        let HirType::Function {
-            return_type,
-            args: expect_args,
-        } = ty
-        else {
-            return Err(HIRError::not_a_func(func_symbol, ty.clone(), span));
+        let func_symbol = self.intern_name(&name.identifier);
+        let (decl, tyid) = self.find_declaration_by_name(&func_symbol, span)?;
+        let (return_type, expect_args) = {
+            let ty = self.get_type(&tyid);
+            let HirType::Function {
+                return_type,
+                args: expect_args,
+            } = &*ty
+            else {
+                return Err(HIRError::not_a_func(func_symbol, ty.clone(), span));
+            };
+            (*return_type, expect_args.clone())
         };
         if expect_args.len() != args.len() {
             return Err(HIRError::invalid_funcall_arg_length(
@@ -263,10 +289,9 @@ impl SlynxHir {
                 span,
             ));
         }
-        let return_type = *return_type;
         let exprs = match args
             .iter()
-            .map(|v| self.generate_expression(v, None))
+            .map(|v| self.generate_expression(file, v, None))
             .collect::<Result<Vec<_>>>()
         {
             Ok(exprs) => exprs,
@@ -288,18 +313,20 @@ impl SlynxHir {
     }
 
     fn generate_field_access_expression(
-        &mut self,
+        &self,
+        file: FileId,
         parent: &ASTExpression,
         field: &str,
         span: Span,
     ) -> Result<HirExpression> {
-        let field_symbol = self.modules.intern_name(field);
-        let parent = self.generate_expression(parent, None)?;
+        let field_symbol = self.intern_name(field);
+        let parent = self.generate_expression(file, parent, None)?;
         let HirExpression { ref ty, .. } = parent;
-        match self.get_type(ty) {
+        let ty_kind = self.get_type(ty).clone();
+        match ty_kind {
             HirType::Reference { rf, .. }
-                if let Some(decl) = self.get_object_fields(*rf)
-                    && let Some(index) = Self::find_name_index(decl, field_symbol) =>
+                if let Some(decl) = self.get_object_fields(rf, file)
+                    && let Some(index) = Self::find_name_index(&decl, field_symbol) =>
             {
                 let ty = self.create_unnamed_type(HirType::type_field(*ty, index));
                 Ok(self.create_field_access_expression(parent, index, ty, span))
@@ -309,16 +336,16 @@ impl SlynxHir {
             }
 
             HirType::VarReference(rf) => {
-                let ty = self.create_unnamed_type(HirType::variable_field(*rf, field_symbol));
+                let ty = self.create_unnamed_type(HirType::variable_field(rf, field_symbol));
                 Ok(self.create_field_access_expression(parent, usize::MAX, ty, span))
             }
             HirType::Field(_) => {
-                let object_ref = self.resolve_object_reference_type(*ty, &span)?;
-                let field = self.modules.intern_name(field);
-                let Some(layout) = self.get_object_fields(object_ref) else {
+                let object_ref = self.resolve_object_reference_type(file, *ty, &span)?;
+                let field = self.intern_name(field);
+                let Some(layout) = self.get_object_fields(object_ref, file) else {
                     unreachable!("object reference should carry a layout");
                 };
-                match Self::find_name_index(layout, field) {
+                match Self::find_name_index(&layout, field) {
                     Some(index) => {
                         let field_ty =
                             self.create_unnamed_type(HirType::type_field(object_ref, index));
@@ -328,7 +355,7 @@ impl SlynxHir {
                 }
             }
             u => Err(HIRError {
-                kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u.clone() },
+                kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u },
                 span,
             }),
         }
@@ -337,20 +364,22 @@ impl SlynxHir {
     /// Resolves the provided `expr` trying to infer its type, if not able, keeps as infer, and on later phases fallsback to the default value.
     /// Ty only serves to tell the type of the expression if it's needed to infer and check if it doesnt correspond
     pub(crate) fn generate_expression(
-        &mut self,
+        &self,
+        file: FileId,
         expr: &ASTExpression,
         ty: Option<TypeId>,
     ) -> Result<HirExpression> {
         match &expr.kind {
-            ASTExpressionKind::Tuple(vector) => self.generate_tuple(vector, expr.span),
+            ASTExpressionKind::Tuple(vector) => self.generate_tuple(file, vector, expr.span),
             ASTExpressionKind::TupleAccess { tuple, index } => {
-                self.generate_tuple_access(tuple, *index, expr.span)
+                self.generate_tuple_access(file, tuple, *index, expr.span)
             }
             ASTExpressionKind::If {
                 condition,
                 body,
                 else_body,
             } => self.resolve_if_expression(
+                file,
                 condition,
                 body,
                 else_body.as_ref().map(|v| &**v),
@@ -358,17 +387,19 @@ impl SlynxHir {
             ),
 
             ASTExpressionKind::FunctionCall { name, args } => {
-                self.generate_funcall(name, args, expr.span)
+                self.generate_funcall(file, name, args, expr.span)
             }
             ASTExpressionKind::Boolean(b) => Ok(self.create_boolean_expression(*b, expr.span)),
-            ASTExpressionKind::Binary { lhs, op, rhs } => self.resolve_binary(lhs, *op, rhs, ty),
+            ASTExpressionKind::Binary { lhs, op, rhs } => {
+                self.resolve_binary(file, lhs, *op, rhs, ty)
+            }
             ASTExpressionKind::StringLiteral(s) => {
-                let ptr = self.modules.intern_name(s);
+                let ptr = self.intern_name(s);
                 Ok(self.create_strliteral_expression(ptr, expr.span))
             }
             ASTExpressionKind::Identifier(name) => {
-                let name = self.modules.intern_name(name);
-                let id = self.get_variable(name, &expr.span)?;
+                let name = self.intern_name(name);
+                let id = self.get_variable(file, name, &expr.span)?;
                 let tyid = self.create_type(name, HirType::VarReference(id));
                 Ok(self.create_identifier_expression(id, tyid, expr.span))
             }
@@ -379,18 +410,16 @@ impl SlynxHir {
             ASTExpressionKind::Component(component) => {
                 let symbol = self.intern_name(&component.name.identifier);
                 let id = self.get_type_of_name(symbol, &component.span)?;
-                let component = self.resolve_component_expression(component)?;
+                let component = self.resolve_component_expression(file, component)?;
                 Ok(self.create_component_expression(component, id, expr.span))
             }
             ASTExpressionKind::ObjectExpression { name, fields } => {
-                let symbol = self.modules.intern_name(&name.identifier);
-                let Some((_, ty)) = self.modules.get_declaration_by_name(&symbol) else {
-                    return Err(HIRError::name_unrecognized(symbol, name.span));
-                };
-                self.generate_object_expression(ty, fields, expr.span)
+                let symbol = self.intern_name(&name.identifier);
+                let (_, ty) = self.find_declaration_by_name(&symbol, name.span)?;
+                self.generate_object_expression(file, ty, fields, expr.span)
             }
             ASTExpressionKind::FieldAccess { parent, field } => {
-                self.generate_field_access_expression(parent, field, expr.span)
+                self.generate_field_access_expression(file, parent, field, expr.span)
             }
         }
     }
@@ -403,15 +432,24 @@ impl SlynxHir {
 
     ///Resolves the binary operation with the provided `lhs` and `rhs`.
     pub(crate) fn resolve_binary(
-        &mut self,
+        &self,
+        file: FileId,
         lhs: &ASTExpression,
         op: Operator,
         rhs: &ASTExpression,
         ty: Option<TypeId>,
     ) -> Result<HirExpression> {
-        let mut lhs = self.generate_expression(lhs, ty)?;
-        let mut rhs = self.generate_expression(rhs, ty)?;
-        match discriminant(self.get_type(&lhs.ty)) == discriminant(self.get_type(&rhs.ty)) {
+        let mut lhs = self.generate_expression(file, lhs, ty)?;
+        let mut rhs = self.generate_expression(file, rhs, ty)?;
+        let lhs_disc = {
+            let lhs_reader = self.get_type(&lhs.ty);
+            discriminant(&*lhs_reader)
+        };
+        let rhs_disc = {
+            let rhs_reader = self.get_type(&rhs.ty);
+            discriminant(&*rhs_reader)
+        };
+        match lhs_disc == rhs_disc {
             false if lhs.ty == self.infer_type() => lhs.ty = rhs.ty,
             false if rhs.ty == self.infer_type() => rhs.ty = lhs.ty,
             _ => {}

@@ -72,7 +72,7 @@ fn build_stages_exposes_hir_and_ir_dumps_without_writing_files() {
 
     assert_eq!(stages.dump_path("hir"), hir_path);
     assert_eq!(stages.dump_path("ir"), ir_path);
-    assert!(stages.hir_text().contains("HIR Declarations"));
+    assert!(stages.hir_text().contains("HIR Files"));
     assert!(!stages.ir_text().is_empty());
     assert!(!hir_path.exists());
     assert!(!ir_path.exists());

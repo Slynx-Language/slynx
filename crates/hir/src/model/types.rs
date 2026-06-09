@@ -54,7 +54,7 @@
 
 use crate::{SymbolPointer, TypeId, VariableId};
 
-use slynx_parser::VisibilityModifier;
+use common::VisibilityModifier;
 
 /// A method for accessing fields on types.
 ///

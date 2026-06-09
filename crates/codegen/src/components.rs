@@ -35,13 +35,8 @@ fn collect_var_ids_from_expr(expr: &HirExpression, out: &mut Vec<VariableId>) {
 /// Looks up the variable name from the HIR symbols resolver,
 /// then finds the property with that name in the component's props list.
 fn var_id_to_prop_index(hir: &SlynxHir, comp_ty: &TypeId, var_id: VariableId) -> Option<usize> {
-    let name = hir
-        .modules
-        .symbols_resolver
-        .variables()
-        .get(&var_id)
-        .copied()?;
-    if let HirType::Component { props } = hir.get_type(comp_ty) {
+    let name = *hir.symbols_resolver.variables().get(&var_id)?.value();
+    if let HirType::Component { props } = &*hir.get_type(comp_ty) {
         props.iter().position(|p| p.name() == name)
     } else {
         None
@@ -108,7 +103,7 @@ impl Codegen {
                     .ok_or(CodegenError::IRTypeNotRecognized(*name))?;
 
                 let mut all_values = Vec::new();
-                if let HirType::Component { props } = hir.get_type(name) {
+                if let HirType::Component { props } = &*hir.get_type(name) {
                     let num_props = props.len();
                     let mut prop_values = vec![Value::VOID; num_props];
                     for prop in properties {
@@ -322,14 +317,15 @@ impl Codegen {
             .components
             .get(&decl.id)
             .expect("Component should have been hoisted");
-        let property_types = if let HirType::Component { props } = hir.get_type(&decl.ty) {
-            props
-                .iter()
-                .map(|prop| self.get_or_create_ir_type(prop.prop_type(), hir, ir))
-                .collect::<Result<Vec<_>, CodegenError>>()?
+        let component_props = if let HirType::Component { props } = &*hir.get_type(&decl.ty) {
+            props.clone()
         } else {
             Vec::new()
         };
+        let property_types = component_props
+            .iter()
+            .map(|prop| self.get_or_create_ir_type(prop.prop_type(), hir, ir))
+            .collect::<Result<Vec<_>, CodegenError>>()?;
 
         let parent_name = hir.get_declaration_name(decl.id);
 

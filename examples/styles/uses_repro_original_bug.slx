@@ -1,16 +1,12 @@
 stylesheet Bg(color: int) uses Fg(color - 0x00ffff) {
     styles {
-        default {
-            backgroundColor: color
-        }
+        backgroundColor: color
     }
 }
 
 stylesheet Fg(color: int) {
     styles {
-        default {
-            foregroundColor: color
-        }
+        foregroundColor: color
     }
 }
 

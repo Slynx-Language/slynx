@@ -1,7 +1,6 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut, Index, IndexMut},
-};
+use std::ops::{Deref, DerefMut, Index, IndexMut};
+
+use dashmap::DashMap;
 
 use crate::{SymbolPointer, VariableId};
 
@@ -9,8 +8,8 @@ use crate::{SymbolPointer, VariableId};
 #[derive(Debug)]
 pub struct HIRScope {
     ///A map to a name to an id. This can be used to save variables for example
-    names: HashMap<SymbolPointer, VariableId>,
-    mutables: Vec<VariableId>,
+    names: DashMap<SymbolPointer, VariableId>,
+    mutables: boxcar::Vec<VariableId>,
 }
 
 impl Default for HIRScope {
@@ -23,13 +22,13 @@ impl HIRScope {
     /// Creates a new, empty [`HIRScope`].
     pub fn new() -> Self {
         Self {
-            mutables: Vec::new(),
-            names: HashMap::new(),
+            mutables: boxcar::Vec::new(),
+            names: DashMap::new(),
         }
     }
 
     ///Inserts the provided `symbol` on this scope
-    pub fn create_name(&mut self, symbol: SymbolPointer, var: VariableId, mutable: bool) {
+    pub fn create_name(&self, symbol: SymbolPointer, var: VariableId, mutable: bool) {
         self.names.insert(symbol, var);
         if mutable {
             self.mutables.push(var);
@@ -37,20 +36,20 @@ impl HIRScope {
     }
 
     ///Retrieves the id of the provided `name` on the scope
-    pub fn get_name(&self, name: &SymbolPointer) -> Option<&VariableId> {
-        self.names.get(name)
+    pub fn get_name(&self, name: &SymbolPointer) -> Option<VariableId> {
+        self.names.get(name).map(|name| *name.value())
     }
 }
 
 #[derive(Debug, Default)]
-///A module made with the intent of managing data inside scopes. Note that everything on this scope will have affect on the last defined scope.
+///A Context made with the intent of managing data inside scopes. Note that everything on this scope will have affect on the last defined scope.
 ///So when entering a new scope, it means all functions will have effect on this new scope. This struct always derefs to the last active scope
-pub struct ScopeModule {
+pub struct ScopeContext {
     scopes: Vec<HIRScope>,
 }
 
-impl ScopeModule {
-    /// Creates a new [`ScopeModule`] with an initial global scope already pushed.
+impl ScopeContext {
+    /// Creates a new [`ScopeContext`] with an initial global scope already pushed.
     pub fn new() -> Self {
         let mut out = Self::default();
         out.enter_scope();
@@ -75,51 +74,51 @@ impl ScopeModule {
         self.scopes.pop()
     }
     ///Returns an iterator that iterates over the most recent scope, until the global one
-    pub fn iter(&self) -> ScopeModuleIterator<'_> {
-        ScopeModuleIterator {
-            scope_module: self,
+    pub fn iter(&self) -> ScopeContextIterator<'_> {
+        ScopeContextIterator {
+            scope_context: self,
             index: self.len(),
         }
     }
 }
 
-pub struct ScopeModuleIterator<'a> {
-    scope_module: &'a ScopeModule,
+pub struct ScopeContextIterator<'a> {
+    scope_context: &'a ScopeContext,
     index: usize,
 }
 
-impl<'a> Iterator for ScopeModuleIterator<'a> {
+impl<'a> Iterator for ScopeContextIterator<'a> {
     type Item = &'a HIRScope;
     fn next(&mut self) -> Option<Self::Item> {
         if self.index == 0 {
             None
         } else {
             self.index -= 1;
-            Some(&self.scope_module[self.index])
+            Some(&self.scope_context[self.index])
         }
     }
 }
 
-impl Deref for ScopeModule {
+impl Deref for ScopeContext {
     type Target = HIRScope;
     fn deref(&self) -> &Self::Target {
         self.scopes.last().unwrap()
     }
 }
-impl DerefMut for ScopeModule {
+impl DerefMut for ScopeContext {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.scopes.last_mut().unwrap()
     }
 }
 
-impl Index<usize> for ScopeModule {
+impl Index<usize> for ScopeContext {
     type Output = HIRScope;
     fn index(&self, index: usize) -> &Self::Output {
         &self.scopes[index]
     }
 }
 
-impl IndexMut<usize> for ScopeModule {
+impl IndexMut<usize> for ScopeContext {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.scopes[index]
     }

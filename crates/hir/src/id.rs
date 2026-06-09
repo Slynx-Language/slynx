@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::module_loader::FileId;
+
 /// Shared trait for all HIR IDs
 /// Ensures all IDs have consistent behavior
 pub trait HirIdTrait: Copy + Clone + std::fmt::Debug + std::hash::Hash + Eq + PartialEq {
@@ -7,6 +9,28 @@ pub trait HirIdTrait: Copy + Clone + std::fmt::Debug + std::hash::Hash + Eq + Pa
     fn as_u64(&self) -> u64;
     /// Constructs an ID from a raw `u64` value.
     fn from_u64(value: u64) -> Self;
+}
+///The local ID for some declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LocalDeclId(pub(crate) u32);
+impl LocalDeclId {
+    pub fn from_raw(value: u32) -> Self {
+        Self(value)
+    }
+    pub fn as_raw(&self) -> usize {
+        self.0 as usize
+    }
+}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub struct DeclarationId {
+    pub file_id: FileId,
+    pub local_id: LocalDeclId,
+}
+impl DeclarationId {
+    pub fn new(file_id: FileId, local_id: LocalDeclId) -> Self {
+        Self { file_id, local_id }
+    }
 }
 
 /// Macro to generate newtype wrappers for IDs with standard behavior
@@ -67,12 +91,6 @@ define_hir_id!(
 );
 
 define_hir_id!(
-    DeclarationId,
-    DECLARATION_COUNTER,
-    "Unique ID for top-level declarations (functions, components, objects)"
-);
-
-define_hir_id!(
     ExpressionId,
     EXPRESSION_COUNTER,
     "Unique ID for expressions"
@@ -99,13 +117,6 @@ define_hir_id!(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_id_uniqueness() {
-        let id1 = DeclarationId::new();
-        let id2 = DeclarationId::new();
-        assert_ne!(id1, id2);
-    }
 
     #[test]
     fn test_id_ordering() {

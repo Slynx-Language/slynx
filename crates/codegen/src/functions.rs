@@ -58,15 +58,18 @@ impl Codegen {
         hir: &SlynxHir,
         ir: &mut SlynxIR,
     ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
-        let ty = hir.get_type(&func_ty);
-        let HirType::Function { args, return_type } = ty else {
-            unreachable!("Initialize function should initialize with the type of a function");
+        let (args, return_type) = {
+            let ty = hir.get_type(&func_ty);
+            let HirType::Function { args, return_type } = &*ty else {
+                unreachable!("Initialize function should initialize with the type of a function");
+            };
+            (args.clone(), *return_type)
         };
         let args = args
             .iter()
             .map(|v| self.get_or_create_ir_type(v, hir, ir))
             .collect::<Result<Vec<_>, CodegenError>>()?;
-        let return_type = self.get_or_create_ir_type(return_type, hir, ir)?;
+        let return_type = self.get_or_create_ir_type(&return_type, hir, ir)?;
         Ok((args, return_type))
     }
 

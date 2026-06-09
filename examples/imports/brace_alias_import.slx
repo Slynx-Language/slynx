@@ -1,0 +1,20 @@
+import styles using {Background as Bg};
+
+stylesheet MyStyle(color: int) uses Background(color) {
+	styles {
+		backgroundColor: color
+	}
+}
+
+component MyComponent {
+	Div {
+		style: MyStyle(0xff0000),
+		Text {
+			text: "Brace alias import"
+		}
+	}
+}
+
+func main(): Component {
+	MyComponent {}
+}
