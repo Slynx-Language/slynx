@@ -20,15 +20,15 @@ mod declaration;
 mod defaults;
 pub mod error;
 pub use error::{IncompatibleComponentReason, TypeError, TypeErrorKind};
+use slynx_hir::context::TypesContext;
 mod expression;
 mod statement;
 mod styles;
 use std::collections::HashMap;
 
 use common::Span;
-use slynx_hir::modules::TypesModule;
-use slynx_hir::{ComponentProperty, HirStatement, HirStatementKind};
-use slynx_hir::{FieldMethod, HirType, SlynxHir, SymbolPointer, TypeId};
+use slynx_hir::{ComponentProperty, DeclarationId, HirStatement, HirStatementKind};
+use slynx_hir::{FieldMethod, HirType, SlynxHir, TypeId};
 
 pub type Result<T> = std::result::Result<T, TypeError>;
 
@@ -38,13 +38,12 @@ pub type Result<T> = std::result::Result<T, TypeError>;
 ///whose got `resolve` on their names. Since the idea is for them to try to resolve the types. The second part is that, after checking all the IR, if some code could not be infered,
 ///then it starts setting the default values for every of them. This is made with functions named as `default`. So every infers are get rid because the default type is provided.
 pub struct TypeChecker {
-    ///A an array of declaration types
-    declarations: Vec<TypeId>,
+    ///A map of declaration types keyed by declaration ID
+    decl_types: HashMap<DeclarationId, TypeId>,
     ///The types module from the HIR to be mutated
-    types_module: TypesModule,
+    types_module: TypesContext,
     /// The type of everything that is expected to have some
     types: HashMap<TypeId, HirType>,
-    structs: HashMap<TypeId, Vec<SymbolPointer>>,
 }
 
 impl TypeChecker {
@@ -113,32 +112,33 @@ impl TypeChecker {
     /// Checks the types of the provided `hir` and mutates them in place. Any that could not be inferred but, yet is valid, is
     /// at the end, returned as it's default type. Returns the same `hir` with fully-resolved types.
     pub fn check(mut hir: SlynxHir) -> Result<SlynxHir> {
-        let mut inner = Self {
-            types: HashMap::new(),
-            structs: std::mem::take(&mut hir.modules.declarations_module.objects),
-            types_module: std::mem::take(&mut hir.modules.types_module),
-            declarations: Vec::new(),
-        };
-        // DeclarationId is currently assigned linearly in hoisting order,
-        // so declaration type lookup can stay append-only here.
-        for decl in &hir.declarations {
-            debug_assert_eq!(
-                decl.id.as_raw() as usize,
-                inner.declarations.len(),
-                "declaration id must stay linear with declarations table",
-            );
-            inner.declarations.push(decl.ty);
-        }
-        for decl in &mut hir.declarations {
-            inner.check_decl(decl)?;
-        }
-        // for the ones that couldn't be inferred, put their default
-        for decl in &mut hir.declarations {
-            inner.set_default(decl)?;
+        let mut decl_types = HashMap::new();
+        for file in &hir.files {
+            for decl in file.declarations() {
+                decl_types.insert(decl.id, decl.ty);
+            }
         }
 
-        hir.modules.declarations_module.objects = inner.structs;
-        hir.modules.types_module = inner.types_module;
+        let mut inner = Self {
+            types: HashMap::new(),
+            types_module: std::mem::take(&mut hir.types_module),
+            decl_types,
+        };
+
+        // Phase 1: resolve infer types
+        for file in &mut hir.files {
+            for decl in &mut file.declarations.declarations {
+                inner.check_decl(decl)?;
+            }
+        }
+        // Phase 2: set defaults for remaining infer types
+        for file in &mut hir.files {
+            for decl in &mut file.declarations.declarations {
+                inner.set_default(decl)?;
+            }
+        }
+
+        hir.types_module = inner.types_module;
         Ok(hir)
     }
 
@@ -177,7 +177,7 @@ impl TypeChecker {
                 let concrete_type = self
                     .types_module
                     .get_type(&self.get_struct_from_ref(&object_ty, span)?);
-                let s_fields = self.structs.get(&layout_ty).ok_or(TypeError {
+                let s_fields = self.types_module.objects.get(&layout_ty).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
                     span: *span,
                 })?;

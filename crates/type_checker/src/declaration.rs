@@ -55,11 +55,10 @@ impl TypeChecker {
             HirDeclarationKind::Object | HirDeclarationKind::Alias => {}
 
             HirDeclarationKind::Function { statements, .. } => {
-                let HirType::Function { return_type, .. } = self.types_module.get_type(&decl.ty)
-                else {
-                    unreachable!("Type of function should be function");
+                let return_type = match self.types_module.get_type(&decl.ty) {
+                    HirType::Function { return_type, .. } => *return_type,
+                    _ => unreachable!("Type of function should be function"),
                 };
-                let return_type = *return_type;
                 self.resolve_statements(statements, &return_type)?;
             }
             HirDeclarationKind::ComponentDeclaration { props, .. } => {

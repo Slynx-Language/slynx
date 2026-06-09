@@ -19,7 +19,7 @@ impl TypeChecker {
     /// If the type is not a struct, a `TypeError` is returned.
     pub fn get_struct_from_ref(&self, ty: &TypeId, span: &Span) -> Result<TypeId> {
         match self.types_module.get_type(ty) {
-            HirType::Reference { rf, .. } => self.get_struct_from_ref(rf, span),
+            HirType::Reference { rf, .. } => self.get_struct_from_ref(&rf, span),
             HirType::Struct { .. } => Ok(*ty),
             v => Err(TypeError {
                 kind: TypeErrorKind::NotAStruct(v.clone()),
@@ -70,7 +70,8 @@ impl TypeChecker {
                 let layout_ty = self.get_object_layout_type(&object_ty, span)?;
 
                 let Some(index) = self
-                    .structs
+                    .types_module
+                    .objects
                     .get(&layout_ty)
                     .expect("Type should be defined")
                     .iter()
@@ -100,11 +101,7 @@ impl TypeChecker {
         declaration: DeclarationId,
         span: &Span,
     ) -> Result<(Vec<TypeId>, TypeId)> {
-        let Some(function_ty) = self
-            .declarations
-            .get(declaration.as_raw() as usize)
-            .copied()
-        else {
+        let Some(function_ty) = self.decl_types.get(&declaration).copied() else {
             return Err(TypeError {
                 kind: TypeErrorKind::Unrecognized,
                 span: *span,

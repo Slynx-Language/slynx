@@ -12,7 +12,8 @@ impl TypeChecker {
             HirStyleStatement::Styles(blocks) => {
                 for block in blocks {
                     for def in &mut block.definitions {
-                        def.expr.ty = self.unify(&def.expected_type, &def.expr.ty, &def.span)?;
+                        let calc = self.get_type_of_expr(&mut def.expr)?;
+                        def.expr.ty = self.unify(&def.expected_type, &calc, &def.span)?;
                     }
                 }
                 Ok(())
@@ -22,7 +23,7 @@ impl TypeChecker {
     pub fn resolve_style_usage(&mut self, style_usage: &mut HirStyleUsage) -> Result<()> {
         let HirType::Style { args } = self
             .types_module
-            .get_type(&self.declarations[style_usage.style.as_raw() as usize])
+            .get_type(&self.decl_types[&style_usage.style])
         else {
             unreachable!("Type of style should be style");
         };
@@ -35,7 +36,7 @@ impl TypeChecker {
     }
 
     pub fn check_style_usage(&mut self, usage: &mut HirStyleUsage) -> Result<()> {
-        let decl_ty = self.declarations[usage.style.as_raw() as usize];
+        let decl_ty = self.decl_types[&usage.style];
         let params_types = usage
             .params
             .iter_mut()
