@@ -18,7 +18,7 @@ impl Codegen {
         };
         let mut current = decl;
         let fields = loop {
-            match hir.get_type(&current) {
+            match &*hir.get_type(&current) {
                 slynx_hir::HirType::Struct { fields } => break fields.clone(),
                 slynx_hir::HirType::Reference { rf, .. } => current = *rf,
                 _ => unreachable!("{:?} should map to an Object, but it doesn't", decl),
