@@ -36,7 +36,6 @@ fn collect_var_ids_from_expr(expr: &HirExpression, out: &mut Vec<VariableId>) {
 /// then finds the property with that name in the component's props list.
 fn var_id_to_prop_index(hir: &SlynxHir, comp_ty: &TypeId, var_id: VariableId) -> Option<usize> {
     let name = hir
-        .modules
         .symbols_resolver
         .variables()
         .get(&var_id)
