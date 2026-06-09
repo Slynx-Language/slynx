@@ -9,6 +9,8 @@ smallvec = "1.15.1"
 color-eyre = "0.6.5"
 common = {path="./crates/common"}
 petgraph = "0.8.3"
+lasso = "0.7.3"
+boxcar = "0.2.14"
 
 [dependencies]
 clap={ version = "4.5.52", features = ["derive"] }
@@ -22,6 +24,7 @@ slynx-typechecker.path="./crates/type_checker"
 slynx-monomorphizer.path="./crates/monomorphizer"
 slynx-ir.path="./crates/ir"
 slynx-codegen.path="./crates/codegen"
+
 
 [workspace]
 members = ["crates/*"]

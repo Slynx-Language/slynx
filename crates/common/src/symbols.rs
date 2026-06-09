@@ -1,13 +1,14 @@
 use std::{hash::Hash, marker::PhantomData};
 
+use lasso::{Spur, ThreadedRodeo};
 use rart::{AdaptiveRadixTree, VectorKey};
 ///A pointer to some intern string. This is 48bits for the actual position of the string in the internalized string, and 16bits for it's length
 #[derive(Debug)]
-pub struct SymbolPointer<T>(u64, PhantomData<T>);
+pub struct SymbolPointer<T>(Spur, PhantomData<T>);
 
 impl<T> SymbolPointer<T> {
-    pub fn new(ptr: u64, length: u16) -> Self {
-        Self(ptr << 16 | length as u64, PhantomData)
+    pub fn new(spur: Spur) -> Self {
+        Self(spur, PhantomData)
     }
 }
 
@@ -32,26 +33,9 @@ impl<T> Hash for SymbolPointer<T> {
     }
 }
 
-///A internalized string is an wrapper over strings to don't allocate too much on the heap.
-///The inner string might look something like `CONTENTCONTENT2CONTENT3`, where `CONTENT`, `CONTENT2` and `CONTENT3` are the actual string inserted
-#[derive(Debug, Default)]
-pub struct InternalizedString {
-    inner: Vec<u8>,
-}
-
-impl InternalizedString {
-    ///Inserts the provided `s` string and returns it's pointer. Note that it's size cannot be >65535
-    pub fn insert<T>(&mut self, s: &str) -> SymbolPointer<T> {
-        let ptr = self.inner.len() as u64;
-        let size = s.len();
-        self.inner.extend_from_slice(s.as_bytes());
-        SymbolPointer::new(ptr, size as u16)
-    }
-}
-
 ///The structure that will be responsible to intern names inside the HIR. It will map a string S to it's symbol
 pub struct SymbolsModule<Ctx> {
-    names: InternalizedString,
+    names: lasso::ThreadedRodeo,
     name_mapping: AdaptiveRadixTree<VectorKey, SymbolPointer<Ctx>>,
 }
 
@@ -61,30 +45,15 @@ impl<Ctx> std::default::Default for SymbolsModule<Ctx> {
     }
 }
 
-impl<Ctx> std::ops::Index<SymbolPointer<Ctx>> for SymbolsModule<Ctx> {
-    type Output = str;
-    fn index(&self, ptr: SymbolPointer<Ctx>) -> &Self::Output {
-        let size = ptr.0 as usize & 0xffff;
-        let ptr = ptr.0 as usize >> 16;
-        unsafe { std::str::from_utf8_unchecked(&self.names.inner[ptr..ptr + size]) }
-    }
-}
-
 impl<Ctx> SymbolsModule<Ctx> {
     pub fn new() -> Self {
         Self {
-            names: InternalizedString::default(),
+            names: ThreadedRodeo::new(),
             name_mapping: AdaptiveRadixTree::new(),
         }
     }
-    pub fn intern(&mut self, s: &str) -> SymbolPointer<Ctx> {
-        if let Some(ptr) = self.name_mapping.get(s) {
-            *ptr
-        } else {
-            let ptr = self.names.insert(s);
-            self.name_mapping.insert(s, ptr);
-            ptr
-        }
+    pub fn intern(&self, s: &str) -> SymbolPointer<Ctx> {
+        SymbolPointer::new(self.names.get_or_intern(s))
     }
     ///Retrieves the pointer of the string on this module.
     pub fn retrieve(&self, s: &str) -> Option<&SymbolPointer<Ctx>> {
@@ -92,7 +61,7 @@ impl<Ctx> SymbolsModule<Ctx> {
     }
 
     pub fn get_name(&self, ptr: SymbolPointer<Ctx>) -> &str {
-        &self[ptr]
+        self.names.resolve(&ptr.0)
     }
 }
 
