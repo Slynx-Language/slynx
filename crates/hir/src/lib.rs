@@ -379,47 +379,28 @@ impl SlynxHir {
     fn hoist(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
         match &ast.kind {
             ASTDeclarationKind::StyleSheet { name, args, .. } => {
-                self.hoist_stylesheet(file, &name.identifier, args)
+                self.hoist_stylesheet(file, &name.identifier, args, ast.visibility)
             }
             ASTDeclarationKind::Alias { name, target } => {
                 let alias_symbol = self.intern_name(&name.identifier);
                 self.intern_name(&target.identifier);
-                self.create_empty_alias(alias_symbol, file);
+                self.create_empty_alias(alias_symbol, file, ast.visibility);
             }
             ASTDeclarationKind::ObjectDeclaration { name, fields } => {
-                self.create_empty_object(file, name, fields)
+                self.create_empty_object(file, name, fields, ast.visibility)
             }
 
             ASTDeclarationKind::FuncDeclaration { name, args, .. } => {
-                self.hoist_function(file, name, args)?
+                self.hoist_function(file, name, args, ast.visibility)?
             }
             ASTDeclarationKind::ComponentDeclaration { name, members, .. } => {
-                self.hoist_component(file, name, members)?
+                self.hoist_component(file, name, members, ast.visibility)?
             }
             ASTDeclarationKind::Import(_) => {
                 //modules loader already solved so
             }
         }
-        // Apply visibility from AST to the newly registered declaration metadata.
-        if !matches!(ast.kind, ASTDeclarationKind::Import(_)) {
-            let symbol = match &ast.kind {
-                ASTDeclarationKind::Alias { name, .. }
-                | ASTDeclarationKind::ObjectDeclaration { name, .. }
-                | ASTDeclarationKind::FuncDeclaration { name, .. }
-                | ASTDeclarationKind::ComponentDeclaration { name, .. }
-                | ASTDeclarationKind::StyleSheet { name, .. } => self.intern_name(&name.identifier),
-                ASTDeclarationKind::Import(_) => unreachable!(),
-            };
-            if let Some((local, _)) = self
-                .get_file(file)
-                .declarations
-                .get_declaration_data_by_name(&symbol)
-            {
-                self.get_file_mut(file)
-                    .declarations
-                    .set_visibility(local, ast.visibility);
-            }
-        }
+
         Ok(())
     }
 

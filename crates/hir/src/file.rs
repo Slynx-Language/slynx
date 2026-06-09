@@ -26,7 +26,7 @@ impl HirFile {
     }
     pub fn create_declaration(&mut self, mut decl: HirDeclaration) {
         let id = decl.id.local_id.as_raw();
-        let len = self.declarations.declarations.len();
+        let len = self.declarations.declarations.count();
         assert!(
             id == len,
             "create_declaration: local_id={id} != declarations.len()={len}, file_id={:?}",
@@ -50,7 +50,7 @@ impl HirFile {
             Ok(v)
         }
     }
-    pub fn declarations(&self) -> &[HirDeclaration] {
+    pub fn declarations(&self) -> &boxcar::Vec<HirDeclaration> {
         &self.declarations.declarations
     }
     pub fn get_declaration_type(&self, id: LocalDeclId) -> TypeId {

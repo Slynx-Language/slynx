@@ -1,3 +1,5 @@
+use common::VisibilityModifier;
+
 use crate::{DeclarationId, HirType, SlynxHir, SymbolPointer, TypeId, module_loader::FileId};
 
 impl SlynxHir {
@@ -6,12 +8,13 @@ impl SlynxHir {
         &mut self,
         aliasname: SymbolPointer,
         file: FileId,
+        visibility: VisibilityModifier,
     ) -> DeclarationId {
         let ty = self.types_module.create_type(aliasname, HirType::Infer);
         let local_id = self
             .get_file_mut(file)
             .declarations
-            .register_declaration_metadata(aliasname, ty);
+            .register_declaration_metadata(aliasname, ty, visibility);
         DeclarationId::new(file, local_id)
     }
 

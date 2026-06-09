@@ -7,7 +7,7 @@ use crate::{
     },
     module_loader::FileId,
 };
-use common::Span;
+use common::{Span, VisibilityModifier};
 use slynx_parser::{
     ASTExpression, ASTExpressionKind, ASTStatement, ASTStatementKind, ComponentMember,
     ComponentMemberKind, GenericIdentifier, ObjectField, StyleSheetStatement, TypedName,
@@ -19,6 +19,7 @@ impl SlynxHir {
         file: FileId,
         name: &GenericIdentifier,
         fields: &[ObjectField],
+        visibility: VisibilityModifier,
     ) {
         let name = self.intern_name(&name.identifier);
         let def_fields = fields
@@ -33,11 +34,17 @@ impl SlynxHir {
             .create_type(name, HirType::new_ref(struct_ty));
         self.get_file_mut(file)
             .declarations
-            .register_object(name, ty, Vec::new());
+            .register_object(name, ty, Vec::new(), visibility);
         self.types_module.objects.insert(ty, def_fields);
     }
     ///Hoists a `stylesheet` declaration
-    pub(crate) fn hoist_stylesheet(&mut self, file: FileId, name: &str, args: &[TypedName]) {
+    pub(crate) fn hoist_stylesheet(
+        &mut self,
+        file: FileId,
+        name: &str,
+        args: &[TypedName],
+        visibility: VisibilityModifier,
+    ) {
         let name = self.intern_name(name);
         let ty = self.types_module.create_type(
             name,
@@ -47,7 +54,7 @@ impl SlynxHir {
         );
         self.get_file_mut(file)
             .declarations
-            .register_declaration_metadata(name, ty);
+            .register_declaration_metadata(name, ty, visibility);
     }
 
     ///Resolves a `stylesheet` declaration
@@ -169,6 +176,7 @@ impl SlynxHir {
         file: FileId,
         name: &GenericIdentifier,
         args: &[TypedName],
+        visibility: VisibilityModifier,
     ) -> Result<()> {
         let args = args.iter().map(|_| self.int32_type()).collect();
         let return_type = self.int32_type();
@@ -178,7 +186,7 @@ impl SlynxHir {
             .create_type(symbol, HirType::new_function(args, return_type));
         self.get_file_mut(file)
             .declarations
-            .register_declaration_metadata(symbol, ty);
+            .register_declaration_metadata(symbol, ty, visibility);
 
         Ok(())
     }
@@ -253,6 +261,7 @@ impl SlynxHir {
         file: FileId,
         name: &GenericIdentifier,
         members: &[ComponentMember],
+        visibility: VisibilityModifier,
     ) -> Result<()> {
         let props = members
             .iter()
@@ -293,7 +302,7 @@ impl SlynxHir {
             .create_type(symbol, HirType::new_component(props));
         self.get_file_mut(file)
             .declarations
-            .register_declaration_metadata(symbol, ty);
+            .register_declaration_metadata(symbol, ty, visibility);
         Ok(())
     }
 
