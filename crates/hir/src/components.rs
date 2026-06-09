@@ -4,14 +4,17 @@ use crate::{
     model::{
         HirComponentExpression, HirSpecializedComponentExpression, HirType, PropertyExpression,
     },
+    module_loader::FileId,
 };
 ///Module that implements anything related Specialized Component on the HIR
 use common::Span;
-use slynx_parser::{ComponentExpression, ComponentMemberValue, VisibilityModifier};
+use common::VisibilityModifier;
+use slynx_parser::{ComponentExpression, ComponentMemberValue, };
 
 impl SlynxHir {
     fn resolve_component_member(
         &mut self,
+        file: FileId,
         member: &ComponentMemberValue,
         ty: TypeId,
         properties: &mut Vec<PropertyExpression>,
@@ -23,7 +26,7 @@ impl SlynxHir {
                 rhs,
                 span,
             } => {
-                let interned_name = self.modules.intern_name(prop_name);
+                let interned_name = self.intern_name(prop_name);
                 let HirType::Component { props } = self.get_type(&ty) else {
                     unreachable!("The type should be a component instead");
                 };
@@ -40,7 +43,7 @@ impl SlynxHir {
 
                     Some(index) => {
                         let expr =
-                            self.generate_expression(rhs, Some(*props[index].prop_type()))?;
+                            self.generate_expression(file, rhs, Some(*props[index].prop_type()))?;
                         properties.push(PropertyExpression::new(index, expr));
                         Ok(())
                     }
@@ -48,7 +51,7 @@ impl SlynxHir {
             }
             ComponentMemberValue::Child(child) => {
                 //By now this won't track whether it can or cannot have children, since a method better than 'children' might be implemented in the future.
-                let child = self.resolve_component_expression(child)?;
+                let child = self.resolve_component_expression(file, child)?;
                 children.push(child);
                 Ok(())
             }
@@ -58,13 +61,14 @@ impl SlynxHir {
     /// Resolves the provided values on a component. The `ty` is the type of the component we are resolving it
     pub(crate) fn resolve_component_members(
         &mut self,
+        file: FileId,
         members: &[ComponentMemberValue],
         ty: TypeId,
     ) -> Result<(Vec<PropertyExpression>, Vec<HirComponentExpression>)> {
         let mut properties = Vec::with_capacity(members.len());
         let mut children = Vec::with_capacity(members.len());
         for member in members {
-            self.resolve_component_member(member, ty, &mut properties, &mut children)?;
+            self.resolve_component_member(file, member, ty, &mut properties, &mut children)?;
         }
 
         Ok((properties, children))
@@ -75,6 +79,7 @@ impl SlynxHir {
     /// Expects exactly one `text` property assignment and no children.
     pub(crate) fn resolve_specialize_text(
         &mut self,
+        file: FileId,
         values: &[ComponentMemberValue],
         span: &Span,
     ) -> Result<HirSpecializedComponentExpression> {
@@ -85,17 +90,17 @@ impl SlynxHir {
                 ComponentMemberValue::Assign { prop_name, rhs, .. }
                     if prop_name == HirSpecializedComponentExpression::RESERVED_TEXT =>
                 {
-                    text = Some(self.generate_expression(rhs, None)?)
+                    text = Some(self.generate_expression(file, rhs, None)?)
                 }
                 ComponentMemberValue::Assign { prop_name, rhs, .. }
                     if prop_name == HirSpecializedComponentExpression::RESERVED_STYLE =>
                 {
-                    style = Some(self.resolve_style_usage(rhs)?)
+                    style = Some(self.resolve_style_usage(file, rhs)?)
                 }
                 ComponentMemberValue::Assign {
                     prop_name, span, ..
                 } => {
-                    let intern = self.modules.intern_name(prop_name);
+                    let intern = self.intern_name(prop_name);
                     return Err(HIRError::type_unrecognized(intern, *span));
                 }
                 ComponentMemberValue::Child(_) => {
@@ -109,7 +114,7 @@ impl SlynxHir {
         match text {
             Some(text) => Ok(HirSpecializedComponentExpression::new_text(text, style)),
             None => {
-                let properties = vec![self.modules.intern_name("text")];
+                let properties = vec![self.intern_name("text")];
                 Err(HIRError::missing_properties(properties, *span))
             }
         }
@@ -118,6 +123,7 @@ impl SlynxHir {
     ///Resolves the provided `children` knowning it is a specialized div component
     pub(crate) fn resolve_specialized_div(
         &mut self,
+        file: FileId,
         children: &[ComponentMemberValue],
         _: &Span,
     ) -> Result<HirSpecializedComponentExpression> {
@@ -131,9 +137,9 @@ impl SlynxHir {
                 } = child
                 {
                     if prop_name == HirSpecializedComponentExpression::RESERVED_STYLE {
-                        c = Some(self.resolve_style_usage(rhs)?);
+                        c = Some(self.resolve_style_usage(file, rhs)?);
                     } else {
-                        let prop = self.modules.intern_name(prop_name);
+                        let prop = self.intern_name(prop_name);
                         return Err(HIRError::property_unrecognized(vec![prop], *span));
                     }
                 }
@@ -145,7 +151,7 @@ impl SlynxHir {
             .iter()
             .filter_map(|c| match c {
                 ComponentMemberValue::Assign { .. } => None,
-                ComponentMemberValue::Child(c) => Some(self.resolve_component_expression(c)),
+                ComponentMemberValue::Child(c) => Some(self.resolve_component_expression(file, c)),
             })
             .collect::<Result<Vec<_>>>()?;
         Ok(HirSpecializedComponentExpression::new_div(children, style))
@@ -153,6 +159,7 @@ impl SlynxHir {
     ///Tries to resolve the given `child` as, either a specialized component, or a normal user defined component
     pub(crate) fn try_resolve_specialized<'a>(
         &mut self,
+        file: FileId,
         child: &'a ComponentExpression,
     ) -> (
         Option<Result<HirSpecializedComponentExpression>>,
@@ -160,11 +167,11 @@ impl SlynxHir {
     ) {
         match (child.name.identifier.as_str(), &child.name.generic) {
             ("Text", None) => (
-                Some(self.resolve_specialize_text(&child.values, &child.span)),
+                Some(self.resolve_specialize_text(file, &child.values, &child.span)),
                 None,
             ),
             ("Div", None) => (
-                Some(self.resolve_specialized_div(&child.values, &child.span)),
+                Some(self.resolve_specialized_div(file, &child.values, &child.span)),
                 None,
             ),
             _ => (None, Some(child)),
@@ -174,15 +181,16 @@ impl SlynxHir {
     ///Resolves the provided `component` expression. If it's a specialized one, resolves as a `SpecializedComponent`, otherwise as a normal 'Component'
     pub(crate) fn resolve_component_expression(
         &mut self,
+        file: FileId,
         component: &ComponentExpression,
     ) -> Result<HirComponentExpression> {
-        match self.try_resolve_specialized(component) {
+        match self.try_resolve_specialized(file, component) {
             (Some(spec), None) => spec.map(HirComponentExpression::Specialized),
             (None, Some(component)) => {
                 let name = self.intern_name(&component.name.identifier);
                 let id = self.get_type_of_name(name, &component.span)?;
                 let (properties, children) =
-                    self.resolve_component_members(&component.values, id)?;
+                    self.resolve_component_members(file, &component.values, id)?;
                 Ok(HirComponentExpression::new_normal(
                     id,
                     properties,

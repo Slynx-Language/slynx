@@ -48,8 +48,18 @@ impl SlynxHir {
     }
 
     /// Returns the field layout (as a slice of symbol pointers) for the object with the given [`TypeId`].
-    pub fn get_object_fields(&self, ty: TypeId, file: FileId) -> Option<&[SymbolPointer]> {
-        self.get_file(file).declarations.get_object_body(ty)
+    /// Walks reference chains (e.g. aliases) until it finds a TypeId registered in the objects map.
+    pub fn get_object_fields(&self, ty: TypeId, _file: FileId) -> Option<&[SymbolPointer]> {
+        let mut current = ty;
+        loop {
+            if let Some(fields) = self.types_module.get_object_body(&current) {
+                return Some(fields);
+            }
+            match self.types_module.get_type(&current) {
+                HirType::Reference { rf, .. } => current = *rf,
+                _ => return None,
+            }
+        }
     }
 
     /// Returns the [`TypeId`] of the given variable, if it exists.
