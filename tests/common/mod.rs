@@ -15,18 +15,22 @@ pub fn load_hir(path: &str) -> SlynxHir {
         .parse_declarations()
         .expect("source should parse");
     let mut hir = SlynxHir::new();
-    hir.generate(&declarations).expect("HIR should generate");
+    let modules = vec![slynx_hir::module_loader::SourceNode::new(
+        slynx_hir::module_loader::FileId::from_raw(0),
+        declarations,
+    )];
+    hir.generate(&modules).expect("HIR should generate");
     hir
 }
 
 pub fn find_main_call_args(hir: &mut SlynxHir) -> Option<&mut Vec<HirExpression>> {
-    let pos = hir.declarations.iter().position(|v| matches!(v.kind, HirDeclarationKind::Function { name, .. } if hir.get_name(name) == "main"))?;
+    let main_name = hir.intern_name("main");
     let HirDeclaration {
         kind: HirDeclarationKind::Function { statements, .. },
         ..
-    } = &mut hir.declarations[pos]
+    } = hir.files.iter_mut().flat_map(|f| &mut f.declarations.declarations).find(|v| matches!(v.kind, HirDeclarationKind::Function { name, .. } if name == main_name))?
     else {
-        unreachable!()
+        return None;
     };
     for statement in statements {
         let expr = match &mut statement.kind {
