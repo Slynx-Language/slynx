@@ -36,7 +36,7 @@ impl<T> Hash for SymbolPointer<T> {
 ///The structure that will be responsible to intern names inside the HIR. It will map a string S to it's symbol
 pub struct SymbolsModule<Ctx> {
     names: lasso::ThreadedRodeo,
-    name_mapping: AdaptiveRadixTree<VectorKey, SymbolPointer<Ctx>>,
+    phantom: PhantomData<Ctx>,
 }
 
 impl<Ctx> std::default::Default for SymbolsModule<Ctx> {
@@ -49,15 +49,15 @@ impl<Ctx> SymbolsModule<Ctx> {
     pub fn new() -> Self {
         Self {
             names: ThreadedRodeo::new(),
-            name_mapping: AdaptiveRadixTree::new(),
+            phantom: PhantomData,
         }
     }
     pub fn intern(&self, s: &str) -> SymbolPointer<Ctx> {
         SymbolPointer::new(self.names.get_or_intern(s))
     }
     ///Retrieves the pointer of the string on this module.
-    pub fn retrieve(&self, s: &str) -> Option<&SymbolPointer<Ctx>> {
-        self.name_mapping.get(s)
+    pub fn retrieve(&self, s: &str) -> Option<SymbolPointer<Ctx>> {
+        self.names.get(s).map(|s| SymbolPointer::new(s))
     }
 
     pub fn get_name(&self, ptr: SymbolPointer<Ctx>) -> &str {

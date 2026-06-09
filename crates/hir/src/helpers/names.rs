@@ -18,6 +18,6 @@ impl SlynxHir {
     }
     ///Retrieves the pointer(simply a symbol) of the provided `name`.
     pub fn get_symbol(&self, name: &str) -> Option<SymbolPointer> {
-        self.symbols_resolver.retrieve(name).cloned()
+        self.symbols_resolver.retrieve(name)
     }
 }

@@ -13,7 +13,7 @@ impl SlynxHir {
 
     ///Retrieves the symbol pointer for the given `s` if it exists, thus, was internalized
     pub fn retrieve_symbol(&self, s: &str) -> Option<SymbolPointer> {
-        self.symbols_resolver.retrieve(s).cloned()
+        self.symbols_resolver.retrieve(s)
     }
     ///Gets the HIR type of the given `ty`
     pub fn get_type(&self, ty: &TypeId) -> &HirType {
