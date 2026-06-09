@@ -23,7 +23,7 @@
 //! - [`HirDeclarationKind`] — Enum of declaration kinds
 //! - [`ComponentMemberDeclaration`] — Members of a component declaration
 
-use common::Span;
+use common::{Span, VisibilityModifier};
 
 use crate::{
     DeclarationId, PropertyId, SymbolPointer, TypeId, VariableId,
@@ -96,21 +96,16 @@ pub struct HirDeclaration {
     pub kind: HirDeclarationKind,
 
     /// A unique identifier for this declaration.
-    ///
-    /// This ID is used to reference the declaration from other parts of the
-    /// HIR (e.g., function calls reference the function's DeclarationId).
     pub id: DeclarationId,
 
     /// The type of this declaration.
-    ///
-    /// For functions, this is the function's signature type. For components,
-    /// it's the component type. For objects and aliases, it's the object/alias type.
     pub ty: TypeId,
 
     /// The source location of this declaration.
-    ///
-    /// Used for error reporting and diagnostics.
     pub span: Span,
+
+    /// Visibility of this declaration.
+    pub visibility: VisibilityModifier,
 }
 
 /// The kind of a declaration.
@@ -400,6 +395,7 @@ impl HirDeclaration {
             span,
             id,
             ty,
+            visibility: Default::default(),
         }
     }
 
@@ -421,6 +417,7 @@ impl HirDeclaration {
             span,
             id,
             ty,
+            visibility: Default::default(),
         }
     }
     /// Creates a new object declaration.
@@ -452,6 +449,7 @@ impl HirDeclaration {
             id: decl,
             ty: declty,
             span,
+            visibility: Default::default(),
         }
     }
 
@@ -484,6 +482,7 @@ impl HirDeclaration {
             kind: HirDeclarationKind::Alias,
             ty,
             span,
+            visibility: Default::default(),
         }
     }
 }

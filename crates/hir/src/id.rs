@@ -14,6 +14,9 @@ pub trait HirIdTrait: Copy + Clone + std::fmt::Debug + std::hash::Hash + Eq + Pa
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalDeclId(pub(crate) u32);
 impl LocalDeclId {
+    pub fn from_raw(value: u32) -> Self {
+        Self(value)
+    }
     pub fn as_raw(&self) -> usize {
         self.0 as usize
     }
