@@ -1,16 +1,12 @@
 stylesheet Child() uses Parent() {
     styles {
-        default {
-            backgroundColor: 0x0000ff
-        }
+        backgroundColor: 0x0000ff
     }
 }
 
 stylesheet Parent() {
     styles {
-        default {
-            foregroundColor: 0xff0000
-        }
+        foregroundColor: 0xff0000
     }
 }
 
