@@ -1,4 +1,7 @@
-use std::{collections::VecDeque, path::PathBuf};
+use std::{
+    collections::{HashMap, VecDeque},
+    path::PathBuf,
+};
 
 use slynx_lexer::{Lexer, LexerError};
 use slynx_parser::{ASTDeclaration, ASTDeclarationKind, ASTPath, ParseError, Parser};
@@ -7,6 +10,9 @@ use slynx_parser::{ASTDeclaration, ASTDeclarationKind, ASTPath, ParseError, Pars
 ///An ID to represent a file
 pub struct FileId(u32);
 impl FileId {
+    pub fn from_raw(value: u32) -> Self {
+        Self(value)
+    }
     pub fn as_raw(&self) -> u32 {
         self.0
     }
@@ -22,8 +28,8 @@ pub struct SourceNode {
     pub id: FileId,
     ///The declarations inside this module
     pub declarations: Vec<ASTDeclaration>,
-    ///The id of files that are submodules of this
-    pub submodules: Vec<FileId>,
+    ///Per-import submodule lists: `import_submodules[i]` contains the FileIds for the i-th import declaration.
+    pub import_submodules: Vec<Vec<FileId>>,
 }
 
 #[derive(Debug)]
@@ -65,7 +71,7 @@ impl SourceNode {
         Self {
             id,
             declarations,
-            submodules: Vec::new(),
+            import_submodules: Vec::new(),
         }
     }
 }
@@ -77,7 +83,8 @@ pub struct SourceLoader {
 
 pub struct SourceInfo {
     module: SourceNode,
-    pending: Vec<PathBuf>,
+    /// Per-import pending paths: pending[i] are the paths for the i-th import declaration.
+    pending: Vec<Vec<PathBuf>>,
 }
 
 impl SourceLoader {
@@ -88,7 +95,6 @@ impl SourceLoader {
     ) -> Result<(PathBuf, bool), std::io::Error> {
         let mut entry = entry.clone();
         let mut folder = false;
-        println!("{module_names:?} {entry:?}");
         if let Some((last, module_names)) = module_names.split_last() {
             for name in module_names {
                 entry.push(name);
@@ -103,7 +109,6 @@ impl SourceLoader {
                 entry.set_extension("slx");
             };
         }
-        println!("gay");
         Ok((entry, folder))
     }
 
@@ -132,53 +137,70 @@ impl SourceLoader {
             .parse_declarations()
             .map_err(|e| SourceError::parsing(e, entry.clone()))?;
         entry.pop(); //since its a file, we need to track its current folder to be able to get the siblings, and so we pop the name
-        let mut submodules = Vec::new();
+        let mut pending: Vec<Vec<PathBuf>> = Vec::new();
         for decl in &declarations {
             if let ASTDeclarationKind::Import(ref import) = decl.kind {
-                let (entry, is_folder) = Self::resolve_path(&import.path, global_entry, &entry)
+                let (resolved, is_folder) = Self::resolve_path(&import.path, global_entry, &entry)
                     .map_err(|e| SourceError::inexistant_module(e, entry.clone()))?;
-                println!("{entry:?} {is_folder}");
+                let mut import_paths = Vec::new();
                 if is_folder {
-                    for pending in std::fs::read_dir(&entry)
-                        .map_err(|e| SourceError::inexistant_module(e, entry.clone()))?
+                    for dir_entry in std::fs::read_dir(&resolved)
+                        .map_err(|e| SourceError::inexistant_module(e, resolved.clone()))?
                     {
-                        let pending = pending
-                            .map_err(|e| SourceError::inexistant_module(e, entry.clone()))?
+                        let path = dir_entry
+                            .map_err(|e| SourceError::inexistant_module(e, resolved.clone()))?
                             .path();
-                        submodules.push(pending);
+                        import_paths.push(path);
                     }
                 } else {
-                    submodules.push(entry);
+                    import_paths.push(resolved);
                 }
+                pending.push(import_paths);
             }
         }
         Ok(SourceInfo {
             module: SourceNode {
                 id,
                 declarations,
-                submodules: Vec::new(),
+                import_submodules: Vec::new(),
             },
-            pending: submodules,
+            pending,
         })
     }
 
     pub fn load(entry: PathBuf) -> Result<Vec<SourceNode>, SourceError> {
         let mut global_entry = entry.clone();
         global_entry.pop(); //pops cause the entry should be a file
-        let mut pending_entries = VecDeque::new();
+        // (path, parent_module_index, import_index_within_parent)
+        let mut pending_entries: VecDeque<(PathBuf, Option<(usize, usize)>)> = VecDeque::new();
         pending_entries.push_back((entry, None));
         let mut modules: Vec<SourceNode> = Vec::new();
         let mut last_id = FileId(0);
         let mut entry_index = 0;
-        while let Some((entry, index)) = pending_entries.pop_front() {
+        let mut path_to_id: HashMap<PathBuf, FileId> = HashMap::new();
+        while let Some((entry, parent)) = pending_entries.pop_front() {
+            let canonical = std::fs::canonicalize(&entry).unwrap_or_else(|_| entry.clone());
+            if let Some(&existing_id) = path_to_id.get(&canonical) {
+                if let Some((mod_idx, imp_idx)) = parent {
+                    modules[mod_idx].import_submodules[imp_idx].push(existing_id);
+                }
+                continue;
+            }
+            path_to_id.insert(canonical, last_id);
             let module = Self::load_file_module(entry, &global_entry, last_id)?;
-            for pending in module.pending {
-                pending_entries.push_back((pending, Some(entry_index)));
+            // Pre-allocate per-import slot for this new module's imports
+            let import_count = module.pending.len();
+            for (imp_idx, import_paths) in module.pending.into_iter().enumerate() {
+                for path in import_paths {
+                    pending_entries.push_back((path, Some((entry_index, imp_idx))));
+                }
             }
-            if let Some(index) = index {
-                modules[index].submodules.push(last_id);
+            let mut node = module.module;
+            node.import_submodules = vec![Vec::new(); import_count];
+            if let Some((mod_idx, imp_idx)) = parent {
+                modules[mod_idx].import_submodules[imp_idx].push(last_id);
             }
-            modules.push(module.module);
+            modules.push(node);
             last_id = last_id.next();
             entry_index += 1;
         }

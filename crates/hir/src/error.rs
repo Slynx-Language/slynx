@@ -1,6 +1,7 @@
 use crate::{
     SymbolPointer,
     model::{HirExpression, HirType},
+    module_loader::FileId,
 };
 
 use common::Span;
@@ -105,6 +106,15 @@ pub enum HIRErrorKind {
     InvalidStyleDefinition {
         ///The name of the definition that is invalid
         name: SymbolPointer,
+    },
+    /// A declaration name resolves to multiple files (ambiguous import).
+    AmbiguousDeclaration {
+        /// The name that is ambiguous.
+        name: SymbolPointer,
+        /// The first file where the declaration was found.
+        first: FileId,
+        /// The second file where the declaration was found.
+        second: FileId,
     },
 }
 
@@ -223,6 +233,13 @@ impl HIRError {
             span,
         }
     }
+    /// Creates a [`HIRErrorKind::AmbiguousDeclaration`] error.
+    pub fn ambiguous_declaration(name: SymbolPointer, first: FileId, second: FileId, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::AmbiguousDeclaration { name, first, second },
+            span,
+        }
+    }
 }
 
 impl std::fmt::Display for HIRError {
@@ -261,6 +278,9 @@ impl std::fmt::Display for HIRError {
             HIRErrorKind::InvalidStyleEvent { .. } => write!(f, "Invalid style event"),
             HIRErrorKind::InvalidStyleDefinition { .. } => {
                 write!(f, "Invalid style definition name")
+            }
+            HIRErrorKind::AmbiguousDeclaration { name: _, first, second } => {
+                write!(f, "Ambiguous declaration found in files {:?} and {:?}", first, second)
             }
         }
     }
