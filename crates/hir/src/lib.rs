@@ -95,6 +95,7 @@ use crate::{
     module_loader::{FileId, SourceNode},
 };
 use common::SymbolsModule;
+use parking_lot::RwLock;
 use slynx_parser::{ASTDeclaration, ASTDeclarationKind};
 
 pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
@@ -174,7 +175,7 @@ pub struct SlynxHir {
     /// - Its [`HirDeclarationKind`] describing what kind of declaration it is
     /// - The declaration's [`TypeId`]
     /// - The source [`Span`] for error reporting
-    pub files: Vec<HirFile>,
+    pub files: Vec<RwLock<HirFile>>,
 }
 
 impl SlynxHir {
@@ -291,14 +292,14 @@ impl SlynxHir {
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`modules::HirModules`] — Scope and symbol management during generation
     pub fn generate(&mut self, modules: &[SourceNode]) -> Result<()> {
+        // Phase 0: allocate file slots (requires &mut self for Vec growth)
         for module in modules {
             let idx = module.id.as_raw() as usize;
-
             if idx >= self.files.len() {
                 self.files
-                    .resize_with(idx + 1, || HirFile::new(FileId::from_raw(0)));
+                    .resize_with(idx + 1, || RwLock::new(HirFile::new(FileId::from_raw(0))));
             }
-            self.files[idx] = HirFile::new(module.id);
+            *self.files[idx].write() = HirFile::new(module.id);
         }
         for module in modules {
             for ast in &module.declarations {

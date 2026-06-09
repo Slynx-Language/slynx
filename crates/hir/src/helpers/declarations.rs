@@ -5,7 +5,7 @@ use crate::{DeclarationId, HirType, SlynxHir, SymbolPointer, TypeId, module_load
 impl SlynxHir {
     ///Creates an type alias with the given `name`. Its initial type is `infer`. Because of hoisting, and so, the type this refers to might be defined after it
     pub(crate) fn create_empty_alias(
-        &mut self,
+        &self,
         aliasname: SymbolPointer,
         file: FileId,
         visibility: VisibilityModifier,

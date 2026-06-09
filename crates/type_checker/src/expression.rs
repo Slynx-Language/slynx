@@ -18,7 +18,7 @@ impl TypeChecker {
     /// This function recursively follows reference types until it finds a struct type.
     /// If the type is not a struct, a `TypeError` is returned.
     pub fn get_struct_from_ref(&self, ty: &TypeId, span: &Span) -> Result<TypeId> {
-        match self.types_module.get_type(ty) {
+        match &*self.types_module.get_type(ty) {
             HirType::Reference { rf, .. } => self.get_struct_from_ref(&rf, span),
             HirType::Struct { .. } => Ok(*ty),
             v => Err(TypeError {
@@ -34,27 +34,25 @@ impl TypeChecker {
     /// the field method (type or variable) and updating the field index.
     pub(super) fn resolve_field_access_type(
         &mut self,
-        field_ty: &mut TypeId,
-        field_index: &mut usize,
+        field_ty: TypeId,
+        field_index: usize,
         span: &Span,
-    ) -> Result<TypeId> {
-        let HirType::Field(field_method) = self.types_module.get_type(field_ty).clone() else {
-            return self.resolve(field_ty, span);
+    ) -> Result<(TypeId, usize)> {
+        let HirType::Field(field_method) = self.types_module.get_type(&field_ty).clone() else {
+            return self.resolve(&field_ty, span).map(|v| (v, field_index));
         };
         match field_method {
             FieldMethod::Type(rf, index) => {
-                *field_index = index;
-                *field_ty = self
+                let field_ty = self
                     .types_module
                     .create_unnamed_type(HirType::Field(FieldMethod::Type(rf, index)));
-                self.resolve(field_ty, span)
+                self.resolve(&field_ty, span).map(|v| (v, index))
             }
             FieldMethod::Tuple(rf, index) => {
-                *field_index = index;
-                *field_ty = self
+                let field_ty = self
                     .types_module
                     .create_unnamed_type(HirType::Field(FieldMethod::Tuple(rf, index)));
-                self.resolve(field_ty, span)
+                self.resolve(&field_ty, span).map(|v| (v, index))
             }
             FieldMethod::Variable(variable_id, field_name) => {
                 // Field accesses first enter the checker attached to the source
@@ -83,10 +81,9 @@ impl TypeChecker {
                     });
                 };
 
-                *field_index = index;
-                *self.types_module.get_type_mut(*field_ty) =
+                *self.types_module.get_type_mut(field_ty) =
                     HirType::Field(FieldMethod::Type(object_ty, index));
-                self.resolve(field_ty, span)
+                self.resolve(&field_ty, span).map(|v| (v, index))
             }
         }
     }
@@ -298,7 +295,10 @@ impl TypeChecker {
                 expr: ref mut e,
             } => {
                 self.get_type_of_expr(e)?;
-                self.resolve_field_access_type(&mut expr.ty, field_index, &expr.span)?
+                let (ty, index) =
+                    self.resolve_field_access_type(expr.ty, *field_index, &expr.span)?;
+                *field_index = index;
+                ty
             }
             HirExpressionKind::Bool(_) => self.types_module.bool_id(),
         };

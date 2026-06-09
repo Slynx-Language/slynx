@@ -55,7 +55,7 @@ impl TypeChecker {
             HirDeclarationKind::Object | HirDeclarationKind::Alias => {}
 
             HirDeclarationKind::Function { statements, .. } => {
-                let return_type = match self.types_module.get_type(&decl.ty) {
+                let return_type = match &*self.types_module.get_type(&decl.ty) {
                     HirType::Function { return_type, .. } => *return_type,
                     _ => unreachable!("Type of function should be function"),
                 };
@@ -93,10 +93,13 @@ impl TypeChecker {
                 children,
                 span,
             } => {
-                let HirType::Component { props } = self.types_module.get_type(name) else {
-                    unreachable!("Should've received a component type");
+                let props = {
+                    let reader = self.types_module.get_type(name);
+                    let HirType::Component { props } = &*reader else {
+                        unreachable!("Should've received a component type");
+                    };
+                    props.clone()
                 };
-                let props = props.clone();
 
                 for prop_expr in properties {
                     let prop_ty = *props[prop_expr.index()].prop_type();

@@ -6,6 +6,7 @@ use crate::{
     file::HirFile,
     module_loader::FileId,
 };
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 
 impl SlynxHir {
     ///Interns the given `s` string and returns its logical pointer
@@ -67,17 +68,18 @@ impl SlynxHir {
         self.types_module.get_type_name(&ty)
     }
 
-    pub fn get_file(&self, id: FileId) -> &HirFile {
-        &self.files[id.as_raw() as usize]
+    pub fn get_file(&self, id: FileId) -> RwLockReadGuard<'_, HirFile> {
+        self.files[id.as_raw() as usize].read()
     }
-    pub fn get_file_mut(&mut self, id: FileId) -> &mut HirFile {
-        &mut self.files[id.as_raw() as usize]
+    pub fn get_file_mut(&self, id: FileId) -> RwLockWriteGuard<'_, HirFile> {
+        self.files[id.as_raw() as usize].write()
     }
 
-    pub fn find_declaration(&self, id: DeclarationId) -> &HirDeclaration {
-        &self.files[id.file_id.as_raw() as usize]
-            .declarations
-            .declarations[id.local_id.as_raw()]
+    pub fn find_declaration(&self, id: DeclarationId) -> parking_lot::MappedRwLockReadGuard<'_, HirDeclaration> {
+        parking_lot::RwLockReadGuard::map(
+            self.files[id.file_id.as_raw() as usize].read(),
+            |f| &f.declarations.declarations[id.local_id.as_raw()],
+        )
     }
 
     pub fn find_declaration_by_name(
@@ -87,13 +89,14 @@ impl SlynxHir {
     ) -> Result<(DeclarationId, TypeId)> {
         // 1. Check import aliases first
         for file in &self.files {
-            if let Some(alias_data) = file.declarations.get_import_alias(name) {
+            if let Some(alias_data) = file.read().declarations.get_import_alias(name) {
                 return Ok(alias_data);
             }
         }
         // 2. Check regular declarations
         let mut result: Option<(DeclarationId, TypeId)> = None;
         for file in &self.files {
+            let file = file.read();
             if let Some((local, ty)) = file.declarations.get_declaration_data_by_name(name) {
                 if let Some((decl, _)) = result {
                     return Err(HIRError::ambiguous_declaration(
