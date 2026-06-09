@@ -60,7 +60,7 @@ impl TypeChecker {
                 // Field accesses first enter the checker attached to the source
                 // variable name. Resolve that symbolic access once and rewrite it
                 // into an indexed field lookup for the rest of the pipeline.
-                let object_ty = *self
+                let object_ty = self
                     .types_module
                     .get_variable(&variable_id)
                     .ok_or(TypeError {
@@ -84,7 +84,7 @@ impl TypeChecker {
                 };
 
                 *field_index = index;
-                *self.types_module.get_type_mut(field_ty) =
+                *self.types_module.get_type_mut(*field_ty) =
                     HirType::Field(FieldMethod::Type(object_ty, index));
                 self.resolve(field_ty, span)
             }

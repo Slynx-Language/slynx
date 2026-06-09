@@ -11,9 +11,11 @@ common = {path="./crates/common"}
 petgraph = "0.8.3"
 lasso = "0.7.3"
 boxcar = "0.2.14"
+dashmap = "6.2.1"
 
 [dependencies]
 clap={ version = "4.5.52", features = ["derive"] }
+
 color-eyre.workspace=true
 common.workspace=true
 
@@ -24,7 +26,6 @@ slynx-typechecker.path="./crates/type_checker"
 slynx-monomorphizer.path="./crates/monomorphizer"
 slynx-ir.path="./crates/ir"
 slynx-codegen.path="./crates/codegen"
-
 
 [workspace]
 members = ["crates/*"]

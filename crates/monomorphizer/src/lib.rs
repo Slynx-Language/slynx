@@ -19,7 +19,7 @@ impl Monomorphizer {
             }
         }
         for (key, value) in this.reference_cache {
-            let HirType::Reference { rf, .. } = hir.get_type_mut(&key) else {
+            let HirType::Reference { rf, .. } = hir.get_type_mut(key) else {
                 continue;
             };
             *rf = value;

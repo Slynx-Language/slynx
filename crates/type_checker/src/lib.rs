@@ -63,14 +63,13 @@ impl TypeChecker {
                     }
                 },
                 HirType::VarReference(variable_id) => {
-                    current =
-                        self.types_module
-                            .get_variable(variable_id)
-                            .copied()
-                            .ok_or(TypeError {
-                                kind: TypeErrorKind::Unrecognized,
-                                span: *span,
-                            })?;
+                    current = self
+                        .types_module
+                        .get_variable(variable_id)
+                        .ok_or(TypeError {
+                            kind: TypeErrorKind::Unrecognized,
+                            span: *span,
+                        })?;
                 }
                 other => {
                     return Err(TypeError {
@@ -169,7 +168,7 @@ impl TypeChecker {
                 self.resolve_tuple_index_type(&rf, index, span)
             }
             HirType::Field(FieldMethod::Variable(var_id, n)) => {
-                let object_ty = *self.types_module.get_variable(&var_id).ok_or(TypeError {
+                let object_ty = self.types_module.get_variable(&var_id).ok_or(TypeError {
                     kind: TypeErrorKind::Unrecognized,
                     span: *span,
                 })?;
@@ -195,7 +194,7 @@ impl TypeChecker {
             }
             HirType::Reference { rf, .. } => Ok(rf),
             HirType::VarReference(rf) => {
-                if let Some(ty) = self.types_module.get_variable(&rf).cloned() {
+                if let Some(ty) = self.types_module.get_variable(&rf) {
                     Ok(self.resolve(&ty, span)?)
                 } else {
                     unreachable!("Variable type should be defined here");
@@ -211,7 +210,7 @@ impl TypeChecker {
                     }
                     tys
                 };
-                let HirType::Component { props } = self.types_module.get_type_mut(ty) else {
+                let HirType::Component { props } = self.types_module.get_type_mut(*ty) else {
                     unreachable!();
                 };
                 props.clear();
@@ -305,11 +304,11 @@ impl TypeChecker {
                 unified_prop,
             ));
         }
-        if let HirType::Component { props } = self.types_module.get_type_mut(a) {
+        if let HirType::Component { props } = self.types_module.get_type_mut(*a) {
             props.clear();
             props.extend_from_slice(&unified_props);
         }
-        if let HirType::Component { props } = self.types_module.get_type_mut(b) {
+        if let HirType::Component { props } = self.types_module.get_type_mut(*b) {
             props.clear();
             props.extend_from_slice(&unified_props);
         }
@@ -388,10 +387,10 @@ impl TypeChecker {
             unreachable!()
         };
 
-        let Some(resolved_a) = self.types_module.get_variable(var_a).cloned() else {
+        let Some(resolved_a) = self.types_module.get_variable(var_a) else {
             unreachable!("Variable should have already been declared")
         };
-        let Some(resolved_b) = self.types_module.get_variable(var_b).cloned() else {
+        let Some(resolved_b) = self.types_module.get_variable(var_b) else {
             unreachable!("Variable2 should have already been declared")
         };
         self.unify(&resolved_a, &resolved_b, span)

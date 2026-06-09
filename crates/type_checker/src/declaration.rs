@@ -72,7 +72,7 @@ impl TypeChecker {
 
                 self.unify_component_properties(props, &mut declared_props)?;
 
-                *self.types_module.get_type_mut(&decl.ty) = HirType::Component {
+                *self.types_module.get_type_mut(decl.ty) = HirType::Component {
                     props: declared_props,
                 };
             }
@@ -138,7 +138,7 @@ impl TypeChecker {
             }
         }
 
-        *self.types_module.get_type_mut(&target) = HirType::Component {
+        *self.types_module.get_type_mut(target) = HirType::Component {
             props: declared_props,
         };
 
