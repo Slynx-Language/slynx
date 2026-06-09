@@ -87,42 +87,36 @@ impl Parser {
     pub fn parse_declarations(&mut self) -> Result<Vec<ASTDeclaration>> {
         let mut out = Vec::new();
         while let Ok(token) = self.peek() {
-            match &token.kind {
+            let visibility = if matches!(token.kind, TokenKind::Pub) {
+                self.eat()?;
+                VisibilityModifier::Public
+            } else {
+                VisibilityModifier::Private
+            };
+            let mut decl = match &self.peek()?.kind {
                 TokenKind::Import => {
                     let span = self.eat()?.span;
-                    out.push(self.parse_import(span)?);
+                    self.parse_import(span)?
                 }
                 TokenKind::Alias => {
                     let Token { span, .. } = self.eat()?;
-                    out.push(self.parse_alias(span)?);
+                    self.parse_alias(span)?
                 }
                 TokenKind::Object => {
                     let Token { span, .. } = self.eat()?;
-                    out.push(self.parse_object(span)?);
+                    self.parse_object(span)?
                 }
                 TokenKind::Component => {
                     let Token { span, .. } = self.eat()?;
-                    out.push(self.parse_component(span)?)
+                    self.parse_component(span)?
                 }
                 TokenKind::Func => {
-                    let Token {
-                        kind: TokenKind::Func,
-                        span,
-                    } = self.eat()?
-                    else {
-                        unreachable!();
-                    };
-                    out.push(self.parse_func(span)?)
+                    let Token { span, .. } = self.eat()?;
+                    self.parse_func(span)?
                 }
                 TokenKind::StyleSheet => {
-                    let Token {
-                        kind: TokenKind::StyleSheet,
-                        span,
-                    } = self.eat()?
-                    else {
-                        unreachable!();
-                    };
-                    out.push(self.parse_stylesheet(span)?)
+                    let Token { span, .. } = self.eat()?;
+                    self.parse_stylesheet(span)?
                 }
                 _ => {
                     return Err(ParseError::UnexpectedToken(
@@ -130,7 +124,9 @@ impl Parser {
                         "a function, component, object or alias declaration".to_owned(),
                     ));
                 }
-            }
+            };
+            decl.visibility = visibility;
+            out.push(decl);
         }
         Ok(out)
     }

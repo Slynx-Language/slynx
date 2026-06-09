@@ -10,7 +10,7 @@ impl Parser {
         self.expect(&TokenKind::Eq)?;
         let target = self.parse_type()?;
         self.expect(&TokenKind::SemiColon)?;
-        Ok(ASTDeclaration {
+        Ok(ASTDeclaration { visibility: Default::default(),
             span: Span {
                 start: init.start,
                 end: target.span.end,

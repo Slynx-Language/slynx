@@ -30,14 +30,22 @@ impl Parser {
     pub fn parse_import(&mut self, span: Span) -> Result<ASTDeclaration> {
         let path = {
             let mut out = Vec::new();
-            while let TokenKind::Identifier(_) = self.peek()?.kind {
-                let TokenKind::Identifier(name) = self.expect_identifier()?.kind else {
-                    unreachable!()
-                };
-                if let TokenKind::Dot = self.peek()?.kind {
-                    self.eat()?;
+            loop {
+                let tok = self.peek()?;
+                if let TokenKind::Identifier(ref name) = tok.kind {
+                    if name == "using" {
+                        break;
+                    }
+                    let TokenKind::Identifier(name) = self.expect_identifier()?.kind else {
+                        unreachable!()
+                    };
+                    if let TokenKind::Dot = self.peek()?.kind {
+                        self.eat()?;
+                    }
+                    out.push(name);
+                } else {
+                    break;
                 }
-                out.push(name);
             }
             ASTPath { module_names: out }
         };
@@ -49,12 +57,14 @@ impl Parser {
                 self.eat()?;
                 match self.peek()?.kind {
                     TokenKind::LBrace => {
+                        self.eat()?;
                         while self.peek()?.kind != TokenKind::RBrace {
                             out.push(self.parse_import_usage()?);
                             if self.peek()?.kind == TokenKind::Comma {
                                 self.eat()?;
                             }
                         }
+                        self.eat()?;
                     }
                     _ => out.push(self.parse_import_usage()?),
                 }
@@ -63,7 +73,7 @@ impl Parser {
         };
         self.expect(&TokenKind::SemiColon)?;
         let import = FileImport { path, usages };
-        Ok(ASTDeclaration {
+        Ok(ASTDeclaration { visibility: Default::default(),
             kind: crate::ASTDeclarationKind::Import(import),
             span,
         })

@@ -189,7 +189,7 @@ impl Parser {
         };
         self.expect(&TokenKind::LBrace)?;
         let body = self.parse_stylesheet_body()?;
-        let out = ASTDeclaration {
+        let out = ASTDeclaration { visibility: Default::default(),
             kind: ASTDeclarationKind::StyleSheet {
                 name,
                 args,
