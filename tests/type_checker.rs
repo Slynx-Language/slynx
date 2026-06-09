@@ -14,23 +14,29 @@ fn load_hir(source: &str) -> slynx_hir::SlynxHir {
         .parse_declarations()
         .expect("source should parse");
     let mut hir = slynx_hir::SlynxHir::new();
-    hir.generate(&declarations).expect("HIR should generate");
+    let mut modules = Vec::new();
+    // create a single source node with file_id 0
+    modules.push(slynx_hir::module_loader::SourceNode::new(
+        slynx_hir::module_loader::FileId::from_raw(0),
+        declarations,
+    ));
+    hir.generate(&modules).expect("HIR should generate");
     hir
 }
 
 fn find_main_call_args(hir: &mut slynx_hir::SlynxHir) -> Option<&mut Vec<HirExpression>> {
-    let pos = hir.declarations.iter().position(|v| {
-        matches!(
-            v.kind,
-            HirDeclarationKind::Function { name, .. } if hir.get_name(name) == "main"
-        )
-    })?;
+    let main_name = hir.intern_name("main");
     let HirDeclaration {
         kind: HirDeclarationKind::Function { statements, .. },
         ..
-    } = &mut hir.declarations[pos]
+    } = hir.files.iter_mut().flat_map(|f| &mut f.declarations.declarations).find(|v| {
+        matches!(
+            v.kind,
+            HirDeclarationKind::Function { name, .. } if name == main_name
+        )
+    })?
     else {
-        unreachable!()
+        return None;
     };
     for statement in statements {
         let expr = match &mut statement.kind {
@@ -149,13 +155,13 @@ fn rejects_function_without_return_value_for_non_void_return_type() {
 fn preserves_non_expression_tail_statement_in_function_body() {
     let hir = load_hir("func main(): void { let x = 12; }");
     let main_symbol = hir
-        .modules
         .retrieve_symbol("main")
         .expect("main symbol should exist");
 
     let main_fn = hir
-        .declarations
+        .files
         .iter()
+        .flat_map(|f| f.declarations())
         .find(|declaration| {
             matches!(
                 declaration.kind,
