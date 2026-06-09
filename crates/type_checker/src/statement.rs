@@ -48,7 +48,6 @@ impl TypeChecker {
                     else {
                         unreachable!();
                     };
-
                     drop(reader);
                     let index = *field_index;
                     let (ty, index) = self.resolve_field_access_type(lhs.ty, index, &lhs.span)?;

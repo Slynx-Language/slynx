@@ -51,21 +51,25 @@ impl TypeChecker {
         let mut current = *ty;
 
         loop {
-            match &*self.types_module.get_type(&current) {
-                HirType::Reference { rf, .. } => match &*self.types_module.get_type(rf) {
-                    HirType::Struct { .. } => return Ok(current),
-                    HirType::Reference { .. } => current = *rf,
-                    other => {
-                        return Err(TypeError {
-                            kind: TypeErrorKind::NotAStruct(other.clone()),
-                            span: *span,
-                        });
+            let ty = self.types_module.get_type(&current).clone();
+            match ty {
+                HirType::Reference { rf, .. } => {
+                    let inner = self.types_module.get_type(&rf).clone();
+                    match inner {
+                        HirType::Struct { .. } => return Ok(current),
+                        HirType::Reference { .. } => current = rf,
+                        other => {
+                            return Err(TypeError {
+                                kind: TypeErrorKind::NotAStruct(other),
+                                span: *span,
+                            });
+                        }
                     }
-                },
+                }
                 HirType::VarReference(variable_id) => {
                     current = self
                         .types_module
-                        .get_variable(variable_id)
+                        .get_variable(&variable_id)
                         .ok_or(TypeError {
                             kind: TypeErrorKind::Unrecognized,
                             span: *span,
@@ -73,7 +77,7 @@ impl TypeChecker {
                 }
                 other => {
                     return Err(TypeError {
-                        kind: TypeErrorKind::NotAStruct(other.clone()),
+                        kind: TypeErrorKind::NotAStruct(other),
                         span: *span,
                     });
                 }
@@ -423,18 +427,14 @@ impl TypeChecker {
         {
             return Ok(ty);
         }
-        let ty = {
-            let reader = self.types_module.get_type(&ty);
-            let ty = reader.clone();
-            if self.is_recursive_type(rf, &*reader) {
-                return Err(TypeError {
-                    kind: TypeErrorKind::CyclicType { ty },
-                    span: *span,
-                });
-            }
-            ty
-        };
-        self.substitute(rf, ty);
+        let ty_hir = self.types_module.get_type(&ty).clone();
+        if self.is_recursive_type(rf, &ty_hir) {
+            return Err(TypeError {
+                kind: TypeErrorKind::CyclicType { ty: ty_hir },
+                span: *span,
+            });
+        }
+        self.substitute(rf, ty_hir);
         let ty = self.types_module.create_unnamed_type(HirType::Reference {
             rf,
             generics: Vec::new(),
