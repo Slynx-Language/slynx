@@ -1,8 +1,6 @@
 stylesheet Base() {
     styles {
-        default {
-            foregroundColor: 0xff0000
-        }
+        foregroundColor: 0xff0000
     }
 }
 
