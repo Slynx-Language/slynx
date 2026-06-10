@@ -139,4 +139,8 @@ impl SlynxHir {
         }
         Err(HIRError::name_unrecognized(*name, span))
     }
+    pub fn type_of_intrinsic(&self, name: &str) -> TypeId {
+        let id = self.lang_items.get(name);
+        self.get_declaration_type(id)
+    }
 }

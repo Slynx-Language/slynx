@@ -308,7 +308,7 @@ impl SlynxHir {
                 let mut should_register = None;
                 for attribute in &ast.attributes {
                     if attribute.name == "intrinsic" {
-                        should_register = Some(attribute.args[0].as_ref());
+                        should_register = attribute.args.first();
                         break;
                     }
                 }
@@ -390,7 +390,7 @@ impl SlynxHir {
         &self,
         ast: &ASTDeclaration,
         file: FileId,
-        should_register: Option<&str>,
+        should_register: Option<&String>,
     ) -> Result<()> {
         let declarationid = match &ast.kind {
             ASTDeclarationKind::StyleSheet { name, args, .. } => {

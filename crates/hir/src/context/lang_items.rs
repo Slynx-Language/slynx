@@ -19,7 +19,13 @@ impl LangItems {
             panic!("Double delcarations on registering an intrinsics declaration with name {name}");
         }
     }
-    pub fn get(&self, name: &str) -> Option<DeclarationId> {
+    pub fn try_get(&self, name: &str) -> Option<DeclarationId> {
         self.declarations.get(name).map(|v| *v)
+    }
+    pub fn get(&self, name: &str) -> DeclarationId {
+        let Some(v) = self.try_get(name) else {
+            panic!("Should've registered {name} as intrinsic");
+        };
+        v
     }
 }
