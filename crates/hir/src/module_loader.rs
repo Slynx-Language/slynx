@@ -126,18 +126,20 @@ impl SourceLoader {
         path: &ASTPath,
         global_entry: &Path,
         current: &Path,
+        std_path: &Path,
     ) -> Result<(PathBuf, bool), std::io::Error> {
         let path = &path.module_names;
-        if path[0] == "root" {
-            Self::resolve_ast_path(&path[1..], global_entry)
-        } else {
-            Self::resolve_ast_path(path, current)
+        match path[0].as_str() {
+            "root" => Self::resolve_ast_path(&path[1..], global_entry),
+            "std" => Self::resolve_ast_path(&path[1..], std_path),
+            _ => Self::resolve_ast_path(path, current),
         }
     }
 
     fn load_file_module(
         mut entry: PathBuf,
         global_entry: &Path,
+        std_path: &Path,
         id: FileId,
         importer: &Path,
         on_file_loaded: &mut impl FnMut(&Path, &str),
@@ -161,15 +163,15 @@ impl SourceLoader {
         let mut pending: Vec<Vec<PathBuf>> = Vec::new();
         for decl in &declarations {
             if let ASTDeclarationKind::Import(ref import) = decl.kind {
-                let (resolved, is_folder) = Self::resolve_path(&import.path, global_entry, &entry)
-                    .map_err(|e| {
-                        SourceError::inexistant_module(
-                            e,
-                            entry.clone(),
-                            generator.clone(),
-                            decl.span,
-                        )
-                    })?;
+                let (resolved, is_folder) = Self::resolve_path(
+                    &import.path,
+                    global_entry,
+                    &entry,
+                    std_path,
+                )
+                .map_err(|e| {
+                    SourceError::inexistant_module(e, entry.clone(), generator.clone(), decl.span)
+                })?;
                 let mut import_paths = Vec::new();
                 if is_folder {
                     for dir_entry in std::fs::read_dir(&resolved).map_err(|e| {
@@ -211,7 +213,20 @@ impl SourceLoader {
     pub fn load(
         entry: PathBuf,
         on_file_loaded: &mut impl FnMut(&Path, &str),
+        std_path: Option<PathBuf>,
     ) -> Result<Vec<SourceNode>, SourceError> {
+        let std_path = {
+            if let Some(path) = std_path {
+                path
+            } else {
+                let home = std::env::home_dir()
+                    .expect("Expected to have home dir")
+                    .join(".slynx")
+                    .join("lib")
+                    .join("std");
+                home
+            }
+        };
         let mut global_entry = entry.clone();
         global_entry.pop(); //pops cause the entry should be a file
         // (path, parent_module_index, import_index_within_parent)
@@ -236,8 +251,14 @@ impl SourceLoader {
             }
             path_to_id.insert(canonical, last_id);
             let module_path = entry.clone();
-            let module =
-                Self::load_file_module(entry, &global_entry, last_id, &importer, on_file_loaded)?;
+            let module = Self::load_file_module(
+                entry,
+                &global_entry,
+                &std_path,
+                last_id,
+                &importer,
+                on_file_loaded,
+            )?;
             module_paths.push(module_path);
             // Pre-allocate per-import slot for this new module's imports
             let import_count = module.pending.len();
