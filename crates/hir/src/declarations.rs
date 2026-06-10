@@ -20,7 +20,7 @@ impl SlynxHir {
         name: &GenericIdentifier,
         fields: &[ObjectField],
         visibility: VisibilityModifier,
-    ) {
+    ) -> DeclarationId {
         let name = self.intern_name(&name.identifier);
         let def_fields = fields
             .iter()
@@ -32,10 +32,12 @@ impl SlynxHir {
         let ty = self
             .types_module
             .create_type(name, HirType::new_ref(struct_ty));
-        self.get_file_mut(file)
-            .declarations
-            .register_object(name, ty, Vec::new(), visibility);
+        let local =
+            self.get_file_mut(file)
+                .declarations
+                .register_object(name, ty, Vec::new(), visibility);
         self.types_module.objects.insert(ty, def_fields);
+        DeclarationId::new(file, local)
     }
 
     ///Hoists a `stylesheet` declaration
@@ -45,7 +47,7 @@ impl SlynxHir {
         name: &str,
         args: &[TypedName],
         visibility: VisibilityModifier,
-    ) {
+    ) -> DeclarationId {
         let name = self.intern_name(name);
         let ty = self.types_module.create_type(
             name,
@@ -53,9 +55,11 @@ impl SlynxHir {
                 args: args.iter().map(|_| self.void_type()).collect(),
             },
         );
-        self.get_file_mut(file)
+        let local = self
+            .get_file_mut(file)
             .declarations
             .register_declaration_metadata(name, ty, visibility);
+        DeclarationId::new(file, local)
     }
 
     ///Resolves a `stylesheet` declaration
@@ -184,18 +188,19 @@ impl SlynxHir {
         name: &GenericIdentifier,
         args: &[TypedName],
         visibility: VisibilityModifier,
-    ) -> Result<()> {
+    ) -> Result<DeclarationId> {
         let args = args.iter().map(|_| self.int32_type()).collect();
         let return_type = self.int32_type();
         let symbol = self.intern_name(&name.identifier);
         let ty = self
             .types_module
             .create_type(symbol, HirType::new_function(args, return_type));
-        self.get_file_mut(file)
+        let local = self
+            .get_file_mut(file)
             .declarations
             .register_declaration_metadata(symbol, ty, visibility);
 
-        Ok(())
+        Ok(DeclarationId::new(file, local))
     }
 
     /// Resolves a function declaration, type-checking its body and pushing the HIR declaration.
@@ -273,7 +278,7 @@ impl SlynxHir {
         name: &GenericIdentifier,
         members: &[ComponentMember],
         visibility: VisibilityModifier,
-    ) -> Result<()> {
+    ) -> Result<DeclarationId> {
         let props = members
             .iter()
             .filter_map(|member| match &member.kind {
@@ -311,10 +316,11 @@ impl SlynxHir {
         let ty = self
             .types_module
             .create_type(symbol, HirType::new_component(props));
-        self.get_file_mut(file)
+        let local = self
+            .get_file_mut(file)
             .declarations
             .register_declaration_metadata(symbol, ty, visibility);
-        Ok(())
+        Ok(DeclarationId::new(file, local))
     }
 
     /// Resolves the member definitions of a component body into [`ComponentMemberDeclaration`]s.

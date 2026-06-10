@@ -1,6 +1,6 @@
 //! Module idealized for parsing general things related to declarations, such as visibility qualifiers, and attributes
 
-use common::{Span, VisibilityModifier};
+use common::VisibilityModifier;
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{ASTAttribute, ASTDeclaration, ParseError, Parser, Result};
