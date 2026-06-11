@@ -241,13 +241,7 @@ impl<'a> Formatter<'a> {
                 continue;
             }
             let dep_idx = op_val.idx();
-            if matches!(
-                self.instructions[dep_idx].opcode,
-                Opcode::Const(_) | Opcode::RawValue | Opcode::Arg(_) | Opcode::BlockParam(_)
-            ) {
-                continue;
-            }
-            if inline_set.contains(&dep_idx) {
+            if inline_set.contains(&dep_idx) || self.instructions[dep_idx].opcode.is_inlineable() {
                 continue;
             }
             if label_inst_set.contains(&dep_idx) {
@@ -654,10 +648,10 @@ impl<'a> Formatter<'a> {
         counts
             .into_iter()
             .filter(|(idx, count)| {
-                *count == 1
+                *count == 1 
                     && matches!(
-                        self.instructions[*idx].opcode,
-                        Opcode::Component | Opcode::Struct
+                        &self.instructions[*idx],
+                        Instruction{opcode: Opcode::Component | Opcode::Struct, operands, ..} if operands.iter().all(|v| self.ir.get_instruction(*v).opcode.is_inlineable())
                     )
             })
             .map(|(idx, _)| idx)
