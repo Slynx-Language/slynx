@@ -7,4 +7,5 @@ pub enum CodegenError {
     IRTypeNotRecognized(TypeId),
     DeclarationNotRecognized(DeclarationId),
     UnrecognizedVariable(VariableId),
+    InternalError(String),
 }

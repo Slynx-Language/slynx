@@ -2,11 +2,11 @@ use std::collections::HashSet;
 
 use slynx_hir::{
     HirDeclaration, HirDeclarationKind, HirStyleBlockKind, HirStyleStatement, HirStyleUsage,
-    SlynxHir, StylesDefinition,
+    HirType, SlynxHir, StylesDefinition, TypeId,
 };
 use slynx_ir::{Function, IRPointer, IRType, IRTypeId, SlynxIR, StyleProperty, Value};
 
-use crate::{Codegen, CodegenError};
+use crate::{Codegen, CodegenError, functions::FunctionContext};
 
 pub struct StyleData {
     pub init_func: IRPointer<Function, 1>,
@@ -19,6 +19,7 @@ pub struct StyleData {
 pub(crate) struct ResolvedProperty<'a> {
     pub property: StyleProperty,
     pub source: PropertySource<'a>,
+    pub hir_type: TypeId,
 }
 
 #[derive(Clone)]
@@ -48,6 +49,13 @@ impl Codegen {
         props
     }
 
+    fn compute_property_prim_counts(&self, properties: &[ResolvedProperty], hir: &SlynxHir) -> Vec<usize> {
+        properties
+            .iter()
+            .map(|rp| hir.flatten_type(rp.hir_type).len())
+            .collect()
+    }
+
     pub(crate) fn lower_stylesheet(
         &mut self,
         decl: &HirDeclaration,
@@ -66,16 +74,16 @@ impl Codegen {
         let own_props = self.collect_style_properties(statements);
         let resolved = self.resolve_style_inheritance(usages, &own_props, hir);
 
-        let struct_ty = self
-            .get_mapped_type(&decl.ty)
-            .ok_or(CodegenError::IRTypeNotRecognized(decl.ty))?;
-        self.populate_style_struct_fields(struct_ty, &resolved, ir)?;
-
         let style_data = self.styles.get_mut(&decl.id).unwrap();
         style_data.property_codes = resolved.iter().map(|rp| rp.property).collect();
 
+        let struct_ty = self
+            .get_mapped_type(&decl.ty)
+            .ok_or(CodegenError::IRTypeNotRecognized(decl.ty))?;
+        self.populate_style_struct_fields(struct_ty, &resolved, hir, ir)?;
+
         self.create_style_constructor(decl, struct_ty, usages, &resolved, hir, ir)?;
-        self.create_style_apply_function(decl, struct_ty, &resolved, ir)?;
+        self.create_style_apply_function(decl, struct_ty, &resolved, hir, ir)?;
 
         Ok(())
     }
@@ -101,6 +109,7 @@ impl Codegen {
                         resolved.push(ResolvedProperty {
                             property,
                             source: PropertySource::Inherited(usage_idx),
+                            hir_type: def.expected_type,
                         });
                     }
                 }
@@ -114,12 +123,14 @@ impl Codegen {
                 resolved[pos] = ResolvedProperty {
                     property: code,
                     source: PropertySource::Own(def),
+                    hir_type: def.expected_type,
                 };
             } else {
                 seen_codes.insert(code);
                 resolved.push(ResolvedProperty {
                     property: code,
                     source: PropertySource::Own(def),
+                    hir_type: def.expected_type,
                 });
             }
         }
@@ -132,13 +143,14 @@ impl Codegen {
         &mut self,
         struct_ty: IRTypeId,
         properties: &[ResolvedProperty],
+        hir: &SlynxHir,
         ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
         let field_types: Vec<IRTypeId> = properties
             .iter()
-            .map(|rp| rp.property.ir_type(ir))
-            .collect();
-
+            .flat_map(|rp| hir.flatten_type(rp.hir_type))
+            .map(|prim_ty| self.get_or_create_ir_type(&prim_ty, hir, ir))
+            .collect::<Result<Vec<_>, _>>()?;
         let IRType::Struct(id) = ir.get_type(struct_ty) else {
             unreachable!("Style struct type must be IRType::Struct");
         };
@@ -147,6 +159,30 @@ impl Codegen {
             struct_obj.insert_field(field_ty);
         }
         Ok(())
+    }
+
+    fn flatten_struct_value(
+        &mut self,
+        value: Value,
+        ty: TypeId,
+        hir: &SlynxHir,
+        ctx: &mut FunctionContext,
+    ) -> Result<Vec<Value>, CodegenError> {
+        match &*hir.get_type(&ty) {
+            HirType::Int | HirType::Float | HirType::Bool | HirType::Str | HirType::Void => {
+                Ok(vec![value])
+            }
+            HirType::Struct { fields } => {
+                let mut result = Vec::new();
+                for (i, field_ty) in fields.iter().enumerate() {
+                    let field_val = ctx.get_field(value, i as u16);
+                    result.extend(self.flatten_struct_value(field_val, *field_ty, hir, ctx)?);
+                }
+                Ok(result)
+            }
+            HirType::Reference { rf, .. } => self.flatten_struct_value(value, *rf, hir, ctx),
+            _ => Ok(vec![value]),
+        }
     }
 
     fn create_style_constructor(
@@ -169,7 +205,7 @@ impl Codegen {
             unreachable!()
         };
 
-        let hir_type_args = if let slynx_hir::HirType::Style { args } = &*hir.get_type(&decl.ty) {
+        let hir_type_args = if let HirType::Style { args } = &*hir.get_type(&decl.ty) {
             args.clone()
         } else {
             Vec::new()
@@ -212,8 +248,8 @@ impl Codegen {
         }
 
         let mut field_values = Vec::new();
-        for resolved_prop in properties {
-            let value = match &resolved_prop.source {
+        for rp in properties {
+            let value = match &rp.source {
                 PropertySource::Own(def) => self.lower_expression(&def.expr, hir, &mut ctx)?,
                 PropertySource::Inherited(usage_idx) => {
                     let (struct_val, _) = parent_structs[*usage_idx]
@@ -222,13 +258,13 @@ impl Codegen {
                     let field_idx = parent_data
                         .property_codes
                         .iter()
-                        .position(|c| *c == resolved_prop.property)
+                        .position(|c| *c == rp.property)
                         .expect("Property should exist in parent style struct");
-
                     ctx.get_field(struct_val, field_idx as u16)
                 }
             };
-            field_values.push(value);
+            let primitives = self.flatten_struct_value(value, rp.hir_type, hir, &mut ctx)?;
+            field_values.extend(primitives);
         }
 
         let struct_val = ctx.struct_literal(struct_ty, &field_values);
@@ -242,6 +278,7 @@ impl Codegen {
         decl: &HirDeclaration,
         struct_ty: IRTypeId,
         properties: &[ResolvedProperty],
+        hir: &SlynxHir,
         ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
         let generic_component_ty = ir.generic_component_type();
@@ -258,9 +295,16 @@ impl Codegen {
         let comp_value = args[0];
         let struct_value = args[1];
 
-        for (field_idx, rp) in properties.iter().enumerate() {
-            let field_value = ctx.get_field(struct_value, field_idx as u16);
-            ctx.sapply(rp.property, &[comp_value, field_value]);
+        let prim_counts = self.compute_property_prim_counts(properties, hir);
+        let mut field_offset = 0usize;
+        for (rp, count) in properties.iter().zip(prim_counts.iter()) {
+            let mut sapply_args = vec![comp_value];
+            for i in 0..*count {
+                let prim_val = ctx.get_field(struct_value, (field_offset + i) as u16);
+                sapply_args.push(prim_val);
+            }
+            ctx.sapply(rp.property, &sapply_args);
+            field_offset += count;
         }
 
         ctx.ret(Value::VOID);
