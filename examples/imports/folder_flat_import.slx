@@ -1,5 +1,0 @@
-import utils;
-
-func main(): Rgb {
-    Rgb(r: 0xff, g: 0, b: 0)
-}

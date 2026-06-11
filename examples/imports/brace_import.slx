@@ -1,6 +1,6 @@
 import styles using {Background};
 
-stylesheet MyStyle(color: int) uses Background(color) {
+stylesheet MyStyleOtherStyle(color: int) uses Background(color) {
 	styles {
 		default {
 			backgroundColor: color
@@ -8,15 +8,11 @@ stylesheet MyStyle(color: int) uses Background(color) {
 	}
 }
 
-component MyComponent {
+component MyOtherComponent {
 	Div {
-		style: MyStyle(0xff0000),
+		style: MyStyleOtherStyle(0xff0000),
 		Text {
 			text: "Brace import"
 		}
 	}
-}
-
-func main(): Component {
-	MyComponent {}
 }

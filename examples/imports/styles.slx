@@ -1,5 +1,7 @@
+import colors;
+import brace_alias_import;
 pub stylesheet Background(color: int) {
 	styles {
-		backgroundColor: color
+		backgroundColor: Color(inner:color)
 	}
 }
