@@ -35,7 +35,7 @@ impl SlynxContext {
             }
             HIRErrorKind::TypeNotRecognized(name) => {
                 let name = hir.get_name(*name);
-                format!("Type with name '{name}' is was not defined previously")
+                format!("Type with name '{name}' was not defined")
             }
             HIRErrorKind::InvalidFieldAccessTarget { ty } => {
                 format!("Type '{ty:?}' does not support field-style access")

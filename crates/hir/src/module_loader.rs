@@ -104,7 +104,7 @@ impl SourceLoader {
         entry: &Path,
     ) -> Result<(PathBuf, bool), std::io::Error> {
         let mut entry = entry.to_path_buf();
-        let mut folder = false;
+        let mut folder = module_names.last().is_none();
         if let Some((last, module_names)) = module_names.split_last() {
             for name in module_names {
                 entry.push(name);
@@ -172,6 +172,7 @@ impl SourceLoader {
                 .map_err(|e| {
                     SourceError::inexistant_module(e, entry.clone(), generator.clone(), decl.span)
                 })?;
+                println!("{resolved:?} is_folder: {is_folder}");
                 let mut import_paths = Vec::new();
                 if is_folder {
                     for dir_entry in std::fs::read_dir(&resolved).map_err(|e| {
@@ -182,6 +183,7 @@ impl SourceLoader {
                             decl.span,
                         )
                     })? {
+                        println!("gay");
                         let path = dir_entry
                             .map_err(|e| {
                                 SourceError::inexistant_module(
