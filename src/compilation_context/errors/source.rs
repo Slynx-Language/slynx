@@ -62,7 +62,6 @@ impl SlynxContext {
                 } else {
                     (0, 0, 0, String::new())
                 };
-                println!("{col_start} {col_end}");
                 SlynxError::new_lexer(
                     line,
                     col_start,

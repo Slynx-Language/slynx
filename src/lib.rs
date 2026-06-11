@@ -12,16 +12,16 @@ pub use slynx_parser;
 pub use slynx_typechecker;
 
 ///Compiels the provided `slynx` code from the provided `path` and writes the slynx IR textual form into the same `path` but with extension `sir`
-pub fn compile_code(path: PathBuf) -> color_eyre::eyre::Result<()> {
-    let context = SlynxContext::new(path)?;
+pub fn compile_code(path: PathBuf, std: Option<PathBuf>) -> color_eyre::eyre::Result<()> {
+    let context = SlynxContext::new(path, std)?;
     let output = context.compile()?;
     output.write()?;
     Ok(())
 }
 
 ///Compiels the provided `slynx` code from the provided `path` and returns the compiled slynx IR
-pub fn compile_to_ir(path: PathBuf) -> color_eyre::eyre::Result<SlynxIR> {
-    let context = SlynxContext::new(path)?;
+pub fn compile_to_ir(path: PathBuf, std: Option<PathBuf>) -> color_eyre::eyre::Result<SlynxIR> {
+    let context = SlynxContext::new(path, std)?;
     let output = context.compile()?;
     Ok(output.ir())
 }
