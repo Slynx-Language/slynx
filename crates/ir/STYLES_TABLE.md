@@ -4,7 +4,6 @@ This document describes the table, thus, hardcoded numerics, that represent spec
 semantic information to tell the backend how to apply that specific value.
 Below it will be written as `NAME=Numeric expects Type`, where the Numeric is a Decimal number, and `Type` is the type its expected by the property. You can see at the UI types that will be shown here on UI_TYPES.md.
 
-
 BACKGROUND_COLOR=0 expects uint32. The color in rgba. 8 bits per channel
 
 FOREGROUND_COLOR=1 expects uint32. The color in rgba. 8 bits per channel
