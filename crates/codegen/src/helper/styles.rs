@@ -49,7 +49,11 @@ impl Codegen {
         props
     }
 
-    fn compute_property_prim_counts(&self, properties: &[ResolvedProperty], hir: &SlynxHir) -> Vec<usize> {
+    fn compute_property_prim_counts(
+        &self,
+        properties: &[ResolvedProperty],
+        hir: &SlynxHir,
+    ) -> Vec<usize> {
         properties
             .iter()
             .map(|rp| hir.flatten_type(rp.hir_type).len())
@@ -172,7 +176,7 @@ impl Codegen {
             HirType::Int | HirType::Float | HirType::Bool | HirType::Str | HirType::Void => {
                 Ok(vec![value])
             }
-            HirType::Struct { fields } => {
+            HirType::Struct { fields } | HirType::Tuple { fields } => {
                 let mut result = Vec::new();
                 for (i, field_ty) in fields.iter().enumerate() {
                     let field_val = ctx.get_field(value, i as u16);
@@ -252,17 +256,12 @@ impl Codegen {
             let value = match &rp.source {
                 PropertySource::Own(def) => self.lower_expression(&def.expr, hir, &mut ctx)?,
                 PropertySource::Inherited(usage_idx) => {
-                    let (struct_val, _) = parent_structs[*usage_idx]
-                        .expect("Parent struct should have been computed");
-                    let parent_data = &self.styles[&usages[*usage_idx].style];
-                    let field_idx = parent_data
-                        .property_codes
-                        .iter()
-                        .position(|c| *c == rp.property)
-                        .expect("Property should exist in parent style struct");
-                    ctx.get_field(struct_val, field_idx as u16)
+                    parent_structs[*usage_idx]
+                        .expect("Parent struct should have been computed")
+                        .0
                 }
             };
+            println!("{:?}", ctx.ir().get_instruction(value));
             let primitives = self.flatten_struct_value(value, rp.hir_type, hir, &mut ctx)?;
             field_values.extend(primitives);
         }
