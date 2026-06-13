@@ -1,4 +1,4 @@
-import colors;
+import std;
 import styles using {Background as Bg};
 
 stylesheet MyStyle(color: int) uses Background(color) {

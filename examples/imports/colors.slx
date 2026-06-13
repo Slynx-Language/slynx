@@ -1,4 +1,0 @@
-@intrinsic("color")
-pub object Color {
-   inner: int
-}

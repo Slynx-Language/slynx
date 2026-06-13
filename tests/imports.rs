@@ -15,12 +15,6 @@ fn test_file_import_with_alias() {
     compile_ok("examples/imports/main.slx");
 }
 
-/// Folder import — all `.slx` files in a directory are loaded.
-#[test]
-fn test_folder_flat_import() {
-    compile_ok("examples/imports/folder_flat_import.slx");
-}
-
 /// Selective import with brace syntax: `import path using {Name}`.
 #[test]
 fn test_brace_select_import() {

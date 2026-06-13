@@ -1,4 +1,4 @@
-import colors;
+import std;
 import brace_alias_import;
 pub stylesheet Background(color: int) {
 	styles {
