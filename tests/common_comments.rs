@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 #[test]
 fn test_common_comments() {
-    let context = slynx::SlynxContext::new(PathBuf::from("examples/commonComments.syx")).unwrap();
+    let context =
+        slynx::SlynxContext::new(PathBuf::from("examples/commonComments.syx"), None).unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(
