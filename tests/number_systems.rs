@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 #[test]
 fn test_number_systems() {
-    let context = slynx::SlynxContext::new(PathBuf::from("examples/numberSystems.syx")).unwrap();
+    let context =
+        slynx::SlynxContext::new(PathBuf::from("examples/numberSystems.syx"), None).unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(
