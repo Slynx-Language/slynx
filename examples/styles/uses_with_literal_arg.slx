@@ -1,14 +1,13 @@
+import std;
 stylesheet Fg(color: int) {
     styles {
-        foregroundColor: color
+        foregroundColor: Color(inner:color)
     }
 }
 
 stylesheet Bg() uses Fg(0x00ffff) {
     styles {
-        default {
-            backgroundColor: 0x0000ff
-        }
+        backgroundColor: Color(inner:0x0000ff)
     }
 }
 

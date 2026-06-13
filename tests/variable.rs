@@ -1,8 +1,12 @@
 use std::path::PathBuf;
-
+mod common;
 #[test]
 fn test_variables() {
-    let context = slynx::SlynxContext::new(PathBuf::from("examples/variables.syx"), None).unwrap();
+    let context = slynx::SlynxContext::new(
+        PathBuf::from("examples/variables.syx"),
+        Some(common::STD_PATH.clone()),
+    )
+    .unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(

@@ -33,3 +33,7 @@ check:
 	cargo fmt --all -- --check
 	cargo clippy --all-targets --all-features -- -D warnings
 	cargo build --verbose
+
+install_std:
+	mkdir -p ~/.slynx/std
+	cp -r lib/std ~/.slynx/std

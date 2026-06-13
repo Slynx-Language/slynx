@@ -1,14 +1,6 @@
 use std::path::PathBuf;
-
-fn compile_ok(path: &str) {
-    let result = slynx::compile_to_ir(PathBuf::from(path), None);
-    assert!(
-        result.is_ok(),
-        "compilation failed for {path}:\n{:?}",
-        result.err().unwrap(),
-    );
-}
-
+mod common;
+use common::compile_ok;
 /// File import with `using … as …` alias on a single usage.
 #[test]
 fn test_file_import_with_alias() {

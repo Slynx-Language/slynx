@@ -1,18 +1,19 @@
+import std;
 stylesheet A() {
     styles {
-        foregroundColor: 0xff0000,
+        foregroundColor: Color(inner:0xff0000),
     }
 }
 
 stylesheet B() uses A() {
     styles {
-        backgroundColor: 0x00ff00,
+        backgroundColor: Color(inner:0x00ff00),
     }
 }
 
 stylesheet C() uses B() {
     styles {
-        foregroundColor: 0x0000ff
+        foregroundColor: Color(inner:0x0000ff)
     }
 }
 

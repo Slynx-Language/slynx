@@ -3,6 +3,7 @@ use std::{
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
+mod common;
 
 use slynx::{SlynxContext, compile_code};
 
@@ -48,7 +49,8 @@ fn compile_code_still_writes_js_output() {
     let source_path = write_temp_source(&case_dir);
     let output_path = source_path.with_extension("sir");
 
-    compile_code(source_path, None).expect("compile_code should still write the output file");
+    compile_code(source_path, Some(common::STD_PATH.clone()))
+        .expect("compile_code should still write the output file");
 
     assert!(output_path.exists());
     assert!(
