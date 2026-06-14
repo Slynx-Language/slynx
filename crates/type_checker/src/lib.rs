@@ -114,13 +114,18 @@ impl TypeChecker {
 
     /// Checks the types of the provided `hir` and mutates them in place. Any that could not be inferred but, yet is valid, is
     /// at the end, returned as it's default type. Returns the same `hir` with fully-resolved types.
-    pub fn check(mut hir: SlynxHir) -> Result<SlynxHir> {
+    pub fn check(mut hir: SlynxHir) -> std::result::Result<SlynxHir, (TypeError, SlynxHir)> {
         let mut decl_types = HashMap::new();
         for file in &hir.files {
             let file = file.read();
             for decl in file.declarations() {
                 let decl = decl.1;
                 decl_types.insert(decl.id, decl.ty);
+            }
+            for i in 0..file.declarations.all_declaration_count() {
+                let local = slynx_hir::LocalDeclId::from_raw(i as u32);
+                let ty = file.declarations.get_declaration_type(local);
+                decl_types.insert(slynx_hir::DeclarationId::new(file.file, local), ty);
             }
         }
 
@@ -139,7 +144,10 @@ impl TypeChecker {
                     .declarations
                     .get_mut(idx)
                     .expect("Declaration should've been initialized");
-                inner.check_decl(decl)?;
+                if let Err(e) = inner.check_decl(decl) {
+                    drop(file);
+                    return Err((e, hir));
+                };
             }
         }
         // Phase 2: set defaults for remaining infer types
@@ -151,7 +159,10 @@ impl TypeChecker {
                     .declarations
                     .get_mut(idx)
                     .expect("Declaration should've been initialized");
-                inner.set_default(decl)?;
+                if let Err(e) = inner.set_default(decl) {
+                    drop(file);
+                    return Err((e, hir));
+                };
             }
         }
 
@@ -242,15 +253,53 @@ impl TypeChecker {
 
     /// Tries to unify types `a` and `b` if possible
     fn unify(&mut self, a: &TypeId, b: &TypeId, span: &Span) -> Result<TypeId> {
+        let orig_a = *a;
+        let orig_b = *b;
         let a = self.resolve(a, span)?;
         let b = self.resolve(b, span)?;
 
         match (&a, &b) {
-            (a, b) if a == b => Ok(*a),
+            (a, b) if a == b => {
+                let is_ref = matches!(
+                    &*self.types_module.get_type(&orig_a),
+                    HirType::Reference { .. }
+                ) || matches!(
+                    &*self.types_module.get_type(&orig_b),
+                    HirType::Reference { .. }
+                );
+                if is_ref {
+                    if matches!(
+                        &*self.types_module.get_type(&orig_a),
+                        HirType::Reference { .. }
+                    ) {
+                        Ok(orig_a)
+                    } else {
+                        Ok(orig_b)
+                    }
+                } else {
+                    Ok(*a)
+                }
+            }
             (out, inf) | (inf, out)
                 if *out != self.types_module.infer_id() && *inf == self.types_module.infer_id() =>
             {
-                Ok(*out)
+                let resolved_out = *out;
+                let result = if resolved_out == a
+                    && matches!(
+                        &*self.types_module.get_type(&orig_a),
+                        HirType::Reference { .. }
+                    ) {
+                    orig_a
+                } else if resolved_out == b
+                    && matches!(
+                        &*self.types_module.get_type(&orig_b),
+                        HirType::Reference { .. }
+                    ) {
+                    orig_b
+                } else {
+                    resolved_out
+                };
+                Ok(result)
             }
             (a, b) => {
                 let concrete_a = self.types_module.get_type(a).clone();

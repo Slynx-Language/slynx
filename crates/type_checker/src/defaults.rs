@@ -286,6 +286,11 @@ impl TypeChecker {
                 self.default_component_expression(component_expr)?;
                 expr.ty = self.resolve(&expr.ty, &expr.span)?;
             }
+            HirExpressionKind::MethodCall { .. } => {
+                unreachable!(
+                    "Method call should have been already removed due to previous type checkings"
+                );
+            }
         }
         Ok(())
     }

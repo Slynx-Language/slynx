@@ -275,7 +275,14 @@ impl TypeChecker {
                     out
                 }
             }
-            HirExpressionKind::Identifier(_) => self.resolve(&expr.ty, &expr.span)?,
+            HirExpressionKind::Identifier(v) => {
+                if let Some(var) = self.types_module.get_variable(&v) {
+                    expr.ty = var;
+                    var
+                } else {
+                    self.resolve(&expr.ty, &expr.span)?
+                }
+            }
             HirExpressionKind::Component(HirComponentExpression::Specialized(_)) => {
                 self.types_module.generic_component_id()
             }
@@ -301,6 +308,35 @@ impl TypeChecker {
                 ty
             }
             HirExpressionKind::Bool(_) => self.types_module.bool_id(),
+            HirExpressionKind::MethodCall { .. } => {
+                let kind = std::mem::replace(&mut expr.kind, HirExpressionKind::Bool(false));
+                let (mut parent, name, args) = match kind {
+                    HirExpressionKind::MethodCall {
+                        parent,
+                        name,
+                        args,
+                    } => (parent, name, args),
+                    _ => unreachable!(),
+                };
+                let parent_type = self.get_type_of_expr(&mut *parent)?;
+                let method = if let Some(method) = self
+                    .types_module
+                    .get_methods_of(parent_type)
+                    .iter()
+                    .find_map(|(method, decl)| (*method == name).then_some(*decl))
+                {
+                    method
+                } else {
+                    return Err(TypeError::no_method_for(name, parent_type, expr.span));
+                };
+                let mut new_args = vec![*parent];
+                new_args.extend(args);
+                expr.kind = HirExpressionKind::FunctionCall {
+                    name: method,
+                    args: new_args,
+                };
+                self.get_type_of_expr(expr)?
+            }
         };
 
         expr.ty = if expected == calc {
