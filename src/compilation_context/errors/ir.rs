@@ -45,6 +45,7 @@ pub fn format_ir_generation_error(
                 )
             }
         }
+        CodegenError::InternalError(msg) => format!("IR internal error: {msg}"),
     }
 }
 impl SlynxContext {

@@ -102,6 +102,7 @@ pub struct SlynxContext {
     ///Maps the name of some file to it's lines. Used when wanting to retrieve for example, returning the lines where an error occuried
     lines: HashMap<Arc<PathBuf>, Vec<usize>>,
     entry_point: Arc<PathBuf>,
+    std: Option<PathBuf>,
 }
 
 pub struct LineInfo<'a> {
@@ -116,12 +117,13 @@ pub struct LineInfo<'a> {
 }
 
 impl SlynxContext {
-    pub fn new(entry_point: PathBuf) -> std::io::Result<Self> {
+    pub fn new(entry_point: PathBuf, std_path: Option<PathBuf>) -> std::io::Result<Self> {
         let entry_point = Arc::new(entry_point);
         let mut out = Self {
             files: HashMap::new(),
             lines: HashMap::new(),
             entry_point: entry_point.clone(),
+            std: std_path,
         };
         out.insert_file(entry_point)?;
         Ok(out)
@@ -138,6 +140,7 @@ impl SlynxContext {
             files: HashMap::from([(entry.clone(), src)]),
             lines: HashMap::from([(entry.clone(), lines)]),
             entry_point: entry,
+            std: None,
         }
     }
 
@@ -259,6 +262,21 @@ impl SlynxContext {
             .map_err(|e| self.handle_parser_error(&e))
     }
 
+    pub fn load_modules(&mut self) -> Result<Vec<SourceNode>, SlynxError> {
+        let entry = (*self.entry_point).clone();
+        let modules = {
+            let std = self.std.clone();
+            let mut on_load = |path: &Path, source: &str| {
+                self.register_loaded_file(Arc::new(path.to_path_buf()), source.to_string());
+            };
+            SourceLoader::load(entry, &mut on_load, std)
+        };
+        match modules {
+            Ok(modules) => Ok(modules),
+            Err(e) => Err(self.handle_source_error(&e)),
+        }
+    }
+
     ///Builds the Slynx HIR from the given `ast`. And type checks the HIR. The result hir is already typed. Also returns the types module to be used if needed to get information about the types on the Hir.
     pub fn build_hir(&self, ast: &[SourceNode]) -> Result<SlynxHir, SlynxError> {
         let mut hir = SlynxHir::new();
@@ -291,10 +309,11 @@ impl SlynxContext {
     pub fn build_stages(mut self) -> Result<CompilationStages, SlynxError> {
         let entry = (*self.entry_point).clone();
         let modules = {
+            let std = self.std.clone();
             let mut on_load = |path: &Path, source: &str| {
                 self.register_loaded_file(Arc::new(path.to_path_buf()), source.to_string());
             };
-            SourceLoader::load(entry, &mut on_load)
+            SourceLoader::load(entry, &mut on_load, std)
         };
         let modules = match modules {
             Ok(modules) => modules,
@@ -357,7 +376,7 @@ mod tests {
         fs::write(path.as_ref(), source).expect("temp source should be written");
 
         (
-            SlynxContext::new((*path).clone()).expect("context should be created"),
+            SlynxContext::new((*path).clone(), None).expect("context should be created"),
             path,
             dir,
         )

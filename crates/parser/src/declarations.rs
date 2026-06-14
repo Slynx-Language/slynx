@@ -1,0 +1,98 @@
+//! Module idealized for parsing general things related to declarations, such as visibility qualifiers, and attributes
+
+use common::VisibilityModifier;
+use slynx_lexer::{Token, TokenKind};
+
+use crate::{ASTAttribute, ASTDeclaration, ParseError, Parser, Result};
+
+impl Parser {
+    pub fn parse_attributes(&mut self) -> Result<Vec<ASTAttribute>> {
+        let mut out = Vec::new();
+        while let Ok(Token {
+            kind: TokenKind::Identifier(_),
+            ..
+        }) = self.peek()
+        {
+            let TokenKind::Identifier(name) = self.expect_identifier()?.kind else {
+                unreachable!();
+            };
+            self.expect(&TokenKind::LParen)?;
+            let args = {
+                let mut args = Vec::new();
+                loop {
+                    if self.peek()?.kind == TokenKind::RParen {
+                        break args;
+                    }
+                    let TokenKind::String(arg) = self.expect_string()?.kind else {
+                        unreachable!()
+                    };
+                    args.push(arg);
+                    if self.peek()?.kind == TokenKind::Comma {
+                        self.eat()?;
+                    }
+                }
+            };
+            self.expect(&TokenKind::RParen)?;
+            out.push(ASTAttribute { name, args });
+        }
+        Ok(out)
+    }
+
+    /// Parses the declarations in the source code and returns them as a vector of `ASTDeclaration`s.
+    /// The parser will continue parsing until it reaches the end of the input stream.
+    /// If it encounters an unexpected token, it will return an error indicating the expected token type.
+    pub fn parse_declarations(&mut self) -> Result<Vec<ASTDeclaration>> {
+        let mut out = Vec::new();
+        while let Ok(token) = self.peek() {
+            let attributes = if matches!(token.kind, TokenKind::At) {
+                self.expect(&TokenKind::At)?;
+                self.parse_attributes()?
+            } else {
+                vec![]
+            };
+            let token = self.peek()?;
+            let visibility = if matches!(token.kind, TokenKind::Pub) {
+                self.eat()?;
+                VisibilityModifier::Public
+            } else {
+                VisibilityModifier::Private
+            };
+            let mut decl = match &self.peek()?.kind {
+                TokenKind::Import => {
+                    let span = self.eat()?.span;
+                    self.parse_import(span)?
+                }
+                TokenKind::Alias => {
+                    let Token { span, .. } = self.eat()?;
+                    self.parse_alias(span)?
+                }
+                TokenKind::Object => {
+                    let Token { span, .. } = self.eat()?;
+                    self.parse_object(span)?
+                }
+                TokenKind::Component => {
+                    let Token { span, .. } = self.eat()?;
+                    self.parse_component(span)?
+                }
+                TokenKind::Func => {
+                    let Token { span, .. } = self.eat()?;
+                    self.parse_func(span)?
+                }
+                TokenKind::StyleSheet => {
+                    let Token { span, .. } = self.eat()?;
+                    self.parse_stylesheet(span)?
+                }
+                _ => {
+                    return Err(ParseError::UnexpectedToken(
+                        self.eat()?,
+                        "a function, component, object or alias declaration".to_owned(),
+                    ));
+                }
+            };
+            decl.attributes = attributes;
+            decl.visibility = visibility;
+            out.push(decl);
+        }
+        Ok(out)
+    }
+}

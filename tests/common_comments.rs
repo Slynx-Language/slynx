@@ -1,8 +1,13 @@
 use std::path::PathBuf;
+mod common;
 
 #[test]
 fn test_common_comments() {
-    let context = slynx::SlynxContext::new(PathBuf::from("examples/commonComments.syx")).unwrap();
+    let context = slynx::SlynxContext::new(
+        PathBuf::from("examples/commonComments.syx"),
+        Some(common::STD_PATH.clone()),
+    )
+    .unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(

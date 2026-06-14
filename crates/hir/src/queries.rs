@@ -1,7 +1,7 @@
 use common::{Span, VisibilityModifier};
 
 use crate::{
-    DeclarationId, HIRError, HirDeclaration, Result, SlynxHir, SymbolPointer, TypeId,
+    DeclarationId, HIRError, HirDeclaration, HirType, Result, SlynxHir, SymbolPointer, TypeId,
     context::{TypeReader, TypeWriter},
     file::HirFile,
     module_loader::FileId,
@@ -138,5 +138,26 @@ impl SlynxHir {
             }
         }
         Err(HIRError::name_unrecognized(*name, span))
+    }
+    pub fn type_of_intrinsic(&self, name: &str, span: Span) -> Result<TypeId> {
+        let id = self.lang_items.get(name).map_err(|_| {
+            let sym = self.intern_name(name);
+            HIRError::intrinsic_not_registered(sym, span)
+        })?;
+        Ok(self.get_declaration_type(id))
+    }
+
+    /// Recursively flattens a HIR type to its primitive components.
+    /// A struct `Color { inner: int }` flattens to `[int]`.
+    /// A struct `Border { color: Color, width: int, radius: int }` flattens to `[int, int, int]`.
+    pub fn flatten_type(&self, ty: TypeId) -> Vec<TypeId> {
+        match &*self.get_type(&ty) {
+            HirType::Int | HirType::Float | HirType::Bool | HirType::Str => vec![ty],
+            HirType::Struct { fields } => {
+                fields.iter().flat_map(|f| self.flatten_type(*f)).collect()
+            }
+            HirType::Reference { rf, .. } => self.flatten_type(*rf),
+            _ => vec![ty],
+        }
     }
 }

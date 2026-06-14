@@ -1,11 +1,11 @@
+import std;
 stylesheet Base() {
     styles {
-        foregroundColor: 0xff0000
+        foregroundColor: Color(inner:0xff0000)
     }
 }
 
-stylesheet Derived() uses Base() {
-}
+stylesheet Derived() uses Base() {}
 
 component Root {
     Div {

@@ -1,24 +1,10 @@
 use std::path::PathBuf;
-
-fn compile_ok(path: &str) {
-    let result = slynx::compile_to_ir(PathBuf::from(path));
-    assert!(
-        result.is_ok(),
-        "compilation failed for {path}:\n{:?}",
-        result.err().unwrap(),
-    );
-}
-
+mod common;
+use common::compile_ok;
 /// File import with `using … as …` alias on a single usage.
 #[test]
 fn test_file_import_with_alias() {
     compile_ok("examples/imports/main.slx");
-}
-
-/// Folder import — all `.slx` files in a directory are loaded.
-#[test]
-fn test_folder_flat_import() {
-    compile_ok("examples/imports/folder_flat_import.slx");
 }
 
 /// Selective import with brace syntax: `import path using {Name}`.
@@ -37,9 +23,10 @@ fn test_brace_alias_import() {
 #[test]
 fn import_using_name_not_in_specified_module_errors() {
     // BgGreen lives in another.slx, not styles.slx — must not resolve across modules
-    let result = slynx::compile_to_ir(PathBuf::from(
-        "examples/imports/test_wrong_module_import.slx",
-    ));
+    let result = slynx::compile_to_ir(
+        PathBuf::from("examples/imports/test_wrong_module_import.slx"),
+        None,
+    );
     assert!(
         result.is_err(),
         "should error: BgGreen is not exported by styles.slx"

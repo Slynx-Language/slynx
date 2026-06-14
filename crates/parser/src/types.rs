@@ -11,6 +11,7 @@ impl Parser {
         let target = self.parse_type()?;
         self.expect(&TokenKind::SemiColon)?;
         Ok(ASTDeclaration {
+            attributes: Vec::new(),
             visibility: Default::default(),
             span: Span {
                 start: init.start,

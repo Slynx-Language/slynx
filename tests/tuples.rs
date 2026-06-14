@@ -1,8 +1,13 @@
 use std::path::PathBuf;
+mod common;
 
 #[test]
 fn test_tuple_access() {
-    let context = slynx::SlynxContext::new(PathBuf::from("examples/tupleAccess.syx")).unwrap();
+    let context = slynx::SlynxContext::new(
+        PathBuf::from("examples/tupleAccess.syx"),
+        Some(common::STD_PATH.clone()),
+    )
+    .unwrap();
     let output = context.compile().unwrap();
 
     assert_eq!(
@@ -18,7 +23,11 @@ fn test_tuple_access() {
 /// Previously panicked with IRTypeNotRecognized(TypeId(7)).
 #[test]
 fn test_tuple_object_and_string() {
-    let context = slynx::SlynxContext::new(PathBuf::from("examples/tupleAccess.syx")).unwrap();
+    let context = slynx::SlynxContext::new(
+        PathBuf::from("examples/tupleAccess.syx"),
+        Some(common::STD_PATH.clone()),
+    )
+    .unwrap();
     let output = context.compile().unwrap();
     assert_eq!(
         output.output_path().extension().and_then(|e| e.to_str()),
@@ -29,7 +38,11 @@ fn test_tuple_object_and_string() {
 /// Two objects of the same type inside a tuple.
 #[test]
 fn test_tuple_two_objects() {
-    let context = slynx::SlynxContext::new(PathBuf::from("examples/tupleTwoObjects.syx")).unwrap();
+    let context = slynx::SlynxContext::new(
+        PathBuf::from("examples/tupleTwoObjects.syx"),
+        Some(common::STD_PATH.clone()),
+    )
+    .unwrap();
     let output = context.compile().unwrap();
     assert_eq!(
         output.output_path().extension().and_then(|e| e.to_str()),
@@ -40,8 +53,11 @@ fn test_tuple_two_objects() {
 /// Nested tuple containing an object: ((Person, str), int).
 #[test]
 fn test_tuple_nested_object() {
-    let context =
-        slynx::SlynxContext::new(PathBuf::from("examples/tupleNestedObject.syx")).unwrap();
+    let context = slynx::SlynxContext::new(
+        PathBuf::from("examples/tupleNestedObject.syx"),
+        Some(common::STD_PATH.clone()),
+    )
+    .unwrap();
     let output = context.compile().unwrap();
     assert_eq!(
         output.output_path().extension().and_then(|e| e.to_str()),

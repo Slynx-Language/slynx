@@ -22,6 +22,5 @@ func main(): Component {
 "#;
     let path = std::env::temp_dir().join("test_pedrinho.syx");
     std::fs::write(&path, source).unwrap();
-    let ir = slynx::compile_to_ir(path).unwrap();
-    println!("{}", ir.format_sir());
+    slynx::compile_to_ir(path, None).unwrap();
 }

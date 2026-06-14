@@ -3,6 +3,7 @@ use std::{
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
+mod common;
 
 use slynx::{SlynxContext, compile_code};
 
@@ -30,7 +31,7 @@ fn compile_returns_output_before_writing() {
     let source_path = write_temp_source(&case_dir);
     let output_path = source_path.with_extension("sir");
 
-    let context = SlynxContext::new(source_path).expect("context should be created");
+    let context = SlynxContext::new(source_path, None).expect("context should be created");
     let output = context.compile().expect("compilation should succeed");
 
     assert_eq!(output.output_path(), output_path.as_path());
@@ -48,7 +49,8 @@ fn compile_code_still_writes_js_output() {
     let source_path = write_temp_source(&case_dir);
     let output_path = source_path.with_extension("sir");
 
-    compile_code(source_path).expect("compile_code should still write the output file");
+    compile_code(source_path, Some(common::STD_PATH.clone()))
+        .expect("compile_code should still write the output file");
 
     assert!(output_path.exists());
     assert!(
@@ -67,7 +69,7 @@ fn build_stages_exposes_hir_and_ir_dumps_without_writing_files() {
     let hir_path = source_path.with_extension("hir");
     let ir_path = source_path.with_extension("ir");
 
-    let context = SlynxContext::new(source_path).expect("context should be created");
+    let context = SlynxContext::new(source_path, None).expect("context should be created");
     let stages = context.build_stages().expect("stages should build");
 
     assert_eq!(stages.dump_path("hir"), hir_path);
@@ -88,7 +90,7 @@ fn build_stages_can_write_hir_ir_and_sir_outputs() {
     let ir_path = source_path.with_extension("ir");
     let sir_path = source_path.with_extension("sir");
 
-    let context = SlynxContext::new(source_path).expect("context should be created");
+    let context = SlynxContext::new(source_path, None).expect("context should be created");
     let stages = context.build_stages().expect("stages should build");
 
     stages.write_hir().expect("hir dump should be written");

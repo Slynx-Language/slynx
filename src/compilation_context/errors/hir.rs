@@ -35,7 +35,7 @@ impl SlynxContext {
             }
             HIRErrorKind::TypeNotRecognized(name) => {
                 let name = hir.get_name(*name);
-                format!("Type with name '{name}' is was not defined previously")
+                format!("Type with name '{name}' was not defined")
             }
             HIRErrorKind::InvalidFieldAccessTarget { ty } => {
                 format!("Type '{ty:?}' does not support field-style access")
@@ -99,9 +99,12 @@ impl SlynxContext {
             } => {
                 let name = hir.get_name(*name);
                 format!(
-                    "The name '{name}' is ambiguous: it was found in files {:?} and {:?}",
-                    first, second
+                    "The name '{name}' is ambiguous: it was found in files {first:?} and {second:?}",
                 )
+            }
+            HIRErrorKind::IntrinsicNotRegistered { name } => {
+                let name = hir.get_name(*name);
+                format!("intrinsic '{name}' is not defined — ensure the standard library is loaded")
             }
         }
     }

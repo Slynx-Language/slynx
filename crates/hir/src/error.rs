@@ -116,6 +116,11 @@ pub enum HIRErrorKind {
         /// The second file where the declaration was found.
         second: FileId,
     },
+    /// An intrinsic was referenced but is not registered (e.g. missing std library).
+    IntrinsicNotRegistered {
+        /// The name of the intrinsic that was not found.
+        name: SymbolPointer,
+    },
 }
 
 impl HIRError {
@@ -233,6 +238,13 @@ impl HIRError {
             span,
         }
     }
+    /// Creates a [`HIRErrorKind::IntrinsicNotRegistered`] error for the given intrinsic name.
+    pub fn intrinsic_not_registered(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::IntrinsicNotRegistered { name },
+            span,
+        }
+    }
     /// Creates a [`HIRErrorKind::AmbiguousDeclaration`] error.
     pub fn ambiguous_declaration(
         name: SymbolPointer,
@@ -297,6 +309,13 @@ impl std::fmt::Display for HIRError {
                     f,
                     "Ambiguous declaration found in files {:?} and {:?}",
                     first, second
+                )
+            }
+            HIRErrorKind::IntrinsicNotRegistered { name } => {
+                write!(
+                    f,
+                    "intrinsic '{:?}' is not defined — ensure the standard library is loaded",
+                    name
                 )
             }
         }

@@ -359,6 +359,8 @@ SpecializedComponent {
   style: A()
 }```
 generates a call for the function that applies the struct `A` on that given `SpecializedComponent`. It is being explained on the [stylesheet lowering](./docs/stylesheet-lowering.md)
+Sapply operations are dumb, extremely dumb, so the arguments of them MUST be primitives only, and the backend should know how to lower things properly. This is made like this to keep it able for the frontend to be free on how to implement its abstraction
+over something.
 
 ### UI Operations
 Anything on the IR that initializes with '@' and is being used as an instruction, is an specific UI Operation, which determine what the UI itself should do. If being used as a value, then it's the visual reference to a handle of some internal string

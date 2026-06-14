@@ -1,6 +1,7 @@
 mod ast;
 mod component;
 pub mod conditionals;
+mod declarations;
 pub mod error;
 mod import;
 pub use error::*;
@@ -80,55 +81,9 @@ impl Parser {
     pub fn expect_identifier(&mut self) -> Result<Token> {
         self.expect(&TokenKind::Identifier(String::new()))
     }
-
-    /// Parses the declarations in the source code and returns them as a vector of `ASTDeclaration`s.
-    /// The parser will continue parsing until it reaches the end of the input stream.
-    /// If it encounters an unexpected token, it will return an error indicating the expected token type.
-    pub fn parse_declarations(&mut self) -> Result<Vec<ASTDeclaration>> {
-        let mut out = Vec::new();
-        while let Ok(token) = self.peek() {
-            let visibility = if matches!(token.kind, TokenKind::Pub) {
-                self.eat()?;
-                VisibilityModifier::Public
-            } else {
-                VisibilityModifier::Private
-            };
-            let mut decl = match &self.peek()?.kind {
-                TokenKind::Import => {
-                    let span = self.eat()?.span;
-                    self.parse_import(span)?
-                }
-                TokenKind::Alias => {
-                    let Token { span, .. } = self.eat()?;
-                    self.parse_alias(span)?
-                }
-                TokenKind::Object => {
-                    let Token { span, .. } = self.eat()?;
-                    self.parse_object(span)?
-                }
-                TokenKind::Component => {
-                    let Token { span, .. } = self.eat()?;
-                    self.parse_component(span)?
-                }
-                TokenKind::Func => {
-                    let Token { span, .. } = self.eat()?;
-                    self.parse_func(span)?
-                }
-                TokenKind::StyleSheet => {
-                    let Token { span, .. } = self.eat()?;
-                    self.parse_stylesheet(span)?
-                }
-                _ => {
-                    return Err(ParseError::UnexpectedToken(
-                        self.eat()?,
-                        "a function, component, object or alias declaration".to_owned(),
-                    ));
-                }
-            };
-            decl.visibility = visibility;
-            out.push(decl);
-        }
-        Ok(out)
+    ///Does the same as `self.expect()` but expecting specifically an identifier
+    pub fn expect_string(&mut self) -> Result<Token> {
+        self.expect(&TokenKind::String(String::new()))
     }
     pub fn reset_flags(&mut self) {
         self.flags = ParserFlags::None;

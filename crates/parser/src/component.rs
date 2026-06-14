@@ -189,6 +189,7 @@ impl Parser {
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
         span.end = end.end;
         Ok(ASTDeclaration {
+            attributes: Vec::new(),
             visibility: Default::default(),
             kind: ASTDeclarationKind::ComponentDeclaration {
                 name: ty,

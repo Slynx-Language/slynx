@@ -90,7 +90,7 @@ mod file;
 
 pub use crate::error::{HIRError, HIRErrorKind};
 use crate::{
-    context::{BUILTIN_NAMES, SymbolsResolver, TypesContext},
+    context::{BUILTIN_NAMES, LangItems, SymbolsResolver, TypesContext},
     file::HirFile,
     module_loader::{FileId, SourceNode},
 };
@@ -176,6 +176,7 @@ pub struct SlynxHir {
     /// - The declaration's [`TypeId`]
     /// - The source [`Span`] for error reporting
     pub files: Vec<RwLock<HirFile>>,
+    pub lang_items: LangItems,
 }
 
 impl SlynxHir {
@@ -204,6 +205,7 @@ impl SlynxHir {
             symbols_resolver: SymbolsResolver::new(symbols),
             types_module: TypesContext::new(&builtins),
             files: Vec::new(),
+            lang_items: LangItems::new(),
         }
     }
 
@@ -303,7 +305,14 @@ impl SlynxHir {
         }
         for module in modules {
             for ast in &module.declarations {
-                self.hoist(ast, module.id)?;
+                let mut should_register = None;
+                for attribute in &ast.attributes {
+                    if attribute.name == "intrinsic" {
+                        should_register = attribute.args.first();
+                        break;
+                    }
+                }
+                self.hoist(ast, module.id, should_register)?;
             }
         }
 
@@ -377,15 +386,20 @@ impl SlynxHir {
     /// - [`generate`](SlynxHir::generate) — Main entry point (calls this in phase 1)
     /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
     /// - [`implementation::declarations::hoist_function`](crate::hir::implementation::declarations::hoist_function)
-    fn hoist(&self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
-        match &ast.kind {
+    fn hoist(
+        &self,
+        ast: &ASTDeclaration,
+        file: FileId,
+        should_register: Option<&String>,
+    ) -> Result<()> {
+        let declarationid = match &ast.kind {
             ASTDeclarationKind::StyleSheet { name, args, .. } => {
                 self.hoist_stylesheet(file, &name.identifier, args, ast.visibility)
             }
             ASTDeclarationKind::Alias { name, target } => {
                 let alias_symbol = self.intern_name(&name.identifier);
                 self.intern_name(&target.identifier);
-                self.create_empty_alias(alias_symbol, file, ast.visibility);
+                self.create_empty_alias(alias_symbol, file, ast.visibility)
             }
             ASTDeclarationKind::ObjectDeclaration { name, fields } => {
                 self.create_empty_object(file, name, fields, ast.visibility)
@@ -398,8 +412,12 @@ impl SlynxHir {
                 self.hoist_component(file, name, members, ast.visibility)?
             }
             ASTDeclarationKind::Import(_) => {
+                return Ok(());
                 //modules loader already solved so
             }
+        };
+        if let Some(name) = should_register {
+            self.lang_items.register(name, declarationid);
         }
 
         Ok(())

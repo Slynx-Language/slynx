@@ -111,7 +111,7 @@ impl Codegen {
                         self.components.insert(declaration.id, component);
                     }
                     HirDeclarationKind::StyleSheet { .. } => {
-                        let name = hir.get_declaration_name(declaration.id); // Create init and apply functions for each stylesheet.
+                        let name = hir.get_declaration_name(declaration.id);
                         let init_func = ir.create_function(&format!("__init_{name}"));
                         let apply_func = ir.create_function(&format!("__apply_{name}"));
                         let struct_ty = ir.create_struct(&format!("__{name}_struct"));

@@ -74,6 +74,7 @@ impl Parser {
         self.expect(&TokenKind::SemiColon)?;
         let import = FileImport { path, usages };
         Ok(ASTDeclaration {
+            attributes: Vec::new(),
             visibility: Default::default(),
             kind: crate::ASTDeclarationKind::Import(import),
             span,

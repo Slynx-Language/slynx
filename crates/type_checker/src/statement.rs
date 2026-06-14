@@ -127,7 +127,7 @@ impl TypeChecker {
             return Ok(self.types_module.void_id());
         };
         for stmt in rest {
-            self.default_statement(stmt, expected)?;
+            self.resolve_statement(stmt, expected)?;
         }
         match &mut last.kind {
             HirStatementKind::Expression { expr } => self.get_type_of_expr(expr),

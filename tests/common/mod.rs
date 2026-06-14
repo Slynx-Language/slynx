@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
+use std::path::PathBuf;
+
 use slynx_hir::{HIRError, SlynxHir};
+use slynx_ir::SlynxIR;
 use slynx_lexer::Lexer;
 use slynx_parser::Parser;
 pub fn load_source(source: &str) -> Result<slynx_hir::SlynxHir, HIRError> {
@@ -32,4 +35,16 @@ pub fn load_hir(path: &str) -> SlynxHir {
     )];
     hir.generate(&modules).expect("HIR should generate");
     hir
+}
+pub static STD_PATH: std::sync::LazyLock<PathBuf> =
+    std::sync::LazyLock::new(|| PathBuf::from("lib/std"));
+pub fn compile_ok(path: &str) -> SlynxIR {
+    let result = slynx::compile_to_ir(PathBuf::from(path), Some(STD_PATH.clone()));
+
+    assert!(
+        result.is_ok(),
+        "compilation failed for {path}:\n{:?}",
+        result.err().unwrap(),
+    );
+    result.unwrap()
 }
