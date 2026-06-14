@@ -1,5 +1,6 @@
 use crate::{
-    Result, SlynxHir, TypeId,
+    ComponentMemberDeclaration, ComponentProperty, DeclarationId, HirDeclaration,
+    HirDeclarationKind, Result, SlynxHir, TypeId,
     error::{HIRError, HIRErrorKind},
     model::{
         HirComponentExpression, HirSpecializedComponentExpression, HirType, PropertyExpression,
@@ -9,9 +10,131 @@ use crate::{
 ///Module that implements anything related Specialized Component on the HIR
 use common::Span;
 use common::VisibilityModifier;
-use slynx_parser::{ComponentExpression, ComponentMemberValue};
+use slynx_parser::{
+    ComponentExpression, ComponentMember, ComponentMemberKind, ComponentMemberValue,
+    GenericIdentifier,
+};
 
 impl SlynxHir {
+    /// Hoists a component declaration by registering its property layout without resolving children.
+    pub(crate) fn hoist_component(
+        &self,
+        file: FileId,
+        name: &GenericIdentifier,
+        members: &[ComponentMember],
+        visibility: VisibilityModifier,
+    ) -> Result<DeclarationId> {
+        let props = members
+            .iter()
+            .filter_map(|member| match &member.kind {
+                ComponentMemberKind::Property {
+                    name,
+                    modifier,
+                    ty: Some(generic),
+                    ..
+                } => {
+                    let name = self.intern_name(name);
+                    let ty_name = self.intern_name(&generic.identifier);
+                    let ty = match self.get_type_of_name(ty_name, &member.span) {
+                        Ok(v) => v,
+                        Err(e) => return Some(Err(e)),
+                    };
+                    Some(Ok(ComponentProperty::new(*modifier, name, ty)))
+                }
+                ComponentMemberKind::Property {
+                    name,
+                    modifier,
+                    ty: None,
+                    ..
+                } => {
+                    let name = self.intern_name(name);
+                    Some(Ok(ComponentProperty::new(
+                        *modifier,
+                        name,
+                        self.infer_type(),
+                    )))
+                }
+                ComponentMemberKind::Child(_) => None,
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let symbol = self.intern_name(&name.identifier);
+        let ty = self
+            .types_module
+            .create_type(symbol, HirType::new_component(props));
+        let local = self
+            .get_file_mut(file)
+            .declarations
+            .register_declaration_metadata(symbol, ty, visibility);
+        Ok(DeclarationId::new(file, local))
+    }
+
+    /// Resolves the member definitions of a component body into [`ComponentMemberDeclaration`]s.
+    pub(crate) fn resolve_component_defs(
+        &self,
+        fileid: FileId,
+        def: &[ComponentMember],
+    ) -> Result<Vec<ComponentMemberDeclaration>> {
+        let mut out = Vec::with_capacity(def.len());
+        let mut prop_idx = 0;
+        for def in def {
+            match &def.kind {
+                ComponentMemberKind::Property { ty, rhs, name, .. } => {
+                    let ty = if let Some(ty) = ty {
+                        let symbol = self.intern_name(&ty.identifier);
+                        self.get_type_of_name(symbol, &ty.span)?
+                    } else {
+                        self.infer_type()
+                    };
+                    let rhs = if let Some(rhs) = rhs {
+                        Some(self.generate_expression(fileid, rhs, Some(ty))?)
+                    } else {
+                        None
+                    };
+                    out.push(ComponentMemberDeclaration::new_property(
+                        prop_idx, rhs, def.span,
+                    ));
+                    let name = self.intern_name(name);
+                    self.create_variable(fileid, name, ty, &def.span)?;
+                    prop_idx += 1;
+                }
+                ComponentMemberKind::Child(child) => {
+                    let component = self.resolve_component_expression(fileid, child)?;
+                    out.push(ComponentMemberDeclaration::Child(component));
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    ///Resolves a component declaration that contains the given `members` and the given `name`
+    pub(crate) fn resolve_component_declaration(
+        &self,
+        fileid: FileId,
+        members: &[ComponentMember],
+        name: &GenericIdentifier,
+        span: Span,
+    ) -> Result<()> {
+        let symbol = self.intern_name(&name.identifier);
+        let defs = self.resolve_component_defs(fileid, members)?;
+
+        let (decl, ty) = self.find_declaration_by_name(&symbol, span)?;
+
+        let mut file = self.get_file_mut(fileid);
+        file.scopes.enter_scope();
+        file.create_declaration(HirDeclaration {
+            id: decl,
+            kind: HirDeclarationKind::ComponentDeclaration {
+                props: defs,
+                name: symbol,
+            },
+            ty,
+            span,
+            visibility: Default::default(),
+        });
+        file.scopes.exit_scope();
+        Ok(())
+    }
+
     fn resolve_component_member(
         &self,
         file: FileId,

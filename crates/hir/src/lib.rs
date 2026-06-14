@@ -83,8 +83,10 @@ pub mod id;
 pub mod model;
 /// Name resolution utilities.
 pub mod names;
+mod objects;
 mod queries;
 mod statements;
+mod styles;
 
 mod file;
 
@@ -401,8 +403,14 @@ impl SlynxHir {
                 self.intern_name(&target.identifier);
                 self.create_empty_alias(alias_symbol, file, ast.visibility)
             }
-            ASTDeclarationKind::ObjectDeclaration { name, fields } => {
-                self.create_empty_object(file, name, fields, ast.visibility)
+            ASTDeclarationKind::ObjectDeclaration {
+                name,
+                fields,
+                methods,
+            } => {
+                let id = self.create_empty_object(file, name, fields, ast.visibility);
+                self.lower_methods(id, methods)?;
+                id
             }
 
             ASTDeclarationKind::FuncDeclaration { name, args, .. } => {
