@@ -8,6 +8,19 @@ use crate::{
 impl SlynxContext {
     pub fn handle_parser_error(&self, error: &ParseError) -> SlynxError {
         match error {
+            err @ ParseError::InvalidPostfix(span) => {
+                let info = self.get_line_info(&self.entry_point, span.start);
+                let suggestion = suggestions_from_parser(error);
+                SlynxError::new_parser(
+                    info.line,
+                    info.column_start,
+                    info.column_end,
+                    err.to_string(),
+                    self.file_name(),
+                    info.src.to_string(),
+                    suggestion,
+                )
+            }
             err @ ParseError::UnexpectedToken(token, _) => {
                 let LineInfo {
                     line,
