@@ -1,0 +1,14 @@
+func main():void {
+    let v = Currency(value:0);
+    v.increase(10);
+}
+
+pub object Currency {
+    value: int,
+    func new(): Self {
+        Self(value: 0)
+    }
+    func increase(self, value: int):void {
+        self.value = self.value + value;
+    }
+}

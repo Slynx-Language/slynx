@@ -23,9 +23,9 @@ fn rejects_function_call_with_wrong_argument_type() {
         .expect_err("type checker should reject function calls with wrong arg type");
 
     assert!(
-        matches!(err.kind, TypeErrorKind::IncompatibleTypes { .. }),
+        matches!(err.0.kind, TypeErrorKind::IncompatibleTypes { .. }),
         "expected IncompatibleTypes, got {:?}",
-        err.kind
+        err.0.kind
     );
 }
 
@@ -37,7 +37,7 @@ fn rejects_function_without_return_value_for_non_void_return_type() {
 
     let err = TypeChecker::check(hir).expect_err("non-void functions must return a value");
 
-    match &err.kind {
+    match &err.0.kind {
         TypeErrorKind::MissingReturnValue { expected } => {
             assert!(
                 matches!(expected, slynx_hir::HirType::Int),
@@ -77,9 +77,9 @@ fn rejects_while_with_non_boolean_condition() {
     let err = TypeChecker::check(hir).expect_err("while conditions should require bool");
 
     assert!(
-        matches!(err.kind, TypeErrorKind::IncompatibleTypes { .. }),
+        matches!(err.0.kind, TypeErrorKind::IncompatibleTypes { .. }),
         "expected IncompatibleTypes, got {:?}",
-        err.kind
+        err.0.kind
     );
 }
 
@@ -92,9 +92,9 @@ fn rejects_invalid_statement_inside_while_body() {
     let err = TypeChecker::check(hir).expect_err("while body statements should be type-checked");
 
     assert!(
-        matches!(err.kind, TypeErrorKind::IncompatibleTypes { .. }),
+        matches!(err.0.kind, TypeErrorKind::IncompatibleTypes { .. }),
         "expected IncompatibleTypes, got {:?}",
-        err.kind
+        err.0.kind
     );
 }
 
@@ -133,7 +133,7 @@ fn rejects_tuple_access_with_invalid_index() {
 
     let err = TypeChecker::check(hir).expect_err("tuple accesses should reject invalid indexes");
 
-    match &err.kind {
+    match &err.0.kind {
         TypeErrorKind::InvalidTupleIndex { index, length } => {
             assert_eq!(*index, 2);
             assert_eq!(*length, 2);
@@ -149,8 +149,8 @@ fn rejects_tuple_access_on_non_tuple_values() {
     let err = TypeChecker::check(hir).expect_err("non-tuples should reject tuple-style access");
 
     assert!(
-        matches!(err.kind, TypeErrorKind::InvalidTupleAccessTarget { .. }),
+        matches!(err.0.kind, TypeErrorKind::InvalidTupleAccessTarget { .. }),
         "expected InvalidTupleAccessTarget, got {:?}",
-        err.kind
+        err.0.kind
     );
 }
