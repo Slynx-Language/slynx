@@ -225,6 +225,9 @@ impl Codegen {
                 then_branch,
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
+            HirExpressionKind::MethodCall { .. } => unreachable!(
+                "Method call should not be reacheable. It sohuld have been transformed into function call on type checker"
+            ),
         };
         Ok(value)
     }
