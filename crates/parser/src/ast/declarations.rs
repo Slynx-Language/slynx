@@ -24,12 +24,13 @@ pub struct ObjectMethod {
     pub arguments: Vec<TypedName>,
     pub return_type: GenericIdentifier,
     pub body: Vec<ASTStatement>,
+    pub span: Span,
 }
 
 impl ObjectMethod {
     pub fn is_static(&self) -> bool {
         if let Some(arg) = self.arguments.get(0)
-            && arg.kind.identifier == "Self"
+            && (arg.kind.identifier == "Self" || arg.kind.identifier == "self")
         {
             false
         } else {

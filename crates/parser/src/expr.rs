@@ -233,6 +233,65 @@ impl Parser {
         }
     }
 
+    fn parse_postfix_chain(&mut self, mut expr: ASTExpression) -> Result<ASTExpression> {
+        // Keep postfix parsing iterative so tuple access and chained field access
+        // share the same code path.
+        while let Ok(token) = self.peek()
+            && token.kind == TokenKind::Dot
+        {
+            self.eat()?;
+            expr = self.parse_dot_postfix(expr)?;
+        }
+
+        Ok(expr)
+    }
+    ///Parses a postfix that comes after a '.'. This function initializes right after the '.'
+    pub fn parse_dot_postfix(&mut self, prefix: ASTExpression) -> Result<ASTExpression> {
+        match &self.peek()?.kind {
+            TokenKind::Int(index) if *index >= 0 => {
+                let index = *index;
+                let current = self.eat()?;
+                Ok(ASTExpression {
+                    span: prefix.span.merge_with(current.span),
+                    kind: ASTExpressionKind::TupleAccess {
+                        tuple: Box::new(prefix),
+                        index: index as usize,
+                    },
+                })
+            }
+            TokenKind::Identifier(_) if self.peek_at(1)?.kind == TokenKind::LParen => {
+                let field = self.parse_funcall()?;
+                Ok(ASTExpression {
+                    span: prefix.span.merge_with(field.span),
+                    kind: ASTExpressionKind::FieldAccess {
+                        parent: Box::new(prefix),
+                        field: Box::new(field),
+                    },
+                })
+            }
+            TokenKind::Identifier(ident) => {
+                let Token {
+                    kind: TokenKind::Identifier(ident),
+                    span,
+                } = self.eat()?
+                else {
+                    unreachable!()
+                };
+                let field = ASTExpression {
+                    kind: ASTExpressionKind::Identifier(ident),
+                    span,
+                };
+                Ok(ASTExpression {
+                    span: prefix.span.merge_with(field.span),
+                    kind: ASTExpressionKind::FieldAccess {
+                        parent: Box::new(prefix),
+                        field: Box::new(field),
+                    },
+                })
+            }
+            _ => Err(ParseError::InvalidPostfix(self.eat()?.span)),
+        }
+    }
     /// Parses a primary expression, which can be a literal (integer, float, string, boolean), an identifier, a parenthesized expression, or a field access expression.
     pub fn parse_primary(&mut self) -> Result<ASTExpression> {
         let current = self.peek()?;
@@ -280,19 +339,6 @@ impl Parser {
         };
 
         self.parse_postfix_chain(expr)
-    }
-
-    fn parse_postfix_chain(&mut self, mut expr: ASTExpression) -> Result<ASTExpression> {
-        // Keep postfix parsing iterative so tuple access and chained field access
-        // share the same code path.
-        while let Ok(token) = self.peek()
-            && token.kind == TokenKind::Dot
-        {
-            self.eat()?;
-            expr = self.parse_dot_postfix(expr)?;
-        }
-
-        Ok(expr)
     }
 
     /// Parses multiplicative expressions, which consist of primary expressions combined with multiplication '*' or division '/' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a primary expression, and then repeatedly checking for multiplicative operators and parsing the right-hand side (RHS) as another primary expression until no more multiplicative operators are found.
@@ -444,38 +490,7 @@ impl Parser {
         }
         Ok(lhs)
     }
-    ///Parses a postfix that comes after a '.'. This function initializes right after the '.'
-    pub fn parse_dot_postfix(&mut self, prefix: ASTExpression) -> Result<ASTExpression> {
-        let current = self.eat()?;
-        match current.kind {
-            TokenKind::Int(index) if index >= 0 => Ok(ASTExpression {
-                span: Span {
-                    start: prefix.span.start,
-                    end: current.span.end,
-                },
-                // Tuple access is represented explicitly in the AST so later
-                // phases can decide how to normalize it.
-                kind: ASTExpressionKind::TupleAccess {
-                    tuple: Box::new(prefix),
-                    index: index as usize,
-                },
-            }),
 
-            _ => {
-                let field = self.parse_expression()?;
-                Ok(ASTExpression {
-                    span: Span {
-                        start: prefix.span.start,
-                        end: current.span.end,
-                    },
-                    kind: ASTExpressionKind::FieldAccess {
-                        parent: Box::new(prefix),
-                        field: Box::new(field),
-                    },
-                })
-            }
-        }
-    }
     /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.
     pub fn parse_expression(&mut self) -> Result<ASTExpression> {
         if self.peek()?.kind == TokenKind::If {

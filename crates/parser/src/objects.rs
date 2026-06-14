@@ -21,6 +21,7 @@ impl Parser {
             arguments: args,
             return_type,
             body,
+            span: func.span,
         })
     }
 
