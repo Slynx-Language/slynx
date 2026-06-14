@@ -312,15 +312,13 @@ impl SlynxHir {
         })
     }
 
-    fn generate_field_access_expression(
+    fn generate_identifier_field(
         &self,
         file: FileId,
-        parent: &ASTExpression,
-        field: &str,
+        parent: HirExpression,
+        field_symbol: SymbolPointer,
         span: Span,
     ) -> Result<HirExpression> {
-        let field_symbol = self.intern_name(field);
-        let parent = self.generate_expression(file, parent, None)?;
         let HirExpression { ref ty, .. } = parent;
         let ty_kind = self.get_type(ty).clone();
         match ty_kind {
@@ -341,23 +339,80 @@ impl SlynxHir {
             }
             HirType::Field(_) => {
                 let object_ref = self.resolve_object_reference_type(file, *ty, &span)?;
-                let field = self.intern_name(field);
                 let Some(layout) = self.get_object_fields(object_ref, file) else {
                     unreachable!("object reference should carry a layout");
                 };
-                match Self::find_name_index(&layout, field) {
+                match Self::find_name_index(&layout, field_symbol) {
                     Some(index) => {
                         let field_ty =
                             self.create_unnamed_type(HirType::type_field(object_ref, index));
                         Ok(self.create_field_access_expression(parent, index, field_ty, span))
                     }
-                    _ => Err(HIRError::property_unrecognized(vec![field], span)),
+                    _ => Err(HIRError::property_unrecognized(vec![field_symbol], span)),
                 }
             }
             u => Err(HIRError {
                 kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u },
                 span,
             }),
+        }
+    }
+    fn generate_field_access_on(
+        &self,
+        file: FileId,
+        parent_hir: HirExpression,
+        field_ast: &ASTExpression,
+        span: Span,
+    ) -> Result<HirExpression> {
+        match &field_ast.kind {
+            ASTExpressionKind::Identifier(name) => {
+                let symbol = self.intern_name(name);
+                self.generate_identifier_field(file, parent_hir, symbol, span)
+            }
+
+            ASTExpressionKind::FieldAccess {
+                parent: inner_parent,
+                field: inner_field,
+            } => {
+                // Recursão para o próximo nível
+                let intermediate = self.generate_field_access_on(
+                    file,
+                    parent_hir,     // parent atual vira o novo parent
+                    inner_parent,   // o "parent" do field aninhado
+                    field_ast.span, // ou inner_parent.span
+                )?;
+
+                self.generate_field_access_on(file, intermediate, inner_field, span)
+            }
+
+            _ => panic!(
+                "This function should be called only when `field ast` is an identifier of field access"
+            ),
+        }
+    }
+    fn generate_field_access_expression(
+        &self,
+        file: FileId,
+        parent: &ASTExpression,
+        field: &ASTExpression,
+        span: Span,
+    ) -> Result<HirExpression> {
+        let parent = self.generate_expression(file, parent, None)?;
+
+        match &field.kind {
+            ASTExpressionKind::Identifier(_) | ASTExpressionKind::FieldAccess { .. } => {
+                self.generate_field_access_on(file, parent, field, field.span)
+            }
+            ASTExpressionKind::FunctionCall { name, args } => {
+                let name = self.intern_name(&name.identifier);
+                let args = args
+                    .iter()
+                    .map(|arg| self.generate_expression(file, arg, None))
+                    .collect::<Result<_>>()?;
+                Ok(self.create_method_call_expression(parent, name, args, span))
+            }
+
+            _ => Err(HIRError::invalid_field_access(field.span)),
         }
     }
 

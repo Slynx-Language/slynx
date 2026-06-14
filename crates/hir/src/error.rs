@@ -21,6 +21,7 @@ pub struct HIRError {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    InvalidFieldAccess,
     /// A type name was used but is not defined in the current scope.
     TypeNotRecognized(SymbolPointer),
     /// An identifier was used but is not defined in the current scope.
@@ -124,6 +125,13 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn invalid_field_access(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidFieldAccess,
+            span,
+        }
+    }
+
     ///Creates a new `InvalidStyleDefinition` error, where the name of the style definition is the given `name` and the given `span` is
     ///the span on the code that generated so
     pub fn invalid_tuple_index(index: usize, max_index: usize, span: Span) -> Self {
@@ -266,6 +274,7 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::InvalidFieldAccess => write!(f, "Invalid field access"),
             HIRErrorKind::TypeNotRecognized(_) => write!(f, "Type not recognized"),
             HIRErrorKind::NameNotRecognized(_) => write!(f, "Name not recognized"),
             HIRErrorKind::NameAlreadyDefined(_) => write!(f, "Name already defined"),
