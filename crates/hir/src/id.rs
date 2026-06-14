@@ -12,7 +12,7 @@ pub trait HirIdTrait: Copy + Clone + std::fmt::Debug + std::hash::Hash + Eq + Pa
 }
 ///The local ID for some declaration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct LocalDeclId(pub(crate) u32);
+pub struct LocalDeclId(pub u32);
 impl LocalDeclId {
     pub fn from_raw(value: u32) -> Self {
         Self(value)

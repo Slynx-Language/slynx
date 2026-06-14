@@ -100,7 +100,7 @@ use common::SymbolsModule;
 use parking_lot::RwLock;
 use slynx_parser::{ASTDeclaration, ASTDeclarationKind};
 
-pub use id::{DeclarationId, ExpressionId, PropertyId, TypeId, VariableId};
+pub use id::{DeclarationId, ExpressionId, LocalDeclId, PropertyId, TypeId, VariableId};
 pub use model::*;
 
 /// Result type for HIR operations.
@@ -440,9 +440,11 @@ impl SlynxHir {
         submodules: &[FileId],
     ) -> Result<()> {
         match &ast.kind {
-            ASTDeclarationKind::ObjectDeclaration { name, fields, .. } => {
-                self.resolve_object(name, fields)
-            }
+            ASTDeclarationKind::ObjectDeclaration {
+                name,
+                fields,
+                methods,
+            } => self.resolve_object(file, name, fields, methods),
             ASTDeclarationKind::Alias { name, target } => self.resolve_alias(name, target),
             ASTDeclarationKind::Import(import) => {
                 for usage in &import.usages {
@@ -469,11 +471,27 @@ impl SlynxHir {
     /// Resolves bodies (functions, components, stylesheets).
     fn resolve_body(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
         match &ast.kind {
-            ASTDeclarationKind::ObjectDeclaration { name, .. } => {
+            ASTDeclarationKind::ObjectDeclaration {
+                name,
+                methods,
+                ..
+            } => {
                 let symbol = self.intern_name(&name.identifier);
                 let (decl, declty) = self.find_declaration_by_name(&symbol, ast.span)?;
                 self.get_file_mut(file)
                     .create_declaration(HirDeclaration::new_object(decl, declty, ast.span));
+                let self_ty = self.get_declaration_type(decl);
+                for method in methods {
+                    self.resolve_function(
+                        file,
+                        &method.method_name,
+                        &method.arguments,
+                        &method.return_type,
+                        &method.body,
+                        &method.span,
+                        Some(self_ty),
+                    )?;
+                }
                 Ok(())
             }
             ASTDeclarationKind::Alias { name, .. } => {
@@ -488,7 +506,7 @@ impl SlynxHir {
                 args,
                 body,
                 return_type,
-            } => self.resolve_function(file, name, args, return_type, body, &ast.span),
+            } => self.resolve_function(file, name, args, return_type, body, &ast.span, None),
             ASTDeclarationKind::ComponentDeclaration { members, name } => {
                 self.resolve_component_declaration(file, members, name, ast.span)
             }

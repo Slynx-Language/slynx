@@ -32,8 +32,10 @@ impl SlynxHir {
     /// Resolves an object declaration, filling in its field types and pushing the declaration.
     pub(crate) fn resolve_object(
         &self,
+        file: FileId,
         name: &GenericIdentifier,
         fields: &[ObjectField],
+        _methods: &[ObjectMethod],
     ) -> Result<()> {
         let mut fields = fields
             .iter()
@@ -56,10 +58,21 @@ impl SlynxHir {
             };
             rf
         };
-        let HirType::Struct { fields: ty_field } = &mut *self.get_type_mut(rf) else {
-            unreachable!("Type of object should be a Struct ty");
-        };
-        ty_field.append(&mut fields);
+        {
+            let HirType::Struct { fields: ty_field } = &mut *self.get_type_mut(rf) else {
+                unreachable!("Type of object should be a Struct ty");
+            };
+            ty_field.append(&mut fields);
+        }
+
+        let (self_decl, self_ty) = self.find_declaration_by_name(&self.intern_name(&name.identifier), name.span)?;
+        let self_symbol = self.intern_name("Self");
+        self.get_file(file).declarations.register_import_alias(
+            self_symbol,
+            self_decl.file_id,
+            self_decl.local_id,
+            self_ty,
+        );
 
         Ok(())
     }
@@ -71,21 +84,23 @@ impl SlynxHir {
     ) -> Result<()> {
         let self_type = self.get_declaration_type(decl);
         for method in methods {
-            let args = method
-                .arguments
-                .iter()
-                .map(|arg| {
-                    if arg.name == "Self" {
-                        self_type
-                    } else {
-                        self.int32_type()
-                    }
-                })
-                .collect();
-            let return_type = if method.return_type.identifier == "Self" {
-                self_type
-            } else {
-                self.int32_type()
+            let mut args = Vec::with_capacity(method.arguments.len());
+            for arg in &method.arguments {
+                let ty = if arg.kind.identifier == "Self" || arg.kind.identifier == "self" {
+                    self_type
+                } else {
+                    let symbol = self.intern_name(&arg.kind.identifier);
+                    self.get_type_of_name(symbol, &arg.kind.span)?
+                };
+                args.push(ty);
+            }
+            let return_type = {
+                let symbol = self.intern_name(&method.return_type.identifier);
+                if method.return_type.identifier == "Self" {
+                    self_type
+                } else {
+                    self.get_type_of_name(symbol, &method.return_type.span)?
+                }
             };
             let symbol = self.intern_name(&method.method_name.identifier);
             let ty = self
@@ -95,16 +110,14 @@ impl SlynxHir {
                 .get_file_mut(decl.file_id)
                 .declarations
                 .register_declaration_metadata(symbol, ty, VisibilityModifier::Private);
-            self.get_file_mut(decl.file_id)
-                .declarations
-                .register_method(
-                    decl.local_id,
-                    symbol,
-                    DeclarationId {
-                        file_id: decl.file_id,
-                        local_id: local,
-                    },
-                );
+            self.types_module.create_method(
+                self_type,
+                symbol,
+                DeclarationId {
+                    file_id: decl.file_id,
+                    local_id: local,
+                },
+            );
         }
 
         Ok(())

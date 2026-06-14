@@ -1,5 +1,5 @@
 use crate::{
-    DeclarationId, Result, SlynxHir,
+    DeclarationId, Result, SlynxHir, TypeId,
     error::HIRError,
     model::{HirDeclaration, HirStatement, HirType},
     module_loader::FileId,
@@ -39,6 +39,7 @@ impl SlynxHir {
         return_type: &GenericIdentifier,
         body: &[ASTStatement],
         span: &Span,
+        self_type: Option<TypeId>,
     ) -> Result<()> {
         let symbol = self.intern_name(&name.identifier);
         let (decl, tyid) = self.find_declaration_by_name(&symbol, name.span)?;
@@ -51,14 +52,24 @@ impl SlynxHir {
             .map(|arg| {
                 let ty_symbol = self.intern_name(&arg.kind.identifier);
                 let symbol = self.intern_name(&arg.name);
-                let ty = self.get_type_of_name(ty_symbol, &arg.kind.span)?;
+                let ty = if self_type.is_some()
+                    && (arg.kind.identifier == "Self" || arg.kind.identifier == "self")
+                {
+                    self_type.unwrap()
+                } else {
+                    self.get_type_of_name(ty_symbol, &arg.kind.span)?
+                };
                 self.create_variable(fileid, symbol, ty, &arg.span)
                     .map(|v| (v, ty))
             })
             .collect::<Result<(Vec<_>, Vec<_>)>>()?;
         {
             let return_symbol = self.intern_name(&return_type.identifier);
-            let ret_tyid = self.get_type_of_name(return_symbol, span)?;
+            let ret_tyid = if self_type.is_some() && return_type.identifier == "Self" {
+                self_type.unwrap()
+            } else {
+                self.get_type_of_name(return_symbol, span)?
+            };
             let mut guard = self.get_type_mut(tyid);
             let HirType::Function {
                 args,
