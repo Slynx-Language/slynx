@@ -23,6 +23,7 @@ impl LangItems {
         self.declarations.get(name).map(|v| *v)
     }
     pub fn get(&self, name: &str) -> Result<DeclarationId, String> {
-        self.try_get(name).ok_or_else(|| format!("intrinsic '{name}' is not registered"))
+        self.try_get(name)
+            .ok_or_else(|| format!("intrinsic '{name}' is not registered"))
     }
 }

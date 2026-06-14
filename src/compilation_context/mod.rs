@@ -273,7 +273,7 @@ impl SlynxContext {
         };
         match modules {
             Ok(modules) => Ok(modules),
-            Err(e) => return Err(self.handle_source_error(&e)),
+            Err(e) => Err(self.handle_source_error(&e)),
         }
     }
 

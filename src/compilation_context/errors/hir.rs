@@ -99,15 +99,12 @@ impl SlynxContext {
             } => {
                 let name = hir.get_name(*name);
                 format!(
-                    "The name '{name}' is ambiguous: it was found in files {:?} and {:?}",
-                    first, second
+                    "The name '{name}' is ambiguous: it was found in files {first:?} and {second:?}",
                 )
             }
             HIRErrorKind::IntrinsicNotRegistered { name } => {
                 let name = hir.get_name(*name);
-                format!(
-                    "intrinsic '{name}' is not defined — ensure the standard library is loaded"
-                )
+                format!("intrinsic '{name}' is not defined — ensure the standard library is loaded")
             }
         }
     }

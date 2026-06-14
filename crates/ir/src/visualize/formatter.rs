@@ -648,7 +648,7 @@ impl<'a> Formatter<'a> {
         counts
             .into_iter()
             .filter(|(idx, count)| {
-                *count == 1 
+                *count == 1
                     && matches!(
                         &self.instructions[*idx],
                         Instruction{opcode: Opcode::Component | Opcode::Struct, operands, ..} if operands.iter().all(|v| self.ir.get_instruction(*v).opcode.is_inlineable())

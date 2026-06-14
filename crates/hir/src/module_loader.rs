@@ -219,12 +219,11 @@ impl SourceLoader {
             if let Some(path) = std_path {
                 path
             } else {
-                let home = std::env::home_dir()
+                std::env::home_dir()
                     .expect("Expected to have home dir")
                     .join(".slynx")
                     .join("lib")
-                    .join("std");
-                home
+                    .join("std")
             }
         };
         let mut global_entry = entry.clone();
