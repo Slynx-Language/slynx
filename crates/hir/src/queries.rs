@@ -139,9 +139,12 @@ impl SlynxHir {
         }
         Err(HIRError::name_unrecognized(*name, span))
     }
-    pub fn type_of_intrinsic(&self, name: &str) -> TypeId {
-        let id = self.lang_items.get(name);
-        self.get_declaration_type(id)
+    pub fn type_of_intrinsic(&self, name: &str, span: Span) -> Result<TypeId> {
+        let id = self.lang_items.get(name).map_err(|_| {
+            let sym = self.intern_name(name);
+            HIRError::intrinsic_not_registered(sym, span)
+        })?;
+        Ok(self.get_declaration_type(id))
     }
 
     /// Recursively flattens a HIR type to its primitive components.

@@ -103,6 +103,12 @@ impl SlynxContext {
                     first, second
                 )
             }
+            HIRErrorKind::IntrinsicNotRegistered { name } => {
+                let name = hir.get_name(*name);
+                format!(
+                    "intrinsic '{name}' is not defined — ensure the standard library is loaded"
+                )
+            }
         }
     }
 

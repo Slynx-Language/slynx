@@ -76,14 +76,13 @@ impl SlynxHir {
 
     ///Type of styles is made by its name.
     pub(crate) fn resolve_style_type(&self, name: &str, span: Span) -> Result<TypeId> {
-        let ty = match name {
-            "backgroundColor" | "foregroundColor" => self.type_of_intrinsic("color"),
+        match name {
+            "backgroundColor" | "foregroundColor" => self.type_of_intrinsic("color", span),
             _ => {
                 let name = self.intern_name(name);
-                return Err(HIRError::invalid_style_definition(name, span));
+                Err(HIRError::invalid_style_definition(name, span))
             }
-        };
-        Ok(ty)
+        }
     }
 
     ///Transforms the given `definitions` in a vector of `StyleDefinition`
