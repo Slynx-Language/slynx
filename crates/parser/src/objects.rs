@@ -30,6 +30,14 @@ impl Parser {
         let mut fields = Vec::new();
         let mut methods = Vec::new();
         while self.peek()?.kind != TokenKind::RBrace {
+            if self.peek()?.kind == TokenKind::Func {
+                let start = self.eat()?.span;
+                methods.push(self.parse_method(start)?);
+                if let TokenKind::Comma = self.peek()?.kind {
+                    self.eat()?;
+                }
+                continue;
+            }
             let name = self.parse_typedname()?;
             fields.push(ObjectField {
                 visibility: VisibilityModifier::Public,
@@ -40,10 +48,6 @@ impl Parser {
                 break;
             } else {
                 self.expect(&TokenKind::Comma)?;
-            }
-            if self.peek()?.kind == TokenKind::Func {
-                let start = self.eat()?.span;
-                methods.push(self.parse_method(start)?);
             }
         }
         let Token { span, .. } = self.expect(&TokenKind::RBrace)?;

@@ -448,16 +448,6 @@ impl Parser {
     pub fn parse_dot_postfix(&mut self, prefix: ASTExpression) -> Result<ASTExpression> {
         let current = self.eat()?;
         match current.kind {
-            TokenKind::Identifier(field) => Ok(ASTExpression {
-                span: Span {
-                    start: prefix.span.start,
-                    end: current.span.end,
-                },
-                kind: ASTExpressionKind::FieldAccess {
-                    parent: Box::new(prefix),
-                    field,
-                },
-            }),
             TokenKind::Int(index) if index >= 0 => Ok(ASTExpression {
                 span: Span {
                     start: prefix.span.start,
@@ -470,10 +460,20 @@ impl Parser {
                     index: index as usize,
                 },
             }),
-            _ => Err(ParseError::UnexpectedToken(
-                current,
-                "A field access".to_string(),
-            )),
+
+            _ => {
+                let field = self.parse_expression()?;
+                Ok(ASTExpression {
+                    span: Span {
+                        start: prefix.span.start,
+                        end: current.span.end,
+                    },
+                    kind: ASTExpressionKind::FieldAccess {
+                        parent: Box::new(prefix),
+                        field: Box::new(field),
+                    },
+                })
+            }
         }
     }
     /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.

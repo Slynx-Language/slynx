@@ -13,7 +13,7 @@ impl Parser {
         else {
             unreachable!();
         };
-        if self.peek()?.kind == TokenKind::Comma && name == "self" {
+        if name == "self" {
             return Ok(TypedName {
                 name,
                 span,
