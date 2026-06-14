@@ -1,4 +1,11 @@
 @intrinsic("color")
 pub object Color {
-	inner: int
+	inner: int,
+	func new(r:int, g:int,b:int,a:int): Self {
+	    r = r & 0xff;
+		g = g & 0xff;
+		b = b & 0xff;
+		a = a & 0xff;
+        Self(inner: (r << 24) | (g << 16) | (b << 8) | a)
+	}
 }
