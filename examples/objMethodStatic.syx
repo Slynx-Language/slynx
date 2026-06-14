@@ -1,0 +1,22 @@
+func main(): void {
+    let v = MyObj.staticFactory(0, "test");
+    v.instanceMethod(42);
+    let val = v.getValue();
+}
+
+pub object MyObj {
+    value: int,
+    name: str,
+
+    func instanceMethod(self, x: int): void {
+        self.value = self.value + x;
+    }
+
+    func getValue(self): int {
+        self.value
+    }
+
+    func staticFactory(x: int, s: str): Self {
+        Self(value: x, name: s)
+    }
+}

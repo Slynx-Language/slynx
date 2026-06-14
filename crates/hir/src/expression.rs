@@ -397,19 +397,53 @@ impl SlynxHir {
         field: &ASTExpression,
         span: Span,
     ) -> Result<HirExpression> {
-        let parent = self.generate_expression(file, parent, None)?;
+        let parent_expr = self.generate_expression(file, parent, None);
 
         match &field.kind {
             ASTExpressionKind::Identifier(_) | ASTExpressionKind::FieldAccess { .. } => {
-                self.generate_field_access_on(file, parent, field, field.span)
+                self.generate_field_access_on(file, parent_expr?, field, field.span)
             }
             ASTExpressionKind::FunctionCall { name, args } => {
                 let name = self.intern_name(&name.identifier);
-                let args = args
-                    .iter()
-                    .map(|arg| self.generate_expression(file, arg, None))
-                    .collect::<Result<_>>()?;
-                Ok(self.create_method_call_expression(parent, name, args, span))
+                match parent_expr {
+                    Ok(parent_expr) => {
+                        let args = args
+                            .iter()
+                            .map(|arg| self.generate_expression(file, arg, None))
+                            .collect::<Result<_>>()?;
+                        Ok(self.create_method_call_expression(parent_expr, name, args, span))
+                    }
+                    Err(err) if matches!(err.kind, HIRErrorKind::NameNotRecognized(_)) => {
+                        if let ASTExpressionKind::Identifier(ident) = &parent.kind {
+                            let type_symbol = self.intern_name(ident);
+                            if let Ok(type_ty) = self.get_type_of_name(type_symbol, &parent.span) {
+                                if let Some(method_decl) = self
+                                    .types_module
+                                    .methods
+                                    .get(&type_ty)
+                                    .and_then(|m| m.get(&name).map(|entry| *entry.value()))
+                                {
+                                    let args = args
+                                        .iter()
+                                        .map(|arg| self.generate_expression(file, arg, None))
+                                        .collect::<Result<_>>()?;
+                                    return Ok(HirExpression {
+                                        id: ExpressionId::new(),
+                                        ty: self.infer_type(),
+                                        kind: HirExpressionKind::FunctionCall {
+                                            name: method_decl,
+                                            args,
+                                        },
+                                        span,
+                                    });
+                                }
+                                return Err(HIRError::invalid_field_access(span));
+                            }
+                        }
+                        Err(err)
+                    }
+                    Err(err) => Err(err),
+                }
             }
 
             _ => Err(HIRError::invalid_field_access(field.span)),
