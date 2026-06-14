@@ -13,6 +13,32 @@ pub struct ASTAttribute {
 }
 
 #[derive(Debug)]
+pub struct ObjectField {
+    pub visibility: VisibilityModifier,
+    pub name: TypedName,
+}
+
+#[derive(Debug)]
+pub struct ObjectMethod {
+    pub method_name: GenericIdentifier,
+    pub arguments: Vec<TypedName>,
+    pub return_type: GenericIdentifier,
+    pub body: Vec<ASTStatement>,
+}
+
+impl ObjectMethod {
+    pub fn is_static(&self) -> bool {
+        if let Some(arg) = self.arguments.get(0)
+            && arg.kind.identifier == "Self"
+        {
+            false
+        } else {
+            true
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct ASTDeclaration {
     pub attributes: Vec<ASTAttribute>,
     pub visibility: VisibilityModifier,
@@ -20,11 +46,6 @@ pub struct ASTDeclaration {
     pub span: Span,
 }
 
-#[derive(Debug)]
-pub struct ObjectField {
-    pub visibility: VisibilityModifier,
-    pub name: TypedName,
-}
 #[derive(Debug)]
 pub enum ASTDeclarationKind {
     Import(FileImport),
@@ -36,6 +57,7 @@ pub enum ASTDeclarationKind {
     ObjectDeclaration {
         name: GenericIdentifier,
         fields: Vec<ObjectField>,
+        methods: Vec<ObjectMethod>,
     },
     ComponentDeclaration {
         name: GenericIdentifier,

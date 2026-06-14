@@ -1,14 +1,34 @@
-use crate::{Parser, Result};
+use crate::{ObjectMethod, Parser, Result};
 use slynx_lexer::tokens::{Token, TokenKind};
 
 use crate::ast::{ASTDeclaration, ASTDeclarationKind, ObjectField, VisibilityModifier};
 use common::Span;
 
 impl Parser {
+    pub fn parse_method(&mut self, start: Span) -> Result<ObjectMethod> {
+        let func = self.parse_func(start)?;
+        let ASTDeclarationKind::FuncDeclaration {
+            name,
+            args,
+            return_type,
+            body,
+        } = func.kind
+        else {
+            unreachable!()
+        };
+        Ok(ObjectMethod {
+            method_name: name,
+            arguments: args,
+            return_type,
+            body,
+        })
+    }
+
     pub fn parse_object(&mut self, start: Span) -> Result<ASTDeclaration> {
         let name = self.parse_type()?;
         self.expect(&TokenKind::LBrace)?;
         let mut fields = Vec::new();
+        let mut methods = Vec::new();
         while self.peek()?.kind != TokenKind::RBrace {
             let name = self.parse_typedname()?;
             fields.push(ObjectField {
@@ -21,12 +41,20 @@ impl Parser {
             } else {
                 self.expect(&TokenKind::Comma)?;
             }
+            if self.peek()?.kind == TokenKind::Func {
+                let start = self.eat()?.span;
+                methods.push(self.parse_method(start)?);
+            }
         }
         let Token { span, .. } = self.expect(&TokenKind::RBrace)?;
         Ok(ASTDeclaration {
             attributes: Vec::new(),
             visibility: Default::default(),
-            kind: ASTDeclarationKind::ObjectDeclaration { name, fields },
+            kind: ASTDeclarationKind::ObjectDeclaration {
+                name,
+                fields,
+                methods,
+            },
             span: Span {
                 start: start.start,
                 end: span.end,
