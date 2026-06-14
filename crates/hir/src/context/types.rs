@@ -2,7 +2,7 @@ use common::Span;
 use dashmap::DashMap;
 use parking_lot::{RawRwLock, RwLock, RwLockReadGuard, lock_api::RwLockWriteGuard};
 
-use crate::{HIRError, Result, SymbolPointer, TypeId, VariableId, model::HirType};
+use crate::{DeclarationId, HIRError, Result, SymbolPointer, TypeId, VariableId, model::HirType};
 use std::collections::HashSet;
 
 const INT_IDX: usize = 0;
@@ -90,7 +90,10 @@ pub struct TypesContext {
     /// Maps each object [`TypeId`] to its ordered list of field symbol pointers.
     pub objects: DashMap<TypeId, Vec<SymbolPointer>>,
 
+    pub methods: DashMap<TypeId, DashMap<SymbolPointer, DeclarationId>>,
+
     types: boxcar::Vec<RwLock<HirType>>,
+
     builtins: BuiltinTypes,
 }
 impl TypesContext {
@@ -112,6 +115,7 @@ impl TypesContext {
             name_of_types,
             variables: DashMap::new(),
             objects: DashMap::new(),
+            methods: DashMap::new(),
             types,
             builtins: BuiltinTypes::new(),
         }
@@ -198,6 +202,25 @@ impl TypesContext {
         }
     }
 
+    ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
+    pub fn create_method(&self, ty: TypeId, name: SymbolPointer, id: DeclarationId) {
+        if !self.methods.contains_key(&ty) {
+            self.methods.insert(ty, DashMap::new());
+        }
+        self.methods.get(&ty).unwrap().insert(name, id);
+    }
+
+    ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
+    pub fn get_methods_of(&self, ty: TypeId) -> Vec<(SymbolPointer, DeclarationId)> {
+        if let Some(methos_map) = self.methods.get(&ty) {
+            methos_map
+                .iter()
+                .map(|entry| (entry.key().clone(), entry.value().clone()))
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
     ///Simply inserts the provided `ty` inside this Context. Doesn't map it to anything
     pub fn create_unnamed_type(&self, ty: HirType) -> TypeId {
         let id = TypeId::from_raw(self.types.count() as u64);

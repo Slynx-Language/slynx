@@ -15,7 +15,6 @@ pub struct DeclarationsContext {
     visibilities: boxcar::Vec<VisibilityModifier>,
     pub declarations: boxcar::Vec<HirDeclaration>,
     import_aliases: DashMap<SymbolPointer, (DeclarationId, TypeId)>,
-    methods: DashMap<LocalDeclId, DashMap<SymbolPointer, DeclarationId>>,
 }
 
 impl DeclarationsContext {
@@ -28,7 +27,6 @@ impl DeclarationsContext {
             visibilities: boxcar::Vec::new(),
             declarations: boxcar::Vec::new(),
             import_aliases: DashMap::new(),
-            methods: DashMap::new(),
         }
     }
 
@@ -41,14 +39,6 @@ impl DeclarationsContext {
             .next_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         LocalDeclId(next)
-    }
-
-    ///Registers a method for the given `decl` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
-    pub fn register_method(&self, decl: LocalDeclId, name: SymbolPointer, id: DeclarationId) {
-        if !self.methods.contains_key(&decl) {
-            self.methods.insert(decl, DashMap::new());
-        }
-        self.methods.get(&decl).unwrap().insert(name, id);
     }
 
     pub fn register_object(
@@ -103,6 +93,10 @@ impl DeclarationsContext {
     /// Panics if `id` does not correspond to a registered declaration.
     pub fn get_declaration_type(&self, id: LocalDeclId) -> TypeId {
         self.declaration_types[id.as_raw()]
+    }
+
+    pub fn all_declaration_count(&self) -> usize {
+        self.declaration_types.count()
     }
 
     /// Registers an import alias so that the `alias` name resolves to the original
