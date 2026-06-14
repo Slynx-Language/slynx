@@ -269,7 +269,7 @@ impl Parser {
                     },
                 })
             }
-            TokenKind::Identifier(ident) => {
+            TokenKind::Identifier(_) => {
                 let Token {
                     kind: TokenKind::Identifier(ident),
                     span,

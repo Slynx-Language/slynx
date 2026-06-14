@@ -311,14 +311,10 @@ impl TypeChecker {
             HirExpressionKind::MethodCall { .. } => {
                 let kind = std::mem::replace(&mut expr.kind, HirExpressionKind::Bool(false));
                 let (mut parent, name, args) = match kind {
-                    HirExpressionKind::MethodCall {
-                        parent,
-                        name,
-                        args,
-                    } => (parent, name, args),
+                    HirExpressionKind::MethodCall { parent, name, args } => (parent, name, args),
                     _ => unreachable!(),
                 };
-                let parent_type = self.get_type_of_expr(&mut *parent)?;
+                let parent_type = self.get_type_of_expr(&mut parent)?;
                 let method = if let Some(method) = self
                     .types_module
                     .get_methods_of(parent_type)

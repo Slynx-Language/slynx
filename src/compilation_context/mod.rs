@@ -282,7 +282,7 @@ impl SlynxContext {
         let mut hir = SlynxHir::new();
         hir.generate(ast)
             .map_err(|e| self.handle_hir_error(&hir, &e))?;
-        hir = TypeChecker::check(hir).map_err(|(e, hir)| self.handle_checker_error(&e, &hir))?;
+        hir = TypeChecker::check(hir).map_err(|e| self.handle_checker_error(&e.0, &e.1))?;
 
         self.monomorphize(&mut hir)?;
 

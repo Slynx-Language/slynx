@@ -65,7 +65,8 @@ impl SlynxHir {
             ty_field.append(&mut fields);
         }
 
-        let (self_decl, self_ty) = self.find_declaration_by_name(&self.intern_name(&name.identifier), name.span)?;
+        let (self_decl, self_ty) =
+            self.find_declaration_by_name(&self.intern_name(&name.identifier), name.span)?;
         let self_symbol = self.intern_name("Self");
         self.get_file(file).declarations.register_import_alias(
             self_symbol,

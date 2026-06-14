@@ -215,7 +215,7 @@ impl TypesContext {
         if let Some(methos_map) = self.methods.get(&ty) {
             methos_map
                 .iter()
-                .map(|entry| (entry.key().clone(), entry.value().clone()))
+                .map(|entry| (*entry.key(), *entry.value()))
                 .collect()
         } else {
             Vec::new()

@@ -11,7 +11,7 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
-            HIRErrorKind::InvalidFieldAccess => format!("Invalid field access"),
+            HIRErrorKind::InvalidFieldAccess => "Invalid field access".to_string(),
             HIRErrorKind::InvalidFuncallArgLength {
                 func_name,
                 expected_length,

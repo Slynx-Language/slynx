@@ -114,7 +114,7 @@ impl TypeChecker {
 
     /// Checks the types of the provided `hir` and mutates them in place. Any that could not be inferred but, yet is valid, is
     /// at the end, returned as it's default type. Returns the same `hir` with fully-resolved types.
-    pub fn check(mut hir: SlynxHir) -> std::result::Result<SlynxHir, (TypeError, SlynxHir)> {
+    pub fn check(mut hir: SlynxHir) -> std::result::Result<SlynxHir, Box<(TypeError, SlynxHir)>> {
         let mut decl_types = HashMap::new();
         for file in &hir.files {
             let file = file.read();
@@ -146,7 +146,7 @@ impl TypeChecker {
                     .expect("Declaration should've been initialized");
                 if let Err(e) = inner.check_decl(decl) {
                     drop(file);
-                    return Err((e, hir));
+                    return Err(Box::new((e, hir)));
                 };
             }
         }
@@ -161,7 +161,7 @@ impl TypeChecker {
                     .expect("Declaration should've been initialized");
                 if let Err(e) = inner.set_default(decl) {
                     drop(file);
-                    return Err((e, hir));
+                    return Err(Box::new((e, hir)));
                 };
             }
         }
@@ -294,7 +294,8 @@ impl TypeChecker {
                     && matches!(
                         &*self.types_module.get_type(&orig_b),
                         HirType::Reference { .. }
-                    ) {
+                    )
+                {
                     orig_b
                 } else {
                     resolved_out

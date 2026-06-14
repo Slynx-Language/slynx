@@ -29,7 +29,7 @@ pub struct ObjectMethod {
 
 impl ObjectMethod {
     pub fn is_static(&self) -> bool {
-        if let Some(arg) = self.arguments.get(0)
+        if let Some(arg) = self.arguments.first()
             && (arg.kind.identifier == "Self" || arg.kind.identifier == "self")
         {
             false

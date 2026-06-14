@@ -93,6 +93,7 @@ mod file;
 pub use crate::error::{HIRError, HIRErrorKind};
 use crate::{
     context::{BUILTIN_NAMES, LangItems, SymbolsResolver, TypesContext},
+    declarations::FunctionData,
     file::HirFile,
     module_loader::{FileId, SourceNode},
 };
@@ -471,11 +472,7 @@ impl SlynxHir {
     /// Resolves bodies (functions, components, stylesheets).
     fn resolve_body(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
         match &ast.kind {
-            ASTDeclarationKind::ObjectDeclaration {
-                name,
-                methods,
-                ..
-            } => {
+            ASTDeclarationKind::ObjectDeclaration { name, methods, .. } => {
                 let symbol = self.intern_name(&name.identifier);
                 let (decl, declty) = self.find_declaration_by_name(&symbol, ast.span)?;
                 self.get_file_mut(file)
@@ -484,11 +481,13 @@ impl SlynxHir {
                 for method in methods {
                     self.resolve_function(
                         file,
-                        &method.method_name,
-                        &method.arguments,
-                        &method.return_type,
-                        &method.body,
-                        &method.span,
+                        FunctionData {
+                            name: &method.method_name,
+                            args: &method.arguments,
+                            return_type: &method.return_type,
+                            body: &method.body,
+                            span: &method.span,
+                        },
                         Some(self_ty),
                     )?;
                 }
@@ -506,7 +505,17 @@ impl SlynxHir {
                 args,
                 body,
                 return_type,
-            } => self.resolve_function(file, name, args, return_type, body, &ast.span, None),
+            } => self.resolve_function(
+                file,
+                FunctionData {
+                    name,
+                    args,
+                    return_type,
+                    body,
+                    span: &ast.span,
+                },
+                None,
+            ),
             ASTDeclarationKind::ComponentDeclaration { members, name } => {
                 self.resolve_component_declaration(file, members, name, ast.span)
             }

@@ -7,6 +7,14 @@ use crate::{
 use common::{Span, VisibilityModifier};
 use slynx_parser::{ASTStatement, ASTStatementKind, GenericIdentifier, TypedName};
 
+pub struct FunctionData<'a> {
+    pub(crate) name: &'a GenericIdentifier,
+    pub(crate) args: &'a [TypedName],
+    pub(crate) return_type: &'a GenericIdentifier,
+    pub(crate) body: &'a [ASTStatement],
+    pub(crate) span: &'a Span,
+}
+
 impl SlynxHir {
     /// Hoists a function declaration by registering its signature without processing its body.
     pub(crate) fn hoist_function(
@@ -34,11 +42,13 @@ impl SlynxHir {
     pub(crate) fn resolve_function(
         &self,
         fileid: FileId,
-        name: &GenericIdentifier,
-        args: &[TypedName],
-        return_type: &GenericIdentifier,
-        body: &[ASTStatement],
-        span: &Span,
+        FunctionData {
+            name,
+            args,
+            return_type,
+            body,
+            span,
+        }: FunctionData,
         self_type: Option<TypeId>,
     ) -> Result<()> {
         let symbol = self.intern_name(&name.identifier);
@@ -52,10 +62,10 @@ impl SlynxHir {
             .map(|arg| {
                 let ty_symbol = self.intern_name(&arg.kind.identifier);
                 let symbol = self.intern_name(&arg.name);
-                let ty = if self_type.is_some()
-                    && (arg.kind.identifier == "Self" || arg.kind.identifier == "self")
+                let ty = if (arg.kind.identifier == "Self" || arg.kind.identifier == "self")
+                    && let Some(self_type) = self_type
                 {
-                    self_type.unwrap()
+                    self_type
                 } else {
                     self.get_type_of_name(ty_symbol, &arg.kind.span)?
                 };
@@ -65,8 +75,10 @@ impl SlynxHir {
             .collect::<Result<(Vec<_>, Vec<_>)>>()?;
         {
             let return_symbol = self.intern_name(&return_type.identifier);
-            let ret_tyid = if self_type.is_some() && return_type.identifier == "Self" {
-                self_type.unwrap()
+            let ret_tyid = if return_type.identifier == "Self"
+                && let Some(self_type) = self_type
+            {
+                self_type
             } else {
                 self.get_type_of_name(return_symbol, span)?
             };
