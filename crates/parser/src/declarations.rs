@@ -87,11 +87,12 @@ impl Parser {
     /// and then need to copy/move all the data to the correct vector
     fn parse_externs(&mut self, declarations: &mut Vec<ASTDeclaration>) -> Result<usize> {
         self.expect(&TokenKind::LBrace)?;
-        self.flags.set_flag(ParserFlag::OnlySignatures);
+        self.add_flag(ParserFlag::OnlySignatures);
         let mut amount_parsed = 0;
         loop {
             if self.peek()?.kind == TokenKind::RBrace {
                 self.eat()?;
+                self.flags.remove_flag(ParserFlag::OnlySignatures);
                 break Ok(amount_parsed);
             }
             let mut declaration = self.parse_declaration()?;
