@@ -84,6 +84,7 @@ impl SlynxHir {
         methods: &[ObjectMethod],
     ) -> Result<()> {
         let self_type = self.get_declaration_type(decl);
+        let type_name = self.get_declaration_name(decl);
         for method in methods {
             let mut args = Vec::with_capacity(method.arguments.len());
             for arg in &method.arguments {
@@ -103,17 +104,19 @@ impl SlynxHir {
                     self.get_type_of_name(symbol, &method.return_type.span)?
                 }
             };
-            let symbol = self.intern_name(&method.method_name.identifier);
+            let method_symbol = self.intern_name(&method.method_name.identifier);
+            let mangled = format!("{}_{}", method.method_name.identifier, type_name);
+            let mangled_symbol = self.intern_name(&mangled);
             let ty = self
                 .types_module
-                .create_type(symbol, HirType::new_function(args, return_type));
+                .create_type(mangled_symbol, HirType::new_function(args, return_type));
             let local = self
                 .get_file_mut(decl.file_id)
                 .declarations
-                .register_declaration_metadata(symbol, ty, VisibilityModifier::Private);
+                .register_declaration_metadata(method_symbol, ty, VisibilityModifier::Private);
             self.types_module.create_method(
                 self_type,
-                symbol,
+                method_symbol,
                 DeclarationId {
                     file_id: decl.file_id,
                     local_id: local,
