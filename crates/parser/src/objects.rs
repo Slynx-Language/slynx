@@ -64,6 +64,7 @@ impl Parser {
                 start: start.start,
                 end: span.end,
             },
+            external: false,
         })
     }
 }

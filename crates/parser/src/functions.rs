@@ -82,6 +82,7 @@ impl Parser {
                             kind: ASTStatementKind::Expression(expr),
                         }],
                     },
+                    external: false,
                 })
             }
             TokenKind::LBrace => {
@@ -95,14 +96,12 @@ impl Parser {
                     }
                     self.finish_current_parse()?;
                 }
-                let end = self.expect(&TokenKind::RBrace)?.span.end;
+                let end = self.expect(&TokenKind::RBrace)?.span;
                 Ok(ASTDeclaration {
                     attributes: Vec::new(),
                     visibility: Default::default(),
-                    span: Span {
-                        start: span.start,
-                        end,
-                    },
+                    external: false,
+                    span: span.merge_with(end),
                     kind: ASTDeclarationKind::FuncDeclaration {
                         name,
                         args,

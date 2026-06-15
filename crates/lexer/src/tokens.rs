@@ -49,6 +49,9 @@ pub enum TokenKind {
     StyleSheet,
     #[token("import")]
     Import,
+    #[token("extern")]
+    Extern,
+
     // Multi-char operators (must come before single-char)
     #[token("&&")]
     And,

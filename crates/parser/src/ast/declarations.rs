@@ -1,3 +1,5 @@
+use std::default;
+
 use common::{Span, VisibilityModifier};
 
 use crate::{
@@ -43,6 +45,7 @@ impl ObjectMethod {
 pub struct ASTDeclaration {
     pub attributes: Vec<ASTAttribute>,
     pub visibility: VisibilityModifier,
+    pub external: bool,
     pub kind: ASTDeclarationKind,
     pub span: Span,
 }

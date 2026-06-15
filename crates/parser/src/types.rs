@@ -18,6 +18,7 @@ impl Parser {
                 end: target.span.end,
             },
             kind: ASTDeclarationKind::Alias { name, target },
+            external: false,
         })
     }
 

@@ -77,6 +77,7 @@ impl Parser {
             attributes: Vec::new(),
             visibility: Default::default(),
             kind: crate::ASTDeclarationKind::Import(import),
+            external: false,
             span,
         })
     }

@@ -198,6 +198,7 @@ impl Parser {
                 usages,
                 body,
             },
+            external: false,
             span,
         };
         self.expect(&TokenKind::RBrace)?;
