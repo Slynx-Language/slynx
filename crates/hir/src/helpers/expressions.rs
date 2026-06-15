@@ -19,6 +19,26 @@ impl SlynxHir {
             span,
         }
     }
+
+    /// Creates a method call expression on `parent` at the given `field` index.
+    pub(crate) fn create_method_call_expression(
+        &self,
+        parent: HirExpression,
+        method: SymbolPointer,
+        args: Vec<HirExpression>,
+        span: Span,
+    ) -> HirExpression {
+        HirExpression {
+            id: ExpressionId::new(),
+            ty: self.infer_type(),
+            kind: HirExpressionKind::MethodCall {
+                parent: Box::new(parent),
+                name: method,
+                args,
+            },
+            span,
+        }
+    }
     /// Creates a field access expression on `parent` at the given `field` index.
     pub(crate) fn create_field_access_expression(
         &self,

@@ -222,7 +222,6 @@ impl SourceLoader {
                 std::env::home_dir()
                     .expect("Expected to have home dir")
                     .join(".slynx")
-                    .join("lib")
                     .join("std")
             }
         };

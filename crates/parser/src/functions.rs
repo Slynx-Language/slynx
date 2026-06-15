@@ -1,4 +1,4 @@
-use crate::{Parser, Result, error::ParseError};
+use crate::{GenericIdentifier, Parser, Result, error::ParseError};
 use slynx_lexer::tokens::{Token, TokenKind};
 
 use crate::ast::{ASTDeclaration, ASTDeclarationKind, ASTStatement, ASTStatementKind, TypedName};
@@ -9,10 +9,21 @@ impl Parser {
         let Token {
             kind: TokenKind::Identifier(name),
             span,
-        } = self.expect(&TokenKind::Identifier(String::new()))?
+        } = self.expect_identifier()?
         else {
             unreachable!();
         };
+        if name == "self" {
+            return Ok(TypedName {
+                name,
+                span,
+                kind: GenericIdentifier {
+                    generic: None,
+                    identifier: "Self".to_string(),
+                    span,
+                },
+            });
+        }
         self.expect(&TokenKind::Colon)?;
         let ty = self.parse_type()?;
         Ok(TypedName {

@@ -1,3 +1,4 @@
+use common::Span;
 use slynx_lexer::tokens::Token;
 
 #[derive(Debug)]
@@ -6,6 +7,7 @@ pub enum ParseError {
     UnexpectedToken(Token, String),
     UnexpectedEndOfInput,
     NoStyleUsagesProvided,
+    InvalidPostfix(Span),
 }
 
 impl std::fmt::Display for ParseError {
@@ -23,6 +25,7 @@ impl std::fmt::Display for ParseError {
                 f,
                 "A style should use at least another 1 style, instead, got none"
             ),
+            ParseError::InvalidPostfix(_) => write!(f, "Invalid postfix"),
         }
     }
 }

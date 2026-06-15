@@ -95,6 +95,10 @@ impl DeclarationsContext {
         self.declaration_types[id.as_raw()]
     }
 
+    pub fn all_declaration_count(&self) -> usize {
+        self.declaration_types.count()
+    }
+
     /// Registers an import alias so that the `alias` name resolves to the original
     /// declaration identified by `(original_file, original_local, original_ty)`.
     pub fn register_import_alias(

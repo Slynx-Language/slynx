@@ -1,0 +1,26 @@
+func main(): void {
+    let v = Counter.new();
+    v.increment(5);
+    let v2 = Counter(value: 10);
+    v.add(v2);
+}
+
+pub object Counter {
+    value: int,
+
+    func new(): Self {
+        Self(value: 0)
+    }
+
+    func increment(self, amount: int): void {
+        self.value = self.value + amount;
+    }
+
+    func add(self, other: Self): void {
+        self.value = self.value + other.value;
+    }
+
+    func getValue(self): int {
+        self.value
+    }
+}

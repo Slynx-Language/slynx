@@ -4,7 +4,7 @@
 //! type mismatch errors, cyclic type errors, and component-related errors.
 
 use common::Span;
-use slynx_hir::{DeclarationId, HirType};
+use slynx_hir::{DeclarationId, HirType, SymbolPointer, TypeId};
 
 /// Represents the reason for an incompatible component error.
 ///
@@ -30,6 +30,10 @@ pub struct TypeError {
 /// a type mismatch or a cyclic type reference.
 #[derive(Debug)]
 pub enum TypeErrorKind {
+    NoMethodFor {
+        ty: TypeId,
+        name: SymbolPointer,
+    },
     CyclicType {
         ty: HirType,
     },
@@ -70,6 +74,12 @@ impl TypeError {
                 expected_length: expected,
                 received_length: received,
             },
+        }
+    }
+    pub fn no_method_for(name: SymbolPointer, ty: TypeId, span: Span) -> Self {
+        Self {
+            span,
+            kind: TypeErrorKind::NoMethodFor { ty, name },
         }
     }
 }
@@ -115,6 +125,9 @@ impl std::fmt::Display for TypeError {
             }
             TypeErrorKind::NotAStruct(t) => {
                 format!("Using type {t:?} as a Struct, even though it isn't")
+            }
+            TypeErrorKind::NoMethodFor { ty, name } => {
+                format!("No method named as {name:?} for type {ty:?}")
             }
             TypeErrorKind::Unrecognized => {
                 "Type checker could not resolve the requested symbol/type".to_string()

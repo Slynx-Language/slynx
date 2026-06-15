@@ -130,6 +130,18 @@ impl Codegen {
                 }
             }
         }
+        for entry in &hir.types_module.methods {
+            for inner in entry.iter() {
+                let decl_id = inner.value();
+                let name = hir.get_declaration_name(*decl_id);
+                let ptr = ir.create_function(name);
+                let ty = ir.get(ptr).ty();
+                let reader = hir.get_file(decl_id.file_id);
+                let method_ty = reader.declarations.get_declaration_type(decl_id.local_id);
+                self.types.insert(method_ty, ty);
+                self.functions.insert(*decl_id, ptr);
+            }
+        }
     }
 
     /// Pre-pass: compute property codes for all stylesheets.

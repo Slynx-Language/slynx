@@ -606,6 +606,11 @@ pub enum HirExpressionKind {
         /// The argument expressions passed to the function.
         args: Vec<HirExpression>,
     },
+    MethodCall {
+        parent: Box<HirExpression>,
+        name: SymbolPointer,
+        args: Vec<HirExpression>,
+    },
 
     /// A conditional (if) expression.
     ///

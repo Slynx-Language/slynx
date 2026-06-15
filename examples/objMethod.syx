@@ -1,0 +1,39 @@
+import std;
+stylesheet Bg(color: Color) uses Fg(0x00ff00) {
+	styles {
+		backgroundColor: color,
+		foregroundColor: color,
+	}
+}
+stylesheet Fg(color: int) {
+	styles {
+		foregroundColor: Color(inner:color)
+	}
+}
+
+component Pedrinho {
+	Div {
+		style: Bg(Color.new(0xff,0xff,0, 0xff)),
+		Text {
+			text: "Pedrinho leitazedo"
+		}
+	}
+}
+
+component Jorgin {
+    pub prop color:int;
+	Text {
+	    style: Fg(color),
+		text: "Jorginho neguinho"
+	}
+	Pedrinho {}
+}
+
+func main(): Component {
+	let a = 5;
+	let b = 12;
+	let c = a + b;
+	Jorgin {
+        color: 0
+	}
+}

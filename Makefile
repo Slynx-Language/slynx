@@ -36,4 +36,4 @@ check:
 
 install_std:
 	mkdir -p ~/.slynx/std
-	cp -r lib/std ~/.slynx/std
+	cp -r lib/std/* ~/.slynx/std
