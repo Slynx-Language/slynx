@@ -1,9 +1,9 @@
 //! Module idealized for parsing general things related to declarations, such as visibility qualifiers, and attributes
 
-use common::{Span, VisibilityModifier};
+use common::VisibilityModifier;
 use slynx_lexer::{Token, TokenKind};
 
-use crate::{ASTAttribute, ASTDeclaration, ASTStatement, ParseError, Parser, Result};
+use crate::{ASTAttribute, ASTDeclaration, ParseError, Parser, Result, flags::ParserFlag};
 
 impl Parser {
     pub fn parse_attributes(&mut self) -> Result<Vec<ASTAttribute>> {
@@ -87,6 +87,7 @@ impl Parser {
     /// and then need to copy/move all the data to the correct vector
     fn parse_externs(&mut self, declarations: &mut Vec<ASTDeclaration>) -> Result<usize> {
         self.expect(&TokenKind::LBrace)?;
+        self.flags.set_flag(ParserFlag::OnlySignatures);
         let mut amount_parsed = 0;
         loop {
             if self.peek()?.kind == TokenKind::RBrace {

@@ -3,6 +3,7 @@ mod component;
 pub mod conditionals;
 mod declarations;
 pub mod error;
+mod flags;
 mod import;
 pub use error::*;
 mod expr;
@@ -15,13 +16,10 @@ pub use ast::*;
 
 use slynx_lexer::{Token, TokenKind, TokenStream};
 
+use crate::flags::{ParserFlag, ParserFlags};
+
 pub type Result<T> = std::result::Result<T, ParseError>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParserFlags {
-    None,
-    RequireSemicolon,
-}
 pub struct Parser {
     flags: ParserFlags,
     component_expr_enabled: bool,
@@ -33,7 +31,7 @@ impl Parser {
     pub fn new(stream: TokenStream) -> Self {
         Parser {
             stream,
-            flags: ParserFlags::None,
+            flags: ParserFlags::new(),
             component_expr_enabled: true,
         }
     }
@@ -86,10 +84,13 @@ impl Parser {
         self.expect(&TokenKind::String(String::new()))
     }
     pub fn reset_flags(&mut self) {
-        self.flags = ParserFlags::None;
+        self.flags.reset();
     }
-    pub fn set_flags(&mut self, flag: ParserFlags) {
-        self.flags = flag;
+    pub fn add_flag(&mut self, flag: ParserFlag) {
+        self.flags.set_flag(flag);
+    }
+    pub fn remove_flag(&mut self, flag: ParserFlag) {
+        self.flags.remove_flag(flag);
     }
 
     pub fn component_expr_enabled(&self) -> bool {
@@ -108,7 +109,7 @@ impl Parser {
     }
 
     pub fn finish_current_parse(&mut self) -> Result<()> {
-        if self.flags == ParserFlags::RequireSemicolon {
+        if self.flags.has_flag(ParserFlag::RequireSemicolon) {
             self.expect(&TokenKind::SemiColon)?;
         }
         self.reset_flags();
