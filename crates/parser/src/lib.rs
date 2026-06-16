@@ -65,13 +65,16 @@ impl Parser {
             Ok(token)
         } else {
             let kind = match kind {
-                TokenKind::Identifier(_) => "a name".to_string(),
-                TokenKind::Int(_) => "an integer literal".to_string(),
-                TokenKind::Float(_) => "a float literal".to_string(),
-                TokenKind::String(_) => "a string literal".to_string(),
+                TokenKind::Identifier(_) => "Instead was expecting a name".to_string(),
+                TokenKind::Int(_) => "Instead was expecting an integer literal".to_string(),
+                TokenKind::Float(_) => "Instead was expecting a float literal".to_string(),
+                TokenKind::String(_) => "Instead was expecting a string literal".to_string(),
                 _ => format!("'{kind:?}'",),
             };
-            Err(ParseError::UnexpectedToken(token, kind))
+            Err(ParseError::UnexpectedToken(
+                token,
+                ExpectedContent::Raw(kind),
+            ))
         }
     }
 

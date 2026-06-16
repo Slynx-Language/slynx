@@ -3,7 +3,9 @@
 use common::VisibilityModifier;
 use slynx_lexer::{Token, TokenKind};
 
-use crate::{ASTAttribute, ASTDeclaration, ParseError, Parser, Result, flags::ParserFlag};
+use crate::{
+    ASTAttribute, ASTDeclaration, ExpectedContent, ParseError, Parser, Result, flags::ParserFlag,
+};
 
 impl Parser {
     pub fn parse_attributes(&mut self) -> Result<Vec<ASTAttribute>> {
@@ -75,7 +77,10 @@ impl Parser {
             _ => {
                 return Err(ParseError::UnexpectedToken(
                     self.eat()?,
-                    "a function, component, object or alias declaration".to_owned(),
+                    ExpectedContent::Raw(
+                        "Unknown declaration that starts with it. Expected some valid declaration"
+                            .to_owned(),
+                    ),
                 ));
             }
         }?;

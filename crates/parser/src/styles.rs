@@ -2,8 +2,8 @@ use common::Span;
 use slynx_lexer::tokens::TokenKind;
 
 use crate::{
-    ASTDeclaration, ASTDeclarationKind, ASTExpression, Parser, StyleBlock, StyleSheetStatement,
-    StyleState, error::ParseError,
+    ASTDeclaration, ASTDeclarationKind, ASTExpression, ExpectedContent, Parser, StyleBlock,
+    StyleSheetStatement, StyleState, error::ParseError,
 };
 
 impl Parser {
@@ -93,7 +93,7 @@ impl Parser {
             if s != "styles" {
                 return Err(ParseError::UnexpectedToken(
                     tk,
-                    "Expected 'styles'".to_string(),
+                    ExpectedContent::Raw("Was expecting 'styles'".to_string()),
                 ));
             }
             tk.span

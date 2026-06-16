@@ -1,4 +1,6 @@
-use crate::{GenericIdentifier, Parser, Result, error::ParseError, flags::ParserFlag};
+use crate::{
+    ExpectedContent, GenericIdentifier, Parser, Result, error::ParseError, flags::ParserFlag,
+};
 use slynx_lexer::tokens::{Token, TokenKind};
 
 use crate::ast::{ASTDeclaration, ASTDeclarationKind, ASTStatement, ASTStatementKind, TypedName};
@@ -61,7 +63,15 @@ impl Parser {
         self.expect(&TokenKind::Colon)?;
         let return_type = self.parse_type()?;
         if self.flags.has_flag(ParserFlag::OnlySignatures) {
-            self.expect(&TokenKind::SemiColon)?;
+            self.expect(&TokenKind::SemiColon).map_err(|e| {
+                let ParseError::UnexpectedToken(tk, _) = e else {
+                    unreachable!()
+                };
+                ParseError::UnexpectedToken(
+                    tk,
+                    ExpectedContent::ParsingContext(crate::ParserContext::OnlySignatures),
+                )
+            })?;
             return Ok(ASTDeclaration {
                 attributes: vec![],
                 visibility: Default::default(),
@@ -125,7 +135,10 @@ impl Parser {
             }
             _ => Err(ParseError::UnexpectedToken(
                 current,
-                "'->' or '{'".to_string(),
+                ExpectedContent::Raw(
+                    "Instead was expecting function body, which initializes with '->' or '{'"
+                        .to_string(),
+                ),
             )),
         }
     }

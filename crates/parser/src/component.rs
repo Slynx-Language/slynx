@@ -1,5 +1,5 @@
 use crate::{
-    Result,
+    ExpectedContent, Result,
     ast::{
         ASTDeclaration, ASTDeclarationKind, ComponentMember, ComponentMemberKind,
         GenericIdentifier, VisibilityModifier,
@@ -36,8 +36,8 @@ impl Parser {
                                 kind: TokenKind::Identifier(modifier),
                                 span,
                             },
-                            "child' or 'parent' to determine who will be able to access it"
-                                .to_string(),
+                            ExpectedContent::Raw("Instead was expecting child' or 'parent' to determine who will be able to access it"
+                                .to_string()),
                         ));
                     };
                     self.expect(&TokenKind::RParen)?;
@@ -136,7 +136,7 @@ impl Parser {
                             _ => {
                                 return Err(ParseError::UnexpectedToken(
                                     curr,
-                                    "Expecing ';' to determine this property initialization is required by it's parent or '=' to give it a default value".to_string(),
+                                    ExpectedContent::Raw("Was expecing ';' to determine this property initialization is required by it's parent or '=' to give it a default value".to_string()),
                                 ));
                             }
                         };
@@ -167,14 +167,14 @@ impl Parser {
                     _ => {
                         Err(ParseError::UnexpectedToken(
                             self.eat()?,
-                            "'=' or ':' to define the type of the property or a ';' to keep it to be initialized by it's parent".to_string(),
+                            ExpectedContent::Raw("Was expecting '=' or ':' to define the type of the property or a ';' to keep it to be initialized by it's parent".to_string()),
                         ))
                     }
                 }
             }
             _ => Err(ParseError::UnexpectedToken(
                 self.eat()?,
-                "'prop' a macro name or an identifier".to_string(),
+                ExpectedContent::Raw("Was expecting some component member. Try defining a property, a method or child".to_string()),
             )),
         }
     }
