@@ -1,3 +1,4 @@
+use common::SymbolPointer;
 use slynx_hir::{
     SlynxHir,
     error::{HIRError, HIRErrorKind},
@@ -66,20 +67,39 @@ impl SlynxContext {
                 format!("The name '{name}' was already defined before. Use a different name")
             }
             HIRErrorKind::MissingProperty { prop_names } => {
+                let property = if prop_names.len() == 1 {
+                    "Property"
+                } else {
+                    "Properties"
+                };
                 let names = prop_names
                     .iter()
-                    .map(|v| hir.get_name(*v))
-                    .collect::<Vec<&str>>()
-                    .join(", ");
-                format!("Property(ies) named as {names} is required but wasn't provided")
-            }
-            HIRErrorKind::PropertyNotRecognized { prop_names } => {
-                let names = prop_names
-                    .iter()
-                    .map(|v| hir.get_name(*v))
+                    .map(|v| format!("'{}'", hir.get_name(*v)))
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("Property(ies) named as {names} are not recognized for this object")
+                format!("{property} {names} is required but wasn't provided")
+            }
+            HIRErrorKind::PropertyNotRecognized { prop_names, ty } => {
+                let property = if prop_names.len() == 1 {
+                    "Property"
+                } else {
+                    "Properties"
+                };
+                let objname = hir.get_name_of_type(*ty).map(|name| hir.get_name(name));
+                let names = prop_names
+                    .iter()
+                    .map(|v| format!("'{}'", hir.get_name(*v)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                format!(
+                    "{property} {names} are not recognized for object {}",
+                    if let Some(name) = objname {
+                        name
+                    } else {
+                        "(unknown name)"
+                    }
+                )
             }
             HIRErrorKind::RecursiveType { ty } => {
                 let ty = hir.get_name(*ty);
