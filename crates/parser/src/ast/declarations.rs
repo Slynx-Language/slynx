@@ -79,6 +79,11 @@ pub enum ASTDeclarationKind {
         usages: Vec<ASTExpression>,
         body: Vec<StyleSheetStatement>,
     },
+    Static {
+        name: String,
+        ty: GenericIdentifier,
+        value: Option<ASTExpression>, //option because, if not provided, it yet can be used, even though might lead to runtime bugs. Should be None only on externs
+    },
 }
 
 impl ASTExpression {

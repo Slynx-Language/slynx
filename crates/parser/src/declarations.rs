@@ -1,13 +1,38 @@
 //! Module idealized for parsing general things related to declarations, such as visibility qualifiers, and attributes
 
-use common::VisibilityModifier;
+use common::{Span, VisibilityModifier};
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{
-    ASTAttribute, ASTDeclaration, ExpectedContent, ParseError, Parser, Result, flags::ParserFlag,
+    ASTAttribute, ASTDeclaration, ASTDeclarationKind, ExpectedContent, ParseError, Parser, Result,
+    flags::ParserFlag,
 };
 
 impl Parser {
+    pub fn parse_static(&mut self, span: Span) -> Result<ASTDeclaration> {
+        let TokenKind::Identifier(name) = self.expect_identifier()?.kind else {
+            unreachable!()
+        };
+        self.expect(&TokenKind::Colon)?;
+        let ty = self.parse_type()?;
+        let expr = if self.flags.has_flag(ParserFlag::OnlySignatures) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        Ok(ASTDeclaration {
+            attributes: vec![],
+            external: false,
+            span: span.merge_with(expr.as_ref().map(|expr| expr.span).unwrap_or(ty.span)),
+            visibility: VisibilityModifier::Private,
+            kind: ASTDeclarationKind::Static {
+                name,
+                ty,
+                value: expr,
+            },
+        })
+    }
+
     pub fn parse_attributes(&mut self) -> Result<Vec<ASTAttribute>> {
         let mut out = Vec::new();
         while let Ok(Token {
@@ -73,6 +98,10 @@ impl Parser {
             TokenKind::StyleSheet => {
                 let Token { span, .. } = self.eat()?;
                 self.parse_stylesheet(span)
+            }
+            TokenKind::Static => {
+                let Token { span, .. } = self.eat()?;
+                self.parse_static(span)
             }
             _ => {
                 return Err(ParseError::UnexpectedToken(

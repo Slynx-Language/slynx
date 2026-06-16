@@ -25,6 +25,8 @@ pub enum TokenKind {
     If,
     #[token("else")]
     Else,
+    #[token("static")]
+    Static,
     #[token("component")]
     Component,
     #[token("func")]
