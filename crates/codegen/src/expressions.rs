@@ -1,7 +1,7 @@
 use common::Operator;
 use slynx_hir::{
     DeclarationId, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir,
-    TypeId,
+    SymbolPointer, TypeId,
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Operand, Value};
 
@@ -100,11 +100,17 @@ impl Codegen {
         &mut self,
         expr: &HirExpression,
         field_index: u16,
+        field_name: Option<SymbolPointer>,
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
         let value = self.lower_expression(expr, hir, ctx)?;
-        Ok(ctx.get_field(value, field_index))
+        if hir.types_module.is_external(&expr.ty) {
+            let name = self.intern_to_ir(hir, ctx.ir(), field_name.expect("External field access must have a field name"));
+            Ok(ctx.dyn_get_field(value, name))
+        } else {
+            Ok(ctx.get_field(value, field_index))
+        }
     }
 
     fn generate_logic_and_instruction<'a>(
@@ -216,8 +222,8 @@ impl Codegen {
             HirExpressionKind::Object { name, fields } => {
                 self.lower_struct_literal(*name, fields, hir, context)?
             }
-            HirExpressionKind::FieldAccess { expr, field_index } => {
-                self.lower_field_access(expr, *field_index as u16, hir, context)?
+            HirExpressionKind::FieldAccess { expr, field_index, field_name } => {
+                self.lower_field_access(expr, *field_index as u16, *field_name, hir, context)?
             }
             HirExpressionKind::Component(c) => self.get_component_expression(c, hir, context)?.0,
             HirExpressionKind::If {
