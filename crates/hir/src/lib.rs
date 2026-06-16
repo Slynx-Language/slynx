@@ -410,15 +410,29 @@ impl SlynxHir {
                 methods,
             } => {
                 let id = self.create_empty_object(file, name, fields, ast.visibility);
+                if ast.external {
+                    let decl_ty = self.get_declaration_type(id);
+                    self.types_module.mark_external(decl_ty);
+                }
                 self.lower_methods(id, methods)?;
                 id
             }
 
             ASTDeclarationKind::FuncDeclaration { name, args, .. } => {
-                self.hoist_function(file, name, args, ast.visibility)?
+                let id = self.hoist_function(file, name, args, ast.visibility)?;
+                if ast.external {
+                    let decl_ty = self.get_declaration_type(id);
+                    self.types_module.mark_external(decl_ty);
+                }
+                id
             }
             ASTDeclarationKind::ComponentDeclaration { name, members, .. } => {
-                self.hoist_component(file, name, members, ast.visibility)?
+                let id = self.hoist_component(file, name, members, ast.visibility)?;
+                if ast.external {
+                    let decl_ty = self.get_declaration_type(id);
+                    self.types_module.mark_external(decl_ty);
+                }
+                id
             }
             ASTDeclarationKind::Import(_) => {
                 return Ok(());
@@ -476,7 +490,7 @@ impl SlynxHir {
                 let symbol = self.intern_name(&name.identifier);
                 let (decl, declty) = self.find_declaration_by_name(&symbol, ast.span)?;
                 self.get_file_mut(file)
-                    .create_declaration(HirDeclaration::new_object(decl, declty, ast.span));
+                    .create_declaration(HirDeclaration::new_object(decl, declty, ast.span, ast.external));
                 let self_ty = self.get_declaration_type(decl);
                 for method in methods {
                     self.resolve_function(
@@ -487,6 +501,7 @@ impl SlynxHir {
                             return_type: &method.return_type,
                             body: &method.body,
                             span: &method.span,
+                            external: ast.external,
                         },
                         Some(self_ty),
                     )?;
@@ -497,7 +512,7 @@ impl SlynxHir {
                 let alias_name = self.intern_name(&name.identifier);
                 let (decl, ty) = self.find_declaration_by_name(&alias_name, ast.span)?;
                 self.get_file_mut(file)
-                    .create_declaration(HirDeclaration::new_alias(decl, ty, ast.span));
+                    .create_declaration(HirDeclaration::new_alias(decl, ty, ast.span, ast.external));
                 Ok(())
             }
             ASTDeclarationKind::FuncDeclaration {
@@ -513,6 +528,7 @@ impl SlynxHir {
                     return_type,
                     body,
                     span: &ast.span,
+                    external: ast.external,
                 },
                 None,
             ),
@@ -524,7 +540,7 @@ impl SlynxHir {
                 args,
                 usages,
                 body,
-            } => self.resolve_stylesheet(file, name, args, usages, body, ast.span),
+            } => self.resolve_stylesheet(file, name, args, usages, body, ast.span, ast.external),
             _ => Ok(()),
         }
     }

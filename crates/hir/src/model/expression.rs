@@ -573,12 +573,17 @@ pub enum HirExpressionKind {
     ///
     /// - `expr` — The expression whose field is being accessed
     /// - `field_index` — The index of the field within the containing type
+    /// - `field_name` — The field's name (always set; used by codegen for externals)
     FieldAccess {
         /// The expression being accessed (e.g., `p` in `p.name`).
         expr: Box<HirExpression>,
 
         /// The index of the field within the struct or object type.
         field_index: usize,
+
+        /// The field's name symbol. Always present for named fields; used by
+        /// codegen to emit `dyn_prop_get`/`dyn_prop_set` for external types.
+        field_name: Option<SymbolPointer>,
     },
 
     /// A function call expression.

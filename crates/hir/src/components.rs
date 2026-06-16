@@ -130,6 +130,7 @@ impl SlynxHir {
             ty,
             span,
             visibility: Default::default(),
+            external: false,
         });
         file.scopes.exit_scope();
         Ok(())
@@ -267,7 +268,11 @@ impl SlynxHir {
                         c = Some(self.resolve_style_usage(file, rhs)?);
                     } else {
                         let prop = self.intern_name(prop_name);
-                        return Err(HIRError::property_unrecognized(vec![prop], *span));
+                        return Err(HIRError::property_unrecognized(
+                            TypeId::new(),
+                            vec![prop],
+                            *span,
+                        ));
                     }
                 }
             }

@@ -44,6 +44,7 @@ impl SlynxHir {
         &self,
         parent: HirExpression,
         field: usize,
+        field_name: Option<SymbolPointer>,
         ty: TypeId,
         span: Span,
     ) -> HirExpression {
@@ -53,6 +54,7 @@ impl SlynxHir {
             kind: HirExpressionKind::FieldAccess {
                 expr: Box::new(parent),
                 field_index: field,
+                field_name,
             },
             span,
         }

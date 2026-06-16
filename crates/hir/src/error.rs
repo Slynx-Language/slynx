@@ -1,5 +1,5 @@
 use crate::{
-    SymbolPointer,
+    SymbolPointer, TypeId,
     model::{HirExpression, HirType},
     module_loader::FileId,
 };
@@ -61,6 +61,7 @@ pub enum HIRErrorKind {
     PropertyNotRecognized {
         /// The names of the unrecognized properties.
         prop_names: Vec<SymbolPointer>,
+        ty: TypeId,
     },
     /// A property was accessed that exists but is not visible from the current context.
     PropertyNotVisible {
@@ -210,9 +211,12 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::PropertyNotRecognized`] error listing the unrecognized property names.
-    pub fn property_unrecognized(names: Vec<SymbolPointer>, span: Span) -> Self {
+    pub fn property_unrecognized(ty: TypeId, names: Vec<SymbolPointer>, span: Span) -> Self {
         Self {
-            kind: HIRErrorKind::PropertyNotRecognized { prop_names: names },
+            kind: HIRErrorKind::PropertyNotRecognized {
+                prop_names: names,
+                ty,
+            },
             span,
         }
     }

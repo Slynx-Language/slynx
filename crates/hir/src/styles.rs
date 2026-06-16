@@ -39,6 +39,7 @@ impl SlynxHir {
         usages: &[ASTExpression],
         body: &[StyleSheetStatement],
         span: Span,
+        _external: bool,
     ) -> Result<()> {
         let symbol = self.intern_name(&name.identifier);
         let (id, typeid) = self.find_declaration_by_name(&symbol, name.span)?;
@@ -84,6 +85,7 @@ impl SlynxHir {
             span,
             DeclarationId::new(fileid, id.local_id),
             typeid,
+            false,
         ));
         file.scopes.exit_scope();
 

@@ -57,12 +57,6 @@ pub struct BuiltinTypes {
     bool: TypeId,
 }
 
-impl Default for BuiltinTypes {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl BuiltinTypes {
     /// Creates a new [`BuiltinTypes`] with IDs matching the fixed indices in [`BUILTIN_TYPES`].
     pub fn new() -> Self {
@@ -75,6 +69,12 @@ impl BuiltinTypes {
             generic_component: TypeId::from_raw(GENERIC_COMPONENT_IDX as u64),
             bool: TypeId::from_raw(BOOL_IDX as u64),
         }
+    }
+}
+
+impl Default for BuiltinTypes {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -91,6 +91,10 @@ pub struct TypesContext {
     pub objects: DashMap<TypeId, Vec<SymbolPointer>>,
 
     pub methods: DashMap<TypeId, DashMap<SymbolPointer, DeclarationId>>,
+
+    /// Set of TypeIds that are external (from JS/interop).
+    /// When a type is marked external, all references to it are also external.
+    externals: RwLock<HashSet<TypeId>>,
 
     types: boxcar::Vec<RwLock<HirType>>,
 
@@ -116,6 +120,7 @@ impl TypesContext {
             variables: DashMap::new(),
             objects: DashMap::new(),
             methods: DashMap::new(),
+            externals: RwLock::new(HashSet::new()),
             types,
             builtins: BuiltinTypes::new(),
         }
@@ -299,5 +304,29 @@ impl TypesContext {
                 _ => return Ok(current),
             }
         }
+    }
+
+    /// Mark a type as external. Also traverses `Reference` wrappers to mark
+    /// the inner struct type, so that all layers of indirection are covered.
+    pub fn mark_external(&self, ty: TypeId) {
+        self.externals.write().insert(ty);
+        let mut current = ty;
+        loop {
+            let guard = self.get_type(&current);
+            match &*guard {
+                HirType::Reference { rf, .. } => {
+                    self.externals.write().insert(*rf);
+                    current = *rf;
+                }
+                _ => break,
+            }
+        }
+    }
+
+    /// Returns `true` if the given type (or any `Reference` it wraps) has
+    /// been marked as external.
+    pub fn is_external(&self, ty: &TypeId) -> bool {
+        let externals = self.externals.read();
+        externals.contains(ty)
     }
 }

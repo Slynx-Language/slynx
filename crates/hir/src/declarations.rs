@@ -13,6 +13,7 @@ pub struct FunctionData<'a> {
     pub(crate) return_type: &'a GenericIdentifier,
     pub(crate) body: &'a [ASTStatement],
     pub(crate) span: &'a Span,
+    pub(crate) external: bool,
 }
 
 impl SlynxHir {
@@ -48,6 +49,7 @@ impl SlynxHir {
             return_type,
             body,
             span,
+            external,
         }: FunctionData,
         self_type: Option<TypeId>,
     ) -> Result<()> {
@@ -115,7 +117,7 @@ impl SlynxHir {
         // Re-acquire write lock only for declaration creation and scope exit.
         let mut file = self.get_file_mut(fileid);
         file.create_declaration(HirDeclaration::new_function(
-            statements, args, symbol, *span, decl, tyid,
+            statements, args, symbol, *span, decl, tyid, external,
         ));
         file.scopes.exit_scope();
         Ok(())
@@ -135,6 +137,12 @@ impl SlynxHir {
                 return Err(HIRError::name_unrecognized(alias_name, name.span));
             };
             *alias_ty = HirType::new_ref(target_ty);
+        }
+        // Propagate externality through aliases
+        if self.types_module.is_external(&target_ty) {
+            if let Some(alias_id) = self.types_module.get_id(&alias_name) {
+                self.types_module.mark_external(alias_id);
+            }
         }
         Ok(())
     }

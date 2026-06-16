@@ -106,6 +106,9 @@ pub struct HirDeclaration {
 
     /// Visibility of this declaration.
     pub visibility: VisibilityModifier,
+
+    /// Whether this declaration is extern (from JS/interop).
+    pub external: bool,
 }
 
 /// The kind of a declaration.
@@ -385,6 +388,7 @@ impl HirDeclaration {
         span: Span,
         id: DeclarationId,
         ty: TypeId,
+        external: bool,
     ) -> Self {
         Self {
             kind: HirDeclarationKind::Function {
@@ -396,6 +400,7 @@ impl HirDeclaration {
             id,
             ty,
             visibility: Default::default(),
+            external,
         }
     }
 
@@ -407,6 +412,7 @@ impl HirDeclaration {
         span: Span,
         id: DeclarationId,
         ty: TypeId,
+        external: bool,
     ) -> Self {
         Self {
             kind: HirDeclarationKind::StyleSheet {
@@ -418,6 +424,7 @@ impl HirDeclaration {
             id,
             ty,
             visibility: Default::default(),
+            external,
         }
     }
     /// Creates a new object declaration.
@@ -443,13 +450,14 @@ impl HirDeclaration {
     /// # let ty = TypeId::from_raw(0);
     /// let obj = HirDeclaration::new_object(id, ty, span);
     /// ```
-    pub fn new_object(decl: DeclarationId, declty: TypeId, span: Span) -> Self {
+    pub fn new_object(decl: DeclarationId, declty: TypeId, span: Span, external: bool) -> Self {
         Self {
             kind: HirDeclarationKind::Object,
             id: decl,
             ty: declty,
             span,
             visibility: Default::default(),
+            external,
         }
     }
 
@@ -476,13 +484,14 @@ impl HirDeclaration {
     /// # let ty = TypeId::from_raw(0);
     /// let alias = HirDeclaration::new_alias(id, ty, span);
     /// ```
-    pub fn new_alias(decl: DeclarationId, ty: TypeId, span: Span) -> Self {
+    pub fn new_alias(decl: DeclarationId, ty: TypeId, span: Span, external: bool) -> Self {
         Self {
             id: decl,
             kind: HirDeclarationKind::Alias,
             ty,
             span,
             visibility: Default::default(),
+            external,
         }
     }
 }
