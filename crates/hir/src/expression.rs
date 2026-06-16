@@ -45,7 +45,11 @@ impl SlynxHir {
                         (!defined_layout.contains(&field_symbol)).then_some(field_symbol)
                     })
                     .collect();
-                return Err(HIRError::property_unrecognized(non_existent_fields, span));
+                return Err(HIRError::property_unrecognized(
+                    ty,
+                    non_existent_fields,
+                    span,
+                ));
             }
             _ => {}
         }
@@ -83,7 +87,11 @@ impl SlynxHir {
                 span,
             })
         } else {
-            Err(HIRError::property_unrecognized(non_recognized_fields, span))
+            Err(HIRError::property_unrecognized(
+                ty,
+                non_recognized_fields,
+                span,
+            ))
         }
     }
 
@@ -147,7 +155,11 @@ impl SlynxHir {
 
                 match Self::find_name_index(&layout, *field_name) {
                     Some(index) => Ok(fields[index]),
-                    None => Err(HIRError::property_unrecognized(vec![*field_name], *span)),
+                    None => Err(HIRError::property_unrecognized(
+                        object_ref,
+                        vec![*field_name],
+                        *span,
+                    )),
                 }
             }
             FieldMethod::Tuple(rf, index) => {
@@ -258,7 +270,7 @@ impl SlynxHir {
         let tuple = self.generate_expression(file, tuple, None)?;
         let tuple_field_ty =
             self.create_unnamed_type(HirType::Field(FieldMethod::Tuple(tuple.ty, index)));
-        Ok(self.create_field_access_expression(tuple, index, tuple_field_ty, span))
+        Ok(self.create_field_access_expression(tuple, index, None, tuple_field_ty, span))
     }
 
     fn generate_funcall(
@@ -320,22 +332,39 @@ impl SlynxHir {
         span: Span,
     ) -> Result<HirExpression> {
         let HirExpression { ref ty, .. } = parent;
-        let ty_kind = self.get_type(ty).clone();
-        match ty_kind {
+        let ty_kind = self.get_type(ty);
+        match &*ty_kind {
             HirType::Reference { rf, .. }
-                if let Some(decl) = self.get_object_fields(rf, file)
+                if let Some(decl) = self.get_object_fields(rf.clone(), file)
                     && let Some(index) = Self::find_name_index(&decl, field_symbol) =>
             {
                 let ty = self.create_unnamed_type(HirType::type_field(*ty, index));
-                Ok(self.create_field_access_expression(parent, index, ty, span))
+                Ok(
+                    self.create_field_access_expression(
+                        parent,
+                        index,
+                        Some(field_symbol),
+                        ty,
+                        span,
+                    ),
+                )
             }
-            HirType::Reference { .. } => {
-                Err(HIRError::property_unrecognized(vec![field_symbol], span))
-            }
+            HirType::Reference { .. } => Err(HIRError::property_unrecognized(
+                ty.clone(),
+                vec![field_symbol],
+                span,
+            )),
 
             HirType::VarReference(rf) => {
-                let ty = self.create_unnamed_type(HirType::variable_field(rf, field_symbol));
-                Ok(self.create_field_access_expression(parent, usize::MAX, ty, span))
+                let ty =
+                    self.create_unnamed_type(HirType::variable_field(rf.clone(), field_symbol));
+                Ok(self.create_field_access_expression(
+                    parent,
+                    usize::MAX,
+                    Some(field_symbol),
+                    ty,
+                    span,
+                ))
             }
             HirType::Field(_) => {
                 let object_ref = self.resolve_object_reference_type(file, *ty, &span)?;
@@ -346,13 +375,23 @@ impl SlynxHir {
                     Some(index) => {
                         let field_ty =
                             self.create_unnamed_type(HirType::type_field(object_ref, index));
-                        Ok(self.create_field_access_expression(parent, index, field_ty, span))
+                        Ok(self.create_field_access_expression(
+                            parent,
+                            index,
+                            Some(field_symbol),
+                            field_ty,
+                            span,
+                        ))
                     }
-                    _ => Err(HIRError::property_unrecognized(vec![field_symbol], span)),
+                    _ => Err(HIRError::property_unrecognized(
+                        object_ref,
+                        vec![field_symbol],
+                        span,
+                    )),
                 }
             }
             u => Err(HIRError {
-                kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u },
+                kind: HIRErrorKind::InvalidFieldAccessTarget { ty: u.clone() },
                 span,
             }),
         }
@@ -504,7 +543,15 @@ impl SlynxHir {
             }
             ASTExpressionKind::ObjectExpression { name, fields } => {
                 let symbol = self.intern_name(&name.identifier);
-                let (_, ty) = self.find_declaration_by_name(&symbol, name.span)?;
+                let (_, ty) = if name.identifier == "Self" {
+                    let file_guard = self.get_file(file);
+                    file_guard
+                        .declarations
+                        .get_import_alias(&symbol)
+                        .ok_or_else(|| HIRError::name_unrecognized(symbol, name.span))?
+                } else {
+                    self.find_declaration_by_name(&symbol, name.span)?
+                };
                 self.generate_object_expression(file, ty, fields, expr.span)
             }
             ASTExpressionKind::FieldAccess { parent, field } => {
