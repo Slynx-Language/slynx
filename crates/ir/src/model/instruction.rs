@@ -1,6 +1,6 @@
 use smallvec::SmallVec;
 
-use crate::{Function, IRPointer, IRTypeId, Label, Operand, StyleProperty, Value};
+use crate::{Function, IRPointer, IRTypeId, Label, Operand, StyleProperty, SymbolPointer, Value};
 
 // ── Opcode ─────────────────────────────────────────────────────────────────
 
@@ -72,6 +72,14 @@ pub enum Opcode {
     /// Set field `index` on a struct/component.
     /// Operands: `[object, value]`.
     SetField(u16),
+
+    /// Dynamically get a field by name from an external object.
+    /// Operands: `[object]`.
+    DynGetField(SymbolPointer),
+
+    /// Dynamically set a field by name on an external object.
+    /// Operands: `[object, value]`.
+    DynSetField(SymbolPointer),
 
     GetChild(u16),
 
@@ -157,6 +165,7 @@ impl Opcode {
             Opcode::Allocate
                 | Opcode::Write
                 | Opcode::SetField(_)
+                | Opcode::DynSetField(_)
                 | Opcode::Call(_)
                 | Opcode::InitCall(_)
                 | Opcode::SApply { .. }
@@ -320,6 +329,28 @@ impl Instruction {
             value_type: ty,
         }
     }
+
+    pub fn dyngetfield(name: SymbolPointer, object: Value, ty: IRTypeId) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(object);
+        Instruction {
+            opcode: Opcode::DynGetField(name),
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn dynsetfield(name: SymbolPointer, object: Value, value: Value, ty: IRTypeId) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(object);
+        operands.push(value);
+        Instruction {
+            opcode: Opcode::DynSetField(name),
+            operands,
+            value_type: ty,
+        }
+    }
+
     pub fn getchild(index: u16, ty: IRTypeId) -> Self {
         Instruction {
             opcode: Opcode::GetChild(index),

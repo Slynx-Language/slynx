@@ -465,6 +465,17 @@ impl<'a> Formatter<'a> {
                 let value = self.fmt_value(instr.operands[1]);
                 format!("propset {target}, {index}, {value};")
             }
+            Opcode::DynGetField(name) => {
+                let target = self.fmt_value(instr.operands[0]);
+                let name_str = self.ir.get_name(*name);
+                format!("dynpropget {target}, \"{name_str}\";")
+            }
+            Opcode::DynSetField(name) => {
+                let target = self.fmt_value(instr.operands[0]);
+                let value = self.fmt_value(instr.operands[1]);
+                let name_str = self.ir.get_name(*name);
+                format!("dynpropset {target}, \"{name_str}\", {value};")
+            }
             Opcode::Call(func) => {
                 let args = self.fmt_operands(&instr.operands);
                 let view = self.ir.get_view(*func);
@@ -600,7 +611,7 @@ impl<'a> Formatter<'a> {
     fn produces_value(&self, instr: &Instruction) -> bool {
         !matches!(
             instr.opcode,
-            Opcode::Br(_) | Opcode::Cbr { .. } | Opcode::Write | Opcode::SetField(_) | Opcode::Ret
+            Opcode::Br(_) | Opcode::Cbr { .. } | Opcode::Write | Opcode::SetField(_) | Opcode::DynSetField(_) | Opcode::Ret
         )
     }
 

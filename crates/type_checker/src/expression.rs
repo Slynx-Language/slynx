@@ -300,6 +300,7 @@ impl TypeChecker {
             HirExpressionKind::FieldAccess {
                 ref mut field_index,
                 expr: ref mut e,
+                ..
             } => {
                 self.get_type_of_expr(e)?;
                 let (ty, index) =

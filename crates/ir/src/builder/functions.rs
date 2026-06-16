@@ -3,7 +3,7 @@ use smallvec::smallvec;
 use crate::{
     Component, ComponentValueBuilder, Function, IRError, IRErrorDescription, IRErrorKind,
     IRPointer, IRStorage, IRType, IRTypeId, Instruction, Label, Opcode, Operand, SlynxIR,
-    StyleProperty, Value,
+    StyleProperty, SymbolPointer, Value,
 };
 
 // ── LabelBuilder (intermediate bookkeeping, dropped after generate()) ──────
@@ -353,6 +353,17 @@ impl FunctionBuilder<'_> {
 
     pub fn set_field(&mut self, object: Value, index: u16, value: Value) -> Value {
         self.emit_void(Opcode::SetField(index), smallvec![object, value])
+    }
+
+    /// Dynamically get a field by name from an external object.
+    pub fn dyn_get_field(&mut self, object: Value, name: SymbolPointer) -> Value {
+        let ty = self.value_type(object);
+        self.emit(Opcode::DynGetField(name), smallvec![object], ty)
+    }
+
+    /// Dynamically set a field by name on an external object.
+    pub fn dyn_set_field(&mut self, object: Value, name: SymbolPointer, value: Value) -> Value {
+        self.emit_void(Opcode::DynSetField(name), smallvec![object, value])
     }
 
     pub fn struct_literal(&mut self, ty: IRTypeId, fields: &[Value]) -> Value {
