@@ -1,5 +1,5 @@
 use common::Span;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use parking_lot::{RawRwLock, RwLock, RwLockReadGuard, lock_api::RwLockWriteGuard};
 
 use crate::{DeclarationId, HIRError, Result, SymbolPointer, TypeId, VariableId, model::HirType};
@@ -94,7 +94,7 @@ pub struct TypesContext {
 
     /// Set of TypeIds that are external (from JS/interop).
     /// When a type is marked external, all references to it are also external.
-    externals: RwLock<HashSet<TypeId>>,
+    externals: DashSet<TypeId>,
 
     types: boxcar::Vec<RwLock<HirType>>,
 
@@ -120,7 +120,7 @@ impl TypesContext {
             variables: DashMap::new(),
             objects: DashMap::new(),
             methods: DashMap::new(),
-            externals: RwLock::new(HashSet::new()),
+            externals: DashSet::new(),
             types,
             builtins: BuiltinTypes::new(),
         }
@@ -309,13 +309,13 @@ impl TypesContext {
     /// Mark a type as external. Also traverses `Reference` wrappers to mark
     /// the inner struct type, so that all layers of indirection are covered.
     pub fn mark_external(&self, ty: TypeId) {
-        self.externals.write().insert(ty);
+        self.externals.insert(ty);
         let mut current = ty;
         loop {
             let guard = self.get_type(&current);
             match &*guard {
                 HirType::Reference { rf, .. } => {
-                    self.externals.write().insert(*rf);
+                    self.externals.insert(*rf);
                     current = *rf;
                 }
                 _ => break,
@@ -326,7 +326,6 @@ impl TypesContext {
     /// Returns `true` if the given type (or any `Reference` it wraps) has
     /// been marked as external.
     pub fn is_external(&self, ty: &TypeId) -> bool {
-        let externals = self.externals.read();
-        externals.contains(ty)
+        self.externals.contains(ty)
     }
 }
