@@ -8,9 +8,6 @@ on:
 permissions:
   contents: write
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
   validate:
     name: Validate Release Tag
@@ -18,22 +15,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          components: rustfmt, clippy
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run tests
-        run: cargo test --verbose
+        run: npm test
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Type check
+        run: npm run check
 
       - name: Build release
-        run: cargo build --release --verbose
+        run: npm run build
 
   github-release:
     name: Publish GitHub Release

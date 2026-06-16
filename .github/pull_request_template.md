@@ -13,10 +13,9 @@ Briefly describe the change and why it exists.
 List the commands, tests, or manual checks you ran.
 
 ```bash
-# example
-cargo test
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
+npm run check
+npm test
+npm run build
 ```
 
 ## Documentation Impact
