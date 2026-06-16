@@ -17,9 +17,9 @@ impl BitVec {
     pub fn set(&mut self, index: usize, b: bool) {
         let (vecpos, bitpos) = Self::calculate_position(index);
         if self.vec.len() <= vecpos {
-            self.vec.resize(vecpos * 2, 0);
+            self.vec.resize((vecpos * 2).max(1), 0);
         }
-        let v = (b as u8) << bitpos;
+        let v = 1 << bitpos;
         if b {
             self.vec[vecpos] |= v;
         } else {

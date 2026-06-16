@@ -61,6 +61,7 @@ impl Parser {
         self.expect(&TokenKind::Colon)?;
         let return_type = self.parse_type()?;
         if self.flags.has_flag(ParserFlag::OnlySignatures) {
+            self.expect(&TokenKind::SemiColon)?;
             return Ok(ASTDeclaration {
                 attributes: vec![],
                 visibility: Default::default(),

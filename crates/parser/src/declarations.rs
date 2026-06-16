@@ -92,7 +92,7 @@ impl Parser {
         loop {
             if self.peek()?.kind == TokenKind::RBrace {
                 self.eat()?;
-                self.flags.remove_flag(ParserFlag::OnlySignatures);
+                self.remove_flag(ParserFlag::OnlySignatures);
                 break Ok(amount_parsed);
             }
             let mut declaration = self.parse_declaration()?;
