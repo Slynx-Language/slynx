@@ -210,8 +210,6 @@ mod tests {
     use super::*;
 
     use slynx_hir::DeclarationId;
-    use slynx_lexer::tokens::{Token, TokenKind};
-    use slynx_parser::ExpectedContent;
 
     #[test]
     /// tests that [`suggestions_from_lexer`] returns [`SlynxSuggestion::UnrecognizedChar`] for [`LexerError::UnrecognizedChar`]

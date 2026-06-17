@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use common::Span;
 use slynx_hir::{HIRError, HirType, Result, SlynxHir, TypeId};

@@ -1,8 +1,7 @@
-use slynx_hir::{SlynxHir, error::HIRErrorKind};
+use slynx_hir::SlynxHir;
 use slynx_lexer::Lexer;
 use slynx_monomorphizer::Monomorphizer;
 use slynx_parser::Parser;
-use slynx_typechecker::TypeChecker;
 
 #[test]
 fn rejects_cyclic_aliases() {

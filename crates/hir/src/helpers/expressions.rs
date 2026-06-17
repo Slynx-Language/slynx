@@ -177,7 +177,7 @@ impl SlynxHir {
     ) -> HirExpression {
         HirExpression {
             id: ExpressionId::new(),
-            ty: ty,
+            ty,
             kind: HirExpressionKind::Static { id: decl },
             span,
         }

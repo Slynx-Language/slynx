@@ -1,4 +1,3 @@
-use common::SymbolPointer;
 use slynx_hir::{
     SlynxHir,
     error::{HIRError, HIRErrorKind},
@@ -94,11 +93,7 @@ impl SlynxContext {
 
                 format!(
                     "{property} {names} are not recognized for object {}",
-                    if let Some(name) = objname {
-                        name
-                    } else {
-                        "(unknown name)"
-                    }
+                    objname.unwrap_or("(unknown name)")
                 )
             }
             HIRErrorKind::RecursiveType { ty } => {

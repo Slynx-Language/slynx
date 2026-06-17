@@ -335,7 +335,7 @@ impl SlynxHir {
         let ty_kind = self.get_type(ty);
         match &*ty_kind {
             HirType::Reference { rf, .. }
-                if let Some(decl) = self.get_object_fields(rf.clone(), file)
+                if let Some(decl) = self.get_object_fields(*rf, file)
                     && let Some(index) = Self::find_name_index(&decl, field_symbol) =>
             {
                 let ty = self.create_unnamed_type(HirType::type_field(*ty, index));
@@ -350,14 +350,13 @@ impl SlynxHir {
                 )
             }
             HirType::Reference { .. } => Err(HIRError::property_unrecognized(
-                ty.clone(),
+                *ty,
                 vec![field_symbol],
                 span,
             )),
 
             HirType::VarReference(rf) => {
-                let ty =
-                    self.create_unnamed_type(HirType::variable_field(rf.clone(), field_symbol));
+                let ty = self.create_unnamed_type(HirType::variable_field(*rf, field_symbol));
                 Ok(self.create_field_access_expression(
                     parent,
                     usize::MAX,

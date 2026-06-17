@@ -452,7 +452,7 @@ impl SlynxHir {
                 return Ok(());
                 //modules loader already solved so
             }
-            ASTDeclarationKind::Static { name, .. } => self.create_static(file, &name)?,
+            ASTDeclarationKind::Static { name, .. } => self.create_static(file, name)?,
         };
         if let Some(name) = should_register {
             self.lang_items.register(name, declarationid);
@@ -575,7 +575,7 @@ impl SlynxHir {
                 args,
                 usages,
                 body,
-            } => self.resolve_stylesheet(file, name, args, usages, body, ast.span, ast.external),
+            } => self.resolve_stylesheet(file, name, args, usages, body, ast.span),
             ASTDeclarationKind::Static {
                 value: None, name, ..
             } => self.create_static_declaration(name, &ast.span, ast.external),

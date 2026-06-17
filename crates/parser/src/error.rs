@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use common::Span;
 use slynx_lexer::{TokenKind, tokens::Token};
 
