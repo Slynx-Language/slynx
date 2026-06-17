@@ -1,5 +1,3 @@
-use std::default;
-
 use common::{Span, VisibilityModifier};
 
 use crate::{

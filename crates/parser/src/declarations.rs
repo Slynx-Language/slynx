@@ -20,6 +20,7 @@ impl Parser {
         } else {
             Some(self.parse_expression()?)
         };
+        self.expect(&TokenKind::SemiColon);
         Ok(ASTDeclaration {
             attributes: vec![],
             external: false,
