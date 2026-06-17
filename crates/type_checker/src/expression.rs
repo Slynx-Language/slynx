@@ -327,8 +327,14 @@ impl TypeChecker {
                 } else {
                     return Err(TypeError::no_method_for(name, parent_type, expr.span));
                 };
-                let mut new_args = vec![*parent];
-                new_args.extend(args);
+                let mut new_args = match *parent {
+                    HirExpression { kind: HirExpressionKind::Static { .. }, .. } => args,
+                    parent_expr => {
+                        let mut new_args = vec![parent_expr];
+                        new_args.extend(args);
+                        new_args
+                    }
+                };
                 expr.kind = HirExpressionKind::FunctionCall {
                     name: method,
                     args: new_args,
