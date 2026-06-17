@@ -1,6 +1,7 @@
+.PHONY: test
 #Test the project and print output to the terminal.
 test:
-	STD_PATH=./lib/std cargo test -- --no-capture
+	STD_PATH=./lib/std cargo test --verbose
 
 #Run test with Rust backtraces enabled.
 #Shows a stack trace when a test panics.
@@ -37,3 +38,6 @@ check:
 install_std:
 	mkdir -p ~/.slynx/std
 	cp -r lib/std/* ~/.slynx/std
+
+uninstall_std:
+	rm -r ~/.slynx/std
