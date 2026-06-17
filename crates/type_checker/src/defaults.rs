@@ -287,10 +287,16 @@ impl TypeChecker {
                 self.default_component_expression(component_expr)?;
                 expr.ty = self.resolve(&expr.ty, &expr.span)?;
             }
-            HirExpressionKind::MethodCall { .. } => {
-                unreachable!(
-                    "Method call should have been already removed due to previous type checkings"
-                );
+            HirExpressionKind::MethodCall {
+                ref mut parent,
+                args: ref mut m_args,
+                ..
+            } => {
+                self.default_expr(parent)?;
+                for arg in m_args.iter_mut() {
+                    self.default_expr(arg)?;
+                }
+                expr.ty = self.resolve(&expr.ty, &expr.span)?;
             }
             HirExpressionKind::Static { .. } => {
                 //nothing to do. Static's type is known during HIR generation
