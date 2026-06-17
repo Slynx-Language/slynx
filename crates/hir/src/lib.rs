@@ -487,7 +487,7 @@ impl SlynxHir {
                 value: None,
                 name,
                 ty,
-            } => self.resolve_static(name, ty, &ast.span, ast.external),
+            } => self.resolve_static_type(name, ty, &ast.span),
             _ => Ok(()),
         }
     }
@@ -560,6 +560,9 @@ impl SlynxHir {
                 usages,
                 body,
             } => self.resolve_stylesheet(file, name, args, usages, body, ast.span, ast.external),
+            ASTDeclarationKind::Static { value: None, name, .. } => {
+                self.create_static_declaration(name, &ast.span, ast.external)
+            }
             _ => Ok(()),
         }
     }

@@ -26,24 +26,33 @@ impl SlynxHir {
             .register_declaration_metadata(symbol, ty, VisibilityModifier::Private);
         Ok(DeclarationId::new(file, local))
     }
-    pub(crate) fn resolve_static(
+    pub(crate) fn resolve_static_type(
         &self,
         name: &str,
         ty: &GenericIdentifier,
         span: &Span,
-        external: bool,
     ) -> Result<()> {
         let ty_symbol = self.intern_name(&ty.identifier);
         let symbol = self.intern_name(name);
-        let (id, ty) = self.find_declaration_by_name(&symbol, *span)?;
+        let (_, ty) = self.find_declaration_by_name(&symbol, *span)?;
         {
             let mut ty = self.types_module.get_type_mut(ty);
             *ty = HirType::new_ref(self.get_type_of_name(ty_symbol, span)?);
         };
+        Ok(())
+    }
+
+    pub(crate) fn create_static_declaration(
+        &self,
+        name: &str,
+        span: &Span,
+        external: bool,
+    ) -> Result<()> {
+        let symbol = self.intern_name(name);
+        let (id, ty) = self.find_declaration_by_name(&symbol, *span)?;
         let tyid = self.get_file(id.file_id).get_declaration_type(id.local_id);
         self.get_file_mut(id.file_id)
             .create_declaration(HirDeclaration::new_static(id, tyid, *span, external));
-
         Ok(())
     }
 
