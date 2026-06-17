@@ -413,6 +413,14 @@ impl SlynxHir {
                 if ast.external {
                     let decl_ty = self.get_declaration_type(id);
                     self.types_module.mark_external(decl_ty);
+                    for method in methods {
+                        let return_type = self.get_type_of_name(
+                            self.intern_name(&method.return_type.identifier),
+                            &method.return_type.span,
+                        )?;
+                        let method_symbol = self.intern_name(&method.method_name.identifier);
+                        self.types_module.register_external_method(decl_ty, method_symbol, return_type);
+                    }
                 } else {
                     self.lower_methods(id, methods)?;
                 }

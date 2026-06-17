@@ -91,6 +91,8 @@ pub struct TypesContext {
     pub objects: DashMap<TypeId, Vec<SymbolPointer>>,
 
     pub methods: DashMap<TypeId, DashMap<SymbolPointer, DeclarationId>>,
+    /// Maps (parent_type, method_name) -> return_type for external object methods.
+    external_methods: DashMap<(TypeId, SymbolPointer), TypeId>,
 
     /// Set of TypeIds that are external (from JS/interop).
     /// When a type is marked external, all references to it are also external.
@@ -120,6 +122,7 @@ impl TypesContext {
             variables: DashMap::new(),
             objects: DashMap::new(),
             methods: DashMap::new(),
+            external_methods: DashMap::new(),
             externals: DashSet::new(),
             types,
             builtins: BuiltinTypes::new(),
@@ -213,6 +216,16 @@ impl TypesContext {
             self.methods.insert(ty, DashMap::new());
         }
         self.methods.get(&ty).unwrap().insert(name, id);
+    }
+
+    /// Register an external method's return type without creating a declaration entry.
+    pub fn register_external_method(&self, parent_ty: TypeId, name: SymbolPointer, return_type: TypeId) {
+        self.external_methods.insert((parent_ty, name), return_type);
+    }
+
+    /// Returns the return type of an external method on `parent_ty` with the given `name`.
+    pub fn get_method_return_type(&self, parent_ty: &TypeId, name: SymbolPointer) -> Option<TypeId> {
+        self.external_methods.get(&(*parent_ty, name)).map(|ret| *ret.value())
     }
 
     ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
