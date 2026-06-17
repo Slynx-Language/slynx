@@ -261,7 +261,6 @@ impl Codegen {
                         .0
                 }
             };
-            println!("{:?}", ctx.ir().get_instruction(value));
             let primitives = self.flatten_struct_value(value, rp.hir_type, hir, &mut ctx)?;
             field_values.extend(primitives);
         }
