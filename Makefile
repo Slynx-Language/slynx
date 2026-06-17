@@ -1,6 +1,6 @@
 #Test the project and print output to the terminal.
 test:
-	cargo test -- --no-capture
+	STD_PATH=./lib/std cargo test -- --no-capture
 
 #Run test with Rust backtraces enabled.
 #Shows a stack trace when a test panics.
@@ -29,7 +29,7 @@ release:
 
 #Checks if the compiler is running properly, according to CI/CD
 check:
-	cargo test --verbose
+	STD_PATH=./lib/std cargo test --verbose
 	cargo fmt --all -- --check
 	cargo clippy --all-targets --all-features -- -D warnings
 	cargo build --verbose
