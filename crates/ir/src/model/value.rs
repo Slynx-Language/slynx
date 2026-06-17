@@ -84,3 +84,12 @@ pub struct GlobalValue {
     pub(crate) initial_value: InitValue,
     pub(crate) name: SymbolPointer,
 }
+
+impl GlobalValue {
+    pub fn name(&self) -> SymbolPointer {
+        self.name
+    }
+    pub fn initial_value(&self) -> InitValue {
+        self.initial_value
+    }
+}

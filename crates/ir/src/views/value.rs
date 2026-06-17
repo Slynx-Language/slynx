@@ -20,4 +20,7 @@ impl<'a> IRViewer<'a, GlobalValue> {
             InitValue::Lazy(f) => self.ir.get_view(f.with_length()).get_return_type(),
         }
     }
+    pub fn raw_name(&self) -> &str {
+        self.ir.get_name(self.name)
+    }
 }
