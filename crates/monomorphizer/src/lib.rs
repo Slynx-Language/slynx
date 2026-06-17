@@ -32,17 +32,14 @@ impl Monomorphizer {
     /// to another reference) it resolves it to make the reference point to the concrete type. This only caches it for later mutability
     pub fn resolve_reference(&mut self, hir: &SlynxHir, id: TypeId, span: Span) -> Result<()> {
         let mut current = id;
-        let mut visited = HashSet::from([id]);
+
+        let cyclic = hir.types_module.is_cyclic(current);
+        if cyclic {
+            return Err(HIRError::recursive(id, span));
+        }
         while let HirType::Reference { rf, .. } = &*hir.get_type(&current)
             && let HirType::Reference { .. } = &*hir.get_type(rf)
         {
-            if !visited.insert(*rf) {
-                let name = hir
-                    .get_name_of_type(*rf)
-                    .expect("Expected type to have a name");
-
-                return Err(HIRError::recursive(name, span));
-            }
             current = *rf;
         }
         if current != id {
