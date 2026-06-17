@@ -128,6 +128,7 @@ pub enum Opcode {
     InitCall(IRPointer<Function, 1>),
 
     Global(IRPointer<GlobalValue, 1>),
+    GlobalExtern(SymbolPointer),
 }
 
 // ── Instruction ────────────────────────────────────────────────────────────

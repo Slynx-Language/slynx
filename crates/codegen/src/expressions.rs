@@ -201,12 +201,18 @@ impl Codegen {
 
         let value = match &expr.kind {
             HirExpressionKind::Static { id } => {
-                let id = *self
-                    .globals
-                    .get(id)
-                    .ok_or(CodegenError::DeclarationNotRecognized(*id))?;
-                let ty = context.ir().get_view(id).ty();
-                context.emit(Opcode::Global(id), SmallVec::new(), ty)
+                if let Some(ty) = self.external_statics.get(id) {
+                    let name = hir.get_declaration_name(*id);
+                    let name = context.ir().strings.intern(name);
+                    context.emit(Opcode::GlobalExtern(name), SmallVec::new(), *ty)
+                } else {
+                    let id = *self
+                        .globals
+                        .get(id)
+                        .ok_or(CodegenError::DeclarationNotRecognized(*id))?;
+                    let ty = context.ir().get_view(id).ty();
+                    context.emit(Opcode::Global(id), SmallVec::new(), ty)
+                }
             }
             HirExpressionKind::Tuple(vector) => {
                 self.lower_tuple_expression(vector, hir, context)?

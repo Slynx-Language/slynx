@@ -418,6 +418,7 @@ impl<'a> Formatter<'a> {
 
     pub fn format_instruction(&self, instr: &Instruction) -> String {
         match &instr.opcode {
+            Opcode::GlobalExtern(global) => format!("@extern \"{}\"", self.ir.get_name(*global)),
             Opcode::Global(global_value) => self.fmt_global(*global_value),
             Opcode::Br(label_ptr) => {
                 let label_str = self.fmt_label_ref(*label_ptr);

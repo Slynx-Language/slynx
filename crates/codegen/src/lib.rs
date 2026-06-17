@@ -5,7 +5,7 @@ mod functions;
 mod helper;
 mod instructions;
 mod queries;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use common::SymbolPointer;
 pub use error::*;
@@ -30,6 +30,7 @@ pub(crate) struct ChildInitWork {
 }
 
 pub struct Codegen {
+    external_statics: HashMap<DeclarationId, IRTypeId>,
     globals: HashMap<DeclarationId, IRPointer<GlobalValue, 1>>,
     names: HashMap<SymbolPointer<SlynxHir>, SymbolPointer<SlynxIR>>,
     types: HashMap<TypeId, IRTypeId>,
@@ -50,6 +51,7 @@ impl Default for Codegen {
 impl Codegen {
     pub fn new() -> Self {
         Self {
+            external_statics: HashMap::new(),
             globals: HashMap::new(),
             names: HashMap::new(),
             types: HashMap::new(),
@@ -187,8 +189,12 @@ impl Codegen {
                         let name = hir.get_declaration_name(declaration.id);
                         let ty = hir.get_declaration_type(declaration.id);
                         let ty = self.get_or_create_ir_type(&ty, hir, ir)?;
-                        let global = ir.create_global(name, InitValue::ZeroInit(ty));
-                        self.globals.insert(declaration.id, global);
+                        if declaration.external {
+                            self.external_statics.insert(declaration.id, ty);
+                        } else {
+                            let global = ir.create_global(name, InitValue::ZeroInit(ty));
+                            self.globals.insert(declaration.id, global);
+                        }
                     }
                     HirDeclarationKind::Object => {
                         self.insert_object_fields_for(declaration.ty, hir, ir)?;
