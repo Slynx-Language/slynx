@@ -1,4 +1,4 @@
-use crate::{IRTypeId, InitValue, SymbolPointer};
+use crate::{InitValue, SymbolPointer};
 
 /// A lightweight handle representing a value in the IR.
 ///

@@ -102,7 +102,8 @@ impl SlynxContext {
                 )
             }
             HIRErrorKind::RecursiveType { ty } => {
-                let ty = hir.get_name(*ty);
+                let name = hir.get_name_of_type(*ty).expect("Type should be named");
+                let ty = hir.get_name(name);
                 format!("The type named as '{ty}' is recursive at this point")
             }
             HIRErrorKind::InvalidStyleEvent { name } => {

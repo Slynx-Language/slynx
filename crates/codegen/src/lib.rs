@@ -5,7 +5,7 @@ mod functions;
 mod helper;
 mod instructions;
 mod queries;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use common::SymbolPointer;
 pub use error::*;
@@ -138,7 +138,6 @@ impl Codegen {
                 }
             }
         }
-
     }
 
     /// Pre-pass: compute property codes for all stylesheets.
