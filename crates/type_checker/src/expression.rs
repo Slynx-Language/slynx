@@ -223,6 +223,7 @@ impl TypeChecker {
         let expected = expr.ty;
 
         let calc = match expr.kind {
+            HirExpressionKind::Static { .. } => expr.ty,
             HirExpressionKind::Tuple(ref mut fields) => {
                 let field_types = fields
                     .iter_mut()
