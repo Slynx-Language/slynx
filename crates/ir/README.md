@@ -401,7 +401,7 @@ The `@emit p0, %count` on the function, tells that `p0` should execute its `%cou
 By default on the IR everything is moved, due to DOD, so to consume something that is not intended to be moved, we copy it via `copy` instruction.
 
 * copy: copies the provided `value`. It follows as `copy value`.
-* call: which follows: `call f, arg1, arg2, ...`, calls the provided function `f` passing `arg1`, `arg2`, ..., as parameters to it. A call is an expression. A shortcut for it is simply `f(arg1,arg2,arg3)`, such as a normal function call
+* call: which follows: `call f, arg1, arg2, ...`, calls the provided function `f` passing `arg1`, `arg2`, ..., as parameters to it. A call is an expression. A shortcut for it is simply `f(arg1,arg2,arg3)`, such as a normal function call. The type of this operation is the return type of 'f'. Its implicit
 * cast: which follows: `cast ty, value` casts the provided `value`, copies the value and casts it to the provided `ty`
 * select: which follows `select cond, v1, v2`, selects `v1` if `cond` is `true` and `v2` otherwise
 
@@ -447,5 +447,17 @@ Saturing addition:
 * cmplte, compares the first value to the second one, and returns `true` if the first is less than or equal to the second one, and `false` otherwise
 * cmpne, compares the first value to the second one, and returns `true` if they're not equal, and `false` otherwise
 * negate, negates the provided value. If it's true, returns false, otherwise, returns true
+
+
+### Dynamic Operations
+
+Dynamic operations are operations that don't know exactly how something behaviors, for example, a method call for a value whose type is extern.
+In general, dynamic operations are meant for types that you cannot know anything about their layout or how a call for them works. For example on compiling a struct that came from js, we cannot know the exact method co call,
+or the exact property, since slynx is position based. So instead of emitting a positional field operation, a dynamic one is used to get based on the name, and then the backend should be able to know how to handle it.
+
+* dynget: which follows `dynget ty, %target, "field"`, stands for 'dynamic get' and gets the given `field` on the given `value` dynamically. This is intendeed only for backends whose layout is unknown and the usage of positional instruction such `propget` is not possible
+* dynset: which follows `dynset ty, %target, "field", %value`, stands for 'dynamic set', and sets the given `value` on the `target`'s "field". Only intendeed for backends whose layout is unknown
+* dyncall: which follows `dyncall, rety, %target, "methodname", %arg0, %arg1` calls the given `methodname` on `%target` with the given args. The `rety` is the return type of the method call.
+
 #### Idealized For The Future
 These operations are idealized to be implemented on the future and for the V1 are not being implemented. Note that since these are only IDEALIZED, they might and probably WILL change
