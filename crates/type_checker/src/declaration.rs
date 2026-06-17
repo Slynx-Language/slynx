@@ -52,7 +52,8 @@ impl TypeChecker {
         match &mut decl.kind {
             HirDeclarationKind::StyleSheet { .. } => self.check_stylesheet(decl)?,
             // Objects and aliases have no bodies to type-check at this pass.
-            HirDeclarationKind::Object | HirDeclarationKind::Alias => {}
+            HirDeclarationKind::Object | HirDeclarationKind::Alias | HirDeclarationKind::Static => {
+            }
 
             HirDeclarationKind::Function { statements, .. } => {
                 let return_type = match &*self.types_module.get_type(&decl.ty) {

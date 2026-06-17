@@ -1,9 +1,9 @@
 use common::Span;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use parking_lot::{RawRwLock, RwLock, RwLockReadGuard, lock_api::RwLockWriteGuard};
 
 use crate::{DeclarationId, HIRError, Result, SymbolPointer, TypeId, VariableId, model::HirType};
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 const INT_IDX: usize = 0;
 const FLOAT_IDX: usize = 1;
@@ -57,12 +57,6 @@ pub struct BuiltinTypes {
     bool: TypeId,
 }
 
-impl Default for BuiltinTypes {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl BuiltinTypes {
     /// Creates a new [`BuiltinTypes`] with IDs matching the fixed indices in [`BUILTIN_TYPES`].
     pub fn new() -> Self {
@@ -75,6 +69,12 @@ impl BuiltinTypes {
             generic_component: TypeId::from_raw(GENERIC_COMPONENT_IDX as u64),
             bool: TypeId::from_raw(BOOL_IDX as u64),
         }
+    }
+}
+
+impl Default for BuiltinTypes {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -91,6 +91,12 @@ pub struct TypesContext {
     pub objects: DashMap<TypeId, Vec<SymbolPointer>>,
 
     pub methods: DashMap<TypeId, DashMap<SymbolPointer, DeclarationId>>,
+    /// Maps (parent_type, method_name) -> return_type for external object methods.
+    external_methods: DashMap<(TypeId, SymbolPointer), TypeId>,
+
+    /// Set of TypeIds that are external (from JS/interop).
+    /// When a type is marked external, all references to it are also external.
+    externals: DashSet<TypeId>,
 
     types: boxcar::Vec<RwLock<HirType>>,
 
@@ -116,6 +122,8 @@ impl TypesContext {
             variables: DashMap::new(),
             objects: DashMap::new(),
             methods: DashMap::new(),
+            external_methods: DashMap::new(),
+            externals: DashSet::new(),
             types,
             builtins: BuiltinTypes::new(),
         }
@@ -210,6 +218,27 @@ impl TypesContext {
         self.methods.get(&ty).unwrap().insert(name, id);
     }
 
+    /// Register an external method's return type without creating a declaration entry.
+    pub fn register_external_method(
+        &self,
+        parent_ty: TypeId,
+        name: SymbolPointer,
+        return_type: TypeId,
+    ) {
+        self.external_methods.insert((parent_ty, name), return_type);
+    }
+
+    /// Returns the return type of an external method on `parent_ty` with the given `name`.
+    pub fn get_method_return_type(
+        &self,
+        parent_ty: &TypeId,
+        name: SymbolPointer,
+    ) -> Option<TypeId> {
+        self.external_methods
+            .get(&(*parent_ty, name))
+            .map(|ret| *ret.value())
+    }
+
     ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
     pub fn get_methods_of(&self, ty: TypeId) -> Vec<(SymbolPointer, DeclarationId)> {
         if let Some(methos_map) = self.methods.get(&ty) {
@@ -289,14 +318,75 @@ impl TypesContext {
             match &*guard {
                 HirType::Reference { rf, .. } => {
                     if !visited.insert(current) {
-                        let name = self
-                            .get_type_name(&current)
-                            .expect("Type should contain a name");
-                        return Err(HIRError::recursive(name, *span));
+                        return Err(HIRError::recursive(current, *span));
                     }
                     current = *rf;
                 }
                 _ => return Ok(current),
+            }
+        }
+    }
+
+    pub fn is_cyclic(&self, ty: TypeId) -> bool {
+        let mut set = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(ty);
+        while let Some(ty) = queue.pop_front() {
+            if !set.insert(ty) {
+                return true;
+            }
+            let guard = self.get_type(&ty);
+
+            match &*guard {
+                HirType::Reference { rf, .. } => {
+                    queue.push_back(*rf);
+                }
+                HirType::Struct { fields } | HirType::Tuple { fields } => {
+                    for field in fields {
+                        queue.push_back(*field);
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    /// Mark a type as external. Also traverses `Reference` wrappers to mark
+    /// the inner struct type, so that all layers of indirection are covered.
+    pub fn mark_external(&self, ty: TypeId) {
+        self.externals.insert(ty);
+        let mut current = ty;
+        loop {
+            let guard = self.get_type(&current);
+            match &*guard {
+                HirType::Reference { rf, .. } => {
+                    self.externals.insert(*rf);
+                    current = *rf;
+                }
+                _ => break,
+            }
+        }
+    }
+
+    /// Returns `true` if the given type (or any `Reference` it wraps) has
+    /// been marked as external.
+    pub fn is_external(&self, ty: &TypeId) -> bool {
+        if self.externals.contains(ty) {
+            return true;
+        }
+
+        let mut current = *ty;
+        loop {
+            let guard = self.get_type(&current);
+            match &*guard {
+                HirType::Reference { rf, .. } => {
+                    if self.externals.contains(rf) {
+                        return true;
+                    }
+                    current = *rf;
+                }
+                _ => return false,
             }
         }
     }

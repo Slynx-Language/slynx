@@ -223,6 +223,7 @@ impl TypeChecker {
         let expected = expr.ty;
 
         let calc = match expr.kind {
+            HirExpressionKind::Static { .. } => expr.ty,
             HirExpressionKind::Tuple(ref mut fields) => {
                 let field_types = fields
                     .iter_mut()
@@ -300,6 +301,7 @@ impl TypeChecker {
             HirExpressionKind::FieldAccess {
                 ref mut field_index,
                 expr: ref mut e,
+                ..
             } => {
                 self.get_type_of_expr(e)?;
                 let (ty, index) =
@@ -315,6 +317,14 @@ impl TypeChecker {
                     _ => unreachable!(),
                 };
                 let parent_type = self.get_type_of_expr(&mut parent)?;
+                if self.types_module.is_external(&parent_type) {
+                    let ret = self
+                        .types_module
+                        .get_method_return_type(&parent_type, name)
+                        .unwrap_or(self.types_module.void_id());
+                    expr.kind = HirExpressionKind::MethodCall { parent, name, args };
+                    return Ok(ret);
+                }
                 let method = if let Some(method) = self
                     .types_module
                     .get_methods_of(parent_type)
@@ -325,8 +335,14 @@ impl TypeChecker {
                 } else {
                     return Err(TypeError::no_method_for(name, parent_type, expr.span));
                 };
-                let mut new_args = vec![*parent];
-                new_args.extend(args);
+                let new_args = match parent.kind {
+                    HirExpressionKind::Static { .. } => args,
+                    _ => {
+                        let mut new_args = vec![*parent];
+                        new_args.extend(args);
+                        new_args
+                    }
+                };
                 expr.kind = HirExpressionKind::FunctionCall {
                     name: method,
                     args: new_args,

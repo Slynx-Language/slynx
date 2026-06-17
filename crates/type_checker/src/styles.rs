@@ -31,6 +31,7 @@ impl TypeChecker {
             args.clone()
         };
         for (idx, param) in style_usage.params.iter_mut().enumerate() {
+            param.ty = self.get_type_of_expr(param)?;
             param.ty = self.unify(&args[idx], &param.ty, &param.span)?;
         }
 

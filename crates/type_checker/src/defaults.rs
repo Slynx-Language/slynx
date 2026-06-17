@@ -46,7 +46,8 @@ impl TypeChecker {
     ///Sets the default types on the given `decl`. This replaces the infer types on everything on the given `decl` with the correct(or default) type
     pub fn set_default(&mut self, decl: &mut HirDeclaration) -> Result<()> {
         match decl.kind {
-            HirDeclarationKind::Object | HirDeclarationKind::Alias => {}
+            HirDeclarationKind::Object | HirDeclarationKind::Alias | HirDeclarationKind::Static => {
+            }
             HirDeclarationKind::Function { .. } => self.default_function(decl)?,
             HirDeclarationKind::ComponentDeclaration { ref mut props, .. } => {
                 self.resolve_component_members(props, decl.ty)?;
@@ -286,10 +287,19 @@ impl TypeChecker {
                 self.default_component_expression(component_expr)?;
                 expr.ty = self.resolve(&expr.ty, &expr.span)?;
             }
-            HirExpressionKind::MethodCall { .. } => {
-                unreachable!(
-                    "Method call should have been already removed due to previous type checkings"
-                );
+            HirExpressionKind::MethodCall {
+                ref mut parent,
+                args: ref mut m_args,
+                ..
+            } => {
+                self.default_expr(parent)?;
+                for arg in m_args.iter_mut() {
+                    self.default_expr(arg)?;
+                }
+                expr.ty = self.resolve(&expr.ty, &expr.span)?;
+            }
+            HirExpressionKind::Static { .. } => {
+                //nothing to do. Static's type is known during HIR generation
             }
         }
         Ok(())

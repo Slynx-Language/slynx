@@ -5,7 +5,7 @@ use slynx_lexer::tokens::TokenKind;
 impl Parser {
     /// Parses an if statement. The provided `span` is the initial span for the 'if' keyword.
     pub fn parse_if(&mut self, span: Span) -> Result<ASTExpression> {
-        self.set_flags(super::ParserFlags::None);
+        self.flags.reset();
 
         let condition = self.parse_without_component_expr(Self::parse_expression)?;
         let (body, block_span) = self.parse_block()?;
@@ -49,7 +49,7 @@ impl Parser {
     }
 
     pub fn parse_block(&mut self) -> Result<(Vec<ASTStatement>, Span)> {
-        self.set_flags(super::ParserFlags::None);
+        self.flags.reset();
         let lbrace = self.expect(&TokenKind::LBrace)?;
         let start = lbrace.span.start;
         let mut body = Vec::new();

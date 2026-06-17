@@ -43,6 +43,7 @@ impl ObjectMethod {
 pub struct ASTDeclaration {
     pub attributes: Vec<ASTAttribute>,
     pub visibility: VisibilityModifier,
+    pub external: bool,
     pub kind: ASTDeclarationKind,
     pub span: Span,
 }
@@ -75,6 +76,11 @@ pub enum ASTDeclarationKind {
         args: Vec<TypedName>,
         usages: Vec<ASTExpression>,
         body: Vec<StyleSheetStatement>,
+    },
+    Static {
+        name: String,
+        ty: GenericIdentifier,
+        value: Option<ASTExpression>, //option because, if not provided, it yet can be used, even though might lead to runtime bugs. Should be None only on externs
     },
 }
 

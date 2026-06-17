@@ -166,10 +166,7 @@ pub fn suggestions_from_lexer(err: &LexerError) -> Vec<SlynxSuggestion> {
 /// this function converts a [`ParseError`] into a [`Vec<SlynxSuggestion>`]
 pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
     match &err {
-        ParseError::UnexpectedToken(token, expected) => vec![SlynxSuggestion::UnexpectedToken(
-            format!("{}", token),
-            expected.to_string(),
-        )],
+        ParseError::UnexpectedToken(_, _) => vec![],
         _ => vec![],
     }
 }
@@ -213,25 +210,7 @@ mod tests {
     use super::*;
 
     use slynx_hir::DeclarationId;
-    use slynx_lexer::tokens::{Token, TokenKind};
 
-    #[test]
-    /// tests that [`suggestions_from_parser`] returns [`SlynxSuggestion::UnexpectedToken`] for [`ParseError::UnexpectedToken`]
-    fn test_suggestions_parser() {
-        let token = Token {
-            kind: TokenKind::Identifier("foo".to_string()),
-            span: common::Span { start: 0, end: 3 },
-        };
-        let err = ParseError::UnexpectedToken(token, "sla".to_string());
-        let result = suggestions_from_parser(&err);
-        assert_eq!(
-            result,
-            vec![SlynxSuggestion::UnexpectedToken(
-                "'Identifier(\"foo\")'".to_string(),
-                "sla".to_string()
-            )]
-        );
-    }
     #[test]
     /// tests that [`suggestions_from_lexer`] returns [`SlynxSuggestion::UnrecognizedChar`] for [`LexerError::UnrecognizedChar`]
     fn test_suggestions_lexer() {

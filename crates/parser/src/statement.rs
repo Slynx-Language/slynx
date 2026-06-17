@@ -1,4 +1,4 @@
-use crate::{Parser, Result};
+use crate::{Parser, Result, flags::ParserFlag};
 use slynx_lexer::tokens::{Token, TokenKind};
 
 use crate::ast::{ASTStatement, ASTStatementKind};
@@ -9,7 +9,7 @@ impl Parser {
     ///Maybe, in the future, more things will be parsed.
     ///Obs: this function should initialize right after 'let' token, and the `letstan` is the span of the 'let' token
     pub fn parse_let_statement(&mut self, letspan: Span) -> Result<ASTStatement> {
-        self.set_flags(super::ParserFlags::RequireSemicolon);
+        self.add_flag(ParserFlag::RequireSemicolon);
         let mut mutable = false;
         if let TokenKind::Mut = self.peek()?.kind {
             self.eat()?;
@@ -53,12 +53,10 @@ impl Parser {
     }
 
     pub fn parse_while_statement(&mut self, span: Span) -> Result<ASTStatement> {
-        self.set_flags(super::ParserFlags::None);
+        self.reset_flags();
 
-        // 1. condition (ex: x < 10)
         let condition = self.parse_expression()?;
 
-        // 2. body { ... }
         let (body, block_span) = self.parse_block()?;
 
         // 3. AST
@@ -85,8 +83,8 @@ impl Parser {
 
             _ => {
                 let expr = self.parse_expression()?;
+                self.add_flag(ParserFlag::RequireSemicolon);
                 if matches!(self.peek()?.kind, TokenKind::Eq) && expr.is_assignable() {
-                    self.set_flags(super::ParserFlags::RequireSemicolon);
                     self.eat()?;
                     let rhs = self.parse_expression()?;
                     Ok(ASTStatement {
@@ -97,7 +95,6 @@ impl Parser {
                         kind: ASTStatementKind::Assign { lhs: expr, rhs },
                     })
                 } else {
-                    self.set_flags(super::ParserFlags::RequireSemicolon);
                     Ok(ASTStatement {
                         span: expr.span,
                         kind: ASTStatementKind::Expression(expr),

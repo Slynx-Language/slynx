@@ -84,6 +84,7 @@ impl SlynxHir {
             span,
             DeclarationId::new(fileid, id.local_id),
             typeid,
+            false,
         ));
         file.scopes.exit_scope();
 

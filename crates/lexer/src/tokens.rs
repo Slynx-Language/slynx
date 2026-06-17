@@ -25,6 +25,8 @@ pub enum TokenKind {
     If,
     #[token("else")]
     Else,
+    #[token("static")]
+    Static,
     #[token("component")]
     Component,
     #[token("func")]
@@ -49,6 +51,9 @@ pub enum TokenKind {
     StyleSheet,
     #[token("import")]
     Import,
+    #[token("extern")]
+    Extern,
+
     // Multi-char operators (must come before single-char)
     #[token("&&")]
     And,

@@ -2,7 +2,10 @@ use std::ops::{Deref, DerefMut};
 
 use common::SymbolsModule;
 
-use crate::{Component, Function, IRPointer, IRTypes, Instruction, Label, Opcode, Value};
+use crate::{
+    Component, Function, GlobalValue, IRBatchViewer, IRPointer, IRStorage, IRTypes, Instruction,
+    Label, Opcode, Value,
+};
 
 /// The top-level IR store.
 ///
@@ -27,6 +30,8 @@ use crate::{Component, Function, IRPointer, IRTypes, Instruction, Label, Opcode,
 /// pointer-chasing `instruction_pointers` lookups.
 #[derive(Debug)]
 pub struct SlynxIR {
+    ///Global values
+    pub(crate) globals: Vec<GlobalValue>,
     /// All functions.
     pub(crate) functions: Vec<Function>,
     /// All UI components.
@@ -54,6 +59,7 @@ impl SlynxIR {
         let types = IRTypes::new();
         let void_ty = types.void_type();
         Self {
+            globals: Vec::new(),
             functions: Vec::new(),
             components: Vec::new(),
             labels: Vec::new(),
@@ -113,8 +119,16 @@ impl SlynxIR {
         out.push_str(&fmt.format_functions());
         out
     }
+    pub fn view_all<'a, T>(&'a self) -> IRBatchViewer<'a, T>
+    where
+        Self: IRStorage<T>,
+    {
+        IRBatchViewer {
+            ptr: IRPointer::new(0, self.get_storage().len()),
+            ir: self,
+        }
+    }
 }
-
 impl Deref for SlynxIR {
     type Target = IRTypes;
     fn deref(&self) -> &Self::Target {

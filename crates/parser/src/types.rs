@@ -1,4 +1,5 @@
 use super::Parser;
+use crate::ExpectedContent;
 use crate::error::ParseError;
 use crate::{ASTDeclaration, ASTDeclarationKind, Result, ast::GenericIdentifier};
 use common::Span;
@@ -18,6 +19,7 @@ impl Parser {
                 end: target.span.end,
             },
             kind: ASTDeclarationKind::Alias { name, target },
+            external: false,
         })
     }
 
@@ -77,7 +79,7 @@ impl Parser {
                     _ => {
                         return Err(ParseError::UnexpectedToken(
                             self.eat()?,
-                            "expected ',' or ')' in tuple type".into(),
+                            ExpectedContent::Raw("Was expecting ',' or ')' in tuple type".into()),
                         ));
                     }
                 }

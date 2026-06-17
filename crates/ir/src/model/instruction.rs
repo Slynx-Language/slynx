@@ -1,6 +1,8 @@
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
-use crate::{Function, IRPointer, IRTypeId, Label, Operand, StyleProperty, Value};
+use crate::{
+    Function, GlobalValue, IRPointer, IRTypeId, Label, Operand, StyleProperty, SymbolPointer, Value,
+};
 
 // ── Opcode ─────────────────────────────────────────────────────────────────
 
@@ -73,6 +75,18 @@ pub enum Opcode {
     /// Operands: `[object, value]`.
     SetField(u16),
 
+    /// Dynamically get a field by name from an external object.
+    /// Operands: `[object]`.
+    DynGetField(SymbolPointer),
+
+    /// Dynamically set a field by name on an external object.
+    /// Operands: `[object, value]`.
+    DynSetField(SymbolPointer),
+
+    /// Dynamically call a method by name on an external object.
+    /// Operands: `[object, arg0, arg1, ...]`.
+    DynMethodCall(SymbolPointer),
+
     GetChild(u16),
 
     // ═══════════════════════════════════════════════════════════════════
@@ -116,6 +130,9 @@ pub enum Opcode {
 
     /// Call a style initializer function on a component.
     InitCall(IRPointer<Function, 1>),
+
+    Global(IRPointer<GlobalValue, 1>),
+    GlobalExtern(SymbolPointer),
 }
 
 // ── Instruction ────────────────────────────────────────────────────────────
@@ -157,6 +174,8 @@ impl Opcode {
             Opcode::Allocate
                 | Opcode::Write
                 | Opcode::SetField(_)
+                | Opcode::DynSetField(_)
+                | Opcode::DynMethodCall(_)
                 | Opcode::Call(_)
                 | Opcode::InitCall(_)
                 | Opcode::SApply { .. }
@@ -320,6 +339,40 @@ impl Instruction {
             value_type: ty,
         }
     }
+
+    pub fn dyngetfield(name: SymbolPointer, object: Value, ty: IRTypeId) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(object);
+        Instruction {
+            opcode: Opcode::DynGetField(name),
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn dynsetfield(name: SymbolPointer, object: Value, value: Value, ty: IRTypeId) -> Self {
+        let mut operands = SmallVec::new();
+        operands.push(object);
+        operands.push(value);
+        Instruction {
+            opcode: Opcode::DynSetField(name),
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn dynmethodcall(
+        name: SymbolPointer,
+        operands: SmallVec<[Value; 4]>,
+        ty: IRTypeId,
+    ) -> Self {
+        Instruction {
+            opcode: Opcode::DynMethodCall(name),
+            operands,
+            value_type: ty,
+        }
+    }
+
     pub fn getchild(index: u16, ty: IRTypeId) -> Self {
         Instruction {
             opcode: Opcode::GetChild(index),
@@ -374,7 +427,17 @@ impl Instruction {
             value_type: ty,
         }
     }
-
+    pub fn global_value(
+        value: IRPointer<GlobalValue, 1>,
+        ty: IRTypeId,
+        initial_value: Value,
+    ) -> Self {
+        Instruction {
+            opcode: Opcode::Global(value),
+            operands: smallvec![initial_value],
+            value_type: ty,
+        }
+    }
     // ── Binary op constructors ──
 
     binop_ctor!(add, Add);

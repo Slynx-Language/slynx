@@ -1,6 +1,7 @@
+.PHONY: test
 #Test the project and print output to the terminal.
 test:
-	cargo test -- --no-capture
+	STD_PATH=./lib/std cargo test --verbose
 
 #Run test with Rust backtraces enabled.
 #Shows a stack trace when a test panics.
@@ -29,7 +30,7 @@ release:
 
 #Checks if the compiler is running properly, according to CI/CD
 check:
-	cargo test --verbose
+	STD_PATH=./lib/std cargo test --verbose
 	cargo fmt --all -- --check
 	cargo clippy --all-targets --all-features -- -D warnings
 	cargo build --verbose
@@ -37,3 +38,6 @@ check:
 install_std:
 	mkdir -p ~/.slynx/std
 	cp -r lib/std/* ~/.slynx/std
+
+uninstall_std:
+	rm -r ~/.slynx/std

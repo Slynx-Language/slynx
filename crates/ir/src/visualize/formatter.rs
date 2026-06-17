@@ -3,8 +3,8 @@ use std::collections::{BTreeSet, HashMap, HashSet, hash_map::Entry};
 use common::SymbolsModule;
 
 use crate::{
-    Component, Function, IRComponentId, IRPointer, IRSpecializedComponentType, IRType, IRTypes,
-    IRViewer, Instruction, Label, Opcode, Operand, SlynxIR, Value,
+    Component, Function, GlobalValue, IRComponentId, IRPointer, IRSpecializedComponentType,
+    IRStorage, IRType, IRTypes, IRViewer, Instruction, Label, Opcode, Operand, SlynxIR, Value,
 };
 
 pub struct Formatter<'a> {
@@ -409,10 +409,17 @@ impl<'a> Formatter<'a> {
         format!("{header}{body}")
     }
 
+    pub fn fmt_global(&self, value: IRPointer<GlobalValue, 1>) -> String {
+        let name = self.ir.get_name(self.ir.get(value).name);
+        format!("%{name}")
+    }
+
     // ── instruction formatting ──
 
     pub fn format_instruction(&self, instr: &Instruction) -> String {
         match &instr.opcode {
+            Opcode::GlobalExtern(global) => format!("@extern \"{}\"", self.ir.get_name(*global)),
+            Opcode::Global(global_value) => self.fmt_global(*global_value),
             Opcode::Br(label_ptr) => {
                 let label_str = self.fmt_label_ref(*label_ptr);
                 let args = self.fmt_operands(&instr.operands);
@@ -464,6 +471,23 @@ impl<'a> Formatter<'a> {
                 let target = self.fmt_value(instr.operands[0]);
                 let value = self.fmt_value(instr.operands[1]);
                 format!("propset {target}, {index}, {value};")
+            }
+            Opcode::DynGetField(name) => {
+                let target = self.fmt_value(instr.operands[0]);
+                let name_str = self.ir.get_name(*name);
+                format!("dynpropget {target}, \"{name_str}\";")
+            }
+            Opcode::DynSetField(name) => {
+                let target = self.fmt_value(instr.operands[0]);
+                let value = self.fmt_value(instr.operands[1]);
+                let name_str = self.ir.get_name(*name);
+                format!("dynpropset {target}, \"{name_str}\", {value};")
+            }
+            Opcode::DynMethodCall(name) => {
+                let object = self.fmt_value(instr.operands[0]);
+                let args = self.fmt_operands(&instr.operands[1..]);
+                let name_str = self.ir.get_name(*name);
+                format!("dynmethodcall {object}, \"{name_str}\", ({args})")
             }
             Opcode::Call(func) => {
                 let args = self.fmt_operands(&instr.operands);
@@ -600,7 +624,12 @@ impl<'a> Formatter<'a> {
     fn produces_value(&self, instr: &Instruction) -> bool {
         !matches!(
             instr.opcode,
-            Opcode::Br(_) | Opcode::Cbr { .. } | Opcode::Write | Opcode::SetField(_) | Opcode::Ret
+            Opcode::Br(_)
+                | Opcode::Cbr { .. }
+                | Opcode::Write
+                | Opcode::SetField(_)
+                | Opcode::DynSetField(_)
+                | Opcode::Ret
         )
     }
 

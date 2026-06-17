@@ -102,7 +102,7 @@ pub struct SlynxContext {
     ///Maps the name of some file to it's lines. Used when wanting to retrieve for example, returning the lines where an error occuried
     lines: HashMap<Arc<PathBuf>, Vec<usize>>,
     entry_point: Arc<PathBuf>,
-    std: Option<PathBuf>,
+    std: PathBuf,
 }
 
 pub struct LineInfo<'a> {
@@ -117,13 +117,26 @@ pub struct LineInfo<'a> {
 }
 
 impl SlynxContext {
+    pub fn std_dir(std_path: Option<PathBuf>) -> PathBuf {
+        if let Some(std) = std_path {
+            std
+        } else if let Ok(path) = std::env::var("STD_PATH") {
+            PathBuf::from(path)
+        } else {
+            std::env::home_dir()
+                .expect("Expected to have home dir")
+                .join(".slynx")
+                .join("std")
+        }
+    }
+
     pub fn new(entry_point: PathBuf, std_path: Option<PathBuf>) -> std::io::Result<Self> {
         let entry_point = Arc::new(entry_point);
         let mut out = Self {
             files: HashMap::new(),
             lines: HashMap::new(),
             entry_point: entry_point.clone(),
-            std: std_path,
+            std: Self::std_dir(std_path),
         };
         out.insert_file(entry_point)?;
         Ok(out)
@@ -140,7 +153,7 @@ impl SlynxContext {
             files: HashMap::from([(entry.clone(), src)]),
             lines: HashMap::from([(entry.clone(), lines)]),
             entry_point: entry,
-            std: None,
+            std: Self::std_dir(None),
         }
     }
 

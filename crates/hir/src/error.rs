@@ -1,5 +1,5 @@
 use crate::{
-    SymbolPointer,
+    SymbolPointer, TypeId,
     model::{HirExpression, HirType},
     module_loader::FileId,
 };
@@ -61,6 +61,7 @@ pub enum HIRErrorKind {
     PropertyNotRecognized {
         /// The names of the unrecognized properties.
         prop_names: Vec<SymbolPointer>,
+        ty: TypeId,
     },
     /// A property was accessed that exists but is not visible from the current context.
     PropertyNotVisible {
@@ -79,7 +80,7 @@ pub enum HIRErrorKind {
     /// A type definition is recursive without indirection, which is not allowed.
     RecursiveType {
         /// The type symbol that is recursive.
-        ty: SymbolPointer,
+        ty: TypeId,
     },
     /// A call was made to a value that is not a function.
     NotAFunction(SymbolPointer, HirType),
@@ -168,7 +169,7 @@ impl HIRError {
     }
 
     /// Creates a [`HIRErrorKind::RecursiveType`] error for the given type symbol.
-    pub fn recursive(ty: SymbolPointer, span: Span) -> Self {
+    pub fn recursive(ty: TypeId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::RecursiveType { ty },
             span,
@@ -210,9 +211,12 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::PropertyNotRecognized`] error listing the unrecognized property names.
-    pub fn property_unrecognized(names: Vec<SymbolPointer>, span: Span) -> Self {
+    pub fn property_unrecognized(ty: TypeId, names: Vec<SymbolPointer>, span: Span) -> Self {
         Self {
-            kind: HIRErrorKind::PropertyNotRecognized { prop_names: names },
+            kind: HIRErrorKind::PropertyNotRecognized {
+                prop_names: names,
+                ty,
+            },
             span,
         }
     }

@@ -1,6 +1,6 @@
 use crate::{
-    ASTExpression, ASTExpressionKind, ComponentExpression, ComponentMemberValue, GenericIdentifier,
-    NamedExpr,
+    ASTExpression, ASTExpressionKind, ComponentExpression, ComponentMemberValue, ExpectedContent,
+    GenericIdentifier, NamedExpr,
 };
 use crate::{Parser, Result, error::ParseError};
 use common::{Operator, Span};
@@ -38,7 +38,7 @@ impl Parser {
                 _ => {
                     return Err(ParseError::UnexpectedToken(
                         self.eat()?,
-                        "an expression or ','".to_string(),
+                        ExpectedContent::Raw("Was expecting an ','".to_string()),
                     ));
                 }
             }
@@ -197,22 +197,16 @@ impl Parser {
     pub fn parse_identifier_exprs(&mut self) -> Result<Option<ASTExpression>> {
         let after_identifier = &self.peek_at(1)?.kind;
         match after_identifier {
-            TokenKind::Lt => {
-                if let (true, _) = self.is_generic(2)? {
-                    let ty = self.parse_type()?;
-                    if let TokenKind::LBrace = self.peek()?.kind {
-                        let component = self.parse_component_expr_with_name(ty)?;
-                        Ok(Some(ASTExpression {
-                            span: component.span,
-                            kind: ASTExpressionKind::Component(component),
-                        }))
-                    } else {
-                        Err(ParseError::UnexpectedToken(self.eat()?, "'{'".to_string()))
-                    }
-                } else {
-                    Ok(None)
-                }
+            TokenKind::Lt if let (true, _) = self.is_generic(2)? => {
+                let ty = self.parse_type()?;
+                self.expect(&TokenKind::LBrace)?;
+                let component = self.parse_component_expr_with_name(ty)?;
+                Ok(Some(ASTExpression {
+                    span: component.span,
+                    kind: ASTExpressionKind::Component(component),
+                }))
             }
+            TokenKind::Lt => Ok(None),
             TokenKind::LBrace if self.component_expr_enabled() => {
                 let component = self.parse_component_expr()?;
                 Ok(Some(ASTExpression {
@@ -333,7 +327,7 @@ impl Parser {
 
                 _ => Err(ParseError::UnexpectedToken(
                     current,
-                    "an expression".to_string(),
+                    ExpectedContent::Raw("Was expecting an expression".to_string()),
                 )),
             }?
         };

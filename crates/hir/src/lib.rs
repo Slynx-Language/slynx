@@ -306,6 +306,7 @@ impl SlynxHir {
             }
             *self.files[idx].write() = HirFile::new(module.id);
         }
+
         for module in modules {
             for ast in &module.declarations {
                 let mut should_register = None;
@@ -410,20 +411,48 @@ impl SlynxHir {
                 methods,
             } => {
                 let id = self.create_empty_object(file, name, fields, ast.visibility);
-                self.lower_methods(id, methods)?;
+                if ast.external {
+                    let decl_ty = self.get_declaration_type(id);
+                    self.types_module.mark_external(decl_ty);
+                    for method in methods {
+                        let return_type = self.get_type_of_name(
+                            self.intern_name(&method.return_type.identifier),
+                            &method.return_type.span,
+                        )?;
+                        let method_symbol = self.intern_name(&method.method_name.identifier);
+                        self.types_module.register_external_method(
+                            decl_ty,
+                            method_symbol,
+                            return_type,
+                        );
+                    }
+                } else {
+                    self.lower_methods(id, methods)?;
+                }
                 id
             }
 
             ASTDeclarationKind::FuncDeclaration { name, args, .. } => {
-                self.hoist_function(file, name, args, ast.visibility)?
+                let id = self.hoist_function(file, name, args, ast.visibility)?;
+                if ast.external {
+                    let decl_ty = self.get_declaration_type(id);
+                    self.types_module.mark_external(decl_ty);
+                }
+                id
             }
             ASTDeclarationKind::ComponentDeclaration { name, members, .. } => {
-                self.hoist_component(file, name, members, ast.visibility)?
+                let id = self.hoist_component(file, name, members, ast.visibility)?;
+                if ast.external {
+                    let decl_ty = self.get_declaration_type(id);
+                    self.types_module.mark_external(decl_ty);
+                }
+                id
             }
             ASTDeclarationKind::Import(_) => {
                 return Ok(());
                 //modules loader already solved so
             }
+            ASTDeclarationKind::Static { name, .. } => self.create_static(file, name)?,
         };
         if let Some(name) = should_register {
             self.lang_items.register(name, declarationid);
@@ -465,6 +494,14 @@ impl SlynxHir {
                 }
                 Ok(())
             }
+            ASTDeclarationKind::Static { value: Some(_), .. } => unimplemented!(
+                "Statics with initial values not implemented yet. Feature for comptime"
+            ),
+            ASTDeclarationKind::Static {
+                value: None,
+                name,
+                ty,
+            } => self.resolve_static_type(name, ty, &ast.span),
             _ => Ok(()),
         }
     }
@@ -476,20 +513,28 @@ impl SlynxHir {
                 let symbol = self.intern_name(&name.identifier);
                 let (decl, declty) = self.find_declaration_by_name(&symbol, ast.span)?;
                 self.get_file_mut(file)
-                    .create_declaration(HirDeclaration::new_object(decl, declty, ast.span));
-                let self_ty = self.get_declaration_type(decl);
-                for method in methods {
-                    self.resolve_function(
-                        file,
-                        FunctionData {
-                            name: &method.method_name,
-                            args: &method.arguments,
-                            return_type: &method.return_type,
-                            body: &method.body,
-                            span: &method.span,
-                        },
-                        Some(self_ty),
-                    )?;
+                    .create_declaration(HirDeclaration::new_object(
+                        decl,
+                        declty,
+                        ast.span,
+                        ast.external,
+                    ));
+                if !ast.external {
+                    let self_ty = self.get_declaration_type(decl);
+                    for method in methods {
+                        self.resolve_function(
+                            file,
+                            FunctionData {
+                                name: &method.method_name,
+                                args: &method.arguments,
+                                return_type: &method.return_type,
+                                body: &method.body,
+                                span: &method.span,
+                                external: ast.external,
+                            },
+                            Some(self_ty),
+                        )?;
+                    }
                 }
                 Ok(())
             }
@@ -497,7 +542,12 @@ impl SlynxHir {
                 let alias_name = self.intern_name(&name.identifier);
                 let (decl, ty) = self.find_declaration_by_name(&alias_name, ast.span)?;
                 self.get_file_mut(file)
-                    .create_declaration(HirDeclaration::new_alias(decl, ty, ast.span));
+                    .create_declaration(HirDeclaration::new_alias(
+                        decl,
+                        ty,
+                        ast.span,
+                        ast.external,
+                    ));
                 Ok(())
             }
             ASTDeclarationKind::FuncDeclaration {
@@ -513,6 +563,7 @@ impl SlynxHir {
                     return_type,
                     body,
                     span: &ast.span,
+                    external: ast.external,
                 },
                 None,
             ),
@@ -525,6 +576,9 @@ impl SlynxHir {
                 usages,
                 body,
             } => self.resolve_stylesheet(file, name, args, usages, body, ast.span),
+            ASTDeclarationKind::Static {
+                value: None, name, ..
+            } => self.create_static_declaration(name, &ast.span, ast.external),
             _ => Ok(()),
         }
     }

@@ -1,4 +1,7 @@
 mod storage;
+mod value;
+use std::ops::Deref;
+
 pub use storage::*;
 mod component;
 mod function;
@@ -18,6 +21,18 @@ where
 {
     pub fn value(&self) -> &T {
         self.ir.get_idx(self.ptr.ptr())
+    }
+    pub fn ptr(&self) -> IRPointer<T, 1> {
+        self.ptr
+    }
+}
+impl<'a, T> Deref for IRViewer<'a, T>
+where
+    SlynxIR: IRStorage<T>,
+{
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.ir.get(self.ptr)
     }
 }
 
@@ -40,5 +55,9 @@ impl<'a, T> IRBatchViewer<'a, T> {
     {
         let range = self.ptr.range();
         &self.ir.get_storage()[range]
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = IRViewer<'a, T>> {
+        (0..self.ptr.len()).map(|idx| self.at(idx))
     }
 }

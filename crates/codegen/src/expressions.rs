@@ -1,9 +1,10 @@
 use common::Operator;
 use slynx_hir::{
     DeclarationId, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir,
-    TypeId,
+    SymbolPointer, TypeId,
 };
-use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Operand, Value};
+use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
+use smallvec::SmallVec;
 
 use crate::{Codegen, CodegenError, functions::FunctionContext};
 
@@ -100,11 +101,21 @@ impl Codegen {
         &mut self,
         expr: &HirExpression,
         field_index: u16,
+        field_name: Option<SymbolPointer>,
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
         let value = self.lower_expression(expr, hir, ctx)?;
-        Ok(ctx.get_field(value, field_index))
+        if hir.types_module.is_external(&expr.ty) {
+            let name = self.intern_to_ir(
+                hir,
+                ctx.ir(),
+                field_name.expect("External field access must have a field name"),
+            );
+            Ok(ctx.dyn_get_field(value, name))
+        } else {
+            Ok(ctx.get_field(value, field_index))
+        }
     }
 
     fn generate_logic_and_instruction<'a>(
@@ -189,6 +200,20 @@ impl Codegen {
         };
 
         let value = match &expr.kind {
+            HirExpressionKind::Static { id } => {
+                if let Some(ty) = self.external_statics.get(id) {
+                    let name = hir.get_declaration_name(*id);
+                    let name = context.ir().strings.intern(name);
+                    context.emit(Opcode::GlobalExtern(name), SmallVec::new(), *ty)
+                } else {
+                    let id = *self
+                        .globals
+                        .get(id)
+                        .ok_or(CodegenError::DeclarationNotRecognized(*id))?;
+                    let ty = context.ir().get_view(id).ty();
+                    context.emit(Opcode::Global(id), SmallVec::new(), ty)
+                }
+            }
             HirExpressionKind::Tuple(vector) => {
                 self.lower_tuple_expression(vector, hir, context)?
             }
@@ -216,18 +241,33 @@ impl Codegen {
             HirExpressionKind::Object { name, fields } => {
                 self.lower_struct_literal(*name, fields, hir, context)?
             }
-            HirExpressionKind::FieldAccess { expr, field_index } => {
-                self.lower_field_access(expr, *field_index as u16, hir, context)?
-            }
+            HirExpressionKind::FieldAccess {
+                expr,
+                field_index,
+                field_name,
+            } => self.lower_field_access(expr, *field_index as u16, *field_name, hir, context)?,
             HirExpressionKind::Component(c) => self.get_component_expression(c, hir, context)?.0,
             HirExpressionKind::If {
                 condition,
                 then_branch,
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
-            HirExpressionKind::MethodCall { .. } => unreachable!(
-                "Method call should not be reacheable. It sohuld have been transformed into function call on type checker"
-            ),
+            HirExpressionKind::MethodCall { parent, name, args } => {
+                let value = self.lower_expression(parent, hir, context)?;
+                if !hir.types_module.is_external(&parent.ty) {
+                    unreachable!(
+                        "Method named as {} should have been transformed into function call on type checker",
+                        hir.get_name(*name)
+                    )
+                }
+                let name = self.intern_to_ir(hir, context.ir(), *name);
+                let args: Vec<Value> = args
+                    .iter()
+                    .map(|arg| self.lower_expression(arg, hir, context))
+                    .collect::<Result<_, _>>()?;
+                let ret_ty = self.get_or_create_ir_type(&expr.ty, hir, context.ir())?;
+                context.dyn_method_call(value, name, &args, ret_ty)
+            }
         };
         Ok(value)
     }

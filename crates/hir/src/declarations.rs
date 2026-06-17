@@ -13,9 +13,49 @@ pub struct FunctionData<'a> {
     pub(crate) return_type: &'a GenericIdentifier,
     pub(crate) body: &'a [ASTStatement],
     pub(crate) span: &'a Span,
+    pub(crate) external: bool,
 }
 
 impl SlynxHir {
+    pub(crate) fn create_static(&self, file: FileId, name: &str) -> Result<DeclarationId> {
+        let symbol = self.intern_name(name);
+        let ty = self.types_module.create_type(symbol, HirType::Infer);
+        let local = self
+            .get_file_mut(file)
+            .declarations
+            .register_declaration_metadata(symbol, ty, VisibilityModifier::Private);
+        Ok(DeclarationId::new(file, local))
+    }
+    pub(crate) fn resolve_static_type(
+        &self,
+        name: &str,
+        ty: &GenericIdentifier,
+        span: &Span,
+    ) -> Result<()> {
+        let ty_symbol = self.intern_name(&ty.identifier);
+        let symbol = self.intern_name(name);
+        let (_, ty) = self.find_declaration_by_name(&symbol, *span)?;
+        {
+            let mut ty = self.types_module.get_type_mut(ty);
+            *ty = HirType::new_ref(self.get_type_of_name(ty_symbol, span)?);
+        };
+        Ok(())
+    }
+
+    pub(crate) fn create_static_declaration(
+        &self,
+        name: &str,
+        span: &Span,
+        external: bool,
+    ) -> Result<()> {
+        let symbol = self.intern_name(name);
+        let (id, _) = self.find_declaration_by_name(&symbol, *span)?;
+        let tyid = self.get_file(id.file_id).get_declaration_type(id.local_id);
+        self.get_file_mut(id.file_id)
+            .create_declaration(HirDeclaration::new_static(id, tyid, *span, external));
+        Ok(())
+    }
+
     /// Hoists a function declaration by registering its signature without processing its body.
     pub(crate) fn hoist_function(
         &self,
@@ -48,10 +88,21 @@ impl SlynxHir {
             return_type,
             body,
             span,
+            external,
         }: FunctionData,
         self_type: Option<TypeId>,
     ) -> Result<()> {
         let symbol = self.intern_name(&name.identifier);
+        let mangled_symbol = if let Some(self_type) = self_type {
+            self.get_name_of_type(self_type)
+                .map(|type_name| {
+                    let type_name = self.get_name(type_name);
+                    self.intern_name(&format!("{}_{}", name.identifier, type_name))
+                })
+                .unwrap_or(symbol)
+        } else {
+            symbol
+        };
         let (decl, tyid) = self.find_declaration_by_name(&symbol, name.span)?;
 
         // Hold write lock only for scope entry, release before subcalls that need read locks.
@@ -115,7 +166,13 @@ impl SlynxHir {
         // Re-acquire write lock only for declaration creation and scope exit.
         let mut file = self.get_file_mut(fileid);
         file.create_declaration(HirDeclaration::new_function(
-            statements, args, symbol, *span, decl, tyid,
+            statements,
+            args,
+            mangled_symbol,
+            *span,
+            decl,
+            tyid,
+            external,
         ));
         file.scopes.exit_scope();
         Ok(())
@@ -136,6 +193,15 @@ impl SlynxHir {
             };
             *alias_ty = HirType::new_ref(target_ty);
         }
+        if self.types_module.is_cyclic(target_ty) {
+            return Err(HIRError::recursive(target_ty, target.span));
+        }
+        if self.types_module.is_external(&target_ty)
+            && let Some(alias_id) = self.types_module.get_id(&alias_name)
+        {
+            self.types_module.mark_external(alias_id);
+        }
+
         Ok(())
     }
 }

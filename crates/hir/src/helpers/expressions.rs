@@ -1,5 +1,6 @@
 use crate::{
-    ExpressionId, HirComponentExpression, SlynxHir, SymbolPointer, TypeId, VariableId,
+    DeclarationId, ExpressionId, HirComponentExpression, SlynxHir, SymbolPointer, TypeId,
+    VariableId,
     model::{HirExpression, HirExpressionKind, HirStatement},
 };
 use common::{Operator, Span};
@@ -44,6 +45,7 @@ impl SlynxHir {
         &self,
         parent: HirExpression,
         field: usize,
+        field_name: Option<SymbolPointer>,
         ty: TypeId,
         span: Span,
     ) -> HirExpression {
@@ -53,6 +55,7 @@ impl SlynxHir {
             kind: HirExpressionKind::FieldAccess {
                 expr: Box::new(parent),
                 field_index: field,
+                field_name,
             },
             span,
         }
@@ -162,6 +165,20 @@ impl SlynxHir {
             kind: HirExpressionKind::Component(component),
             id: ExpressionId::new(), // Changed to ExpressionId
             ty,
+            span,
+        }
+    }
+    /// Creates a tuple expression with the given type and values.
+    pub(crate) fn create_static_expression(
+        &self,
+        decl: DeclarationId,
+        ty: TypeId,
+        span: Span,
+    ) -> HirExpression {
+        HirExpression {
+            id: ExpressionId::new(),
+            ty,
+            kind: HirExpressionKind::Static { id: decl },
             span,
         }
     }

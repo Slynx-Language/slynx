@@ -46,11 +46,22 @@ impl Codegen {
                 context.write(slot, value);
             }
             HirExpressionKind::FieldAccess {
-                expr: parent,
+                expr: parent_expr,
                 field_index,
+                field_name,
             } => {
-                let parent = self.lower_expression(parent, hir, context)?;
-                context.set_field(parent, *field_index as u16, value);
+                let is_external = hir.types_module.is_external(&parent_expr.ty);
+                let parent = self.lower_expression(parent_expr, hir, context)?;
+                if is_external {
+                    let name = self.intern_to_ir(
+                        hir,
+                        context.ir(),
+                        field_name.expect("External field access must have a field name"),
+                    );
+                    context.dyn_set_field(parent, name, value);
+                } else {
+                    context.set_field(parent, *field_index as u16, value);
+                }
             }
             _ => unreachable!("LHS of assignment must be Identifier or FieldAccess"),
         }
