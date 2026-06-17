@@ -80,7 +80,7 @@ pub enum HIRErrorKind {
     /// A type definition is recursive without indirection, which is not allowed.
     RecursiveType {
         /// The type symbol that is recursive.
-        ty: SymbolPointer,
+        ty: TypeId,
     },
     /// A call was made to a value that is not a function.
     NotAFunction(SymbolPointer, HirType),
@@ -169,7 +169,7 @@ impl HIRError {
     }
 
     /// Creates a [`HIRErrorKind::RecursiveType`] error for the given type symbol.
-    pub fn recursive(ty: SymbolPointer, span: Span) -> Self {
+    pub fn recursive(ty: TypeId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::RecursiveType { ty },
             span,

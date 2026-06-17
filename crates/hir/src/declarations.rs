@@ -49,7 +49,7 @@ impl SlynxHir {
         external: bool,
     ) -> Result<()> {
         let symbol = self.intern_name(name);
-        let (id, ty) = self.find_declaration_by_name(&symbol, *span)?;
+        let (id, _) = self.find_declaration_by_name(&symbol, *span)?;
         let tyid = self.get_file(id.file_id).get_declaration_type(id.local_id);
         self.get_file_mut(id.file_id)
             .create_declaration(HirDeclaration::new_static(id, tyid, *span, external));
@@ -166,7 +166,13 @@ impl SlynxHir {
         // Re-acquire write lock only for declaration creation and scope exit.
         let mut file = self.get_file_mut(fileid);
         file.create_declaration(HirDeclaration::new_function(
-            statements, args, mangled_symbol, *span, decl, tyid, external,
+            statements,
+            args,
+            mangled_symbol,
+            *span,
+            decl,
+            tyid,
+            external,
         ));
         file.scopes.exit_scope();
         Ok(())
@@ -187,12 +193,15 @@ impl SlynxHir {
             };
             *alias_ty = HirType::new_ref(target_ty);
         }
-        // Propagate externality through aliases
+        if self.types_module.is_cyclic(target_ty) {
+            return Err(HIRError::recursive(target_ty, target.span));
+        }
         if self.types_module.is_external(&target_ty)
             && let Some(alias_id) = self.types_module.get_id(&alias_name)
         {
             self.types_module.mark_external(alias_id);
         }
+
         Ok(())
     }
 }

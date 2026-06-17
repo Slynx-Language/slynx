@@ -40,12 +40,13 @@ impl SlynxHir {
         let mut fields = fields
             .iter()
             .map(|field| {
-                let symbol_name = self.intern_name(&name.identifier);
-                if self.intern_name(&field.name.name) == symbol_name {
-                    Err(HIRError::recursive(symbol_name, field.name.span))
+                let field_name = self.intern_name(&field.name.kind.identifier);
+                let ty = self.get_type_of_name(field_name, &field.name.span)?;
+
+                if self.types_module.is_cyclic(ty) {
+                    Err(HIRError::recursive(ty, field.name.span))
                 } else {
-                    let name = self.intern_name(&field.name.kind.identifier);
-                    self.get_type_of_name(name, &field.name.span)
+                    Ok(ty)
                 }
             })
             .collect::<Result<Vec<_>>>()?;

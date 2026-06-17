@@ -306,6 +306,7 @@ impl SlynxHir {
             }
             *self.files[idx].write() = HirFile::new(module.id);
         }
+
         for module in modules {
             for ast in &module.declarations {
                 let mut should_register = None;
@@ -419,7 +420,11 @@ impl SlynxHir {
                             &method.return_type.span,
                         )?;
                         let method_symbol = self.intern_name(&method.method_name.identifier);
-                        self.types_module.register_external_method(decl_ty, method_symbol, return_type);
+                        self.types_module.register_external_method(
+                            decl_ty,
+                            method_symbol,
+                            return_type,
+                        );
                     }
                 } else {
                     self.lower_methods(id, methods)?;
@@ -571,9 +576,9 @@ impl SlynxHir {
                 usages,
                 body,
             } => self.resolve_stylesheet(file, name, args, usages, body, ast.span, ast.external),
-            ASTDeclarationKind::Static { value: None, name, .. } => {
-                self.create_static_declaration(name, &ast.span, ast.external)
-            }
+            ASTDeclarationKind::Static {
+                value: None, name, ..
+            } => self.create_static_declaration(name, &ast.span, ast.external),
             _ => Ok(()),
         }
     }
