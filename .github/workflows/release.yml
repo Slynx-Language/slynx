@@ -24,7 +24,9 @@ jobs:
           components: rustfmt, clippy
 
       - name: Run tests
-        run: STD_PATH=./lib/std cargo test --verbose
+        env:
+          STD_PATH: ./lib/std
+        run: cargo test --verbose
 
       - name: Check formatting
         run: cargo fmt --all -- --check
