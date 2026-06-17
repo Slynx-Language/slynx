@@ -43,7 +43,9 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Run tests
-        run: STD_PATH=./lib/std cargo test --verbose
+        env:
+          STD_PATH: ./lib/std
+        run: cargo test --verbose
 
   fmt:
     name: Format
