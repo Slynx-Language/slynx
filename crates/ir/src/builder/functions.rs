@@ -373,12 +373,12 @@ impl FunctionBuilder<'_> {
         object: Value,
         name: SymbolPointer,
         args: &[Value],
+        return_type: IRTypeId,
     ) -> Value {
         let mut operands = SmallVec::with_capacity(1 + args.len());
         operands.push(object);
         operands.extend_from_slice(args);
-        let ty = self.value_type(object);
-        self.emit(Opcode::DynMethodCall(name), operands, ty)
+        self.emit(Opcode::DynMethodCall(name), operands, return_type)
     }
 
     pub fn struct_literal(&mut self, ty: IRTypeId, fields: &[Value]) -> Value {

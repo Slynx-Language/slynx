@@ -265,7 +265,8 @@ impl Codegen {
                     .iter()
                     .map(|arg| self.lower_expression(arg, hir, context))
                     .collect::<Result<_, _>>()?;
-                context.dyn_method_call(value, name, &args)
+                let ret_ty = self.get_or_create_ir_type(&expr.ty, hir, context.ir())?;
+                context.dyn_method_call(value, name, &args, ret_ty)
             }
         };
         Ok(value)
