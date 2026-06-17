@@ -3,7 +3,7 @@ use dashmap::{DashMap, DashSet};
 use parking_lot::{RawRwLock, RwLock, RwLockReadGuard, lock_api::RwLockWriteGuard};
 
 use crate::{DeclarationId, HIRError, Result, SymbolPointer, TypeId, VariableId, model::HirType};
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 const INT_IDX: usize = 0;
 const FLOAT_IDX: usize = 1;
@@ -219,13 +219,24 @@ impl TypesContext {
     }
 
     /// Register an external method's return type without creating a declaration entry.
-    pub fn register_external_method(&self, parent_ty: TypeId, name: SymbolPointer, return_type: TypeId) {
+    pub fn register_external_method(
+        &self,
+        parent_ty: TypeId,
+        name: SymbolPointer,
+        return_type: TypeId,
+    ) {
         self.external_methods.insert((parent_ty, name), return_type);
     }
 
     /// Returns the return type of an external method on `parent_ty` with the given `name`.
-    pub fn get_method_return_type(&self, parent_ty: &TypeId, name: SymbolPointer) -> Option<TypeId> {
-        self.external_methods.get(&(*parent_ty, name)).map(|ret| *ret.value())
+    pub fn get_method_return_type(
+        &self,
+        parent_ty: &TypeId,
+        name: SymbolPointer,
+    ) -> Option<TypeId> {
+        self.external_methods
+            .get(&(*parent_ty, name))
+            .map(|ret| *ret.value())
     }
 
     ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
@@ -307,16 +318,38 @@ impl TypesContext {
             match &*guard {
                 HirType::Reference { rf, .. } => {
                     if !visited.insert(current) {
-                        let name = self
-                            .get_type_name(&current)
-                            .expect("Type should contain a name");
-                        return Err(HIRError::recursive(name, *span));
+                        return Err(HIRError::recursive(current, *span));
                     }
                     current = *rf;
                 }
                 _ => return Ok(current),
             }
         }
+    }
+
+    pub fn is_cyclic(&self, ty: TypeId) -> bool {
+        let mut set = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(ty);
+        while let Some(ty) = queue.pop_front() {
+            if !set.insert(ty) {
+                return true;
+            }
+            let guard = self.get_type(&ty);
+
+            match &*guard {
+                HirType::Reference { rf, .. } => {
+                    queue.push_back(*rf);
+                }
+                HirType::Struct { fields } | HirType::Tuple { fields } => {
+                    for field in fields {
+                        queue.push_back(*field);
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
     }
 
     /// Mark a type as external. Also traverses `Reference` wrappers to mark
@@ -342,6 +375,7 @@ impl TypesContext {
         if self.externals.contains(ty) {
             return true;
         }
+
         let mut current = *ty;
         loop {
             let guard = self.get_type(&current);
