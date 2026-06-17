@@ -483,6 +483,12 @@ impl<'a> Formatter<'a> {
                 let name_str = self.ir.get_name(*name);
                 format!("dynpropset {target}, \"{name_str}\", {value};")
             }
+            Opcode::DynMethodCall(name) => {
+                let object = self.fmt_value(instr.operands[0]);
+                let args = self.fmt_operands(&instr.operands[1..]);
+                let name_str = self.ir.get_name(*name);
+                format!("dynmethodcall {object}, \"{name_str}\", ({args})")
+            }
             Opcode::Call(func) => {
                 let args = self.fmt_operands(&instr.operands);
                 let view = self.ir.get_view(*func);

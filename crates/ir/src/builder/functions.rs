@@ -1,4 +1,4 @@
-use smallvec::smallvec;
+use smallvec::{SmallVec, smallvec};
 
 use crate::{
     Component, ComponentValueBuilder, Function, IRError, IRErrorDescription, IRErrorKind,
@@ -364,6 +364,21 @@ impl FunctionBuilder<'_> {
     /// Dynamically set a field by name on an external object.
     pub fn dyn_set_field(&mut self, object: Value, name: SymbolPointer, value: Value) -> Value {
         self.emit_void(Opcode::DynSetField(name), smallvec![object, value])
+    }
+
+    /// Dynamically call a method by name on an external object.
+    /// Operands: `[object, arg0, arg1, ...]`.
+    pub fn dyn_method_call(
+        &mut self,
+        object: Value,
+        name: SymbolPointer,
+        args: &[Value],
+    ) -> Value {
+        let mut operands = SmallVec::with_capacity(1 + args.len());
+        operands.push(object);
+        operands.extend_from_slice(args);
+        let ty = self.value_type(object);
+        self.emit(Opcode::DynMethodCall(name), operands, ty)
     }
 
     pub fn struct_literal(&mut self, ty: IRTypeId, fields: &[Value]) -> Value {

@@ -83,6 +83,10 @@ pub enum Opcode {
     /// Operands: `[object, value]`.
     DynSetField(SymbolPointer),
 
+    /// Dynamically call a method by name on an external object.
+    /// Operands: `[object, arg0, arg1, ...]`.
+    DynMethodCall(SymbolPointer),
+
     GetChild(u16),
 
     // ═══════════════════════════════════════════════════════════════════
@@ -171,6 +175,7 @@ impl Opcode {
                 | Opcode::Write
                 | Opcode::SetField(_)
                 | Opcode::DynSetField(_)
+                | Opcode::DynMethodCall(_)
                 | Opcode::Call(_)
                 | Opcode::InitCall(_)
                 | Opcode::SApply { .. }
@@ -351,6 +356,18 @@ impl Instruction {
         operands.push(value);
         Instruction {
             opcode: Opcode::DynSetField(name),
+            operands,
+            value_type: ty,
+        }
+    }
+
+    pub fn dynmethodcall(
+        name: SymbolPointer,
+        operands: SmallVec<[Value; 4]>,
+        ty: IRTypeId,
+    ) -> Self {
+        Instruction {
+            opcode: Opcode::DynMethodCall(name),
             operands,
             value_type: ty,
         }
