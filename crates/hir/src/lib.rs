@@ -438,6 +438,7 @@ impl SlynxHir {
                 return Ok(());
                 //modules loader already solved so
             }
+            ASTDeclarationKind::Static { name, .. } => self.create_static(file, &name)?,
         };
         if let Some(name) = should_register {
             self.lang_items.register(name, declarationid);
@@ -479,6 +480,14 @@ impl SlynxHir {
                 }
                 Ok(())
             }
+            ASTDeclarationKind::Static { value: Some(_), .. } => unimplemented!(
+                "Statics with initial values not implemented yet. Feature for comptime"
+            ),
+            ASTDeclarationKind::Static {
+                value: None,
+                name,
+                ty,
+            } => self.resolve_static(name, ty, &ast.span, ast.external),
             _ => Ok(()),
         }
     }
@@ -490,7 +499,12 @@ impl SlynxHir {
                 let symbol = self.intern_name(&name.identifier);
                 let (decl, declty) = self.find_declaration_by_name(&symbol, ast.span)?;
                 self.get_file_mut(file)
-                    .create_declaration(HirDeclaration::new_object(decl, declty, ast.span, ast.external));
+                    .create_declaration(HirDeclaration::new_object(
+                        decl,
+                        declty,
+                        ast.span,
+                        ast.external,
+                    ));
                 let self_ty = self.get_declaration_type(decl);
                 for method in methods {
                     self.resolve_function(
@@ -512,7 +526,12 @@ impl SlynxHir {
                 let alias_name = self.intern_name(&name.identifier);
                 let (decl, ty) = self.find_declaration_by_name(&alias_name, ast.span)?;
                 self.get_file_mut(file)
-                    .create_declaration(HirDeclaration::new_alias(decl, ty, ast.span, ast.external));
+                    .create_declaration(HirDeclaration::new_alias(
+                        decl,
+                        ty,
+                        ast.span,
+                        ast.external,
+                    ));
                 Ok(())
             }
             ASTDeclarationKind::FuncDeclaration {

@@ -200,11 +200,13 @@ pub enum HirDeclarationKind {
         ///The usages to be applied before
         usages: Vec<HirStyleUsage>,
     },
-
     /// A type alias declaration.
     ///
     /// Aliases create alternative names for existing types.
     Alias,
+
+    /// A Static value. The type of it is the type of the declaration itself
+    Static,
 }
 
 /// A member of a component declaration.
@@ -488,6 +490,17 @@ impl HirDeclaration {
         Self {
             id: decl,
             kind: HirDeclarationKind::Alias,
+            ty,
+            span,
+            visibility: Default::default(),
+            external,
+        }
+    }
+
+    pub fn new_static(decl: DeclarationId, ty: TypeId, span: Span, external: bool) -> Self {
+        Self {
+            id: decl,
+            kind: HirDeclarationKind::Static,
             ty,
             span,
             visibility: Default::default(),

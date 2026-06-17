@@ -17,6 +17,36 @@ pub struct FunctionData<'a> {
 }
 
 impl SlynxHir {
+    pub(crate) fn create_static(&self, file: FileId, name: &str) -> Result<DeclarationId> {
+        let symbol = self.intern_name(name);
+        let ty = self.types_module.create_type(symbol, HirType::Infer);
+        let local = self
+            .get_file_mut(file)
+            .declarations
+            .register_declaration_metadata(symbol, ty, VisibilityModifier::Private);
+        Ok(DeclarationId::new(file, local))
+    }
+    pub(crate) fn resolve_static(
+        &self,
+        name: &str,
+        ty: &GenericIdentifier,
+        span: &Span,
+        external: bool,
+    ) -> Result<()> {
+        let ty_symbol = self.intern_name(&ty.identifier);
+        let symbol = self.intern_name(name);
+        let (id, ty) = self.find_declaration_by_name(&symbol, *span)?;
+        {
+            let mut ty = self.types_module.get_type_mut(ty);
+            *ty = HirType::new_ref(self.get_type_of_name(ty_symbol, span)?);
+        };
+        let tyid = self.get_file(id.file_id).get_declaration_type(id.local_id);
+        self.get_file_mut(id.file_id)
+            .create_declaration(HirDeclaration::new_static(id, tyid, *span, external));
+
+        Ok(())
+    }
+
     /// Hoists a function declaration by registering its signature without processing its body.
     pub(crate) fn hoist_function(
         &self,
@@ -139,10 +169,10 @@ impl SlynxHir {
             *alias_ty = HirType::new_ref(target_ty);
         }
         // Propagate externality through aliases
-        if self.types_module.is_external(&target_ty) {
-            if let Some(alias_id) = self.types_module.get_id(&alias_name) {
-                self.types_module.mark_external(alias_id);
-            }
+        if self.types_module.is_external(&target_ty)
+            && let Some(alias_id) = self.types_module.get_id(&alias_name)
+        {
+            self.types_module.mark_external(alias_id);
         }
         Ok(())
     }

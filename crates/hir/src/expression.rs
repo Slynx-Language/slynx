@@ -527,9 +527,13 @@ impl SlynxHir {
             }
             ASTExpressionKind::Identifier(name) => {
                 let name = self.intern_name(name);
-                let id = self.get_variable(file, name, &expr.span)?;
-                let tyid = self.create_type(name, HirType::VarReference(id));
-                Ok(self.create_identifier_expression(id, tyid, expr.span))
+                Ok(if let Ok(v) = self.get_variable(file, name, &expr.span) {
+                    let tyid = self.create_type(name, HirType::VarReference(v));
+                    self.create_identifier_expression(v, tyid, expr.span)
+                } else {
+                    let (decl, ty) = self.find_declaration_by_name(&name, expr.span)?;
+                    self.create_static_expression(decl, ty, expr.span)
+                })
             }
             ASTExpressionKind::IntLiteral(int) => Ok(self.create_int_expression(*int, expr.span)),
             ASTExpressionKind::FloatLiteral(float) => {

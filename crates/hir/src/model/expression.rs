@@ -649,4 +649,7 @@ pub enum HirExpressionKind {
         /// If `None`, the else branch is empty (equivalent to `{}`).
         else_branch: Option<Vec<HirStatement>>,
     },
+    Static {
+        id: DeclarationId,
+    },
 }
