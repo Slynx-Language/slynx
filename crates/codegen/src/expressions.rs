@@ -252,10 +252,21 @@ impl Codegen {
                 then_branch,
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
-            HirExpressionKind::MethodCall { parent, name, args } => unreachable!(
-                "Method named as {} should not be reacheable. It sohuld have been transformed into function call on type checker",
-                hir.get_name(*name)
-            ),
+            HirExpressionKind::MethodCall { parent, name, args } => {
+                let value = self.lower_expression(parent, hir, context)?;
+                if !hir.types_module.is_external(&parent.ty) {
+                    unreachable!(
+                        "Method named as {} should have been transformed into function call on type checker",
+                        hir.get_name(*name)
+                    )
+                }
+                let name = self.intern_to_ir(hir, context.ir(), *name);
+                let args: Vec<Value> = args
+                    .iter()
+                    .map(|arg| self.lower_expression(arg, hir, context))
+                    .collect::<Result<_, _>>()?;
+                context.dyn_method_call(value, name, &args)
+            }
         };
         Ok(value)
     }
