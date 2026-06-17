@@ -1,6 +1,8 @@
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
-use crate::{Function, IRPointer, IRTypeId, Label, Operand, StyleProperty, SymbolPointer, Value};
+use crate::{
+    Function, GlobalValue, IRPointer, IRTypeId, Label, Operand, StyleProperty, SymbolPointer, Value,
+};
 
 // ── Opcode ─────────────────────────────────────────────────────────────────
 
@@ -124,6 +126,8 @@ pub enum Opcode {
 
     /// Call a style initializer function on a component.
     InitCall(IRPointer<Function, 1>),
+
+    Global(IRPointer<GlobalValue, 1>),
 }
 
 // ── Instruction ────────────────────────────────────────────────────────────
@@ -405,7 +409,17 @@ impl Instruction {
             value_type: ty,
         }
     }
-
+    pub fn global_value(
+        value: IRPointer<GlobalValue, 1>,
+        ty: IRTypeId,
+        initial_value: Value,
+    ) -> Self {
+        Instruction {
+            opcode: Opcode::Global(value),
+            operands: smallvec![initial_value],
+            value_type: ty,
+        }
+    }
     // ── Binary op constructors ──
 
     binop_ctor!(add, Add);

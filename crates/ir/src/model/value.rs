@@ -1,4 +1,4 @@
-use crate::SymbolPointer;
+use crate::{IRTypeId, InitValue, SymbolPointer};
 
 /// A lightweight handle representing a value in the IR.
 ///
@@ -78,3 +78,9 @@ impl From<SymbolPointer> for Operand {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Slot;
+
+#[derive(Debug, Clone, Copy)]
+pub struct GlobalValue {
+    pub(crate) initial_value: InitValue,
+    pub(crate) name: SymbolPointer,
+}

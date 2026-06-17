@@ -1,5 +1,6 @@
 mod error;
 mod queries;
+mod values;
 mod views;
 pub use views::*;
 mod api;
@@ -25,3 +26,4 @@ pub use visualize::*;
 pub type SymbolPointer = common::SymbolPointer<SlynxIR>;
 
 pub use petgraph;
+pub use values::InitValue;

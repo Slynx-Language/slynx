@@ -2,7 +2,9 @@ use std::ops::{Deref, DerefMut};
 
 use common::SymbolsModule;
 
-use crate::{Component, Function, IRPointer, IRTypes, Instruction, Label, Opcode, Value};
+use crate::{
+    Component, Function, GlobalValue, IRPointer, IRTypes, Instruction, Label, Opcode, Value,
+};
 
 /// The top-level IR store.
 ///
@@ -27,6 +29,8 @@ use crate::{Component, Function, IRPointer, IRTypes, Instruction, Label, Opcode,
 /// pointer-chasing `instruction_pointers` lookups.
 #[derive(Debug)]
 pub struct SlynxIR {
+    ///Global values
+    pub(crate) globals: Vec<GlobalValue>,
     /// All functions.
     pub(crate) functions: Vec<Function>,
     /// All UI components.
@@ -54,6 +58,7 @@ impl SlynxIR {
         let types = IRTypes::new();
         let void_ty = types.void_type();
         Self {
+            globals: Vec::new(),
             functions: Vec::new(),
             components: Vec::new(),
             labels: Vec::new(),
