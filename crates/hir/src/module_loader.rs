@@ -213,18 +213,8 @@ impl SourceLoader {
     pub fn load(
         entry: PathBuf,
         on_file_loaded: &mut impl FnMut(&Path, &str),
-        std_path: Option<PathBuf>,
+        std_path: PathBuf,
     ) -> Result<Vec<SourceNode>, SourceError> {
-        let std_path = {
-            if let Some(path) = std_path {
-                path
-            } else {
-                std::env::home_dir()
-                    .expect("Expected to have home dir")
-                    .join(".slynx")
-                    .join("std")
-            }
-        };
         let mut global_entry = entry.clone();
         global_entry.pop(); //pops cause the entry should be a file
         // (path, parent_module_index, import_index_within_parent)
