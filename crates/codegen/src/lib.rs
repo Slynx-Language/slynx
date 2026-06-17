@@ -15,7 +15,9 @@ use petgraph::{
     graph::{DiGraph, NodeIndex},
 };
 use slynx_hir::{DeclarationId, HirDeclarationKind, HirType, SlynxHir, TypeId};
-use slynx_ir::{Component, Function, IRPointer, IRStorage, IRTypeId, SlynxIR};
+use slynx_ir::{
+    Component, Function, GlobalValue, IRPointer, IRStorage, IRTypeId, InitValue, SlynxIR,
+};
 
 /// Per-component data for emitting child initcalls at instantiation time.
 pub(crate) struct ChildInitWork {
@@ -28,6 +30,7 @@ pub(crate) struct ChildInitWork {
 }
 
 pub struct Codegen {
+    globals: HashMap<DeclarationId, IRPointer<GlobalValue, 1>>,
     names: HashMap<SymbolPointer<SlynxHir>, SymbolPointer<SlynxIR>>,
     types: HashMap<TypeId, IRTypeId>,
     functions: HashMap<DeclarationId, IRPointer<Function, 1>>,
@@ -47,6 +50,7 @@ impl Default for Codegen {
 impl Codegen {
     pub fn new() -> Self {
         Self {
+            globals: HashMap::new(),
             names: HashMap::new(),
             types: HashMap::new(),
             functions: HashMap::new(),
@@ -84,7 +88,9 @@ impl Codegen {
             let file = file.read();
             for declaration in file.declarations() {
                 let declaration = declaration.1;
+
                 match &declaration.kind {
+                    HirDeclarationKind::Static => {}
                     HirDeclarationKind::Object => {
                         let name = hir.get_declaration_name(declaration.id);
                         let obj = ir.create_struct(name);
@@ -177,6 +183,13 @@ impl Codegen {
             for declaration in file.declarations() {
                 let declaration = declaration.1;
                 match &declaration.kind {
+                    HirDeclarationKind::Static => {
+                        let name = hir.get_declaration_name(declaration.id);
+                        let ty = hir.get_declaration_type(declaration.id);
+                        let ty = self.get_or_create_ir_type(&ty, hir, ir)?;
+                        let global = ir.create_global(name, InitValue::ZeroInit(ty));
+                        self.globals.insert(declaration.id, global);
+                    }
                     HirDeclarationKind::Object => {
                         self.insert_object_fields_for(declaration.ty, hir, ir)?;
                     }

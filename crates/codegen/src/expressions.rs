@@ -3,7 +3,8 @@ use slynx_hir::{
     DeclarationId, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir,
     SymbolPointer, TypeId,
 };
-use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Operand, Value};
+use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
+use smallvec::SmallVec;
 
 use crate::{Codegen, CodegenError, functions::FunctionContext};
 
@@ -106,7 +107,11 @@ impl Codegen {
     ) -> Result<Value, CodegenError> {
         let value = self.lower_expression(expr, hir, ctx)?;
         if hir.types_module.is_external(&expr.ty) {
-            let name = self.intern_to_ir(hir, ctx.ir(), field_name.expect("External field access must have a field name"));
+            let name = self.intern_to_ir(
+                hir,
+                ctx.ir(),
+                field_name.expect("External field access must have a field name"),
+            );
             Ok(ctx.dyn_get_field(value, name))
         } else {
             Ok(ctx.get_field(value, field_index))
@@ -195,6 +200,14 @@ impl Codegen {
         };
 
         let value = match &expr.kind {
+            HirExpressionKind::Static { id } => {
+                let id = *self
+                    .globals
+                    .get(id)
+                    .ok_or(CodegenError::DeclarationNotRecognized(*id))?;
+                let ty = context.ir().get_view(id).ty();
+                context.emit(Opcode::Global(id), SmallVec::new(), ty)
+            }
             HirExpressionKind::Tuple(vector) => {
                 self.lower_tuple_expression(vector, hir, context)?
             }
@@ -222,9 +235,11 @@ impl Codegen {
             HirExpressionKind::Object { name, fields } => {
                 self.lower_struct_literal(*name, fields, hir, context)?
             }
-            HirExpressionKind::FieldAccess { expr, field_index, field_name } => {
-                self.lower_field_access(expr, *field_index as u16, *field_name, hir, context)?
-            }
+            HirExpressionKind::FieldAccess {
+                expr,
+                field_index,
+                field_name,
+            } => self.lower_field_access(expr, *field_index as u16, *field_name, hir, context)?,
             HirExpressionKind::Component(c) => self.get_component_expression(c, hir, context)?.0,
             HirExpressionKind::If {
                 condition,
