@@ -318,8 +318,12 @@ impl TypeChecker {
                 };
                 let parent_type = self.get_type_of_expr(&mut parent)?;
                 if self.types_module.is_external(&parent_type) {
+                    let ret = self
+                        .types_module
+                        .get_method_return_type(&parent_type, name)
+                        .unwrap_or(self.types_module.void_id());
                     expr.kind = HirExpressionKind::MethodCall { parent, name, args };
-                    return Ok(parent_type);
+                    return Ok(ret);
                 }
                 let method = if let Some(method) = self
                     .types_module
