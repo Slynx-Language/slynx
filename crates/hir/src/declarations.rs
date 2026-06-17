@@ -93,6 +93,16 @@ impl SlynxHir {
         self_type: Option<TypeId>,
     ) -> Result<()> {
         let symbol = self.intern_name(&name.identifier);
+        let mangled_symbol = if let Some(self_type) = self_type {
+            self.get_name_of_type(self_type)
+                .map(|type_name| {
+                    let type_name = self.get_name(type_name);
+                    self.intern_name(&format!("{}_{}", name.identifier, type_name))
+                })
+                .unwrap_or(symbol)
+        } else {
+            symbol
+        };
         let (decl, tyid) = self.find_declaration_by_name(&symbol, name.span)?;
 
         // Hold write lock only for scope entry, release before subcalls that need read locks.
@@ -156,7 +166,7 @@ impl SlynxHir {
         // Re-acquire write lock only for declaration creation and scope exit.
         let mut file = self.get_file_mut(fileid);
         file.create_declaration(HirDeclaration::new_function(
-            statements, args, symbol, *span, decl, tyid, external,
+            statements, args, mangled_symbol, *span, decl, tyid, external,
         ));
         file.scopes.exit_scope();
         Ok(())

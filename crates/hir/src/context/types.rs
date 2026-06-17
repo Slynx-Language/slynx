@@ -326,6 +326,21 @@ impl TypesContext {
     /// Returns `true` if the given type (or any `Reference` it wraps) has
     /// been marked as external.
     pub fn is_external(&self, ty: &TypeId) -> bool {
-        self.externals.contains(ty)
+        if self.externals.contains(ty) {
+            return true;
+        }
+        let mut current = *ty;
+        loop {
+            let guard = self.get_type(&current);
+            match &*guard {
+                HirType::Reference { rf, .. } => {
+                    if self.externals.contains(rf) {
+                        return true;
+                    }
+                    current = *rf;
+                }
+                _ => return false,
+            }
+        }
     }
 }

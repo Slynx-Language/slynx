@@ -413,8 +413,9 @@ impl SlynxHir {
                 if ast.external {
                     let decl_ty = self.get_declaration_type(id);
                     self.types_module.mark_external(decl_ty);
+                } else {
+                    self.lower_methods(id, methods)?;
                 }
-                self.lower_methods(id, methods)?;
                 id
             }
 
@@ -505,20 +506,22 @@ impl SlynxHir {
                         ast.span,
                         ast.external,
                     ));
-                let self_ty = self.get_declaration_type(decl);
-                for method in methods {
-                    self.resolve_function(
-                        file,
-                        FunctionData {
-                            name: &method.method_name,
-                            args: &method.arguments,
-                            return_type: &method.return_type,
-                            body: &method.body,
-                            span: &method.span,
-                            external: ast.external,
-                        },
-                        Some(self_ty),
-                    )?;
+                if !ast.external {
+                    let self_ty = self.get_declaration_type(decl);
+                    for method in methods {
+                        self.resolve_function(
+                            file,
+                            FunctionData {
+                                name: &method.method_name,
+                                args: &method.arguments,
+                                return_type: &method.return_type,
+                                body: &method.body,
+                                span: &method.span,
+                                external: ast.external,
+                            },
+                            Some(self_ty),
+                        )?;
+                    }
                 }
                 Ok(())
             }
