@@ -1,9 +1,6 @@
 use crate::{
     ExpectedContent, Result,
-    ast::{
-        ASTDeclaration, ASTDeclarationKind, ComponentMember, ComponentMemberKind,
-        GenericIdentifier, VisibilityModifier,
-    },
+    ast::{ComponentMember, ComponentMemberKind, GenericIdentifier, VisibilityModifier},
 };
 use common::Span;
 
@@ -66,43 +63,10 @@ impl Parser {
             }
             TokenKind::Prop => {
                 self.eat()?;
-                let Token {
-                    kind: TokenKind::Identifier(ident),
-                    ..
-                } = self.expect_identifier()?
+                let (ident, span) = self.expect_identifier()?
                 else {
                     unreachable!()
                 };
-                if ident == "children" {
-                    let Token { span: end, .. } = self.expect(&TokenKind::SemiColon)?;
-                    return Ok(ComponentMember {
-                        kind: ComponentMemberKind::Property {
-                            name: ident,
-                            modifier,
-                            ty: Some(GenericIdentifier {
-                                identifier: "Vector".to_string(),
-                                generic: Some(vec![GenericIdentifier {
-                                    identifier: "Component".to_string(),
-                                    generic: None,
-                                    span: Span {
-                                        end: end.end,
-                                        start: span.start,
-                                    },
-                                }]),
-                                span: Span {
-                                    end: end.end,
-                                    start: span.start,
-                                },
-                            }),
-                            rhs: None,
-                        },
-                        span: Span {
-                            end: end.end,
-                            start: span.start,
-                        },
-                    });
-                }
-
                 match self.peek()?.kind {
                     TokenKind::SemiColon => {
                         span.end = self.eat()?.span.end;
