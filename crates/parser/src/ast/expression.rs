@@ -3,12 +3,13 @@ use crate::{
     ast::{ComponentExpression, GenericIdentifier},
 };
 use common::{Operator, Span, pool::PoolId};
+use ordered_float::OrderedFloat;
 
 #[derive(Debug)]
 ///Simply a name that comes before an expression. It represents anything like 'name: expr', '.name:expr' etc
 pub struct NamedExpr {
     pub name: SymbolPointer,
-    pub expr: ASTExpression,
+    pub expr: PoolId<ASTExpression>,
     pub span: Span,
 }
 
@@ -23,8 +24,8 @@ pub enum ASTExpressionKind {
     Component(ComponentExpression),
     IntLiteral(i32),
     StringLiteral(SymbolPointer),
-    FloatLiteral(f32),
-    Tuple(Vec<ASTExpression>),
+    FloatLiteral(OrderedFloat<f32>),
+    Tuple(Vec<PoolId<ASTExpression>>),
     TupleAccess {
         tuple: PoolId<ASTExpression>,
         index: usize,
