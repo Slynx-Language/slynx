@@ -88,8 +88,8 @@ impl Lexer {
                     stream.push_back(Token {
                         kind: kind.clone(),
                         span: Span {
-                            start: range.start,
-                            end: range.end,
+                            start: range.start as u32,
+                            end: range.end as u32,
                         },
                     });
                 }

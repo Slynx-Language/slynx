@@ -3,7 +3,7 @@ pub mod symbols;
 pub use symbols::*;
 
 /// Visibility of a declaration.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VisibilityModifier {
     /// Visible to everyone.
     Public,
@@ -17,10 +17,10 @@ pub enum VisibilityModifier {
 }
 
 ///The representation of the bounds of something on the code.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Span {
-    pub start: usize,
-    pub end: usize,
+    pub start: u32,
+    pub end: u32,
 }
 
 impl Span {
@@ -31,7 +31,7 @@ impl Span {
     }
 }
 ///Some operator on the code. Something like, +, - , *, /, &, &&, etc
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Operator {
     Add,
     Sub,
