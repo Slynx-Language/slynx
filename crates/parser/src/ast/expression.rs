@@ -1,13 +1,13 @@
 use crate::{
-    ASTStatement,
+    ASTStatement, SymbolPointer,
     ast::{ComponentExpression, GenericIdentifier},
 };
-use common::{Operator, Span};
+use common::{Operator, Span, pool::PoolId};
 
 #[derive(Debug)]
 ///Simply a name that comes before an expression. It represents anything like 'name: expr', '.name:expr' etc
 pub struct NamedExpr {
-    pub name: String,
+    pub name: SymbolPointer,
     pub expr: ASTExpression,
     pub span: Span,
 }
@@ -22,34 +22,34 @@ pub struct ASTExpression {
 pub enum ASTExpressionKind {
     Component(ComponentExpression),
     IntLiteral(i32),
-    StringLiteral(String),
+    StringLiteral(SymbolPointer),
     FloatLiteral(f32),
     Tuple(Vec<ASTExpression>),
     TupleAccess {
-        tuple: Box<ASTExpression>,
+        tuple: PoolId<ASTExpression>,
         index: usize,
     },
     Boolean(bool),
     Binary {
-        lhs: Box<ASTExpression>,
+        lhs: PoolId<ASTExpression>,
         op: Operator,
-        rhs: Box<ASTExpression>,
+        rhs: PoolId<ASTExpression>,
     },
-    Identifier(String),
+    Identifier(SymbolPointer),
     ObjectExpression {
         name: GenericIdentifier,
         fields: Vec<NamedExpr>,
     },
     FieldAccess {
-        parent: Box<ASTExpression>,
-        field: Box<ASTExpression>,
+        parent: PoolId<ASTExpression>,
+        field: PoolId<ASTExpression>,
     },
     FunctionCall {
         name: GenericIdentifier,
         args: Vec<ASTExpression>,
     },
     If {
-        condition: Box<ASTExpression>,
+        condition: PoolId<ASTExpression>,
         body: Vec<ASTStatement>,
         else_body: Option<Vec<ASTStatement>>,
     },

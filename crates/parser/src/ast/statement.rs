@@ -1,6 +1,6 @@
-use common::Span;
+use common::{Span, pool::PoolId};
 
-use crate::{ASTExpression, GenericIdentifier, NamedExpr, StyleState};
+use crate::{ASTExpression, GenericIdentifier, NamedExpr, StyleState, SymbolPointer};
 
 #[derive(Debug)]
 ///Some statement on the code, a statement not necessarily have value, in general expressions do.
@@ -12,27 +12,27 @@ pub struct ASTStatement {
 #[derive(Debug)]
 pub enum ASTStatementKind {
     Var {
-        name: String,
+        name: SymbolPointer,
         ty: Option<GenericIdentifier>,
-        rhs: ASTExpression,
+        rhs: PoolId<ASTExpression>,
     },
     MutableVar {
-        name: String,
+        name: SymbolPointer,
         ty: Option<GenericIdentifier>,
-        rhs: ASTExpression,
+        rhs: PoolId<ASTExpression>,
     },
     Assign {
         ///The Left hand side of the assign, or, the one that will receive the value of `rhs`
-        lhs: ASTExpression,
-        rhs: ASTExpression,
+        lhs: PoolId<ASTExpression>,
+        rhs: PoolId<ASTExpression>,
     },
 
     While {
-        condition: ASTExpression,
+        condition: PoolId<ASTExpression>,
         body: Vec<ASTStatement>,
     },
 
-    Expression(ASTExpression),
+    Expression(PoolId<ASTExpression>),
 }
 
 #[derive(Debug)]

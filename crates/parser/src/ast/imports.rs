@@ -1,11 +1,13 @@
+use crate::SymbolPointer;
+
 #[derive(Debug)]
 pub struct ASTPath {
-    pub module_names: Vec<String>,
+    pub module_names: Vec<SymbolPointer>,
 }
 #[derive(Debug)]
 pub struct ImportUsage {
-    pub content_name: String,
-    pub alias: Option<String>,
+    pub content_name: SymbolPointer,
+    pub alias: Option<SymbolPointer>,
 }
 
 #[derive(Debug)]

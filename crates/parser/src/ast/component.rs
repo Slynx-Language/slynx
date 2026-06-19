@@ -1,5 +1,5 @@
 use crate::ast::{ASTExpression, GenericIdentifier, VisibilityModifier};
-use common::Span;
+use common::{Span, pool::PoolId};
 #[derive(Debug)]
 ///A member on a component, this can be a property or a child expression
 pub struct ComponentMember {
@@ -12,7 +12,7 @@ pub enum ComponentMemberKind {
         name: String,
         modifier: VisibilityModifier,
         ty: Option<GenericIdentifier>,
-        rhs: Option<ASTExpression>,
+        rhs: Option<PoolId<ASTExpression>>,
     },
     Child(ComponentExpression),
 }
@@ -20,7 +20,7 @@ pub enum ComponentMemberKind {
 pub enum ComponentMemberValue {
     Assign {
         prop_name: String,
-        rhs: ASTExpression,
+        rhs: PoolId<ASTExpression>,
         span: Span,
     },
     Child(ComponentExpression),
