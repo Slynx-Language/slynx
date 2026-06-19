@@ -1,6 +1,10 @@
 use std::{hash::Hash, marker::PhantomData};
 
 use lasso::{Spur, ThreadedRodeo};
+
+#[derive(Debug)]
+pub struct FrontendSymbol;
+
 ///A pointer to some intern string. This is 48bits for the actual position of the string in the internalized string, and 16bits for it's length
 #[derive(Debug)]
 pub struct SymbolPointer<T>(Spur, PhantomData<T>);

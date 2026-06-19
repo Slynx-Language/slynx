@@ -204,6 +204,8 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 name = "common"
 version = "0.1.0"
 dependencies = [
+ "boxcar",
+ "dashmap",
  "lasso",
 ]
 

@@ -9,3 +9,5 @@ path = "src/lib.rs"
 
 [dependencies]
 lasso = {workspace=true, features=["multi-threaded"]}
+dashmap.workspace=true
+boxcar.workspace=true
