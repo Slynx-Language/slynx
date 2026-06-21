@@ -49,6 +49,7 @@ pub struct ParserFlags {
 pub enum ParserFlag {
     RequireSemicolon = 0,
     OnlySignatures = 1,
+    ComponentExpr = 2,
 }
 
 impl ParserFlags {
