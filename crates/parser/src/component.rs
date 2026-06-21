@@ -1,6 +1,6 @@
 use crate::{
     ComponentDeclaration, ExpectedContent, Result,
-    ast::{ComponentMember, ComponentMemberKind, GenericIdentifier, VisibilityModifier},
+    ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
 };
 use common::Span;
 
@@ -58,10 +58,7 @@ impl Parser<'_> {
             }
             TokenKind::Prop => {
                 self.eat()?;
-                let (ident, span) = self.expect_identifier()?
-                else {
-                    unreachable!()
-                };
+                let (ident, _) = self.expect_identifier()?;
                 match self.peek()?.kind {
                     TokenKind::SemiColon => {
                         span.end = self.eat()?.span.end;
