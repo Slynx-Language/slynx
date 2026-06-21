@@ -1,20 +1,15 @@
-use common::Span;
 use slynx_lexer::TokenKind;
 
-use crate::{ASTDeclaration, ASTPath, FileImport, ImportUsage, Parser, Result};
+use crate::{ASTPath, FileImport, ImportUsage, Parser, Result};
 
-impl Parser {
+impl Parser<'_> {
     fn parse_import_usage(&mut self) -> Result<ImportUsage> {
-        let TokenKind::Identifier(name) = self.expect_identifier()?.kind else {
-            unreachable!()
-        };
+        let (name, _) = self.expect_identifier()?;
         if let TokenKind::Identifier(ref as_identifier) = self.peek()?.kind
             && as_identifier == "as"
         {
             self.eat()?;
-            let TokenKind::Identifier(alias) = self.expect_identifier()?.kind else {
-                unreachable!();
-            };
+            let (alias, _) = self.expect_identifier()?;
             Ok(ImportUsage {
                 content_name: name,
                 alias: Some(alias),
@@ -27,7 +22,7 @@ impl Parser {
         }
     }
 
-    pub fn parse_import(&mut self, span: Span) -> Result<ASTDeclaration> {
+    pub fn parse_import(&mut self) -> Result<FileImport> {
         let path = {
             let mut out = Vec::new();
             loop {
@@ -36,9 +31,7 @@ impl Parser {
                     if name == "using" {
                         break;
                     }
-                    let TokenKind::Identifier(name) = self.expect_identifier()?.kind else {
-                        unreachable!()
-                    };
+                    let (name, _) = self.expect_identifier()?;
                     if let TokenKind::Dot = self.peek()?.kind {
                         self.eat()?;
                     }
@@ -73,12 +66,6 @@ impl Parser {
         };
         self.expect(&TokenKind::SemiColon)?;
         let import = FileImport { path, usages };
-        Ok(ASTDeclaration {
-            attributes: Vec::new(),
-            visibility: Default::default(),
-            kind: crate::ASTDeclarationKind::Import(import),
-            external: false,
-            span,
-        })
+        Ok(import)
     }
 }
