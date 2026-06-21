@@ -1,11 +1,23 @@
-use common::Span;
+use common::{Span, pool::PoolId};
 use slynx_lexer::{Token, TokenKind};
 
-use crate::{ExpectedContent, ParseError, Parser, Result, SymbolPointer, flags::ParserFlag};
+use crate::{
+    ASTExpression, ASTStatement, ExpectedContent, GenericIdentifier, ParseError, Parser, Result,
+    SymbolPointer, flags::ParserFlag,
+};
 
 impl<'a> Parser<'a> {
     pub fn intern(&self, name: &str) -> SymbolPointer {
         self.symbols.intern(name)
+    }
+    pub fn intern_statment(&self, stmt: ASTStatement) -> PoolId<ASTStatement> {
+        self.statements.insert(stmt)
+    }
+    pub fn intern_expression(&self, expr: ASTExpression) -> PoolId<ASTExpression> {
+        self.expressions.insert(expr)
+    }
+    pub fn intern_type(&self, name: GenericIdentifier) -> PoolId<GenericIdentifier> {
+        self.types.insert(name)
     }
     pub fn reset_flags(&mut self) {
         self.flags.reset();
