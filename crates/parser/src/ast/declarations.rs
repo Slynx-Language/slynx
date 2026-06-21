@@ -1,8 +1,8 @@
-use common::{Span, VisibilityModifier};
+use common::{Span, VisibilityModifier, pool::PoolId};
 
 use crate::{
-    ASTExpression, ASTExpressionKind, ASTStatement, ComponentMember, GenericIdentifier,
-    ObjectField, StyleSheetStatement, SymbolPointer, TypedName,
+    ASTExpression, ASTStatement, ComponentMember, GenericIdentifier, ObjectField, Spanned,
+    StyleSheetStatement, SymbolPointer, TypedName,
 };
 
 #[derive(Debug)]
@@ -14,22 +14,23 @@ pub struct ASTAttribute {
 
 #[derive(Debug)]
 pub struct ObjectMethod {
-    pub method_name: GenericIdentifier,
-    pub arguments: Vec<TypedName>,
-    pub return_type: GenericIdentifier,
-    pub body: Vec<ASTStatement>,
+    pub method_name: Spanned<PoolId<GenericIdentifier>>,
+    pub arguments: Vec<Spanned<TypedName>>,
+    pub return_type: Spanned<PoolId<GenericIdentifier>>,
+    pub body: Vec<Spanned<PoolId<ASTStatement>>>,
     pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct AliasDeclaration {
-    pub name: GenericIdentifier,
-    pub target: GenericIdentifier,
+    pub name: Spanned<PoolId<GenericIdentifier>>,
+    pub target: Spanned<PoolId<GenericIdentifier>>,
     pub span: Span,
+    pub visibility: VisibilityModifier,
 }
 #[derive(Debug)]
 pub struct ObjectDeclaration {
-    pub name: GenericIdentifier,
+    pub name: Spanned<PoolId<GenericIdentifier>>,
     pub fields: Vec<ObjectField>,
     pub methods: Vec<ObjectMethod>,
     pub attributes: Vec<ASTAttribute>,
@@ -39,7 +40,7 @@ pub struct ObjectDeclaration {
 }
 #[derive(Debug)]
 pub struct ComponentDeclaration {
-    pub name: GenericIdentifier,
+    pub name: Spanned<PoolId<GenericIdentifier>>,
     pub members: Vec<ComponentMember>,
     pub attributes: Vec<ASTAttribute>,
     pub visibility: VisibilityModifier,
@@ -47,20 +48,20 @@ pub struct ComponentDeclaration {
 }
 #[derive(Debug)]
 pub struct FuncDeclaration {
-    pub name: GenericIdentifier,
-    pub args: Vec<TypedName>,
-    pub return_type: GenericIdentifier,
-    pub body: Vec<ASTStatement>,
-    pub attributes: Vec<ASTAttribute>,
+    pub name: Spanned<PoolId<GenericIdentifier>>,
+    pub args: Vec<Spanned<TypedName>>,
+    pub return_type: Spanned<PoolId<GenericIdentifier>>,
+    pub body: Vec<Spanned<PoolId<ASTStatement>>>,
+    pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,
     pub span: Span,
     pub external: bool,
 }
 pub struct StyleSheet {
-    pub name: GenericIdentifier,
-    pub args: Vec<TypedName>,
-    pub usages: Vec<ASTExpression>,
-    pub body: Vec<StyleSheetStatement>,
+    pub name: Spanned<PoolId<GenericIdentifier>>,
+    pub args: Vec<Spanned<TypedName>>,
+    pub usages: Vec<Spanned<PoolId<ASTExpression>>>,
+    pub body: Vec<Spanned<StyleSheetStatement>>,
     pub attributes: Vec<ASTAttribute>,
     pub visibility: VisibilityModifier,
     pub span: Span,
@@ -68,25 +69,27 @@ pub struct StyleSheet {
 #[derive(Debug)]
 pub struct StaticDeclaration {
     pub name: SymbolPointer,
-    pub ty: GenericIdentifier,
-    pub value: Option<ASTExpression>, //option because, if not provided, it yet can be used, even though might lead to runtime bugs. Should be None only on externs
-    pub attributes: Vec<ASTAttribute>,
+    pub ty: Spanned<PoolId<GenericIdentifier>>,
+    pub value: Option<Spanned<PoolId<ASTExpression>>>, //option because, if not provided, it yet can be used, even though might lead to runtime bugs. Should be None only on externs
+    pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,
     pub span: Span,
-}
-
-impl ASTExpression {
-    pub fn is_assignable(&self) -> bool {
-        matches!(
-            self.kind,
-            ASTExpressionKind::Identifier(_) | ASTExpressionKind::FieldAccess { .. },
-        )
-    }
+    pub external: bool,
 }
 
 #[derive(Debug)]
 pub struct StyleState {
     pub states: Vec<SymbolPointer>,
-    pub duration: Option<ASTExpression>,
+    pub duration: Option<Spanned<PoolId<ASTExpression>>>,
     pub transition_curve: Option<SymbolPointer>,
+}
+
+impl StyleState {
+    pub fn new() -> Self {
+        Self {
+            states: Vec::new(),
+            duration: None,
+            transition_curve: None,
+        }
+    }
 }
