@@ -1,8 +1,15 @@
 use std::{hash::Hash, marker::PhantomData};
 
 use dashmap::DashMap;
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash)]
 pub struct PoolId<T>(u32, PhantomData<T>);
+
+impl<T> PartialEq for PoolId<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl<T> Eq for PoolId<T> {}
 
 impl<T> Clone for PoolId<T> {
     fn clone(&self) -> Self {
