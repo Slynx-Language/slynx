@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 
 macro_rules! program {
     ($($name:ident : $typ:ty),+ $(,)?) => {
+        #[derive(Debug)]
         pub struct Program<'a> {
             phantom: PhantomData<&'a ()>,
             $(

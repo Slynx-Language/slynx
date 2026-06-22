@@ -1,3 +1,4 @@
+use common::Span;
 use slynx_lexer::TokenKind;
 
 use crate::{ASTPath, FileImport, ImportUsage, Parser, Result};
@@ -22,7 +23,7 @@ impl Parser<'_> {
         }
     }
 
-    pub fn parse_import(&mut self) -> Result<FileImport> {
+    pub fn parse_import(&mut self, import_span: Span) -> Result<FileImport> {
         let path = {
             let mut out = Vec::new();
             loop {
@@ -64,8 +65,8 @@ impl Parser<'_> {
             }
             out
         };
-        self.expect(&TokenKind::SemiColon)?;
-        let import = FileImport { path, usages };
+        let span = import_span.merge_with(self.expect(&TokenKind::SemiColon)?.span);
+        let import = FileImport { path, usages, span };
         Ok(import)
     }
 }
