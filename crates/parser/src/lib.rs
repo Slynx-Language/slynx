@@ -16,6 +16,7 @@ mod statement;
 mod styles;
 mod types;
 pub use ast::*;
+pub use program::*;
 
 use slynx_lexer::{TokenKind, TokenStream};
 

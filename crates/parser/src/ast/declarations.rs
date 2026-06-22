@@ -57,6 +57,7 @@ pub struct FuncDeclaration {
     pub span: Span,
     pub external: bool,
 }
+#[derive(Debug)]
 pub struct StyleSheet {
     pub name: Spanned<PoolId<GenericIdentifier>>,
     pub args: Vec<Spanned<TypedName>>,
