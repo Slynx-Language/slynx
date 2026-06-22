@@ -1,0 +1,58 @@
+use std::path::PathBuf;
+
+use slynx_parser::Program;
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, PartialOrd, Ord, Eq)]
+///An ID to represent a file
+pub struct FileId(u32);
+impl FileId {
+    pub fn from_raw(value: u32) -> Self {
+        Self(value)
+    }
+    pub fn as_raw(&self) -> u32 {
+        self.0
+    }
+    pub fn next(&self) -> Self {
+        Self(self.0 + 1)
+    }
+}
+
+pub struct SourceInfo<'a> {
+    pub(crate) module: SourceNode<'a>,
+    /// Per-import pending paths: pending[i] are the paths for the i-th import declaration.
+    pub(crate) pending: Vec<Vec<PathBuf>>,
+}
+
+impl<'a> SourceInfo<'a> {
+    pub fn new(module: SourceNode<'a>, pending: Vec<Vec<PathBuf>>) -> Self {
+        Self { module, pending }
+    }
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
+}
+
+#[derive(Debug)]
+///A module that was parsed
+pub struct SourceNode<'a> {
+    ///The path to the file that generated this module
+    pub id: FileId,
+    ///The declarations inside this module
+    pub program: Program<'a>,
+    ///Per-import submodule lists: `import_submodules[i]` contains the FileIds for the i-th import declaration.
+    pub import_submodules: Vec<Vec<FileId>>,
+}
+
+impl<'a> SourceNode<'a> {
+    pub fn new(id: FileId, program: Program<'a>) -> Self {
+        Self {
+            id,
+            program,
+            import_submodules: Vec::new(),
+        }
+    }
+    ///Imports the given `file` into the import at the given `import_index`
+    pub(crate) fn import_submodule(&mut self, import_index: usize, file: FileId) {
+        self.import_submodules[import_index].push(file);
+    }
+}

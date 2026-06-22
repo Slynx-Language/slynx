@@ -5,5 +5,5 @@ edition = "2024"
 
 [dependencies]
 common.path="../common"
-slynx-parser="../parser"
-slynx-lexer="../lexer"
+slynx-parser.path="../parser"
+slynx-lexer.path="../lexer"
