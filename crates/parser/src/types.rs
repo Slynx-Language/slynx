@@ -1,9 +1,9 @@
 use super::Parser;
 use crate::error::ParseError;
-use crate::{AliasDeclaration, ExpectedContent, Spanned, TypedName};
+use crate::{AliasDeclaration, ExpectedContent, TypedName};
 use crate::{Result, ast::GenericIdentifier};
 use common::pool::PoolId;
-use common::{Span, VisibilityModifier};
+use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::tokens::{Token, TokenKind};
 use smallvec::{SmallVec, smallvec};
 impl Parser<'_> {

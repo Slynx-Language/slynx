@@ -1,6 +1,6 @@
-use common::pool::PoolId;
+use common::{Spanned, pool::PoolId};
 
-use crate::{ASTExpression, GenericIdentifier, NamedExpr, Spanned, StyleState, SymbolPointer};
+use crate::{ASTExpression, GenericIdentifier, NamedExpr, StyleState, SymbolPointer};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ASTStatement {

@@ -1,5 +1,5 @@
-use crate::{ASTExpression, ASTStatement, Parser, Result, Spanned};
-use common::{Span, pool::PoolId};
+use crate::{ASTExpression, ASTStatement, Parser, Result};
+use common::{Span, Spanned, pool::PoolId};
 use slynx_lexer::tokens::TokenKind;
 
 impl Parser<'_> {

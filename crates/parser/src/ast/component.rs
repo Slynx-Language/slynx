@@ -1,8 +1,8 @@
 use crate::{
-    Spanned, SymbolPointer,
+    SymbolPointer,
     ast::{ASTExpression, GenericIdentifier, VisibilityModifier},
 };
-use common::{Span, pool::PoolId};
+use common::{Span, Spanned, pool::PoolId};
 #[derive(Debug)]
 ///A member on a component, this can be a property or a child expression
 pub struct ComponentMember {

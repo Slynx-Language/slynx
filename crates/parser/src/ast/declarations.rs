@@ -1,7 +1,7 @@
-use common::{Span, VisibilityModifier, pool::PoolId};
+use common::{Span, Spanned, VisibilityModifier, pool::PoolId};
 
 use crate::{
-    ASTExpression, ASTStatement, ComponentMember, GenericIdentifier, ObjectField, Spanned,
+    ASTExpression, ASTStatement, ComponentMember, GenericIdentifier, ObjectField,
     StyleSheetStatement, SymbolPointer, TypedName,
 };
 

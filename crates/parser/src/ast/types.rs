@@ -1,9 +1,9 @@
 use std::hash::Hash;
 
-use common::{VisibilityModifier, pool::PoolId};
+use common::{Spanned, VisibilityModifier, pool::PoolId};
 use smallvec::SmallVec;
 
-use crate::{Spanned, SymbolPointer};
+use crate::SymbolPointer;
 
 #[derive(Debug)]
 ///A name that is typed. This is simply the representation of `name: kind`

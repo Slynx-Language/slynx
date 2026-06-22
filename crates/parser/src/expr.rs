@@ -1,10 +1,10 @@
 use crate::{
     ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, GenericIdentifier,
-    NamedExpr, Spanned,
+    NamedExpr,
 };
 use crate::{Parser, Result, error::ParseError};
 use common::pool::PoolId;
-use common::{Operator, Span};
+use common::{Operator, Span, Spanned};
 use ordered_float::OrderedFloat;
 use slynx_lexer::tokens::{Token, TokenKind};
 use smallvec::{SmallVec, smallvec};

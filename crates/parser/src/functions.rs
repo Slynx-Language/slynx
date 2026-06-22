@@ -1,10 +1,10 @@
 use crate::{
-    ExpectedContent, FuncDeclaration, Parser, Result, Spanned, error::ParseError, flags::ParserFlag,
+    ExpectedContent, FuncDeclaration, Parser, Result, error::ParseError, flags::ParserFlag,
 };
 use slynx_lexer::tokens::TokenKind;
 
 use crate::ast::{ASTStatement, TypedName};
-use common::Span;
+use common::{Span, Spanned};
 impl Parser<'_> {
     ///Parses the arguments of a function. It parses until the `)` of the function args.
     pub fn parse_args(&mut self) -> Result<Vec<Spanned<TypedName>>> {

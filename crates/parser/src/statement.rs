@@ -1,8 +1,8 @@
-use crate::{Parser, Result, Spanned, flags::ParserFlag};
+use crate::{Parser, Result, flags::ParserFlag};
 use slynx_lexer::tokens::TokenKind;
 
 use crate::ast::ASTStatement;
-use common::{Span, pool::PoolId};
+use common::{Span, Spanned, pool::PoolId};
 
 impl Parser<'_> {
     ///Parses a let Statement. Until now it's only for variable declaration, so, this only parses 'let name: t = value;' or 'let name = value;', same for mut variants

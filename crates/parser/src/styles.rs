@@ -1,8 +1,8 @@
-use common::{Span, pool::PoolId};
+use common::{Span, Spanned, pool::PoolId};
 use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
-    ASTExpression, ExpectedContent, Parser, Spanned, StyleBlock, StyleSheet, StyleSheetStatement,
+    ASTExpression, ExpectedContent, Parser, StyleBlock, StyleSheet, StyleSheetStatement,
     StyleState, error::ParseError,
 };
 

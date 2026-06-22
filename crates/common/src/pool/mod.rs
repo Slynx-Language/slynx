@@ -1,4 +1,6 @@
+mod view;
 use std::{hash::Hash, marker::PhantomData};
+pub use view::*;
 
 use dashmap::DashMap;
 #[derive(Debug, Hash)]
@@ -29,8 +31,8 @@ impl<'a, T> Clone for RefPoolId<'a, T> {
 impl<'a, T> Copy for RefPoolId<'a, T> {}
 
 pub struct Pool<T: Hash> {
-    inner: boxcar::Vec<T>,
-    hashes: DashMap<T, PoolId<T>>,
+    pub(crate) inner: boxcar::Vec<T>,
+    pub(crate) hashes: DashMap<T, PoolId<T>>,
 }
 impl<T: Hash + Eq + Clone> Pool<T> {
     pub fn new() -> Self {
@@ -65,5 +67,9 @@ impl<T: Hash + Eq + Clone> Pool<T> {
     ///Gets the data that originated the given `id`
     pub fn get_lifetime(&self, id: RefPoolId<'_, T>) -> &T {
         self.get(PoolId(id.0, PhantomData))
+    }
+
+    pub fn view<'a>(&'a self, id: PoolId<T>) -> PoolViewer<'a, T> {
+        PoolViewer { pool: self, id: id }
     }
 }

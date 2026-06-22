@@ -1,8 +1,8 @@
 use crate::{
-    ASTStatement, Spanned, SymbolPointer,
+    ASTStatement, SymbolPointer,
     ast::{ComponentExpression, GenericIdentifier},
 };
-use common::{Operator, pool::PoolId};
+use common::{Operator, Spanned, pool::PoolId};
 use ordered_float::OrderedFloat;
 use smallvec::SmallVec;
 
