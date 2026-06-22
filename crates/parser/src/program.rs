@@ -3,21 +3,18 @@ use crate::{
     StaticDeclaration, StyleSheet,
 };
 use paste::paste;
-use std::marker::PhantomData;
 
 macro_rules! program {
     ($($name:ident : $typ:ty),+ $(,)?) => {
         #[derive(Debug)]
-        pub struct Program<'a> {
-            phantom: PhantomData<&'a ()>,
+        pub struct Program {
             $(
                 $name: Vec<$typ>,
             )*
         }
-        impl<'a> Program<'a> {
+        impl Program {
             pub fn new() -> Self {
                 Self {
-                    phantom: PhantomData,
                     $($name: Vec::new(),)*
                 }
             }

@@ -17,14 +17,14 @@ impl FileId {
     }
 }
 
-pub struct SourceInfo<'a> {
-    pub(crate) module: SourceNode<'a>,
+pub struct SourceInfo {
+    pub(crate) module: SourceNode,
     /// Per-import pending paths: pending[i] are the paths for the i-th import declaration.
     pub(crate) pending: Vec<Vec<PathBuf>>,
 }
 
-impl<'a> SourceInfo<'a> {
-    pub fn new(module: SourceNode<'a>, pending: Vec<Vec<PathBuf>>) -> Self {
+impl SourceInfo {
+    pub fn new(module: SourceNode, pending: Vec<Vec<PathBuf>>) -> Self {
         Self { module, pending }
     }
     pub fn pending_count(&self) -> usize {
@@ -34,17 +34,17 @@ impl<'a> SourceInfo<'a> {
 
 #[derive(Debug)]
 ///A module that was parsed
-pub struct SourceNode<'a> {
+pub struct SourceNode {
     ///The path to the file that generated this module
     pub id: FileId,
     ///The declarations inside this module
-    pub program: Program<'a>,
+    pub program: Program,
     ///Per-import submodule lists: `import_submodules[i]` contains the FileIds for the i-th import declaration.
     pub import_submodules: Vec<Vec<FileId>>,
 }
 
-impl<'a> SourceNode<'a> {
-    pub fn new(id: FileId, program: Program<'a>) -> Self {
+impl SourceNode {
+    pub fn new(id: FileId, program: Program) -> Self {
         Self {
             id,
             program,

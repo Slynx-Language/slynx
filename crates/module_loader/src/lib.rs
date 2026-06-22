@@ -1,3 +1,5 @@
+mod modules;
+pub use modules::*;
 mod sources;
 pub use sources::*;
 mod error;
@@ -30,12 +32,12 @@ impl SourceLoader {
     }
 
     ///Generates the 'Program' of the given `entry`
-    fn read_file<'a>(
-        &'a self,
+    fn read_file(
+        &self,
         entry: &Path,
         importer: &Path,
         on_file_loaded: &mut impl FnMut(&Path, &str),
-    ) -> Result<Program<'a>, SourceError> {
+    ) -> Result<Program, SourceError> {
         let source = std::fs::read_to_string(&entry).map_err(|e| {
             SourceError::inexistant_module(
                 e,
@@ -130,15 +132,15 @@ impl SourceLoader {
         Ok(())
     }
 
-    fn load_file_module<'a>(
-        &'a self,
+    fn load_file_module(
+        &self,
         mut entry: PathBuf,
         global_entry: &Path,
         std_path: &Path,
         id: FileId,
         importer: &Path,
         on_file_loaded: &mut impl FnMut(&Path, &str),
-    ) -> Result<SourceInfo<'a>, SourceError> {
+    ) -> Result<SourceInfo, SourceError> {
         let generator = entry.clone();
         let program = self.read_file(&entry, importer, on_file_loaded)?;
 
@@ -162,12 +164,12 @@ impl SourceLoader {
         Ok(SourceInfo::new(SourceNode::new(id, program), pending))
     }
 
-    pub fn load<'a>(
-        &'a self,
+    pub fn load(
+        self,
         entry: PathBuf,
         std_path: PathBuf,
         on_file_loaded: &mut impl FnMut(&Path, &str),
-    ) -> Result<Vec<SourceNode<'a>>, SourceError> {
+    ) -> Result<Modules, SourceError> {
         let mut global_entry = entry.clone();
         global_entry.pop(); //pops cause the entry should be a file
 
@@ -189,7 +191,7 @@ impl SourceLoader {
             let canonical = std::fs::canonicalize(&entry).unwrap_or_else(|_| entry.clone());
             if let Some(&existing_id) = path_to_id.get(&canonical) {
                 if let Some((mod_idx, imp_idx)) = parent {
-                    (&mut modules[mod_idx] as &mut SourceNode<'_>)
+                    (&mut modules[mod_idx] as &mut SourceNode)
                         .import_submodule(imp_idx, existing_id);
                 }
                 continue;
@@ -222,6 +224,9 @@ impl SourceLoader {
             entry_index += 1;
         }
 
-        Ok(modules)
+        Ok(Modules {
+            loader: self,
+            modules,
+        })
     }
 }

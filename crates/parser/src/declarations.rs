@@ -145,7 +145,7 @@ impl<'a> Parser<'a> {
     /// Parses the declarations in the source code and returns them as a vector of `ASTDeclaration`s.
     /// The parser will continue parsing until it reaches the end of the input stream.
     /// If it encounters an unexpected token, it will return an error indicating the expected token type.
-    pub fn parse_declarations(&mut self) -> Result<Program<'a>> {
+    pub fn parse_declarations(&mut self) -> Result<Program> {
         let mut program = Program::new();
         while let Ok(token) = self.peek() {
             if matches!(token.kind, TokenKind::Extern) {
