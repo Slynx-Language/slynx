@@ -95,6 +95,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "autocfg"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+
+[[package]]
 name = "backtrace"
 version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -407,6 +413,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "module_loader"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "slynx-lexer",
+ "slynx-parser",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.2.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "object"
 version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -426,6 +450,15 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "ordered-float"
+version = "5.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "owo-colors"
@@ -582,6 +615,7 @@ dependencies = [
  "color-eyre",
  "common",
  "dashmap",
+ "paste",
  "slynx-codegen",
  "slynx-hir",
  "slynx-ir",
@@ -651,7 +685,10 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "common",
+ "ordered-float",
+ "paste",
  "slynx-lexer",
+ "smallvec",
 ]
 
 [[package]]
