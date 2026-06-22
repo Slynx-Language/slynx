@@ -1,3 +1,5 @@
+use common::Span;
+
 use crate::SymbolPointer;
 
 #[derive(Debug)]
@@ -14,4 +16,5 @@ pub struct ImportUsage {
 pub struct FileImport {
     pub path: ASTPath,
     pub usages: Vec<ImportUsage>,
+    pub span: Span,
 }

@@ -69,7 +69,8 @@ impl<'a> Parser<'a> {
         };
         match &self.peek()?.kind {
             TokenKind::Import => {
-                let import = self.parse_import()?;
+                let span = self.eat()?.span;
+                let import = self.parse_import(span)?;
                 program.append_imports(import);
             }
             TokenKind::Alias => {
