@@ -1,10 +1,11 @@
-use crate::{DeclarationId, SymbolPointer, TypeId};
+use crate::{DeclarationId, HirType, SymbolPointer};
 
 mod declarations;
 mod lang_items;
 mod scopes;
 mod symbols;
 mod types;
+use common::pool::PoolId;
 pub use declarations::*;
 pub use lang_items::*;
 pub use scopes::*;
@@ -13,6 +14,6 @@ pub use types::*;
 
 pub struct DeclarationInfo {
     pub id: DeclarationId,
-    pub ty: TypeId,
+    pub ty: PoolId<HirType>,
     pub symbol: SymbolPointer,
 }
