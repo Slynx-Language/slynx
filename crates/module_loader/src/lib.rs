@@ -14,20 +14,25 @@ use slynx_lexer::Lexer;
 use slynx_parser::{ASTExpression, ASTPath, ASTStatement, FileImport, GenericIdentifier, Parser};
 use slynx_parser::{Program, SymbolPointer};
 
-pub struct SourceLoader {
-    symbols: SymbolsModule<FrontendSymbol>,
-    statements: Pool<ASTStatement>,
-    expressions: Pool<ASTExpression>,
-    types: Pool<GenericIdentifier>,
+pub struct SourceLoader<'a> {
+    symbols: &'a SymbolsModule<FrontendSymbol>,
+    statements: &'a Pool<ASTStatement>,
+    expressions: &'a Pool<ASTExpression>,
+    types: &'a Pool<GenericIdentifier>,
 }
 
-impl SourceLoader {
-    pub fn new() -> Self {
+impl<'a> SourceLoader<'a> {
+    pub fn new(
+        symbols: &'a SymbolsModule<FrontendSymbol>,
+        statements: &'a Pool<ASTStatement>,
+        expressions: &'a Pool<ASTExpression>,
+        types: &'a Pool<GenericIdentifier>,
+    ) -> Self {
         Self {
-            symbols: SymbolsModule::<FrontendSymbol>::new(),
-            statements: Pool::new(),
-            expressions: Pool::new(),
-            types: Pool::new(),
+            symbols,
+            statements,
+            expressions,
+            types,
         }
     }
 
@@ -168,8 +173,8 @@ impl SourceLoader {
         self,
         entry: PathBuf,
         std_path: PathBuf,
-        on_file_loaded: &mut impl FnMut(&Path, &str),
-    ) -> Result<Modules, SourceError> {
+        on_file_loaded: &'a mut impl FnMut(&Path, &str),
+    ) -> Result<Modules<'a>, SourceError> {
         let mut global_entry = entry.clone();
         global_entry.pop(); //pops cause the entry should be a file
 
@@ -227,6 +232,7 @@ impl SourceLoader {
         Ok(Modules {
             loader: self,
             modules,
+            paths: path_to_id,
         })
     }
 }

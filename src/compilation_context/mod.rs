@@ -6,6 +6,8 @@ use std::{
     sync::Arc,
 };
 
+use common::{FrontendSymbol, SymbolsModule, pool::Pool};
+use module_loader::{Modules, SourceLoader};
 use slynx_codegen::Codegen;
 use slynx_hir::{
     SlynxHir,
@@ -14,7 +16,9 @@ use slynx_hir::{
 use slynx_ir::SlynxIR;
 use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
-use slynx_parser::{ASTDeclaration, Parser};
+use slynx_parser::{
+    ASTDeclaration, ASTExpression, ASTStatement, GenericIdentifier, Parser, Program,
+};
 use slynx_typechecker::TypeChecker;
 
 pub use crate::compilation_context::errors::*;
@@ -94,6 +98,14 @@ impl CompilationStages {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct GlobalPools {
+    names: SymbolsModule<FrontendSymbol>,
+    expressions: Pool<ASTExpression>,
+    statements: Pool<ASTStatement>,
+    types: Pool<GenericIdentifier>,
+}
+
 ///Context that will have all the information needed when erroring or retrieving metadata about the code itself during compilation.
 ///For example, this can be used when erroring to retrieve the correct line where the file errored
 pub struct SlynxContext {
@@ -103,6 +115,7 @@ pub struct SlynxContext {
     lines: HashMap<Arc<PathBuf>, Vec<usize>>,
     entry_point: Arc<PathBuf>,
     std: PathBuf,
+    pools: GlobalPools,
 }
 
 pub struct LineInfo<'a> {
@@ -137,6 +150,7 @@ impl SlynxContext {
             lines: HashMap::new(),
             entry_point: entry_point.clone(),
             std: Self::std_dir(std_path),
+            pools: GlobalPools::default(),
         };
         out.insert_file(entry_point)?;
         Ok(out)
@@ -154,6 +168,7 @@ impl SlynxContext {
             lines: HashMap::from([(entry.clone(), lines)]),
             entry_point: entry,
             std: Self::std_dir(None),
+            pools: GlobalPools::default(),
         }
     }
 
@@ -269,20 +284,32 @@ impl SlynxContext {
     }
 
     ///Builds the Slynx AST from the given `tokens` stream.
-    pub fn build_parser(&self, tokens: TokenStream) -> Result<Vec<ASTDeclaration>, SlynxError> {
-        Parser::new(tokens)
-            .parse_declarations()
-            .map_err(|e| self.handle_parser_error(&e))
+    pub fn build_parser(&self, tokens: TokenStream) -> Result<Program, SlynxError> {
+        Parser::new(
+            tokens,
+            &self.pools.names,
+            &self.pools.expressions,
+            &self.pools.statements,
+            &self.pools.types,
+        )
+        .parse_declarations()
+        .map_err(|e| self.handle_parser_error(&e))
     }
 
-    pub fn load_modules(&mut self) -> Result<Vec<SourceNode>, SlynxError> {
+    pub fn load_modules(&mut self) -> Result<Modules, SlynxError> {
+        let mut loader = SourceLoader::new(
+            &self.pools.names,
+            &self.pools.statements,
+            &self.pools.expressions,
+            &self.pools.types,
+        );
         let entry = (*self.entry_point).clone();
         let modules = {
             let std = self.std.clone();
             let mut on_load = |path: &Path, source: &str| {
                 self.register_loaded_file(Arc::new(path.to_path_buf()), source.to_string());
             };
-            SourceLoader::load(entry, &mut on_load, std)
+            loader.load(entry, std, &mut on_load)
         };
         match modules {
             Ok(modules) => Ok(modules),
@@ -291,10 +318,8 @@ impl SlynxContext {
     }
 
     ///Builds the Slynx HIR from the given `ast`. And type checks the HIR. The result hir is already typed. Also returns the types module to be used if needed to get information about the types on the Hir.
-    pub fn build_hir(&self, ast: &[SourceNode]) -> Result<SlynxHir, SlynxError> {
-        let mut hir = SlynxHir::new();
-        hir.generate(ast)
-            .map_err(|e| self.handle_hir_error(&hir, &e))?;
+    pub fn build_hir(&self, ast: Modules) -> Result<SlynxHir, SlynxError> {
+        let mut hir = SlynxHir::new(&ast);
         hir = TypeChecker::check(hir).map_err(|e| self.handle_checker_error(&e.0, &e.1))?;
 
         self.monomorphize(&mut hir)?;

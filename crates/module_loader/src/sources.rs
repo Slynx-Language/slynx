@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{ops::Deref, path::PathBuf};
 
 use slynx_parser::Program;
 
@@ -54,5 +54,12 @@ impl SourceNode {
     ///Imports the given `file` into the import at the given `import_index`
     pub(crate) fn import_submodule(&mut self, import_index: usize, file: FileId) {
         self.import_submodules[import_index].push(file);
+    }
+}
+
+impl Deref for SourceNode {
+    type Target = Program;
+    fn deref(&self) -> &Self::Target {
+        &self.program
     }
 }
