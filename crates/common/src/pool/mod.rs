@@ -1,5 +1,5 @@
 mod view;
-use std::{hash::Hash, marker::PhantomData};
+use std::{hash::Hash, marker::PhantomData, ops::Index};
 pub use view::*;
 
 use dashmap::DashMap;
@@ -19,16 +19,15 @@ impl<T> Clone for PoolId<T> {
     }
 }
 impl<T> Copy for PoolId<T> {}
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub struct RefPoolId<'a, T>(u32, PhantomData<&'a T>);
-
-impl<'a, T> Clone for RefPoolId<'a, T> {
-    fn clone(&self) -> Self {
-        Self(self.0, self.1)
+impl<T> PoolId<T> {
+    ///THis method is unsafe because it does not guarantee the returned pool id will be avaible on a pool
+    pub unsafe fn from_raw(raw: u32) -> Self {
+        Self(raw, PhantomData)
+    }
+    pub fn inner(&self) -> u32 {
+        self.0
     }
 }
-impl<'a, T> Copy for RefPoolId<'a, T> {}
 
 pub struct Pool<T: Hash> {
     pub(crate) inner: boxcar::Vec<T>,
@@ -52,24 +51,25 @@ impl<T: Hash + Eq + Clone> Pool<T> {
             out
         }
     }
-    ///Inserts the given `data` into this pool. This differences between `insert` because the reference is tied to the lifetime of this pool
-    ///and so another pool might not be able to generate data and use it wrongly
-    pub fn insert_lifetime(&self, data: T) -> RefPoolId<'_, T> {
-        let data = self.insert(data);
-        RefPoolId(data.0, PhantomData)
-    }
+
     ///Gets the data that originated the given `id`
     pub fn get(&self, id: PoolId<T>) -> &T {
         self.inner
             .get(id.0 as usize)
             .expect("Expected to retrieve data from pool id originated from insert")
     }
-    ///Gets the data that originated the given `id`
-    pub fn get_lifetime(&self, id: RefPoolId<'_, T>) -> &T {
-        self.get(PoolId(id.0, PhantomData))
-    }
 
     pub fn view<'a>(&'a self, id: PoolId<T>) -> PoolViewer<'a, T> {
         PoolViewer { pool: self, id: id }
+    }
+}
+
+impl<T> Index<PoolId<T>> for Pool<T>
+where
+    T: Hash + Eq + Clone,
+{
+    type Output = T;
+    fn index(&self, index: PoolId<T>) -> &Self::Output {
+        self.get(index)
     }
 }

@@ -1,4 +1,8 @@
-use std::{hash::Hash, marker::PhantomData};
+use std::{
+    hash::Hash,
+    marker::PhantomData,
+    ops::{Deref, Index},
+};
 
 use lasso::{Spur, ThreadedRodeo};
 
@@ -65,6 +69,13 @@ impl<Ctx> SymbolsModule<Ctx> {
 
     pub fn get_name(&self, ptr: SymbolPointer<Ctx>) -> &str {
         self.names.resolve(&ptr.0)
+    }
+}
+
+impl<Ctx> Index<SymbolPointer<Ctx>> for SymbolsModule<Ctx> {
+    type Output = str;
+    fn index(&self, index: SymbolPointer<Ctx>) -> &Self::Output {
+        self.get_name(index)
     }
 }
 
