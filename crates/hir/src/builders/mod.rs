@@ -14,7 +14,7 @@ use slynx_parser::{
 
 use crate::{
     DeclarationId, HIRError, HirFunctionDeclaration, HirObjectDeclaration, HirStatement,
-    HirStaticDeclaration, HirType, Result, SlynxHir, SymbolPointer,
+    HirStaticDeclaration, HirType, Result, SlynxHir, SymbolPointer, VariableId,
     builders::{
         function::{HirFunctionBuildResult, HirFunctionBuilder},
         work_channel::WorkChannel,
@@ -49,8 +49,10 @@ pub struct HirQueueBuilder<'a> {
     pub(crate) modules: &'a Modules<'a>,
     pub(crate) bodies: WorkChannel<PendantBody<'a>>,
     pub(crate) statics: WorkChannel<()>,
-    pub(crate) resolved_bodies:
-        DashMap<DeclarationId<HirFunctionDeclaration>, Vec<Spanned<PoolId<HirStatement>>>>,
+    pub(crate) resolved_bodies: DashMap<
+        DeclarationId<HirFunctionDeclaration>,
+        (Vec<Spanned<PoolId<HirStatement>>>, Vec<VariableId>),
+    >,
 }
 
 impl HirNode<'_> {
@@ -365,17 +367,16 @@ impl<'a> HirQueueBuilder<'a> {
             for (idx, name) in argument_names.into_iter().enumerate() {
                 builder.create_argument(self, name, idx as u8);
             }
-            let HirFunctionBuildResult { statements, .. } = builder.build_body(self, &body)?;
-            self.resolved_bodies.insert(func_id, statements);
+            let HirFunctionBuildResult { statements, args } = builder.build_body(self, &body)?;
+            self.resolved_bodies.insert(func_id, (statements, args));
         }
         for mut entry in self.resolved_bodies.iter_mut() {
-            self.hir
-                .get_file_mut(entry.key().file_id)
-                .declarations
-                .functions
-                .get_mut(entry.key().local_id)
-                .statements
-                .append(entry.value_mut());
+            let mut file = self.hir.get_file_mut(entry.key().file_id);
+            let func = file.declarations.functions.get_mut(entry.key().local_id);
+            func.statements.append(&mut entry.0);
+            for data in entry.1.drain(..) {
+                func.args.push(data);
+            }
         }
         Ok(())
     }
