@@ -1,39 +1,33 @@
-mod view;
+mod id;
+pub mod soa;
+use std::fmt::Debug;
 use std::{hash::Hash, marker::PhantomData, ops::Index};
-pub use view::*;
 
 use dashmap::DashMap;
-#[derive(Debug, Hash)]
-pub struct PoolId<T>(u32, PhantomData<T>);
 
-impl<T> PartialEq for PoolId<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-impl<T> Eq for PoolId<T> {}
+pub use crate::pool::id::DedupPoolId;
+pub use crate::pool::id::PoolId;
 
-impl<T> Clone for PoolId<T> {
-    fn clone(&self) -> Self {
-        Self(self.0, self.1)
-    }
-}
-impl<T> Copy for PoolId<T> {}
-impl<T> PoolId<T> {
-    ///THis method is unsafe because it does not guarantee the returned pool id will be avaible on a pool
-    pub unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw, PhantomData)
-    }
-    pub fn inner(&self) -> u32 {
-        self.0
-    }
-}
-
-pub struct Pool<T: Hash> {
+#[derive(Default)]
+pub struct DedupPool<T: Eq + Hash> {
     pub(crate) inner: boxcar::Vec<T>,
-    pub(crate) hashes: DashMap<T, PoolId<T>>,
+    pub(crate) hashes: DashMap<T, DedupPoolId<T>>,
 }
-impl<T: Hash + Eq + Clone> Pool<T> {
+
+impl<T> Debug for DedupPool<T>
+where
+    T: Debug + Eq + Hash,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.inner)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Pool<T> {
+    pub(crate) inner: boxcar::Vec<T>,
+}
+impl<T: Hash + Eq + Clone> DedupPool<T> {
     pub fn new() -> Self {
         Self {
             inner: boxcar::Vec::new(),
@@ -41,35 +35,103 @@ impl<T: Hash + Eq + Clone> Pool<T> {
         }
     }
     ///Inserts the given `data` into this pool. If it was previously inserted returns the ID of the previous value
-    pub fn insert(&self, data: T) -> PoolId<T> {
-        if let Some(data) = self.hashes.get(&data) {
-            *data
-        } else {
-            let index = self.inner.push(data.clone());
-            let out = PoolId(index as u32, PhantomData);
-            self.hashes.insert(data, out);
-            out
+    pub fn insert(&self, data: T) -> DedupPoolId<T> {
+        *self
+            .hashes
+            .entry(data.clone())
+            .or_insert_with(|| {
+                let index = self.inner.push(data);
+                DedupPoolId(index as u32, PhantomData)
+            })
+            .value()
+    }
+
+    ///Gets the data that originated the given `id`
+    pub fn get(&self, id: DedupPoolId<T>) -> &T {
+        self.inner
+            .get(id.as_raw() as usize)
+            .expect("Expected to retrieve data from pool id originated from insert")
+    }
+}
+
+impl<T> Pool<T> {
+    pub fn new() -> Self {
+        Self {
+            inner: boxcar::Vec::new(),
         }
+    }
+    ///Inserts the given `data` into this pool. If it was previously inserted returns the ID of the previous value
+    pub fn insert(&self, data: T) -> PoolId<T> {
+        let idx = self.inner.push(data);
+        PoolId(idx as u32, PhantomData)
     }
 
     ///Gets the data that originated the given `id`
     pub fn get(&self, id: PoolId<T>) -> &T {
         self.inner
-            .get(id.0 as usize)
+            .get(id.as_raw() as usize)
             .expect("Expected to retrieve data from pool id originated from insert")
     }
-
-    pub fn view<'a>(&'a self, id: PoolId<T>) -> PoolViewer<'a, T> {
-        PoolViewer { pool: self, id: id }
+    pub fn iter<'a>(&'a self) -> PoolIterator<'a, T> {
+        PoolIterator {
+            pool: self,
+            current: 0,
+        }
     }
 }
-
-impl<T> Index<PoolId<T>> for Pool<T>
+impl<T> Index<PoolId<T>> for Pool<T> {
+    type Output = T;
+    fn index(&self, index: PoolId<T>) -> &Self::Output {
+        self.get(index)
+    }
+}
+impl<T> Index<DedupPoolId<T>> for DedupPool<T>
 where
     T: Hash + Eq + Clone,
 {
     type Output = T;
-    fn index(&self, index: PoolId<T>) -> &Self::Output {
+    fn index(&self, index: DedupPoolId<T>) -> &Self::Output {
         self.get(index)
+    }
+}
+
+pub struct PoolIterator<'a, T> {
+    pool: &'a Pool<T>,
+    current: usize,
+}
+
+impl<'a, T> Iterator for PoolIterator<'a, T> {
+    type Item = &'a T;
+    fn next(&mut self) -> Option<Self::Item> {
+        let out = self.pool.inner.get(self.current);
+        self.current += 1;
+        out
+    }
+}
+
+pub struct IndexedPoolIterator<'a, T> {
+    pool: &'a Pool<T>,
+    current: usize,
+}
+
+impl<'a, T> Iterator for IndexedPoolIterator<'a, T> {
+    type Item = (PoolId<T>, &'a T);
+    fn next(&mut self) -> Option<Self::Item> {
+        let out = self
+            .pool
+            .inner
+            .get(self.current)
+            .map(|out| (PoolId::new(self.current as u32), out));
+        self.current += 1;
+        out
+    }
+}
+
+impl<'a, T> PoolIterator<'a, T> {
+    pub fn with_ids(self) -> IndexedPoolIterator<'a, T> {
+        IndexedPoolIterator {
+            pool: self.pool,
+            current: self.current,
+        }
     }
 }
