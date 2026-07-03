@@ -76,9 +76,12 @@
 //!
 //! During HIR generation, this expression is wrapped in a [`Return`] statement.
 
-use common::Span;
+use common::{
+    Span, Spanned,
+    pool::{DedupPoolId, PoolId},
+};
 
-use crate::{SymbolPointer, TypeId, VariableId, model::HirExpression};
+use crate::{HirType, SymbolPointer, VariableId, model::HirExpression};
 
 #[derive(Debug)]
 ///A Style definition when declaring a stylesheet
@@ -86,9 +89,9 @@ pub struct StylesDefinition {
     ///The name of the style
     pub name: SymbolPointer,
     ///The expression related to it
-    pub expr: HirExpression,
+    pub expr: Spanned<PoolId<HirExpression>>,
     ///The type it should have. Used on Type checker
-    pub expected_type: TypeId,
+    pub expected_type: DedupPoolId<HirType>,
     ///The span of this definition
     pub span: Span,
 }
@@ -98,8 +101,8 @@ impl StylesDefinition {
     ///but that'll be asserted on Type checking
     pub fn new(
         symb: SymbolPointer,
-        expr: HirExpression,
-        expected_type: TypeId,
+        expr: Spanned<PoolId<HirExpression>>,
+        expected_type: DedupPoolId<HirType>,
         span: Span,
     ) -> Self {
         Self {
@@ -133,48 +136,9 @@ pub struct HirStyleBlock {
 ///An statement that might occurr inside a stylesheet
 pub enum HirStyleStatement {
     ///A normal statement
-    Statement(Box<HirStatement>),
+    Statement(Spanned<PoolId<HirStatement>>),
     ///Styling definitions
     Styles(Vec<HirStyleBlock>),
-}
-
-/// A statement node in the HIR.
-///
-/// Statements represent actions, declarations, and control flow constructs.
-/// Unlike expressions, statements are executed for side effects rather than
-/// producing values (though they may contain expressions that do).
-///
-/// # Fields
-///
-/// - `kind` — What kind of statement this is (declaration, assignment, loop, etc.)
-/// - `span` — The source location of this statement
-///
-/// # Immutability
-///
-/// Statements are immutable once created. They form part of the HIR declaration
-/// tree and are not modified after generation.
-///
-/// # Sequences
-///
-/// Statements are typically executed in sequence, as they appear in the source.
-/// The order matters for:
-/// - Variable declarations (must precede use)
-/// - Side effects (order of evaluation)
-/// - Control flow (loop bodies, conditional branches)
-#[derive(Debug)]
-#[repr(C)]
-pub struct HirStatement {
-    /// What kind of statement this is.
-    ///
-    /// The kind determines the statement's behavior and what additional data
-    /// it contains (e.g., variable bindings for declarations, conditions for loops).
-    pub kind: HirStatementKind,
-
-    /// The source location of this statement.
-    ///
-    /// Used for error reporting and IDE features. Preserved throughout the
-    /// compilation pipeline for accurate diagnostics.
-    pub span: Span,
 }
 
 /// The kind of a statement.
@@ -211,9 +175,9 @@ pub struct HirStatement {
 /// During HIR generation, this final expression is wrapped in a `Return`
 /// statement. Explicit `return` statements are also supported and lowered
 /// to the same `Return` variant.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[repr(C)]
-pub enum HirStatementKind {
+pub enum HirStatement {
     /// Assignment statement.
     ///
     /// Assigns a value to a mutable variable.
@@ -234,12 +198,12 @@ pub enum HirStatementKind {
         ///
         /// Typically an [`Identifier`](HirExpressionKind::Identifier) expression,
         /// but can also be a field access for struct field assignment.
-        lhs: HirExpression,
+        lhs: Spanned<PoolId<HirExpression>>,
 
         /// The value to assign.
         ///
         /// Evaluated before assignment, then stored in the target location.
-        value: HirExpression,
+        value: Spanned<PoolId<HirExpression>>,
     },
 
     /// Variable declaration statement.
@@ -269,7 +233,7 @@ pub enum HirStatementKind {
         /// Evaluated at the point of declaration to produce the variable's initial value.
         /// The type of this expression determines the variable's type (unless explicitly
         /// annotated, which is handled during type checking).
-        value: HirExpression,
+        value: Spanned<PoolId<HirExpression>>,
     },
 
     /// Expression used as a statement.
@@ -292,7 +256,7 @@ pub enum HirStatementKind {
         ///
         /// The result is discarded unless this is the last expression in a function body,
         /// in which case it becomes an implicit return.
-        expr: HirExpression,
+        expr: Spanned<PoolId<HirExpression>>,
     },
 
     /// Return statement.
@@ -330,7 +294,7 @@ pub enum HirStatementKind {
         ///
         /// Must match the function's declared return type (or be `void` for
         /// functions that don't return a value).
-        expr: HirExpression,
+        expr: Spanned<PoolId<HirExpression>>,
     },
 
     /// While loop statement.
@@ -356,181 +320,12 @@ pub enum HirStatementKind {
         ///
         /// Evaluated before each iteration. If false, the loop exits.
         /// Must evaluate to a boolean value.
-        condition: HirExpression,
+        condition: Spanned<PoolId<HirExpression>>,
 
         /// The loop body statements.
         ///
         /// Executed in order each time the condition is true.
         /// The body executes in its own scope for variable bindings.
-        body: Vec<HirStatement>,
+        body: Vec<Spanned<PoolId<HirStatement>>>,
     },
-}
-
-impl HirStatement {
-    /// Creates a new return statement.
-    ///
-    /// This is used for both explicit `return` statements and implicit returns
-    /// from the last expression in a function body.
-    ///
-    /// # Arguments
-    ///
-    /// * `expr` — The expression to return
-    ///
-    /// # Returns
-    ///
-    /// A new [`HirStatement`] with [`HirStatementKind::Return`].
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::*;
-    /// # use common::Span;
-    /// # let span = Span::default();
-    /// # let expr = HirExpression {
-    /// #     id: ExpressionId::new(),
-    /// #     ty: TypeId::from_raw(0),
-    /// #     kind: HirExpressionKind::Int(42),
-    /// #     span,
-    /// # };
-    /// let return_stmt = HirStatement::new_return(expr);
-    /// ```
-    ///
-    /// # See Also
-    ///
-    /// - [`HirStatementKind::Return`]
-    /// - [`crate::hir::implementation::declarations::resolve_function`]
-    pub fn new_return(expr: HirExpression) -> Self {
-        Self {
-            span: expr.span,
-            kind: HirStatementKind::Return { expr },
-        }
-    }
-
-    /// Creates a new variable declaration statement.
-    ///
-    /// Used for both `let` and `let mut` declarations during HIR generation.
-    /// The variable's mutability is tracked separately through scope management.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` — The variable's unique ID
-    /// * `value` — The initializer expression
-    /// * `span` — The source location of the declaration
-    ///
-    /// # Returns
-    ///
-    /// A new [`HirStatement`] with [`HirStatementKind::Variable`].
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::*;
-    /// # use common::Span;
-    /// # use crate::slynx_frontend::hir::{VariableId, ExpressionId, TypeId};
-    /// # let span = Span::default();
-    /// # let var_id = VariableId::new();
-    /// # let value = HirExpression {
-    /// #     id: ExpressionId::new(),
-    /// #     ty: TypeId::from_raw(0),
-    /// #     kind: HirExpressionKind::Int(42),
-    /// #     span,
-    /// # };
-    /// let var_stmt = HirStatement::new_variable(var_id, value, span);
-    /// ```
-    ///
-    /// # See Also
-    ///
-    /// - [`HirStatementKind::Variable`]
-    /// - [`crate::hir::modules::ScopeModule::create_variable`]
-    pub fn new_variable(name: VariableId, value: HirExpression, span: Span) -> Self {
-        Self {
-            kind: HirStatementKind::Variable { name, value },
-            span,
-        }
-    }
-
-    /// Creates a new while loop statement.
-    ///
-    /// # Arguments
-    ///
-    /// * `condition` — The loop condition expression
-    /// * `body` — The statements to execute each iteration
-    /// * `span` — The source location of the loop
-    ///
-    /// # Returns
-    ///
-    /// A new [`HirStatement`] with [`HirStatementKind::While`].
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::*;
-    /// # use common::Span;
-    /// # use crate::slynx_frontend::hir::{ExpressionId, TypeId};
-    /// # let span = Span::default();
-    /// # let condition = HirExpression {
-    /// #     id: ExpressionId::new(),
-    /// #     ty: TypeId::from_raw(0),
-    /// #     kind: HirExpressionKind::Bool(true),
-    /// #     span,
-    /// # };
-    /// # let body = vec![];
-    /// let while_stmt = HirStatement::new_while(condition, body, span);
-    /// ```
-    ///
-    /// # See Also
-    ///
-    /// - [`HirStatementKind::While`]
-    /// - [`crate::hir::implementation::statements::resolve_statement`]
-    pub fn new_while(condition: HirExpression, body: Vec<HirStatement>, span: Span) -> Self {
-        Self {
-            span,
-            kind: HirStatementKind::While { condition, body },
-        }
-    }
-
-    /// Creates a new expression statement.
-    ///
-    /// This is used when an expression is used as a statement, typically for
-    /// its side effects (e.g., function calls).
-    ///
-    /// # Arguments
-    ///
-    /// * `expr` — The expression to evaluate
-    ///
-    /// # Returns
-    ///
-    /// A new [`HirStatement`] with [`HirStatementKind::Expression`].
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::*;
-    /// # use common::Span;
-    /// # use crate::slynx_frontend::hir::{ExpressionId, TypeId};
-    /// # let span = Span::default();
-    /// # let expr = HirExpression {
-    /// #     id: ExpressionId::new(),
-    /// #     ty: TypeId::from_raw(0),
-    /// #     kind: HirExpressionKind::Int(42),
-    /// #     span,
-    /// # };
-    /// let expr_stmt = HirStatement::new_expression(expr);
-    /// ```
-    ///
-    /// # Note
-    ///
-    /// If this is the last expression in a function body, it will be wrapped
-    /// in a `Return` statement instead of an `Expression` statement.
-    ///
-    /// # See Also
-    ///
-    /// - [`HirStatementKind::Expression`]
-    /// - [`crate::hir::implementation::statements::resolve_statement`]
-    pub fn new_expression(expr: HirExpression) -> Self {
-        Self {
-            span: expr.span,
-            kind: HirStatementKind::Expression { expr },
-        }
-    }
 }
