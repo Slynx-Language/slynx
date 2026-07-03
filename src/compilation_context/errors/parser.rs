@@ -9,7 +9,7 @@ impl SlynxContext {
     pub fn handle_parser_error(&self, error: &ParseError) -> SlynxError {
         match error {
             err @ ParseError::InvalidPostfix(span) => {
-                let info = self.get_line_info(&self.entry_point, span.start);
+                let info = self.get_line_info(&self.entry_point, span.start as usize);
                 let suggestion = suggestions_from_parser(error);
                 SlynxError::new_parser(
                     info.line,
@@ -27,7 +27,7 @@ impl SlynxContext {
                     column_start,
                     column_end,
                     src,
-                } = self.get_line_info(&self.entry_point, token.span.start);
+                } = self.get_line_info(&self.entry_point, token.span.start as usize);
                 let suggestion = suggestions_from_parser(error);
                 SlynxError::new_parser(
                     line,
