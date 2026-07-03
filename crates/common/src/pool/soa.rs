@@ -57,6 +57,11 @@ macro_rules! pooled {
                     self.$field_name.get(index)
                 }
             }
+            impl std::ops::IndexMut<PoolId<$ty>> for $name {
+                fn index_mut(&mut self, index: PoolId<$ty>) -> &mut Self::Output {
+                    self.$field_name.get_mut(index)
+                }
+            }
         )*
         $crate::paste!{
             impl $name {

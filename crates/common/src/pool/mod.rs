@@ -78,6 +78,12 @@ impl<T> Pool<T> {
             current: 0,
         }
     }
+    ///Gets the data that originated the given `id`
+    pub fn get_mut(&mut self, id: PoolId<T>) -> &mut T {
+        self.inner
+            .get_mut(id.as_raw() as usize)
+            .expect("Expected to retrieve data from pool id originated from insert")
+    }
 }
 impl<T> Index<PoolId<T>> for Pool<T> {
     type Output = T;
