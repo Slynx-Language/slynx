@@ -9,24 +9,28 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use common::{FrontendSymbol, Span, SymbolsModule, pool::Pool};
+use common::{FrontendSymbol, Span, SymbolsModule, pool::DedupPool};
 use slynx_lexer::Lexer;
 use slynx_parser::{ASTExpression, ASTPath, ASTStatement, FileImport, GenericIdentifier, Parser};
 use slynx_parser::{Program, SymbolPointer};
 
+pub trait SourceProvider<'a> {
+    fn read(&self, path: &Path) -> std::io::Result<String>;
+}
+
 pub struct SourceLoader<'a> {
     symbols: &'a SymbolsModule<FrontendSymbol>,
-    statements: &'a Pool<ASTStatement>,
-    expressions: &'a Pool<ASTExpression>,
-    types: &'a Pool<GenericIdentifier>,
+    statements: &'a DedupPool<ASTStatement>,
+    expressions: &'a DedupPool<ASTExpression>,
+    types: &'a DedupPool<GenericIdentifier>,
 }
 
 impl<'a> SourceLoader<'a> {
     pub fn new(
         symbols: &'a SymbolsModule<FrontendSymbol>,
-        statements: &'a Pool<ASTStatement>,
-        expressions: &'a Pool<ASTExpression>,
-        types: &'a Pool<GenericIdentifier>,
+        statements: &'a DedupPool<ASTStatement>,
+        expressions: &'a DedupPool<ASTExpression>,
+        types: &'a DedupPool<GenericIdentifier>,
     ) -> Self {
         Self {
             symbols,
@@ -42,8 +46,9 @@ impl<'a> SourceLoader<'a> {
         entry: &Path,
         importer: &Path,
         on_file_loaded: &mut impl FnMut(&Path, &str),
+        provider: &impl SourceProvider<'static>,
     ) -> Result<Program, SourceError> {
-        let source = std::fs::read_to_string(&entry).map_err(|e| {
+        let source = provider.read(&entry).map_err(|e| {
             SourceError::inexistant_module(
                 e,
                 entry.to_path_buf(),
@@ -145,9 +150,10 @@ impl<'a> SourceLoader<'a> {
         id: FileId,
         importer: &Path,
         on_file_loaded: &mut impl FnMut(&Path, &str),
+        provider: &impl SourceProvider<'static>,
     ) -> Result<SourceInfo, SourceError> {
         let generator = entry.clone();
-        let program = self.read_file(&entry, importer, on_file_loaded)?;
+        let program = self.read_file(&entry, importer, on_file_loaded, provider)?;
 
         entry.pop(); //since its a file, we need to track its current folder to be able to get the siblings, and so we pop the name
         let mut pending: Vec<Vec<PathBuf>> = Vec::new();
@@ -173,7 +179,8 @@ impl<'a> SourceLoader<'a> {
         self,
         entry: PathBuf,
         std_path: PathBuf,
-        on_file_loaded: &'a mut impl FnMut(&Path, &str),
+        mut on_file_loaded: impl FnMut(&Path, &str),
+        provider: &impl SourceProvider<'static>,
     ) -> Result<Modules<'a>, SourceError> {
         let mut global_entry = entry.clone();
         global_entry.pop(); //pops cause the entry should be a file
@@ -209,7 +216,8 @@ impl<'a> SourceLoader<'a> {
                 &std_path,
                 last_id,
                 &importer,
-                on_file_loaded,
+                &mut on_file_loaded,
+                provider,
             )?;
             module_paths.push(module_path);
             // Pre-allocate per-import slot for this new module's imports
