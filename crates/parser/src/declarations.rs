@@ -1,6 +1,6 @@
 //! Module idealized for parsing general things related to declarations, such as visibility qualifiers, and attributes
 
-use common::{Span, VisibilityModifier};
+use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{
@@ -30,13 +30,14 @@ impl<'a> Parser<'a> {
         })
     }
 
-    pub fn parse_attributes(&mut self) -> Result<Vec<ASTAttribute>> {
+    pub fn parse_attributes(&mut self) -> Result<Vec<Spanned<ASTAttribute>>> {
         let mut out = Vec::new();
-        while let Ok(Token {
-            kind: TokenKind::Identifier(_),
-            ..
-        }) = self.peek()
-        {
+        if self.peek()?.kind != TokenKind::At {
+            return Ok(out);
+        }
+
+        while let TokenKind::At = self.peek()?.kind {
+            let start = self.expect(&TokenKind::At)?.span;
             let (name, _) = self.expect_identifier()?;
             self.expect(&TokenKind::LParen)?;
             let args = {
@@ -52,14 +53,18 @@ impl<'a> Parser<'a> {
                     }
                 }
             };
-            self.expect(&TokenKind::RParen)?;
-            out.push(ASTAttribute { name, args });
+            let end = self.expect(&TokenKind::RParen)?.span;
+            let attrib = start
+                .merge_with(end)
+                .make_spanned(ASTAttribute { name, args });
+            out.push(attrib);
         }
         Ok(out)
     }
 
     ///Parses a single declaration
     fn parse_declaration(&mut self, program: &mut Program, external: bool) -> Result<()> {
+        let mut attributes = self.parse_attributes()?;
         let token = self.peek()?;
         let visibility = if matches!(token.kind, TokenKind::Pub) {
             self.eat()?;
@@ -82,6 +87,7 @@ impl<'a> Parser<'a> {
             TokenKind::Object => {
                 let Token { span, .. } = self.eat()?;
                 let mut object = self.parse_object(span)?;
+                object.attributes.append(&mut attributes);
                 object.external = external;
                 object.visibility = visibility;
                 program.append_object(object)
@@ -89,12 +95,14 @@ impl<'a> Parser<'a> {
             TokenKind::Component => {
                 let Token { span, .. } = self.eat()?;
                 let mut component = self.parse_component(span)?;
+                component.attributes.append(&mut attributes);
                 component.visibility = visibility;
                 program.append_component(component);
             }
             TokenKind::Func => {
                 let Token { span, .. } = self.eat()?;
                 let mut func = self.parse_func(span)?;
+                func.attributes.append(&mut attributes);
                 func.external = external;
                 func.visibility = visibility;
                 program.append_func(func);
@@ -102,12 +110,14 @@ impl<'a> Parser<'a> {
             TokenKind::StyleSheet => {
                 let Token { span, .. } = self.eat()?;
                 let mut style = self.parse_stylesheet(span)?;
+                style.attributes.append(&mut attributes);
                 style.visibility = visibility;
                 program.append_style(style);
             }
             TokenKind::Static => {
                 let Token { span, .. } = self.eat()?;
                 let mut static_decl = self.parse_static(span)?;
+                static_decl.attributes.append(&mut attributes);
                 static_decl.external = external;
                 static_decl.visibility = visibility;
                 program.append_statics(static_decl);
