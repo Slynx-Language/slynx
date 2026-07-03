@@ -1,4 +1,4 @@
-use common::{Spanned, pool::PoolId};
+use common::{Spanned, pool::DedupPoolId};
 
 use crate::{ASTExpression, GenericIdentifier, NamedExpr, StyleState, SymbolPointer};
 
@@ -6,25 +6,25 @@ use crate::{ASTExpression, GenericIdentifier, NamedExpr, StyleState, SymbolPoint
 pub enum ASTStatement {
     Var {
         name: SymbolPointer,
-        ty: Option<Spanned<PoolId<GenericIdentifier>>>,
-        rhs: Spanned<PoolId<ASTExpression>>,
+        ty: Option<Spanned<DedupPoolId<GenericIdentifier>>>,
+        rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     MutableVar {
         name: SymbolPointer,
-        ty: Option<Spanned<PoolId<GenericIdentifier>>>,
-        rhs: Spanned<PoolId<ASTExpression>>,
+        ty: Option<Spanned<DedupPoolId<GenericIdentifier>>>,
+        rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     Assign {
         ///The Left hand side of the assign, or, the one that will receive the value of `rhs`
-        lhs: Spanned<PoolId<ASTExpression>>,
-        rhs: Spanned<PoolId<ASTExpression>>,
+        lhs: Spanned<DedupPoolId<ASTExpression>>,
+        rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     While {
-        condition: Spanned<PoolId<ASTExpression>>,
-        body: Vec<Spanned<PoolId<ASTStatement>>>,
+        condition: Spanned<DedupPoolId<ASTExpression>>,
+        body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     },
 
-    Expression(Spanned<PoolId<ASTExpression>>),
+    Expression(Spanned<DedupPoolId<ASTExpression>>),
 }
 
 #[derive(Debug)]
@@ -36,6 +36,6 @@ pub struct StyleBlock {
 
 #[derive(Debug)]
 pub enum StyleSheetStatement {
-    Statement(Spanned<PoolId<ASTStatement>>),
+    Statement(Spanned<DedupPoolId<ASTStatement>>),
     Styles(Vec<Spanned<StyleBlock>>),
 }

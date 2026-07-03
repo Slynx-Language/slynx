@@ -2,7 +2,7 @@ use crate::{
     ASTStatement, SymbolPointer,
     ast::{ComponentExpression, GenericIdentifier},
 };
-use common::{Operator, Spanned, pool::PoolId};
+use common::{Operator, Spanned, pool::DedupPoolId};
 use ordered_float::OrderedFloat;
 use smallvec::SmallVec;
 
@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 ///Simply a name that comes before an expression. It represents anything like 'name: expr', '.name:expr' etc
 pub struct NamedExpr {
     pub name: SymbolPointer,
-    pub expr: PoolId<ASTExpression>,
+    pub expr: Spanned<DedupPoolId<ASTExpression>>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -21,33 +21,33 @@ pub enum ASTExpression {
     Identifier(SymbolPointer),
     True,
     False,
-    Tuple(SmallVec<[Spanned<PoolId<ASTExpression>>; 2]>),
+    Tuple(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
     TupleAccess {
-        tuple: Spanned<PoolId<ASTExpression>>,
+        tuple: Spanned<DedupPoolId<ASTExpression>>,
         index: u8,
     },
     Component(ComponentExpression),
     Binary {
-        lhs: Spanned<PoolId<ASTExpression>>,
+        lhs: Spanned<DedupPoolId<ASTExpression>>,
         op: Operator,
-        rhs: Spanned<PoolId<ASTExpression>>,
+        rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     ObjectExpression {
-        name: Spanned<PoolId<GenericIdentifier>>,
-        fields: SmallVec<[NamedExpr; 4]>,
+        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        fields: SmallVec<[Spanned<NamedExpr>; 4]>,
     },
     FieldAccess {
-        parent: Spanned<PoolId<ASTExpression>>,
-        field: Spanned<PoolId<ASTExpression>>,
+        parent: Spanned<DedupPoolId<ASTExpression>>,
+        field: Spanned<DedupPoolId<ASTExpression>>,
     },
     FunctionCall {
-        name: Spanned<PoolId<GenericIdentifier>>,
-        args: SmallVec<[Spanned<PoolId<ASTExpression>>; 7]>,
+        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        args: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 7]>,
     },
     If {
-        condition: Spanned<PoolId<ASTExpression>>,
-        body: Vec<Spanned<PoolId<ASTStatement>>>,
-        else_body: Vec<Spanned<PoolId<ASTStatement>>>,
+        condition: Spanned<DedupPoolId<ASTExpression>>,
+        body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
+        else_body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     },
 }
 

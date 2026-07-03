@@ -2,7 +2,7 @@ use crate::{
     SymbolPointer,
     ast::{ASTExpression, GenericIdentifier, VisibilityModifier},
 };
-use common::{Span, Spanned, pool::PoolId};
+use common::{Span, Spanned, pool::DedupPoolId};
 #[derive(Debug)]
 ///A member on a component, this can be a property or a child expression
 pub struct ComponentMember {
@@ -14,8 +14,8 @@ pub enum ComponentMemberKind {
     Property {
         name: SymbolPointer,
         modifier: VisibilityModifier,
-        ty: Option<Spanned<PoolId<GenericIdentifier>>>,
-        rhs: Option<Spanned<PoolId<ASTExpression>>>,
+        ty: Option<Spanned<DedupPoolId<GenericIdentifier>>>,
+        rhs: Option<Spanned<DedupPoolId<ASTExpression>>>,
     },
     Child(Spanned<ComponentExpression>),
 }
@@ -23,13 +23,13 @@ pub enum ComponentMemberKind {
 pub enum ComponentMemberValue {
     Assign {
         prop_name: SymbolPointer,
-        rhs: PoolId<ASTExpression>,
+        rhs: DedupPoolId<ASTExpression>,
     },
     Child(ComponentExpression),
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ComponentExpression {
-    pub name: PoolId<GenericIdentifier>,
+    pub name: DedupPoolId<GenericIdentifier>,
     pub values: Vec<ComponentMemberValue>,
 }
