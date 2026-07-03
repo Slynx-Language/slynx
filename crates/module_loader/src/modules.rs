@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use common::{
     FrontendSymbol, SymbolPointer, SymbolsModule,
-    pool::{Pool, PoolId},
+    pool::{DedupPool, DedupPoolId},
 };
 use slynx_parser::{
     ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration,
@@ -18,6 +18,7 @@ pub struct Modules<'a> {
 }
 
 pub enum ASTBuiltin {
+    Void,
     Boolean,
     Int(u8),
     Uint(u8),
@@ -25,6 +26,7 @@ pub enum ASTBuiltin {
     F32,
     F64,
     Str,
+    AnyComponent,
 }
 
 pub enum ASTTypeKind<'a> {
@@ -48,12 +50,18 @@ impl<'a> Modules<'a> {
             "f32" => Some(ASTBuiltin::F32),
             "f64" => Some(ASTBuiltin::F64),
             "str" => Some(ASTBuiltin::Str),
-            name if let ("uint", quantity) = name.split_at(4)
+            "void" => Some(ASTBuiltin::Void),
+            "int" => Some(ASTBuiltin::Int(32)),
+            "uint" => Some(ASTBuiltin::Uint(32)),
+            "Component" => Some(ASTBuiltin::AnyComponent),
+            name if name.len() > 4
+                && let ("uint", quantity) = name.split_at(4)
                 && let Ok(value) = quantity.parse::<u8>() =>
             {
                 Some(ASTBuiltin::Uint(value))
             }
-            name if let ("int", quantity) = name.split_at(3)
+            name if name.len() > 3
+                && let ("int", quantity) = name.split_at(3)
                 && let Ok(value) = quantity.parse::<u8>() =>
             {
                 Some(ASTBuiltin::Int(value))
@@ -62,34 +70,91 @@ impl<'a> Modules<'a> {
         }
     }
 
+    pub fn get_entry(&self, id: FileId) -> &SourceNode {
+        &self.modules[id.as_raw() as usize]
+    }
+
     pub fn entries(&self) -> &[SourceNode] {
         &self.modules
     }
     pub fn symbols(&self) -> &SymbolsModule<FrontendSymbol> {
         &self.loader.symbols
     }
-    pub fn find_function_with_name(
-        &self,
-        module: &'a SourceNode,
-        name: &str,
-    ) -> Option<&'a slynx_parser::FuncDeclaration> {
-        let target_symbol = self.loader.symbols.intern(name);
-        module.func().iter().find(|name| {
-            let t = self.loader.types.get(name.name.data);
-            t.identifier == target_symbol
-        })
-    }
-    pub fn get_expr(&self, expr: PoolId<ASTExpression>) -> &ASTExpression {
+
+    pub fn get_expr(&self, expr: DedupPoolId<ASTExpression>) -> &ASTExpression {
         self.loader.expressions.get(expr)
     }
-    pub fn get_statement(&self, stmt: PoolId<ASTStatement>) -> &ASTStatement {
+    pub fn get_statement(&self, stmt: DedupPoolId<ASTStatement>) -> &ASTStatement {
         self.loader.statements.get(stmt)
     }
-    pub fn get_type(&self, ty: PoolId<GenericIdentifier>) -> &GenericIdentifier {
+    pub fn get_type(&self, ty: DedupPoolId<GenericIdentifier>) -> &GenericIdentifier {
         self.loader.types.get(ty)
     }
 
-    pub fn get_type_inside_module(
+    pub fn find_function_declaration(
+        &self,
+        name: SymbolPointer<FrontendSymbol>,
+        module: &'a SourceNode,
+    ) -> Option<(FileId, &slynx_parser::FuncDeclaration)> {
+        if let Some(v) = module.func().iter().find(|func| {
+            let t = self.loader.types.get(func.name.data);
+            t.identifier == name
+        }) {
+            return Some((module.id, v));
+        }
+        for import in module.imports() {
+            for usage in &import.usages {
+                let target = if let Some(name) = usage.alias {
+                    name
+                } else {
+                    usage.content_name
+                };
+                let original = self.recreate_pathbuf(&import.path);
+                let file = self
+                    .paths
+                    .get(&original)
+                    .expect("Expected original path to properly map to some file");
+                if let Some(func) =
+                    self.find_function_declaration(target, &self.modules[file.as_raw() as usize])
+                {
+                    return Some(func);
+                };
+            }
+        }
+        None
+    }
+
+    pub fn find_static_declaration(
+        &self,
+        name: SymbolPointer<FrontendSymbol>,
+        module: &'a SourceNode,
+    ) -> Option<(FileId, &slynx_parser::StaticDeclaration)> {
+        if let Some(v) = module.statics().iter().find(|statik| statik.name == name) {
+            return Some((module.id, v));
+        }
+        for import in module.imports() {
+            for usage in &import.usages {
+                let target = if let Some(name) = usage.alias {
+                    name
+                } else {
+                    usage.content_name
+                };
+                let original = self.recreate_pathbuf(&import.path);
+                let file = self
+                    .paths
+                    .get(&original)
+                    .expect("Expected original path to properly map to some file");
+                if let Some(statik) =
+                    self.find_static_declaration(target, &self.modules[file.as_raw() as usize])
+                {
+                    return Some(statik);
+                };
+            }
+        }
+        None
+    }
+
+    pub fn find_type_inside_module(
         &'a self,
         module: &'a SourceNode,
         name: SymbolPointer<FrontendSymbol>,
@@ -100,47 +165,52 @@ impl<'a> Modules<'a> {
                 content: ASTTypeKind::Builtin(kind),
             });
         };
+
+        if let Some(strukt) = module.object().iter().find_map(|strukt| {
+            let strukt_name = self.get_type(strukt.name.data).identifier;
+            (strukt_name == name).then_some(ASTType {
+                owner: module.id,
+                content: ASTTypeKind::Struct(strukt),
+            })
+        }) {
+            return Some(strukt);
+        }
+        if let Some(component) = module.component().iter().find_map(|component| {
+            let component_name = self.get_type(component.name.data).identifier;
+            (component_name == name).then_some(ASTType {
+                owner: module.id,
+                content: ASTTypeKind::Component(component),
+            })
+        }) {
+            return Some(component);
+        }
+
+        if let Some(alias) = module.alias().iter().find_map(|alias| {
+            let alias_name = self.get_type(alias.name.data).identifier;
+            (alias_name == name).then_some(ASTType {
+                owner: module.id,
+                content: ASTTypeKind::Alias(alias),
+            })
+        }) {
+            return Some(alias);
+        }
+
         for import in module.imports() {
             for usage in &import.usages {
-                if let Some(_) = usage.alias {
-                    let original = self.recreate_pathbuf(&import.path);
-                    let file = self
-                        .paths
-                        .get(&original)
-                        .expect("Expected original path to map properly to some file");
-                    let t =
-                        self.get_type_inside_module(&self.modules[file.as_raw() as usize], name);
-                    if t.is_some() {
-                        return t;
-                    }
+                let target = match () {
+                    _ if let Some(name) = usage.alias => name,
+                    _ => usage.content_name,
+                };
+
+                let original = self.recreate_pathbuf(&import.path);
+                let file = self
+                    .paths
+                    .get(&original)
+                    .expect("Expected original path to map properly to some file");
+                let t = self.find_type_inside_module(&self.modules[file.as_raw() as usize], target);
+                if t.is_some() {
+                    return t;
                 }
-            }
-        }
-        for strukt in module.object() {
-            let strukt_name = self.get_type(strukt.name.data).identifier;
-            if strukt_name == name {
-                return Some(ASTType {
-                    owner: module.id,
-                    content: ASTTypeKind::Struct(strukt),
-                });
-            }
-        }
-        for component in module.component() {
-            let component_name = self.get_type(component.name.data).identifier;
-            if component_name == name {
-                return Some(ASTType {
-                    owner: module.id,
-                    content: ASTTypeKind::Component(component),
-                });
-            }
-        }
-        for alias in module.alias() {
-            let alias_name = self.get_type(alias.name.data).identifier;
-            if alias_name == name {
-                return Some(ASTType {
-                    owner: module.id,
-                    content: ASTTypeKind::Alias(alias),
-                });
             }
         }
         None
