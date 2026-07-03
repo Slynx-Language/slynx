@@ -1,7 +1,9 @@
+pub use paste::paste;
 pub mod pool;
 mod span;
 pub use span::*;
 pub mod symbols;
+pub use pool::soa;
 pub use symbols::*;
 
 /// Visibility of a declaration.

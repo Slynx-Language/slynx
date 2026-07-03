@@ -13,9 +13,15 @@ impl Span {
         self.end = target.end;
         self
     }
+    pub fn make_spanned<T>(self, target: T) -> Spanned<T> {
+        Spanned {
+            data: target,
+            span: self,
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Spanned<T> {
     pub data: T,
     pub span: Span,
