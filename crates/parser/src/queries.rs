@@ -1,4 +1,4 @@
-use common::{Span, pool::PoolId};
+use common::{Span, pool::DedupPoolId};
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{
@@ -10,13 +10,13 @@ impl<'a> Parser<'a> {
     pub fn intern(&self, name: &str) -> SymbolPointer {
         self.symbols.intern(name)
     }
-    pub fn intern_statment(&self, stmt: ASTStatement) -> PoolId<ASTStatement> {
+    pub fn intern_statment(&self, stmt: ASTStatement) -> DedupPoolId<ASTStatement> {
         self.statements.insert(stmt)
     }
-    pub fn intern_expression(&self, expr: ASTExpression) -> PoolId<ASTExpression> {
+    pub fn intern_expression(&self, expr: ASTExpression) -> DedupPoolId<ASTExpression> {
         self.expressions.insert(expr)
     }
-    pub fn intern_type(&self, name: GenericIdentifier) -> PoolId<GenericIdentifier> {
+    pub fn intern_type(&self, name: GenericIdentifier) -> DedupPoolId<GenericIdentifier> {
         self.types.insert(name)
     }
     pub fn reset_flags(&mut self) {
