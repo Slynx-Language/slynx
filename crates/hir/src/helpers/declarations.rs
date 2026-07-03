@@ -1,26 +1,29 @@
-use common::VisibilityModifier;
+use module_loader::FileId;
 
-use crate::{DeclarationId, HirType, SlynxHir, SymbolPointer, TypeId, module_loader::FileId};
+use crate::HirFile;
+use crate::{
+    DeclarationId, HirAliasDeclaration, HirComponentDeclaration, HirFunctionDeclaration,
+    HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration, SlynxHir,
+};
+use dashmap::mapref::one::MappedRef;
 
-impl SlynxHir {
-    ///Creates an type alias with the given `name`. Its initial type is `infer`. Because of hoisting, and so, the type this refers to might be defined after it
-    pub(crate) fn create_empty_alias(
-        &self,
-        aliasname: SymbolPointer,
-        file: FileId,
-        visibility: VisibilityModifier,
-    ) -> DeclarationId {
-        let ty = self.types_module.create_type(aliasname, HirType::Infer);
-        let local_id = self
-            .get_file_mut(file)
-            .declarations
-            .register_declaration_metadata(aliasname, ty, visibility);
-        DeclarationId::new(file, local_id)
-    }
-
-    pub fn get_declaration_type(&self, id: DeclarationId) -> TypeId {
-        self.get_file(id.file_id)
-            .declarations
-            .get_declaration_type(id.local_id)
-    }
+macro_rules! get_data {
+    ($($name:ident($typ: ty)),*$(,)?) => {
+        impl SlynxHir<'_>{
+            paste::paste! {
+                $(pub(crate) fn [<get_ $name>](&self, id: DeclarationId<$typ>) -> MappedRef<'_, FileId, HirFile, $typ> {
+                    self.get_file(id.file_id).map(|file| &file[id.local_id])
+                })*
+            }
+        }
+    };
 }
+
+get_data!(
+    function(HirFunctionDeclaration),
+    alias(HirAliasDeclaration),
+    static(HirStaticDeclaration),
+    object(HirObjectDeclaration),
+    component(HirComponentDeclaration),
+    style(HirStylesheetDeclaration),
+);
