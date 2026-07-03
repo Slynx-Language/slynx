@@ -1,10 +1,10 @@
 use crate::{
-    SymbolPointer, TypeId,
+    SymbolPointer,
     model::{HirExpression, HirType},
-    module_loader::FileId,
 };
 
-use common::Span;
+use common::{Span, pool::DedupPoolId};
+use module_loader::FileId;
 
 /// An error produced during HIR generation or type checking.
 ///
@@ -18,9 +18,17 @@ pub struct HIRError {
     pub span: Span,
 }
 
+#[derive(Debug)]
+pub enum InvalidWriteReason {
+    ImmutableVariable(SymbolPointer),
+    ExpressionNotAssignable,
+}
+
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    InvalidWrite(InvalidWriteReason),
+
     InvalidFieldAccess,
     /// A type name was used but is not defined in the current scope.
     TypeNotRecognized(SymbolPointer),
@@ -61,7 +69,7 @@ pub enum HIRErrorKind {
     PropertyNotRecognized {
         /// The names of the unrecognized properties.
         prop_names: Vec<SymbolPointer>,
-        ty: TypeId,
+        ty: DedupPoolId<HirType>,
     },
     /// A property was accessed that exists but is not visible from the current context.
     PropertyNotVisible {
@@ -80,7 +88,7 @@ pub enum HIRErrorKind {
     /// A type definition is recursive without indirection, which is not allowed.
     RecursiveType {
         /// The type symbol that is recursive.
-        ty: TypeId,
+        ty: DedupPoolId<HirType>,
     },
     /// A call was made to a value that is not a function.
     NotAFunction(SymbolPointer, HirType),
@@ -126,6 +134,18 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn invalid_variable_write(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(name)),
+            span,
+        }
+    }
+    pub fn invalid_expr_write(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable),
+            span,
+        }
+    }
     pub fn invalid_field_access(span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidFieldAccess,
@@ -169,7 +189,7 @@ impl HIRError {
     }
 
     /// Creates a [`HIRErrorKind::RecursiveType`] error for the given type symbol.
-    pub fn recursive(ty: TypeId, span: Span) -> Self {
+    pub fn recursive(ty: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::RecursiveType { ty },
             span,
@@ -196,6 +216,20 @@ impl HIRError {
             span,
         }
     }
+    /// Creates a [`HIRErrorKind::InvalidFieldAccessTarget`] for accessing a non-struct type as a struct.
+    pub fn not_a_struct(ty: HirType, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidFieldAccessTarget { ty },
+            span,
+        }
+    }
+    /// Creates a [`HIRErrorKind::InvalidTupleAccessTarget`] for accessing a non-tuple type as a tuple.
+    pub fn not_a_tuple(ty: HirType, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidTupleAccessTarget { ty },
+            span,
+        }
+    }
     /// Creates a [`HIRErrorKind::InvalidType`] error for the given type symbol and reason.
     pub fn invalid_type(name: SymbolPointer, reason: InvalidTypeReason, span: Span) -> Self {
         Self {
@@ -211,7 +245,11 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::PropertyNotRecognized`] error listing the unrecognized property names.
-    pub fn property_unrecognized(ty: TypeId, names: Vec<SymbolPointer>, span: Span) -> Self {
+    pub fn property_unrecognized(
+        ty: DedupPoolId<HirType>,
+        names: Vec<SymbolPointer>,
+        span: Span,
+    ) -> Self {
         Self {
             kind: HIRErrorKind::PropertyNotRecognized {
                 prop_names: names,
@@ -278,6 +316,12 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(_)) => {
+                write!(f, "Atempt to write on a imutable variable")
+            }
+            HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable) => {
+                write!(f, "Expression not assignable")
+            }
             HIRErrorKind::InvalidFieldAccess => write!(f, "Invalid field access"),
             HIRErrorKind::TypeNotRecognized(_) => write!(f, "Type not recognized"),
             HIRErrorKind::NameNotRecognized(_) => write!(f, "Name not recognized"),
@@ -343,6 +387,8 @@ pub enum InvalidTypeReason {
     MissingGeneric,
     /// The type is being used in a context where it is not valid.
     IncorrectUsage,
+    /// The type could not be inferred from context (e.g. variable without initializer and no type annotation).
+    CouldntInfer,
 }
 
 impl std::fmt::Display for InvalidTypeReason {
@@ -350,6 +396,7 @@ impl std::fmt::Display for InvalidTypeReason {
         match self {
             InvalidTypeReason::MissingGeneric => write!(f, "missing generic type"),
             InvalidTypeReason::IncorrectUsage => write!(f, "is being used incorrectly"),
+            InvalidTypeReason::CouldntInfer => write!(f, "could not infer type"),
         }
     }
 }
