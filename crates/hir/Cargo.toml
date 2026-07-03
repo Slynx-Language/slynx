@@ -4,10 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+common = {path="../common"}
+slynx-parser = {path="../parser"}
+slynx-lexer = {path="../lexer"}
+module_loader.path="../module_loader"
+paste.workspace=true
 color-eyre.workspace=true
 boxcar.workspace=true
 dashmap.workspace=true
 parking_lot.workspace=true
-common = {path="../common"}
-slynx-parser = {path="../parser"}
-slynx-lexer = {path="../lexer"}
+smallvec.workspace=true
+ordered-float.workspace=true

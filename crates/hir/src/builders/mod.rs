@@ -2,17 +2,21 @@ mod function;
 mod work_channel;
 use std::ops::Deref;
 
-use common::{Span, Spanned, pool::DedupPoolId};
+use common::{
+    Span, Spanned,
+    pool::{DedupPoolId, PoolId},
+};
+use dashmap::DashMap;
 use module_loader::{ASTType, ASTTypeKind, FileId, Modules, SourceNode};
 use slynx_parser::{
     ASTStatement, ComponentMemberKind, FuncDeclaration, GenericIdentifier, StaticDeclaration,
 };
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration,
-    HirType, Result, SlynxHir, SymbolPointer,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirObjectDeclaration, HirStatement,
+    HirStaticDeclaration, HirType, Result, SlynxHir, SymbolPointer,
     builders::{
-        function::HirFunctionBuilder,
+        function::{HirFunctionBuildResult, HirFunctionBuilder},
         work_channel::WorkChannel,
     },
     context::HirSymbol,
@@ -45,6 +49,8 @@ pub struct HirQueueBuilder<'a> {
     pub(crate) modules: &'a Modules<'a>,
     pub(crate) bodies: WorkChannel<PendantBody<'a>>,
     pub(crate) statics: WorkChannel<()>,
+    pub(crate) resolved_bodies:
+        DashMap<DeclarationId<HirFunctionDeclaration>, Vec<Spanned<PoolId<HirStatement>>>>,
 }
 
 impl HirNode<'_> {
@@ -78,8 +84,7 @@ impl HirNode<'_> {
                             Ok((field_name, type_id))
                         })
                         .collect::<Result<Vec<_>>>()?;
-                    let struct_ty =
-                        self.hir.create_struct_type(struct_name, fields, Vec::new());
+                    let struct_ty = self.hir.create_struct_type(struct_name, fields, Vec::new());
                     // Register a HirObjectDeclaration so the codegen's
                     // hoist_declarations can create an IR struct for this type.
                     let file = self.hir.get_or_create_file(ty.owner);
@@ -147,6 +152,7 @@ impl<'a> HirQueueBuilder<'a> {
             modules,
             bodies: WorkChannel::new(),
             statics: WorkChannel::new(),
+            resolved_bodies: DashMap::new(),
         }
     }
 
@@ -298,13 +304,12 @@ impl<'a> HirQueueBuilder<'a> {
             args.push(ty);
         }
 
-        let return_type =
-            if self.modules.get_type(method.return_type.data).identifier == self_sym {
-                struct_ty
-            } else {
-                let (_, ty) = node.find_type(method.return_type)?;
-                ty
-            };
+        let return_type = if self.modules.get_type(method.return_type.data).identifier == self_sym {
+            struct_ty
+        } else {
+            let (_, ty) = node.find_type(method.return_type)?;
+            ty
+        };
 
         drop(node);
 
@@ -360,7 +365,17 @@ impl<'a> HirQueueBuilder<'a> {
             for (idx, name) in argument_names.into_iter().enumerate() {
                 builder.create_argument(self, name, idx as u8);
             }
-            let _ = builder.build_body(self, &body)?;
+            let HirFunctionBuildResult { statements, .. } = builder.build_body(self, &body)?;
+            self.resolved_bodies.insert(func_id, statements);
+        }
+        for mut entry in self.resolved_bodies.iter_mut() {
+            self.hir
+                .get_file_mut(entry.key().file_id)
+                .declarations
+                .functions
+                .get_mut(entry.key().local_id)
+                .statements
+                .append(entry.value_mut());
         }
         Ok(())
     }

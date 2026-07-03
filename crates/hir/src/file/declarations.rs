@@ -1,4 +1,7 @@
-use std::{fmt::Debug, ops::Deref};
+use std::{
+    fmt::Debug,
+    ops::{Deref, DerefMut},
+};
 
 use crate::{
     HirAliasDeclaration, HirComponentDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
@@ -82,5 +85,10 @@ impl Deref for FileDeclarations {
     type Target = DeclarationsPool;
     fn deref(&self) -> &Self::Target {
         &self.declarations
+    }
+}
+impl DerefMut for FileDeclarations {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.declarations
     }
 }

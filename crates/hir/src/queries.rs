@@ -4,7 +4,7 @@ use common::{
     Span,
     pool::{DedupPoolId, PoolId},
 };
-use dashmap::mapref::one::Ref;
+use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
@@ -49,7 +49,11 @@ impl SlynxHir<'_> {
             .get(&id)
             .expect("A file with the given id should exist")
     }
-
+    pub fn get_file_mut(&self, id: FileId) -> RefMut<'_, FileId, HirFile> {
+        self.files
+            .get_mut(&id)
+            .expect("A file with the given id should exist")
+    }
     pub fn get_declaration_type(&self, id: AnyDeclarationId) -> DedupPoolId<HirType> {
         let file = self.get_or_create_file(id.file_id);
         match id.local_id {
