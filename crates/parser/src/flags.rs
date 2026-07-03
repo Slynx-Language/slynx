@@ -71,5 +71,6 @@ impl ParserFlags {
     }
     pub fn reset(&mut self) {
         self.flags.clear();
+        self.set_flag(ParserFlag::ComponentExpr);
     }
 }

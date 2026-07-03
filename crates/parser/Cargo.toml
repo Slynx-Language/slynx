@@ -5,8 +5,8 @@ edition = "2024"
 
 [dependencies]
 common = {path="../common"}
-ordered-float = "5.3.0"
 slynx-lexer.path="../lexer"
 smallvec.workspace=true
 color-eyre.workspace=true
 paste.workspace=true
+ordered-float.workspace=true

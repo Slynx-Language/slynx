@@ -1,10 +1,10 @@
 use crate::{ASTExpression, ASTStatement, Parser, Result};
-use common::{Span, Spanned, pool::PoolId};
+use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::tokens::TokenKind;
 
 impl Parser<'_> {
     /// Parses an if statement. The provided `span` is the initial span for the 'if' keyword.
-    pub fn parse_if(&mut self, span: Span) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_if(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.flags.reset();
 
         let condition = self.parse_without_component_expr(Self::parse_expression)?;
@@ -22,7 +22,10 @@ impl Parser<'_> {
                 let id = self.intern_statment(ASTStatement::Expression(expr));
                 (vec![Spanned::new(id, span)], end)
             }
-            TokenKind::Else => self.parse_block()?,
+            TokenKind::Else => {
+                self.eat()?;
+                self.parse_block()?
+            }
             _ => (vec![], block_span),
         };
         let id = self.intern_expression(ASTExpression::If {
@@ -33,7 +36,7 @@ impl Parser<'_> {
         Ok(Spanned::new(id, span.merge_with(end)))
     }
 
-    pub fn parse_block(&mut self) -> Result<(Vec<Spanned<PoolId<ASTStatement>>>, Span)> {
+    pub fn parse_block(&mut self) -> Result<(Vec<Spanned<DedupPoolId<ASTStatement>>>, Span)> {
         self.flags.reset();
         let lbrace = self.expect(&TokenKind::LBrace)?;
         let start = lbrace.span.start;

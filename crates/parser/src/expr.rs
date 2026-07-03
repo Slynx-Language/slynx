@@ -3,7 +3,7 @@ use crate::{
     NamedExpr,
 };
 use crate::{Parser, Result, error::ParseError};
-use common::pool::PoolId;
+use common::pool::DedupPoolId;
 use common::{Operator, Span, Spanned};
 use ordered_float::OrderedFloat;
 use slynx_lexer::tokens::{Token, TokenKind};
@@ -12,7 +12,7 @@ use smallvec::{SmallVec, smallvec};
 impl Parser<'_> {
     /// Parses a function call expression.
     /// It expects the current token to be an identifier, followed by a left parenthesis '(', then a list of expressions as arguments separated by commas, and finally a right parenthesis ')'.
-    pub fn parse_funcall(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_funcall(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let identifier = self.parse_type()?;
 
         self.expect(&TokenKind::LParen)?;
@@ -54,7 +54,7 @@ impl Parser<'_> {
     ///Parses an component expression but, starting from the LBrace, assuming the name of the component is the provided `name`
     pub fn parse_component_expr_with_name(
         &mut self,
-        name: Spanned<PoolId<GenericIdentifier>>,
+        name: Spanned<DedupPoolId<GenericIdentifier>>,
     ) -> Result<Spanned<ComponentExpression>> {
         let mut span = name.span;
         self.expect(&TokenKind::LBrace)?;
@@ -107,19 +107,13 @@ impl Parser<'_> {
         self.expect(&TokenKind::Colon)?;
         let expr = self.parse_expression()?;
         let span = start.merge_with(expr.span);
-        Ok(Spanned::new(
-            NamedExpr {
-                name,
-                expr: expr.data,
-            },
-            span,
-        ))
+        Ok(Spanned::new(NamedExpr { name, expr }, span))
     }
     ///Parses a tuple expression, which follows the rule (expr, expr, expr) or ()
     pub fn parse_tuple_with_first(
         &mut self,
-        start: Spanned<PoolId<ASTExpression>>,
-    ) -> Result<Spanned<PoolId<ASTExpression>>> {
+        start: Spanned<DedupPoolId<ASTExpression>>,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let start_span = start.span;
 
         if self.peek()?.kind == TokenKind::RParen {
@@ -142,7 +136,7 @@ impl Parser<'_> {
     pub fn parse_tupleparse_tuple_with_first(
         &mut self,
         start_span: &Span,
-    ) -> Result<Spanned<PoolId<ASTExpression>>> {
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         if self.peek()?.kind == TokenKind::RParen {
             let end = self.eat()?;
             let id = self.intern_expression(ASTExpression::Tuple(smallvec![]));
@@ -169,13 +163,13 @@ impl Parser<'_> {
     }
 
     ///Parses an object expression, which follows the rule Object(field: expr, field: value)
-    pub fn parse_object_expression(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_object_expression(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let name = self.parse_type()?;
         self.expect(&TokenKind::LParen)?;
         let mut fields = SmallVec::new();
         while self.peek()?.kind != TokenKind::RParen {
             let named_expr = self.parse_named_expr()?;
-            fields.push(named_expr.data);
+            fields.push(named_expr);
             if let TokenKind::RParen = self.peek()?.kind {
                 break;
             } else {
@@ -190,7 +184,9 @@ impl Parser<'_> {
 
     ///Parses anything that comes prefixed by a identifier. This can be a function call, object creation, or a struct creation. This is executed without eating the identifier to be able to choose what to
     ///return
-    pub fn parse_identifier_exprs(&mut self) -> Result<Option<Spanned<PoolId<ASTExpression>>>> {
+    pub fn parse_identifier_exprs(
+        &mut self,
+    ) -> Result<Option<Spanned<DedupPoolId<ASTExpression>>>> {
         let after_identifier = &self.peek_at(1)?.kind;
         match after_identifier {
             TokenKind::Lt if self.is_generic(2)?.0 => {
@@ -222,8 +218,8 @@ impl Parser<'_> {
 
     fn parse_postfix_chain(
         &mut self,
-        mut expr: Spanned<PoolId<ASTExpression>>,
-    ) -> Result<Spanned<PoolId<ASTExpression>>> {
+        mut expr: Spanned<DedupPoolId<ASTExpression>>,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         // Keep postfix parsing iterative so tuple access and chained field access
         // share the same code path.
         while let Ok(token) = self.peek()
@@ -238,8 +234,8 @@ impl Parser<'_> {
     ///Parses a postfix that comes after a '.'. This function initializes right after the '.'
     pub fn parse_dot_postfix(
         &mut self,
-        prefix: Spanned<PoolId<ASTExpression>>,
-    ) -> Result<Spanned<PoolId<ASTExpression>>> {
+        prefix: Spanned<DedupPoolId<ASTExpression>>,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         match &self.peek()?.kind {
             TokenKind::Int(index) if *index >= 0 => {
                 let index = *index;
@@ -277,7 +273,7 @@ impl Parser<'_> {
         }
     }
     /// Parses a primary expression, which can be a literal (integer, float, string, boolean), an identifier, a parenthesized expression, or a field access expression.
-    pub fn parse_primary(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_primary(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let current = self.peek()?;
 
         let expr = if let TokenKind::If = current.kind {
@@ -321,6 +317,7 @@ impl Parser<'_> {
                         self.eat()?;
                         self.parse_tuple_with_first(first)
                     } else {
+                        self.expect(&TokenKind::RParen)?;
                         Ok(first)
                     }
                 }
@@ -336,7 +333,7 @@ impl Parser<'_> {
     }
 
     /// Parses multiplicative expressions, which consist of primary expressions combined with multiplication '*' or division '/' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a primary expression, and then repeatedly checking for multiplicative operators and parsing the right-hand side (RHS) as another primary expression until no more multiplicative operators are found.
-    pub fn parse_multiplicative(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_multiplicative(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let mut lhs = self.parse_primary()?;
         while let Ok(curr) = self.peek()
             && matches!(curr.kind, TokenKind::Star | TokenKind::Slash)
@@ -356,7 +353,7 @@ impl Parser<'_> {
         Ok(lhs)
     }
     /// Parses additive expressions, which consist of multiplicative expressions combined with addition '+' or subtraction '-' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a multiplicative expression, and then repeatedly checking for additive operators and parsing the right-hand side (RHS) as another multiplicative expression until no more additive operators are found.
-    pub fn parse_additive(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_additive(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let mut lhs = self.parse_multiplicative()?;
         while let Ok(curr) = self.peek()
             && matches!(curr.kind, TokenKind::Plus | TokenKind::Sub)
@@ -377,7 +374,7 @@ impl Parser<'_> {
     }
 
     ///Parses binary expressions, thus, anything that has a bit operator
-    pub fn parse_bitoperation(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_bitoperation(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let mut lhs = self.parse_additive()?;
         while let Ok(curr) = self.peek()
             && matches!(
@@ -411,7 +408,7 @@ impl Parser<'_> {
     }
 
     ///Parses comparison expressions, thus, anything whose value returned is a boolean
-    pub fn parse_comparison(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_comparison(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let mut lhs = self.parse_bitoperation()?;
         while let Ok(curr) = self.peek()
             && matches!(
@@ -441,7 +438,7 @@ impl Parser<'_> {
     }
 
     ///Parses logical expressions, thus, anything whose value returned is a boolean
-    pub fn parse_logical(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_logical(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let mut lhs = self.parse_comparison()?;
         while let Ok(curr) = self.peek()
             && matches!(curr.kind, TokenKind::And | TokenKind::Or)
@@ -465,7 +462,7 @@ impl Parser<'_> {
     }
 
     /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.
-    pub fn parse_expression(&mut self) -> Result<Spanned<PoolId<ASTExpression>>> {
+    pub fn parse_expression(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         if self.peek()?.kind == TokenKind::If {
             let span = self.eat()?.span;
             return self.parse_if(span);

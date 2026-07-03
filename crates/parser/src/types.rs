@@ -2,7 +2,7 @@ use super::Parser;
 use crate::error::ParseError;
 use crate::{AliasDeclaration, ExpectedContent, TypedName};
 use crate::{Result, ast::GenericIdentifier};
-use common::pool::PoolId;
+use common::pool::DedupPoolId;
 use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::tokens::{Token, TokenKind};
 use smallvec::{SmallVec, smallvec};
@@ -71,7 +71,7 @@ impl Parser<'_> {
     }
 
     ///Parses a type.
-    pub fn parse_type(&mut self) -> Result<Spanned<PoolId<GenericIdentifier>>> {
+    pub fn parse_type(&mut self) -> Result<Spanned<DedupPoolId<GenericIdentifier>>> {
         let token = self.peek()?;
         let start_span = token.span;
 

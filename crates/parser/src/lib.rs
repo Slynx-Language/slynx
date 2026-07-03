@@ -7,7 +7,7 @@ mod flags;
 mod import;
 mod program;
 mod queries;
-use common::{FrontendSymbol, SymbolsModule, pool::Pool};
+use common::{FrontendSymbol, SymbolsModule, pool::DedupPool};
 pub use error::*;
 mod expr;
 mod functions;
@@ -26,9 +26,9 @@ pub type Result<T> = std::result::Result<T, ParseError>;
 pub type SymbolPointer = common::SymbolPointer<common::FrontendSymbol>;
 pub struct Parser<'a> {
     symbols: &'a SymbolsModule<FrontendSymbol>,
-    expressions: &'a Pool<ASTExpression>,
-    statements: &'a Pool<ASTStatement>,
-    types: &'a Pool<GenericIdentifier>,
+    expressions: &'a DedupPool<ASTExpression>,
+    statements: &'a DedupPool<ASTStatement>,
+    types: &'a DedupPool<GenericIdentifier>,
     flags: ParserFlags,
     stream: TokenStream,
 }
@@ -38,9 +38,9 @@ impl<'a> Parser<'a> {
     pub fn new(
         stream: TokenStream,
         symbols: &'a SymbolsModule<FrontendSymbol>,
-        expressions: &'a Pool<ASTExpression>,
-        statements: &'a Pool<ASTStatement>,
-        types: &'a Pool<GenericIdentifier>,
+        expressions: &'a DedupPool<ASTExpression>,
+        statements: &'a DedupPool<ASTStatement>,
+        types: &'a DedupPool<GenericIdentifier>,
     ) -> Self {
         Parser {
             types,

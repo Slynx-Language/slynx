@@ -1,4 +1,4 @@
-use common::{Span, Spanned, pool::PoolId};
+use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
@@ -143,7 +143,7 @@ impl Parser<'_> {
     pub fn parse_usages(
         &mut self,
         _: Span,
-    ) -> Result<Vec<Spanned<PoolId<ASTExpression>>>, ParseError> {
+    ) -> Result<Vec<Spanned<DedupPoolId<ASTExpression>>>, ParseError> {
         let mut exprs = vec![];
         loop {
             let usage = self.parse_funcall()?;

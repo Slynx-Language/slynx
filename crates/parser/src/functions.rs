@@ -76,6 +76,7 @@ impl Parser<'_> {
                 })
             }
             TokenKind::LBrace => {
+                self.reset_flags();
                 let mut body = vec![];
                 while !matches!(self.peek()?.kind, TokenKind::RBrace) {
                     let stmt = self.parse_statement()?;
