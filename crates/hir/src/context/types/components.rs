@@ -1,52 +1,50 @@
-use std::ops::Index;
+use std::fmt::Debug;
 
-use common::pool::{Pool, PoolId};
+use common::{
+    dedup_pooled,
+    pool::{DedupPool, DedupPoolId},
+};
 
-use crate::{ComponentType, HirType, StructType, SymbolPointer};
+use crate::{ComponentType, HirType, SymbolPointer};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ComponentDefinition {
-    name: SymbolPointer,
-    properties: Vec<SymbolPointer>,
+    pub(crate) name: SymbolPointer,
+    pub(crate) properties: Vec<SymbolPointer>,
 }
 
-pub struct ComponentsPool {
-    pool: Pool<ComponentType>,
-    bodies: Pool<ComponentDefinition>,
-}
+dedup_pooled!(pub ComponentsPool {
+    components: ComponentType,
+    bodies: ComponentDefinition
+});
 
 impl ComponentsPool {
-    pub fn new() -> Self {
-        Self {
-            pool: Pool::new(),
-            bodies: Pool::new(),
-        }
-    }
     pub fn insert(
         &self,
         name: SymbolPointer,
-        properties: Vec<(SymbolPointer, PoolId<HirType>)>,
-        children: Vec<PoolId<ComponentType>>,
-    ) -> PoolId<ComponentType> {
+        properties: Vec<(SymbolPointer, DedupPoolId<HirType>)>,
+        children: Vec<DedupPoolId<ComponentType>>,
+    ) -> (DedupPoolId<ComponentType>, DedupPoolId<ComponentDefinition>) {
         let (names, properties) = properties.into_iter().unzip();
-        let s = ComponentType {
-            properties: properties,
-            children,
-        };
-        self.bodies.insert(ComponentDefinition {
+        let def = self.bodies.insert(ComponentDefinition {
             name,
             properties: names,
         });
-        self.pool.insert(s)
-    }
-    pub fn deffinition_of(&self, ty: PoolId<ComponentType>) -> &ComponentDefinition {
-        self.bodies.get(unsafe { PoolId::from_raw(ty.inner()) })
+        let s = ComponentType {
+            properties,
+            children,
+            metadata: def,
+        };
+        let comp = self.components.insert(s);
+        (comp, def)
     }
 }
 
-impl Index<PoolId<ComponentType>> for ComponentsPool {
-    type Output = ComponentType;
-    fn index(&self, index: PoolId<ComponentType>) -> &Self::Output {
-        self.pool.get(index)
+impl Debug for ComponentsPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ComponentsPools")
+            .field("components", &self.components)
+            .field("bodies", &self.bodies)
+            .finish()
     }
 }
