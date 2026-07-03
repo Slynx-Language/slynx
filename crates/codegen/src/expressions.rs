@@ -1,26 +1,27 @@
-use common::Operator;
+use common::{Operator, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirStatement, HirStatementKind, SlynxHir,
-    SymbolPointer, TypeId,
+    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
+    SlynxHir, SymbolPointer,
+    id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
 use smallvec::SmallVec;
 
-use crate::{Codegen, CodegenError, functions::FunctionContext};
+use crate::{Codegen, CodegenError, TypeId, functions::FunctionContext};
 
 impl Codegen {
     fn lower_if_branch(
         &mut self,
-        branch: &[HirStatement],
+        branch: &[Spanned<PoolId<HirStatement>>],
         end_label: IRPointer<Label, 1>,
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Option<IRTypeId>, CodegenError> {
         for (idx, statement) in branch.iter().enumerate() {
             if idx == branch.len() - 1
-                && let HirStatementKind::Expression { ref expr } = statement.kind
+                && let HirStatement::Expression { expr } = &hir[statement.data]
             {
-                let value = self.lower_expression(expr, hir, ctx)?;
+                let value = self.lower_expression(*expr, hir, ctx)?;
                 let value_type = ctx.value_type(value);
 
                 if ctx.ir().get(end_label).arguments().is_empty() {
@@ -30,7 +31,7 @@ impl Codegen {
                 ctx.branch(end_label, &[value]);
                 return Ok(Some(value_type));
             }
-            if self.lower_statement(statement, hir, ctx)?.is_some() {
+            if self.lower_statement(*statement, hir, ctx)?.is_some() {
                 return Ok(None);
             }
         }
@@ -41,13 +42,13 @@ impl Codegen {
 
     fn lower_tuple_expression(
         &mut self,
-        vector: &[HirExpression],
+        vector: &[Spanned<PoolId<HirExpression>>],
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
         let values: Vec<Value> = vector
             .iter()
-            .map(|e| self.lower_expression(e, hir, ctx))
+            .map(|e| self.lower_expression(*e, hir, ctx))
             .collect::<Result<Vec<_>, _>>()?;
         let mut element_types = Vec::with_capacity(values.len());
         for &v in &values {
@@ -59,8 +60,8 @@ impl Codegen {
 
     fn lower_function_call(
         &mut self,
-        name: DeclarationId,
-        args: &[HirExpression],
+        name: DeclarationId<HirFunctionDeclaration>,
+        args: &[Spanned<PoolId<HirExpression>>],
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
@@ -74,7 +75,7 @@ impl Codegen {
         };
         let mut arg_values = Vec::with_capacity(args.len());
         for arg in args {
-            let value = self.lower_expression(arg, hir, ctx)?;
+            let value = self.lower_expression(*arg, hir, ctx)?;
             arg_values.push(value);
         }
         Ok(ctx.call(func, &arg_values, ret_ty))
@@ -83,7 +84,7 @@ impl Codegen {
     fn lower_struct_literal(
         &mut self,
         name: TypeId,
-        fields: &[HirExpression],
+        fields: &[Spanned<PoolId<HirExpression>>],
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
@@ -92,21 +93,22 @@ impl Codegen {
             .ok_or(CodegenError::IRTypeNotRecognized(name))?;
         let field_values: Vec<Value> = fields
             .iter()
-            .map(|v| self.lower_expression(v, hir, ctx))
+            .map(|v| self.lower_expression(*v, hir, ctx))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(ctx.struct_literal(ty, &field_values))
     }
 
     fn lower_field_access(
         &mut self,
-        expr: &HirExpression,
+        expr: Spanned<PoolId<HirExpression>>,
         field_index: u16,
         field_name: Option<SymbolPointer>,
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
         let value = self.lower_expression(expr, hir, ctx)?;
-        if hir.types_module.is_external(&expr.ty) {
+        let ty = hir[expr.data].ty;
+        if hir.types_module.is_external(&ty) {
             let name = self.intern_to_ir(
                 hir,
                 ctx.ir(),
@@ -157,8 +159,8 @@ impl Codegen {
     }
     pub(crate) fn handle_binary_expression<'a>(
         &mut self,
-        lhs: &HirExpression,
-        rhs: &HirExpression,
+        lhs: Spanned<PoolId<HirExpression>>,
+        rhs: Spanned<PoolId<HirExpression>>,
         op: &Operator,
         hir: &SlynxHir,
         context: &mut FunctionContext<'a>,
@@ -189,7 +191,7 @@ impl Codegen {
 
     pub(crate) fn lower_expression<'a>(
         &mut self,
-        expr: &HirExpression,
+        expr: Spanned<PoolId<HirExpression>>,
         hir: &SlynxHir,
         context: &mut FunctionContext<'a>,
     ) -> Result<Value, CodegenError> {
@@ -198,18 +200,25 @@ impl Codegen {
             let ir = context.ir();
             (ir.bool_type(), ir.float_type(), ir.int_type())
         };
+        let expression = &hir[expr.data];
 
-        let value = match &expr.kind {
+        let value = match &expression.kind {
             HirExpressionKind::Static { id } => {
                 if let Some(ty) = self.external_statics.get(id) {
-                    let name = hir.get_declaration_name(*id);
+                    let name = hir.get_name(hir.get_file(id.file_id)[id.local_id].name);
                     let name = context.ir().strings.intern(name);
                     context.emit(Opcode::GlobalExtern(name), SmallVec::new(), *ty)
                 } else {
-                    let id = *self
-                        .globals
-                        .get(id)
-                        .ok_or(CodegenError::DeclarationNotRecognized(*id))?;
+                    let id =
+                        *self
+                            .globals
+                            .get(id)
+                            .ok_or(CodegenError::DeclarationNotRecognized(
+                                AnyDeclarationId::new(
+                                    id.file_id,
+                                    AnyLocalDeclarationId::Static(id.local_id),
+                                ),
+                            ))?;
                     let ty = context.ir().get_view(id).ty();
                     context.emit(Opcode::Global(id), SmallVec::new(), ty)
                 }
@@ -222,14 +231,17 @@ impl Codegen {
                 let str_ty = context.ir().str_type();
                 context.emit_const(Operand::String(string), str_ty)
             }
-            HirExpressionKind::Bool(v) => context.emit_const(Operand::Bool(*v), bool_ty),
-            HirExpressionKind::Float(f) => context.emit_const(Operand::Float(*f as f64), float_ty),
+            HirExpressionKind::True | HirExpressionKind::False => context.emit_const(
+                Operand::Bool(matches!(expression.kind, HirExpressionKind::True)),
+                bool_ty,
+            ),
+            HirExpressionKind::Float(f) => context.emit_const(Operand::Float(f.0 as f64), float_ty),
             HirExpressionKind::Int(i) => context.emit_const(Operand::Int(*i as i64), int_ty),
             HirExpressionKind::FunctionCall { name, args } => {
                 self.lower_function_call(*name, args, hir, context)?
             }
             HirExpressionKind::Binary { lhs, op, rhs } => {
-                self.handle_binary_expression(lhs, rhs, op, hir, context)?
+                self.handle_binary_expression(*lhs, *rhs, op, hir, context)?
             }
             HirExpressionKind::Identifier(id) => {
                 if let Some(value) = context.get_variable(*id) {
@@ -245,27 +257,31 @@ impl Codegen {
                 expr,
                 field_index,
                 field_name,
-            } => self.lower_field_access(expr, *field_index as u16, *field_name, hir, context)?,
-            HirExpressionKind::Component(c) => self.get_component_expression(c, hir, context)?.0,
+            } => self.lower_field_access(*expr, *field_index as u16, *field_name, hir, context)?,
+            HirExpressionKind::Component(c) => self.get_component_expression(*c, hir, context)?.0,
             HirExpressionKind::If {
                 condition,
                 then_branch,
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
             HirExpressionKind::MethodCall { parent, name, args } => {
-                let value = self.lower_expression(parent, hir, context)?;
-                if !hir.types_module.is_external(&parent.ty) {
-                    unreachable!(
-                        "Method named as {} should have been transformed into function call on type checker",
-                        hir.get_name(*name)
-                    )
+                {
+                    let parent_ty = hir[parent.data].ty;
+                    if !hir.types_module.is_external(&parent_ty) {
+                        unreachable!(
+                            "Method named as {} should have been transformed into function call on type checker",
+                            hir.get_name(*name)
+                        )
+                    }
                 }
+                let value = self.lower_expression(*parent, hir, context)?;
+
                 let name = self.intern_to_ir(hir, context.ir(), *name);
                 let args: Vec<Value> = args
                     .iter()
-                    .map(|arg| self.lower_expression(arg, hir, context))
+                    .map(|arg| self.lower_expression(*arg, hir, context))
                     .collect::<Result<_, _>>()?;
-                let ret_ty = self.get_or_create_ir_type(&expr.ty, hir, context.ir())?;
+                let ret_ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
                 context.dyn_method_call(value, name, &args, ret_ty)
             }
         };
@@ -274,13 +290,13 @@ impl Codegen {
 
     fn lower_if_expression(
         &mut self,
-        condition: &HirExpression,
-        then_branch: &[HirStatement],
-        else_branch: &Option<Vec<HirStatement>>,
+        condition: &Spanned<PoolId<HirExpression>>,
+        then_branch: &[Spanned<PoolId<HirStatement>>],
+        else_branch: &Option<Vec<Spanned<PoolId<HirStatement>>>>,
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
-        let cond = self.lower_expression(condition, hir, ctx)?;
+        let cond = self.lower_expression(*condition, hir, ctx)?;
 
         let then_label = ctx.create_label("then_label");
         let else_label = ctx.create_label("else_label");
