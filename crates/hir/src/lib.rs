@@ -94,9 +94,10 @@ use common::{
     FrontendSymbol, SymbolsModule,
     pool::{Pool, PoolId},
 };
-use dashmap::{DashMap, mapref::one::RefMut};
+use dashmap::{DashMap, DashSet, mapref::one::RefMut};
+use std::cell::RefCell;
 
-pub use id::{DeclarationId, ExpressionId, VariableId};
+pub use id::{ComponentId, DeclarationId, ExpressionId, VariableId};
 pub use model::*;
 use module_loader::{FileId, Modules};
 
@@ -231,6 +232,10 @@ impl<'a> SlynxHir<'a> {
         for func in entry.func() {
             let node = builder.get_node(entry.id);
             builder.enqueue_function(func, node)?;
+        }
+        for comp in entry.component() {
+            let node = builder.get_node(entry.id);
+            builder.enqueue_component(comp, node)?;
         }
         builder.close_bodies();
         builder.process()?;
