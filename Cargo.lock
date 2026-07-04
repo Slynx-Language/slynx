@@ -213,6 +213,16 @@ dependencies = [
  "boxcar",
  "dashmap",
  "lasso",
+ "paste",
+]
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+dependencies = [
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -615,6 +625,7 @@ dependencies = [
  "color-eyre",
  "common",
  "dashmap",
+ "module_loader",
  "paste",
  "slynx-codegen",
  "slynx-hir",
@@ -622,7 +633,6 @@ dependencies = [
  "slynx-lexer",
  "slynx-monomorphizer",
  "slynx-parser",
- "slynx-typechecker",
 ]
 
 [[package]]
@@ -643,10 +653,15 @@ dependencies = [
  "boxcar",
  "color-eyre",
  "common",
+ "crossbeam-channel",
  "dashmap",
+ "module_loader",
+ "ordered-float",
  "parking_lot",
+ "paste",
  "slynx-lexer",
  "slynx-parser",
+ "smallvec",
 ]
 
 [[package]]
@@ -689,15 +704,6 @@ dependencies = [
  "paste",
  "slynx-lexer",
  "smallvec",
-]
-
-[[package]]
-name = "slynx-typechecker"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "common",
- "slynx-hir",
 ]
 
 [[package]]

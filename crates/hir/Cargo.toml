@@ -16,3 +16,4 @@ dashmap.workspace=true
 parking_lot.workspace=true
 smallvec.workspace=true
 ordered-float.workspace=true
+crossbeam-channel.workspace=true
