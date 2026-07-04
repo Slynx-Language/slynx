@@ -2,8 +2,8 @@ use dashmap::{DashMap, DashSet};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, SymbolPointer,
-    id::AnyDeclarationId,
+    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
+    SymbolPointer, id::AnyDeclarationId,
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -38,6 +38,7 @@ macro_rules! impl_get_or_insert {
 pub struct SymbolRegistry {
     // Registros globais de IDs
     functions: DashMap<HirSymbol, DeclarationId<HirFunctionDeclaration>>,
+    components: DashMap<HirSymbol, DeclarationId<HirComponentDeclaration>>,
     statics: DashMap<HirSymbol, DeclarationId<HirStaticDeclaration>>,
 
     // Estados de processamento
@@ -58,8 +59,28 @@ impl SymbolRegistry {
         self.functions.get(&name).map(|v| *v.value())
     }
 
+    pub fn get_component(&self, name: HirSymbol) -> Option<DeclarationId<HirComponentDeclaration>> {
+        self.components.get(&name).map(|v| *v.value())
+    }
+
     impl_get_or_insert!(
         function: HirFunctionDeclaration => functions,
         static: HirStaticDeclaration => statics
     );
+
+    /// Like `get_or_insert_function` but the closure can fail.
+    /// This is needed because component hoisting may error (cycle, missing type, etc.).
+    pub fn get_or_insert_component(
+        &self,
+        key: HirSymbol,
+        make_decl: impl FnOnce() -> crate::Result<DeclarationId<HirComponentDeclaration>>,
+    ) -> crate::Result<DeclarationId<HirComponentDeclaration>> {
+        match self.components.entry(key) {
+            dashmap::mapref::entry::Entry::Occupied(entry) => Ok(*entry.get()),
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                let decl = make_decl()?;
+                Ok(*entry.insert(decl).value())
+            }
+        }
+    }
 }
