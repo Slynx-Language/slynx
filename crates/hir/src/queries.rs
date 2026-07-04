@@ -8,12 +8,15 @@ use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HIRError, HirComponentExpression, HirExpression, HirFunctionDeclaration,
-    HirStatement, HirType, Result, SlynxHir, SymbolPointer,
+    ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
+    HirComponentExpression, HirExpression, HirFunctionDeclaration, HirStatement, HirType, Result,
+    SlynxHir, SymbolPointer,
+    builders::component::ComponentBuilder,
     context::HirSymbol,
     file::HirFile,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    queries,
 };
 
 impl SlynxHir<'_> {
@@ -34,6 +37,13 @@ impl SlynxHir<'_> {
         symbol: HirSymbol,
     ) -> Option<DeclarationId<HirFunctionDeclaration>> {
         self.symbols_registry.get_function(symbol)
+    }
+
+    pub fn find_component_by_symbol(
+        &self,
+        symbol: HirSymbol,
+    ) -> Option<DeclarationId<HirComponentDeclaration>> {
+        self.symbols_registry.get_component(symbol)
     }
 
     pub fn intern_name(&self, name: &str) -> SymbolPointer {
