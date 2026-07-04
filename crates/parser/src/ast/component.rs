@@ -23,13 +23,13 @@ pub enum ComponentMemberKind {
 pub enum ComponentMemberValue {
     Assign {
         prop_name: SymbolPointer,
-        rhs: DedupPoolId<ASTExpression>,
+        rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     Child(ComponentExpression),
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ComponentExpression {
-    pub name: DedupPoolId<GenericIdentifier>,
+    pub name: Spanned<DedupPoolId<GenericIdentifier>>,
     pub values: Vec<ComponentMemberValue>,
 }

@@ -74,7 +74,7 @@ impl Parser<'_> {
                     let val = self.parse_expression()?;
                     values.push(ComponentMemberValue::Assign {
                         prop_name: ident,
-                        rhs: val.data,
+                        rhs: val,
                     });
                     if self.peek()?.kind == TokenKind::Comma {
                         self.eat()?;
@@ -87,13 +87,7 @@ impl Parser<'_> {
             }
         }
         self.expect(&TokenKind::RBrace)?;
-        Ok(Spanned::new(
-            ComponentExpression {
-                name: name.data,
-                values,
-            },
-            span,
-        ))
+        Ok(Spanned::new(ComponentExpression { name, values }, span))
     }
     pub fn parse_component_expr(&mut self) -> Result<Spanned<ComponentExpression>> {
         let ty = self.parse_type()?;
