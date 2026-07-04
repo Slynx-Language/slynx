@@ -42,6 +42,7 @@ impl HirFile {
     create_methods!(
         create_function = insert_at_functions(HirFunctionDeclaration),
         create_object = insert_at_objects(HirObjectDeclaration),
+        create_component = insert_at_components(HirComponentDeclaration),
         create_static = insert_at_statik(HirStaticDeclaration),
     );
 
@@ -56,6 +57,18 @@ impl HirFile {
             .position(|f| f.name == name)
             .map(|idx| DeclarationId::new(self.file, PoolId::new(idx as u32)))
         //since internally its just an index, this gets the id properly.
+    }
+
+    pub fn find_component_with_name(
+        &self,
+        name: SymbolPointer,
+    ) -> Option<DeclarationId<HirComponentDeclaration>> {
+        self.declarations
+            .components
+            .iter()
+            .with_ids()
+            .find(|(_, c)| c.name == name)
+            .map(|(id, _)| DeclarationId::new(self.file, id))
     }
 }
 impl Deref for HirFile {
