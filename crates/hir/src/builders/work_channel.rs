@@ -1,4 +1,4 @@
-use std::sync::mpsc::{Receiver, Sender, channel};
+use crossbeam_channel::{Receiver, Sender};
 
 pub struct WorkChannel<T> {
     sender: Option<Sender<T>>,
@@ -7,7 +7,7 @@ pub struct WorkChannel<T> {
 
 impl<T> WorkChannel<T> {
     pub fn new() -> Self {
-        let (sender, recv) = channel();
+        let (sender, recv) = crossbeam_channel::unbounded();
         Self {
             sender: Some(sender),
             recv,
@@ -15,6 +15,10 @@ impl<T> WorkChannel<T> {
     }
     pub fn send(&self, task: T) {
         self.sender.as_ref().unwrap().send(task).unwrap();
+    }
+
+    pub fn receiver(&self) -> &Receiver<T> {
+        &self.recv
     }
 
     pub fn recv(&self) -> Option<T> {
