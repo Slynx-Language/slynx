@@ -307,7 +307,7 @@ impl SlynxContext {
         .map_err(|e| self.handle_parser_error(&e))
     }
 
-    pub fn load_modules<'a>(&'a mut self) -> Result<Modules<'a>, SlynxError> {
+    pub fn load_modules<'a>(&'a self) -> Result<Modules<'a>, SlynxError> {
         let loader = SourceLoader::new(
             &self.pools.names,
             &self.pools.statements,

@@ -11,6 +11,13 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::NotAComponent(name) => {
+                let name = hir.get_name(*name);
+                format!("'{name}' is not a component")
+            }
+            HIRErrorKind::ComponentPropertyMissingType => {
+                "Component property is missing type definition".to_string()
+            }
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable) => {
                 "Expression not assignable".to_string()
             }
@@ -125,6 +132,20 @@ impl SlynxContext {
             HIRErrorKind::IntrinsicNotRegistered { name } => {
                 let name = hir.get_name(*name);
                 format!("intrinsic '{name}' is not defined — ensure the standard library is loaded")
+            }
+            HIRErrorKind::CyclicComponentSignature { component, chain } => {
+                let comp_name = hir.get_name(*component);
+                let chain_str = chain
+                    .iter()
+                    .map(|(_, n)| hir.get_name(*n))
+                    .collect::<Vec<_>>()
+                    .join(" → ");
+                format!(
+                    "cyclic component signature: component '{comp_name}' at chain: {chain_str}"
+                )
+            }
+            HIRErrorKind::CyclicComponentBody { component: _ } => {
+                "cyclic component body resolution".to_string()
             }
         }
     }
