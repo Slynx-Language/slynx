@@ -18,9 +18,13 @@ stylesheet Fg(color: int) {
 	}
 }
 
+component Div {}
+component Text {
+    pub prop text: str;
+}
+
 component Pedrinho {
 	Div {
-		style: Bg(Color.new(0xff,0xff,0, 0xff)),
 		Text {
 			text: "Pedrinho leitazedo"
 		}

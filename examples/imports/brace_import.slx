@@ -1,4 +1,5 @@
 import styles using {Background};
+import utils.components using {Text, Div};
 
 stylesheet MyStyleOtherStyle(color: int) uses Background(color) {
 	styles {
@@ -10,7 +11,7 @@ stylesheet MyStyleOtherStyle(color: int) uses Background(color) {
 
 component MyOtherComponent {
 	Div {
-		style: MyStyleOtherStyle(0xff0000),
+
 		Text {
 			text: "Brace import"
 		}

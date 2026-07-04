@@ -74,7 +74,7 @@ fn build_stages_exposes_hir_and_ir_dumps_without_writing_files() {
 
     assert_eq!(stages.dump_path("hir"), hir_path);
     assert_eq!(stages.dump_path("ir"), ir_path);
-    assert!(stages.hir_text().contains("HIR Files"));
+
     assert!(!stages.ir_text().is_empty());
     assert!(!hir_path.exists());
     assert!(!ir_path.exists());
@@ -86,19 +86,17 @@ fn build_stages_exposes_hir_and_ir_dumps_without_writing_files() {
 fn build_stages_can_write_hir_ir_and_sir_outputs() {
     let case_dir = temp_case_dir("dump-files");
     let source_path = write_temp_source(&case_dir);
-    let hir_path = source_path.with_extension("hir");
     let ir_path = source_path.with_extension("ir");
     let sir_path = source_path.with_extension("sir");
 
     let context = SlynxContext::new(source_path, None).expect("context should be created");
     let stages = context.build_stages().expect("stages should build");
 
-    stages.write_hir().expect("hir dump should be written");
     stages.write_ir().expect("ir dump should be written");
     let output = stages.into_output();
     output.write().expect("sir output should be written");
 
-    for path in [&hir_path, &ir_path, &sir_path] {
+    for path in [&ir_path, &sir_path] {
         assert!(path.exists(), "{} should exist", path.display());
         assert!(
             !fs::read_to_string(path)

@@ -1,4 +1,5 @@
 import styles;
+import utils.components using {Text, Div};
 import another using BgGreen as Bg;
 component Aba {
 	Text {
@@ -8,9 +9,9 @@ component Aba {
 
 component Teste {
 	Div {
-		style: Bg(0x7f),
+
 		Text {
-			style: Background(0xff0000),
+
 			text: "Jorge"
 		}
 	}

@@ -1,2 +1,13 @@
 import another;
-import styles using BgGreen as Bg;
+import utils.components using {Text, Div};
+import styles using {BgGreen as Bg};
+
+component Example {
+    Text {
+        style: Bg(),
+    }
+}
+
+func main(): Example{
+    Example {}
+}

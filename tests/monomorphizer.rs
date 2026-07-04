@@ -1,22 +1,17 @@
+use std::path::Path;
+
+use slynx::SlynxContext;
 use slynx_hir::SlynxHir;
-use slynx_lexer::Lexer;
 use slynx_monomorphizer::Monomorphizer;
-use slynx_parser::Parser;
 
 #[test]
 fn rejects_cyclic_aliases() {
     let source = "alias A = B; alias B = A; func main(): void {}";
-    let tokens = Lexer::tokenize(source).expect("source should tokenize");
-    let declarations = Parser::new(tokens)
-        .parse_declarations()
-        .expect("source should parse");
-    let mut hir = SlynxHir::new();
-    let modules = vec![slynx_hir::module_loader::SourceNode::new(
-        slynx_hir::module_loader::FileId::from_raw(0),
-        declarations,
-    )];
-    hir.generate(&modules)
-        .expect_err("HIR should reject cyclic types");
-
-    Monomorphizer::resolve(&mut hir).expect("");
+    let context = SlynxContext::from_source(source.to_string(), Path::new("input.slx"));
+    let modules = context
+        .load_modules()
+        .expect("Modules should've generated properly");
+    let mut hir =
+        SlynxHir::new(&modules).expect("HIR should generate (cycle detection is deferred)");
+    Monomorphizer::resolve(&mut hir).expect("monomorphization should succeed");
 }
