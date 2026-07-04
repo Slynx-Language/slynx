@@ -1,7 +1,4 @@
-use common::{
-    FrontendSymbol, SymbolPointer,
-    pool::{DedupPoolId, PoolId},
-};
+use common::{FrontendSymbol, SymbolPointer, pool::DedupPoolId};
 
 use crate::{
     DeclarationId, HirFunctionDeclaration, HirType, VariableId,
@@ -50,7 +47,7 @@ impl HirViewer<'_, AnyDeclarationId> {
 impl HirViewer<'_, DeclarationId<HirFunctionDeclaration>> {
     pub fn get_argument(&self, arg: u8) -> Option<(VariableId, DedupPoolId<HirType>)> {
         self.get_argument_type(arg)
-            .map(|ty| (VariableId::new(self.data, arg), ty))
+            .map(|ty| (VariableId::function(self.data, arg as u16), ty))
     }
     pub fn get_argument_type(&self, arg: u8) -> Option<DedupPoolId<HirType>> {
         self.ty()
