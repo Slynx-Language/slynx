@@ -1,10 +1,14 @@
 use crate::{
-    SymbolPointer,
+    ComponentId, SymbolPointer,
     model::{HirExpression, HirType},
 };
 
 use common::{Span, pool::DedupPoolId};
 use module_loader::FileId;
+
+/// A temporary component key used during signature resolution.
+/// (FileId, SymbolPointer) identifies a component before its ComponentId is created.
+pub type ComponentKey = (FileId, SymbolPointer);
 
 /// An error produced during HIR generation or type checking.
 ///
@@ -27,6 +31,9 @@ pub enum InvalidWriteReason {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    NotAComponent(SymbolPointer),
+    ComponentPropertyMissingType,
+
     InvalidWrite(InvalidWriteReason),
 
     InvalidFieldAccess,
@@ -131,9 +138,27 @@ pub enum HIRErrorKind {
         /// The name of the intrinsic that was not found.
         name: SymbolPointer,
     },
+    /// A chain of component signatures is cyclic.
+    CyclicComponentSignature {
+        /// The component that triggered the cycle.
+        component: SymbolPointer,
+        /// The chain of (FileId, SymbolPointer) pairs forming the cycle.
+        chain: Vec<ComponentKey>,
+    },
+    /// A component body resolution re-entered itself (body → ... → body cycle).
+    CyclicComponentBody {
+        /// The component whose body caused the cycle.
+        component: ComponentId,
+    },
 }
 
 impl HIRError {
+    pub fn component_missing_prop_type(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::ComponentPropertyMissingType,
+            span,
+        }
+    }
     pub fn invalid_variable_write(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(name)),
@@ -223,6 +248,13 @@ impl HIRError {
             span,
         }
     }
+    /// Creates a [`HIRErrorKind::InvalidFieldAccessTarget`] for accessing a non-struct type as a struct.
+    pub fn not_a_component(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::NotAComponent(name),
+            span,
+        }
+    }
     /// Creates a [`HIRErrorKind::InvalidTupleAccessTarget`] for accessing a non-tuple type as a tuple.
     pub fn not_a_tuple(ty: HirType, span: Span) -> Self {
         Self {
@@ -295,6 +327,26 @@ impl HIRError {
             span,
         }
     }
+    /// Creates a [`HIRErrorKind::CyclicComponentSignature`] error.
+    pub fn cyclic_component_signature(
+        component: SymbolPointer,
+        chain: Vec<ComponentKey>,
+        span: Span,
+    ) -> Self {
+        Self {
+            kind: HIRErrorKind::CyclicComponentSignature { component, chain },
+            span,
+        }
+    }
+
+    /// Creates a [`HIRErrorKind::CyclicComponentBody`] error.
+    pub fn cyclic_component_body(component: ComponentId, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::CyclicComponentBody { component },
+            span,
+        }
+    }
+
     /// Creates a [`HIRErrorKind::AmbiguousDeclaration`] error.
     pub fn ambiguous_declaration(
         name: SymbolPointer,
@@ -316,6 +368,11 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::NotAComponent(_) => write!(f, "Atempt to use value as a component"),
+            HIRErrorKind::ComponentPropertyMissingType => {
+                write!(f, "Component property is missing type definition")
+            }
+
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(_)) => {
                 write!(f, "Atempt to write on a imutable variable")
             }
@@ -374,6 +431,22 @@ impl std::fmt::Display for HIRError {
                     "intrinsic '{:?}' is not defined — ensure the standard library is loaded",
                     name
                 )
+            }
+            HIRErrorKind::CyclicComponentSignature {
+                component: _,
+                chain,
+            } => {
+                write!(f, "cyclic component signature: ")?;
+                for (i, (_, name)) in chain.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " → ")?;
+                    }
+                    write!(f, "{:?}", name)?;
+                }
+                Ok(())
+            }
+            HIRErrorKind::CyclicComponentBody { component: _ } => {
+                write!(f, "cyclic component body resolution")
             }
         }
     }
