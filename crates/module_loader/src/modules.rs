@@ -1,9 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use common::{
-    FrontendSymbol, SymbolPointer, SymbolsModule,
-    pool::{DedupPool, DedupPoolId},
-};
+use common::{FrontendSymbol, SymbolPointer, SymbolsModule, pool::DedupPoolId};
 use slynx_parser::{
     ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration,
     GenericIdentifier, ObjectDeclaration,
@@ -109,7 +106,7 @@ impl<'a> Modules<'a> {
                 } else {
                     usage.content_name
                 };
-                let original = self.recreate_pathbuf(&import.path);
+                let original = self.recreate_pathbuf(module.id, &import.path);
                 let file = self
                     .paths
                     .get(&original)
@@ -139,7 +136,7 @@ impl<'a> Modules<'a> {
                 } else {
                     usage.content_name
                 };
-                let original = self.recreate_pathbuf(&import.path);
+                let original = self.recreate_pathbuf(module.id, &import.path);
                 let file = self
                     .paths
                     .get(&original)
@@ -202,7 +199,8 @@ impl<'a> Modules<'a> {
                     _ => usage.content_name,
                 };
 
-                let original = self.recreate_pathbuf(&import.path);
+                let original = self.recreate_pathbuf(module.id, &import.path);
+
                 let file = self
                     .paths
                     .get(&original)
@@ -216,11 +214,16 @@ impl<'a> Modules<'a> {
         None
     }
 
-    fn recreate_pathbuf(&self, path: &ASTPath) -> PathBuf {
-        let mut out = PathBuf::new();
+    fn recreate_pathbuf(&self, entry: FileId, path: &ASTPath) -> PathBuf {
+        let mut entry = self
+            .paths
+            .iter()
+            .find_map(|v| (*v.1 == entry).then_some(v.0.clone()))
+            .expect("File ID should map to some file");
+        entry.pop(); //pops because it maps to some file, and we must get rid of the file
         for module in &path.module_names {
-            out.push(self.loader.symbols.get_name(*module));
+            entry.push(self.loader.symbols.get_name(*module));
         }
-        out
+        entry.with_extension("slx")
     }
 }
