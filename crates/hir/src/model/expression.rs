@@ -123,7 +123,7 @@ impl PropertyExpression {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HirComponentExpression {
     /// The type of the component.
     pub name: DedupPoolId<HirType>,

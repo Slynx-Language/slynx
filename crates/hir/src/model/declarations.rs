@@ -124,7 +124,7 @@ pub struct HirStylesheetDeclaration {
 /// ## `Specialized`
 ///
 /// A specialized component like `Text` or `Div` with predefined behavior.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub enum ComponentMemberDeclaration {
     /// A property declaration with an optional default value.
@@ -144,7 +144,7 @@ pub enum ComponentMemberDeclaration {
         /// The property's default value, if any.
         ///
         /// If `None`, the property must be provided when the component is used.
-        value: Option<HirExpression>,
+        value: Option<Spanned<PoolId<HirExpression>>>,
 
         /// The source location of this property declaration.
         span: Span,
@@ -157,7 +157,7 @@ pub enum ComponentMemberDeclaration {
     /// - `name` — The child component's type
     /// - `values` — The child's property values
     /// - `span` — Source location for error reporting
-    Child(HirComponentExpression),
+    Child(Spanned<PoolId<HirComponentExpression>>),
 }
 
 impl ComponentMemberDeclaration {
@@ -186,7 +186,11 @@ impl ComponentMemberDeclaration {
     ///     span,
     /// );
     /// ```
-    pub fn new_property(index: usize, value: Option<HirExpression>, span: Span) -> Self {
+    pub fn new_property(
+        index: usize,
+        value: Option<Spanned<PoolId<HirExpression>>>,
+        span: Span,
+    ) -> Self {
         Self::Property { index, value, span }
     }
 
@@ -212,15 +216,7 @@ impl ComponentMemberDeclaration {
     /// # let values = vec![];
     /// let child = ComponentMemberDeclaration::new_child(name, values, span);
     /// ```
-    pub fn new_child(
-        name: DedupPoolId<HirType>,
-        properties: Vec<PropertyExpression>,
-        children: Vec<Spanned<PoolId<HirComponentExpression>>>,
-    ) -> Self {
-        Self::Child(HirComponentExpression {
-            name,
-            properties,
-            children,
-        })
+    pub fn new_child(child: Spanned<PoolId<HirComponentExpression>>) -> Self {
+        Self::Child(child)
     }
 }
