@@ -1,32 +1,48 @@
+pub(crate) mod component;
+mod expression;
 mod function;
 mod work_channel;
-use std::ops::Deref;
+use std::{cell::RefCell, ops::Deref};
 
 use common::{
     Span, Spanned,
     pool::{DedupPoolId, PoolId},
 };
-use dashmap::DashMap;
+use component::*;
+use crossbeam_channel::select;
+use dashmap::{DashMap, DashSet};
 use module_loader::{ASTType, ASTTypeKind, FileId, Modules, SourceNode};
 use slynx_parser::{
-    ASTStatement, ComponentMemberKind, FuncDeclaration, GenericIdentifier, StaticDeclaration,
+    ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration, GenericIdentifier,
+    StaticDeclaration,
 };
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirObjectDeclaration, HirStatement,
-    HirStaticDeclaration, HirType, Result, SlynxHir, SymbolPointer, VariableId,
+    ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
+    HirFunctionDeclaration, HirObjectDeclaration, HirStatement, HirStaticDeclaration, HirType,
+    Result, SlynxHir, SymbolPointer, VariableId,
     builders::{
-        function::{HirFunctionBuildResult, HirFunctionBuilder},
-        work_channel::WorkChannel,
+        expression::ExpressionBuildResult, function::HirFunctionBuilder, work_channel::WorkChannel,
     },
     context::HirSymbol,
-    error::InvalidTypeReason,
 };
+
+pub struct PendingSignatures<'a> {
+    /// Signature resolution state per component (by (FileId, SymbolPointer)).
+    pub signatures_in_progress: &'a DashSet<(FileId, SymbolPointer)>,
+    /// Body resolution state per component.
+    pub bodies_in_progress: &'a DashSet<ComponentId>,
+    /// Stack for cycle-detection error chains during signature resolution.
+    /// Single-threaded for now; see component-generation.md §8.
+    // TODO(threading): replace with thread-local or DashMap<ThreadId, Vec<...>> when Rayon lands.
+    pub signature_stack: &'a RefCell<Vec<(FileId, SymbolPointer)>>,
+}
 
 ///A Node represents a file that is being compiled on the HIR. It's just a view over the Hir and AST to properly read data from the ast from the `entry` file
 pub struct HirNode<'a> {
     pub(crate) hir: &'a SlynxHir<'a>,
     pub(crate) modules: &'a Modules<'a>,
+    pub(crate) pendings: PendingSignatures<'a>,
     ///The ID of the file that we are reading
     pub(crate) entry: FileId,
 }
@@ -44,6 +60,11 @@ struct PendantBody<'a> {
     argument_names: Vec<SymbolPointer>,
 }
 
+struct PendantComponent<'a> {
+    owner: DeclarationId<HirComponentDeclaration>,
+    component: &'a ComponentDeclaration,
+}
+
 pub struct HirQueueBuilder<'a> {
     pub(crate) hir: &'a SlynxHir<'a>,
     pub(crate) modules: &'a Modules<'a>,
@@ -53,6 +74,18 @@ pub struct HirQueueBuilder<'a> {
         DeclarationId<HirFunctionDeclaration>,
         (Vec<Spanned<PoolId<HirStatement>>>, Vec<VariableId>),
     >,
+    pub(crate) resolved_components:
+        DashMap<DeclarationId<HirComponentDeclaration>, Vec<ComponentMemberDeclaration>>,
+    pub(crate) components: WorkChannel<PendantComponent<'a>>,
+
+    /// Signature resolution state per component (by (FileId, SymbolPointer)).
+    pub signatures_in_progress: DashSet<(FileId, SymbolPointer)>,
+    /// Body resolution state per component.
+    pub bodies_in_progress: DashSet<ComponentId>,
+    /// Stack for cycle-detection error chains during signature resolution.
+    /// Single-threaded for now; see component-generation.md §8.
+    // TODO(threading): replace with thread-local or DashMap<ThreadId, Vec<...>> when Rayon lands.
+    pub signature_stack: RefCell<Vec<(FileId, SymbolPointer)>>,
 }
 
 impl HirNode<'_> {
@@ -65,6 +98,7 @@ impl HirNode<'_> {
         ty: Spanned<DedupPoolId<GenericIdentifier>>,
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
         let real = self.modules.get_type(ty.data);
+
         if let Some(ty) = self.modules.find_type_inside_module(
             &self.modules.entries()[self.entry.as_raw() as usize],
             real.identifier,
@@ -105,27 +139,7 @@ impl HirNode<'_> {
                     }
                     struct_ty
                 }
-                ASTTypeKind::Component(component) => {
-                    let mut properties = Vec::new();
-                    for member in &component.members {
-                        if let ComponentMemberKind::Property { name, ty, .. } = &member.kind {
-                            let ty_id = self
-                                .find_type(ty.ok_or_else(|| {
-                                    let name = self.get_type(component.name.data).identifier;
-                                    HIRError::invalid_type(
-                                        name,
-                                        InvalidTypeReason::CouldntInfer,
-                                        member.span,
-                                    )
-                                })?)
-                                .map(|(_, t)| t)?;
-                            properties.push((*name, ty_id));
-                        }
-                    }
-                    let name_id = self.get_type(component.name.data).identifier;
-                    self.hir
-                        .create_component_type(name_id, properties, Vec::new())
-                }
+                ASTTypeKind::Component(component) => self.resolve_component_signature(component)?,
             };
             Ok((ty.owner, id))
         } else {
@@ -133,7 +147,7 @@ impl HirNode<'_> {
         }
     }
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
-    fn get_signature_of(&self, f: &FuncDeclaration) -> Result<DedupPoolId<HirType>> {
+    fn get_signature_of_function(&self, f: &FuncDeclaration) -> Result<DedupPoolId<HirType>> {
         let ret = self.find_type(f.return_type)?.1;
         let args = f
             .args
@@ -145,6 +159,71 @@ impl HirNode<'_> {
             .collect::<Result<_>>()?;
         Ok(self.hir.create_function_type(args, ret))
     }
+
+    /// Pure computation of a component's signature type (no cycle detection).
+    fn compute_component_type(
+        &self,
+        component: &ComponentDeclaration,
+    ) -> Result<DedupPoolId<HirType>> {
+        let name = self.get_type(component.name.data).identifier;
+        let (properties, children) = {
+            let mut properties = Vec::with_capacity(component.members.len());
+            let mut components = Vec::with_capacity(component.members.len());
+            for member in &component.members {
+                match &member.kind {
+                    ComponentMemberKind::Property { name, ty, .. } => {
+                        if let Some(ty) = ty {
+                            let (_, field) = self.find_type(*ty)?;
+                            properties.push((*name, field));
+                        } else {
+                            return Err(HIRError::component_missing_prop_type(member.span));
+                        }
+                    }
+                    ComponentMemberKind::Child(c) => {
+                        let (_, ty) = self.find_type(c.data.name)?;
+                        let view = self.hir.view(ty);
+                        if let Some(view) = view.is_component() {
+                            components.push(view.data);
+                        } else {
+                            let name = self.get_type(c.data.name.data).identifier;
+                            return Err(HIRError::not_a_component(name, c.span));
+                        };
+                    }
+                }
+            }
+            (properties, components)
+        };
+        Ok(self.hir.create_component_type(name, properties, children))
+    }
+
+    /// Resolve a component's signature with cycle detection.
+    pub(crate) fn resolve_component_signature(
+        &self,
+        component: &ComponentDeclaration,
+    ) -> Result<DedupPoolId<HirType>> {
+        let name = self.get_type(component.name.data).identifier;
+        let key = (self.entry, name);
+
+        // Push onto cycle-detection stack
+        self.pendings.signature_stack.borrow_mut().push(key);
+
+        // Insert into in-progress set. If already present, we have a cycle.
+        if !self.pendings.signatures_in_progress.insert(key) {
+            let chain = self.pendings.signature_stack.borrow().clone();
+            self.pendings.signature_stack.borrow_mut().pop();
+            return Err(HIRError::cyclic_component_signature(
+                name,
+                chain,
+                component.span,
+            ));
+        }
+
+        let result = self.compute_component_type(component);
+
+        self.pendings.signatures_in_progress.remove(&key);
+        self.pendings.signature_stack.borrow_mut().pop();
+        result
+    }
 }
 
 impl<'a> HirQueueBuilder<'a> {
@@ -154,7 +233,12 @@ impl<'a> HirQueueBuilder<'a> {
             modules,
             bodies: WorkChannel::new(),
             statics: WorkChannel::new(),
+            components: WorkChannel::new(),
             resolved_bodies: DashMap::new(),
+            resolved_components: DashMap::new(),
+            bodies_in_progress: DashSet::new(),
+            signature_stack: RefCell::new(Vec::new()),
+            signatures_in_progress: DashSet::new(),
         }
     }
 
@@ -167,6 +251,11 @@ impl<'a> HirQueueBuilder<'a> {
             hir: self.hir,
             modules: self.modules,
             entry: id,
+            pendings: PendingSignatures {
+                signatures_in_progress: &self.signatures_in_progress,
+                bodies_in_progress: &self.bodies_in_progress,
+                signature_stack: &self.signature_stack,
+            },
         }
     }
     ///Hoists the given function, and then enqueues it so its body can be checked. On being processed, this function might generate more than simply the given `f` function since it will generate all the dependencies of `f` to work. Including impures
@@ -194,65 +283,49 @@ impl<'a> HirQueueBuilder<'a> {
         self.statics.send(());
         Ok(id)
     }
-    ///Hoists the given function, and then enqueues it so its body can be checked. On being processed, this function might generate more than simply the given `f` function since it will generate all the dependencies of `f` to work. Including impures
-    pub(crate) fn enqueue_function(
-        &self,
-        f: &'a FuncDeclaration,
-        node: HirNode<'_>,
-    ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let name = self.modules.get_type(f.name.data).identifier;
-        let signature = node.get_signature_of(f)?;
-        let names = f.args.iter().map(|arg| arg.data.name).collect();
-        let id = self.hir.symbols_registry.get_or_insert_function(
-            HirSymbol::new(node.entry, name),
-            || {
-                let decl = HirFunctionDeclaration {
-                    name,
-                    args: Default::default(),
-                    ty: signature,
-                    statements: Vec::new(),
-                    visibility: f.visibility,
-                    external: f.external,
-                };
-                let file = self.hir.get_or_create_file(node.entry);
-                file.create_function(decl)
-            },
-        );
 
-        self.bodies.send(PendantBody {
-            func_id: id,
-            body: &f.body,
-            argument_names: names,
-        });
-        Ok(id)
-    }
-
-    ///Finds a function with the given `name` and returns it's id. If not found on the `requester` it tries to find on other files the requester imports. If not recognized by any, then hoists it properly
-    pub fn find_function_named(
-        &self,
-        name: SymbolPointer,
-        requester: &'a HirNode,
-        span: Span,
-    ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        if let Some(func) = self
-            .hir
-            .find_function_by_symbol(HirSymbol::new(requester.entry, name))
-        {
-            Ok(func)
-        } else if let Some(func) = self
-            .hir
-            .get_file(requester.entry)
-            .find_function_with_name(name)
-        {
-            Ok(func)
-        } else if let Some((id, func)) =
-            requester.find_function_declaration(name, requester.get_source_node())
-        {
-            self.enqueue_function(func, self.get_node(id))
-        } else {
-            Err(HIRError::name_unrecognized(name, span))
+    pub(crate) fn process(self) -> Result<()> {
+        loop {
+            select! {
+                recv(self.bodies.receiver()) -> body => {
+                    if let Ok(PendantBody { func_id, body, argument_names }) = body {
+                        let mut builder = HirFunctionBuilder::new(func_id);
+                        for (idx, name) in argument_names.into_iter().enumerate() {
+                            builder.create_argument(&self, name, idx as u8);
+                        }
+                        let ExpressionBuildResult { statements, args } = builder.build_body(&self, &body)?;
+                        self.resolved_bodies.insert(func_id, (statements, args));
+                    }else {
+                        break;
+                    }
+                }
+                recv(self.components.receiver()) -> component => {
+                    if let Ok(PendantComponent { owner, component }) = component {
+                        let decls = self.component_body(owner, &self, component)?;
+                        self.resolved_components.insert(owner, decls);
+                    }
+                }
+            }
         }
+
+        for mut entry in self.resolved_bodies.iter_mut() {
+            let mut file = self.hir.get_file_mut(entry.key().file_id);
+            let func = file.declarations.functions.get_mut(entry.key().local_id);
+            func.statements.append(&mut entry.0);
+            for data in entry.1.drain(..) {
+                func.args.push(data);
+            }
+        }
+        for mut entry in self.resolved_components.iter_mut() {
+            let mut file = self.hir.get_file_mut(entry.key().file_id);
+            let func = file.declarations.components.get_mut(entry.key().local_id);
+            func.props.append(&mut entry);
+        }
+        Ok(())
     }
+}
+
+impl<'a> HirQueueBuilder<'a> {
     /// Lazily resolves a method on a struct type. Looks up the `ObjectDeclaration`
     /// from the AST, creates the function declaration, registers it as a method
     /// on the type, and enqueues the body for processing.
@@ -261,7 +334,6 @@ impl<'a> HirQueueBuilder<'a> {
         file_id: FileId,
         struct_ty: DedupPoolId<HirType>,
         method_name: SymbolPointer,
-        _span: Span,
     ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
         let struct_id = match self.hir.types_module[struct_ty] {
             HirType::Struct(id) => id,
@@ -356,31 +428,8 @@ impl<'a> HirQueueBuilder<'a> {
 
         Ok(Some(decl_id))
     }
-    pub(crate) fn process(&self) -> Result<()> {
-        while let Some(PendantBody {
-            func_id,
-            body,
-            argument_names,
-        }) = self.bodies.recv()
-        {
-            let mut builder = HirFunctionBuilder::new(func_id);
-            for (idx, name) in argument_names.into_iter().enumerate() {
-                builder.create_argument(self, name, idx as u8);
-            }
-            let HirFunctionBuildResult { statements, args } = builder.build_body(self, &body)?;
-            self.resolved_bodies.insert(func_id, (statements, args));
-        }
-        for mut entry in self.resolved_bodies.iter_mut() {
-            let mut file = self.hir.get_file_mut(entry.key().file_id);
-            let func = file.declarations.functions.get_mut(entry.key().local_id);
-            func.statements.append(&mut entry.0);
-            for data in entry.1.drain(..) {
-                func.args.push(data);
-            }
-        }
-        Ok(())
-    }
 }
+
 impl<'a> Deref for HirQueueBuilder<'a> {
     type Target = Modules<'a>;
     fn deref(&self) -> &Self::Target {
