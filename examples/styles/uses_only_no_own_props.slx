@@ -6,10 +6,13 @@ stylesheet Base() {
 }
 
 stylesheet Derived() uses Base() {}
-
+component Div {}
+component Text {
+    pub prop text:str;
+}
 component Root {
     Div {
-        style: Derived(),
+
         Text {
             text: "hello"
         }

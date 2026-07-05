@@ -1,0 +1,13 @@
+extern {
+	object Window {
+		func alert(self, msg: str): void;
+		func confirm(self, msg: str): bool;
+		func prompt(self, msg: str): str;
+	}
+	static window: Window;
+}
+
+func main(): void {
+	window.alert("Hello!");
+	let ok = window.confirm("Continue?");
+}

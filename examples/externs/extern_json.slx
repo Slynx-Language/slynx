@@ -1,0 +1,12 @@
+extern {
+	object JSON {
+		func stringify(self, value: str): str;
+		func parse(self, text: str): str;
+	}
+	static json: JSON;
+}
+
+func main(): void {
+	let s = json.stringify("hello");
+	let p = json.parse(s);
+}

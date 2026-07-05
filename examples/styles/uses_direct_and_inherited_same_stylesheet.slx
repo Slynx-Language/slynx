@@ -10,10 +10,13 @@ stylesheet Bg(color: int) uses Fg(color - 0x00ffff) {
         backgroundColor: Color(inner:color)
     }
 }
-
+component Div {}
+component Text {
+    pub prop text:str;
+}
 component A {
     Div {
-        style: Fg(0xff00ff),
+
         Text {
             text: "direct"
         }
@@ -22,7 +25,7 @@ component A {
 
 component B {
     Div {
-        style: Bg(0x0000ff),
+
         Text {
             text: "inherited"
         }

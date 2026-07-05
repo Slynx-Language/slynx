@@ -1,0 +1,17 @@
+extern {
+	object Printer {
+		func print(self, text: str): void;
+	}
+	object Scanner {
+		func scan(self): str;
+	}
+	func format(template: str, value: str): str;
+	static defaultFont: str;
+	static printer: Printer;
+	static scanner: Scanner;
+}
+
+func main(): void {
+	printer.print("page");
+	let s = scanner.scan();
+}

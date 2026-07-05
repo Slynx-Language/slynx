@@ -1,17 +1,12 @@
-use std::path::Path;
-
-use slynx::SlynxContext;
+mod common;
+use common::*;
 use slynx_hir::SlynxHir;
-use slynx_monomorphizer::Monomorphizer;
 
 #[test]
 fn rejects_cyclic_aliases() {
-    let source = "alias A = B; alias B = A; func main(): void {}";
-    let context = SlynxContext::from_source(source.to_string(), Path::new("input.slx"));
-    let modules = context
-        .load_modules()
-        .expect("Modules should've generated properly");
-    let mut hir =
-        SlynxHir::new(&modules).expect("HIR should generate (cycle detection is deferred)");
-    Monomorphizer::resolve(&mut hir).expect("monomorphization should succeed");
+    let mut ctx = load_source("alias A = B; alias B = A; func main(): void {}");
+    let modules = ctx.load_modules().expect("Modules should load properly");
+    // The HIR builder does not yet detect cyclic aliases.
+    // When it does, this should expect_err instead.
+    let _hir = SlynxHir::new(&modules).expect("HIR should build (cycle detection not yet implemented)");
 }

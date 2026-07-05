@@ -1,34 +1,41 @@
 mod common;
 
+use slynx_hir::{HIRErrorKind, SlynxHir};
+
 use crate::common::load_source;
 
 #[test]
 fn rejects_function_call_with_extra_arg() {
-    let context =
+    let mut context =
         load_source("func add(a: int, b: int): int { a + b } func main(): void { add(1, 2, 3) }");
-    let err = context.compile().expect_err("Hir should fail its generation due to extra arg");
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("expected to receive 2 arguments"),
-        "expected arg count mention in error, got: {msg}",
-    );
-    assert!(
-        msg.contains("instead got 3 arguments"),
-        "expected received arg count mention in error, got: {msg}",
-    );
+    let modules = context
+        .load_modules()
+        .expect("modules should load");
+    let (_hir, err) = SlynxHir::new(&modules).expect_err("should reject extra arg");
+    assert!(matches!(
+        err.kind,
+        HIRErrorKind::InvalidFuncallArgLength {
+            expected_length: 2,
+            received_length: 3,
+            ..
+        }
+    ));
 }
 
 #[test]
 fn rejects_function_call_with_missing_arg() {
-    let context = load_source("func add(a: int, b: int): int { a + b } func main(): void { add(1) }");
-    let err = context.compile().expect_err("Hir should fail its generation due to missing args");
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("expected to receive 2 arguments"),
-        "expected arg count mention in error, got: {msg}",
-    );
-    assert!(
-        msg.contains("instead got 1 arguments"),
-        "expected received arg count mention in error, got: {msg}",
-    );
+    let mut context =
+        load_source("func add(a: int, b: int): int { a + b } func main(): void { add(1) }");
+    let modules = context
+        .load_modules()
+        .expect("modules should load");
+    let (_hir, err) = SlynxHir::new(&modules).expect_err("should reject missing arg");
+    assert!(matches!(
+        err.kind,
+        HIRErrorKind::InvalidFuncallArgLength {
+            expected_length: 2,
+            received_length: 1,
+            ..
+        }
+    ));
 }

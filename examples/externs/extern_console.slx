@@ -1,0 +1,16 @@
+extern {
+	object Console {
+		func log(self, msg: str): void;
+		func warn(self, msg: str): void;
+		func error(self, msg: str): void;
+		func info(self, msg: str): void;
+	}
+	static console: Console;
+}
+
+func main(): void {
+	console.log("application started");
+	console.info("loading data");
+	console.warn("deprecated API used");
+	console.error("something went wrong");
+}

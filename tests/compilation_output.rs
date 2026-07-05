@@ -86,6 +86,7 @@ fn build_stages_exposes_hir_and_ir_dumps_without_writing_files() {
 fn build_stages_can_write_hir_ir_and_sir_outputs() {
     let case_dir = temp_case_dir("dump-files");
     let source_path = write_temp_source(&case_dir);
+
     let ir_path = source_path.with_extension("ir");
     let sir_path = source_path.with_extension("sir");
 

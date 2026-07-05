@@ -1,0 +1,10 @@
+extern {
+	object MyAPI {
+		func greet(self, msg: str): void;
+	}
+	static api: MyAPI;
+}
+
+func main(): void {
+	api.greet("hello");
+}

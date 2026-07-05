@@ -1,0 +1,10 @@
+extern {
+	object Node {
+		func cloneNode(self): Node;
+	}
+	static node: Node;
+}
+
+func main(): void {
+	let copy = node.cloneNode();
+}

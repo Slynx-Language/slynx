@@ -1,8 +1,9 @@
 use std::path::PathBuf;
+mod common;
 
 /// Compiles a single .slx file and expects success.
 fn compile_slx(path: PathBuf) {
-    let result = slynx::compile_to_ir(path.clone(), None);
+    let result = slynx::compile_to_ir(path.clone(), Some(common::STD_PATH.clone()));
     assert!(
         result.is_ok(),
         "compilation failed for {}:\n{:?}",

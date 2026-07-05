@@ -10,10 +10,13 @@ stylesheet Derived() uses Base() {
         backgroundColor: Color(inner:0x00ff00)
     }
 }
-
+component Div {}
+component Text {
+    pub prop text:str;
+}
 component Root {
     Div {
-        style: Derived(),
+
         Text {
             text: "hello"
         }

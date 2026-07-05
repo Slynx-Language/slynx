@@ -1,0 +1,14 @@
+extern {
+	object Node {
+		func appendChild(self, child: Node): void;
+		func removeChild(self, child: Node): Node;
+		func firstChild(self): Node;
+	}
+	static parent: Node;
+	static child: Node;
+}
+
+func main(): void {
+	parent.appendChild(child);
+	let first = parent.firstChild();
+}

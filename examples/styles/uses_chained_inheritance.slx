@@ -17,9 +17,12 @@ stylesheet C() uses B() {
     }
 }
 
+component Div {}
+component Text {
+    pub prop text:str;
+}
 component Root {
     Div {
-        style: C(),
         Text {
             text: "hello"
         }

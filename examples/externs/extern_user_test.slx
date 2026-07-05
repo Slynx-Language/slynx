@@ -1,0 +1,15 @@
+extern {
+	object Document {
+		func createElement(self, tag: str): void;
+	}
+	object Console {
+		func log(self, content:str):void;
+	}
+	static document:Document;
+	static console: Console;
+}
+
+func main(): void{
+	let p = document.createElement("p");
+	console.log("Hello World");
+}

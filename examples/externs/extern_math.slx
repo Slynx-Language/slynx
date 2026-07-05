@@ -1,0 +1,14 @@
+extern {
+	object Math {
+		func sqrt(self, x: f64): f64;
+		func floor(self, x: f64): f64;
+		func ceil(self, x: f64): f64;
+	}
+	static math: Math;
+}
+
+func main(): void {
+	let a = math.sqrt(64.0);
+	let b = math.floor(3.9);
+	let c = math.ceil(2.1);
+}

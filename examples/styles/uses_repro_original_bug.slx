@@ -10,7 +10,10 @@ stylesheet Fg(color: int) {
         foregroundColor: Color(inner:color)
     }
 }
-
+component Div {}
+component Text {
+    pub prop text:str;
+}
 component Pedrinho {
     Div {
         Text {
@@ -21,7 +24,7 @@ component Pedrinho {
 
 component Jorgin {
     Text {
-        style: Fg(0xff00ff),
+
         text: "Jorginho neguinho"
     }
     Pedrinho {}

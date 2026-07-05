@@ -1,13 +1,14 @@
 import another;
-import utils.components using {Text, Div};
 import styles using {BgGreen as Bg};
 
-component Example {
-    Text {
-        style: Bg(),
-    }
+stylesheet Slaoq() uses BgGreen(){}
+
+component Suamae {
+	Text{
+		style: Slaoq()
+	}
 }
 
-func main(): Example{
-    Example {}
+func main(): Suamae{
+	Suamae {}
 }
