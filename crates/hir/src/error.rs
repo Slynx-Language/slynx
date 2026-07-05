@@ -33,6 +33,7 @@ pub enum InvalidWriteReason {
 pub enum HIRErrorKind {
     NotAComponent(SymbolPointer),
     ComponentPropertyMissingType,
+    ComponentNotFound(SymbolPointer),
 
     InvalidWrite(InvalidWriteReason),
 
@@ -153,6 +154,13 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn component_not_found(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::ComponentNotFound(name),
+            span,
+        }
+    }
+
     pub fn component_missing_prop_type(span: Span) -> Self {
         Self {
             kind: HIRErrorKind::ComponentPropertyMissingType,
@@ -368,6 +376,7 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::ComponentNotFound(_) => write!(f, "Component not found"),
             HIRErrorKind::NotAComponent(_) => write!(f, "Atempt to use value as a component"),
             HIRErrorKind::ComponentPropertyMissingType => {
                 write!(f, "Component property is missing type definition")

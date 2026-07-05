@@ -234,8 +234,7 @@ impl<'a> SlynxHir<'a> {
             builder.enqueue_function(func, node)?;
         }
         for comp in entry.component() {
-            let node = builder.get_node(entry.id);
-            builder.enqueue_component(comp, node)?;
+            builder.enqueue_component(comp, entry.id)?;
         }
         builder.close_bodies();
         builder.process()?;

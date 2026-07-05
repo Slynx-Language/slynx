@@ -11,6 +11,10 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::ComponentNotFound(name) => format!(
+                "Component named as '{}' could not be found",
+                hir.get_name(*name)
+            ),
             HIRErrorKind::NotAComponent(name) => {
                 let name = hir.get_name(*name);
                 format!("'{name}' is not a component")
@@ -140,9 +144,7 @@ impl SlynxContext {
                     .map(|(_, n)| hir.get_name(*n))
                     .collect::<Vec<_>>()
                     .join(" → ");
-                format!(
-                    "cyclic component signature: component '{comp_name}' at chain: {chain_str}"
-                )
+                format!("cyclic component signature: component '{comp_name}' at chain: {chain_str}")
             }
             HIRErrorKind::CyclicComponentBody { component: _ } => {
                 "cyclic component body resolution".to_string()
