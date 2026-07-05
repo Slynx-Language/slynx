@@ -266,7 +266,8 @@ impl ExpressionBuilder {
                             .expect("Method should be a function")
                             .arguments()
                             .to_vec();
-                        if expected.len() != args.len() {
+                        if expected.len() != args.len() + 1 {
+                            //+1 due to being a method call, so self is implicit
                             return Err(HIRError::invalid_funcall_arg_length(
                                 name_sym,
                                 expected.len(),
