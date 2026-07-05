@@ -4,7 +4,7 @@ use common::{
     Span, Spanned,
     pool::{DedupPoolId, PoolId},
 };
-use module_loader::FileId;
+use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{
     ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, GenericIdentifier,
 };
@@ -94,9 +94,7 @@ impl ExpressionBuilder {
     ) -> Result<HirName> {
         if let Some(var) = self.names.get(&ptr).cloned() {
             Ok(HirName::Variable(var))
-        } else if let Some((file_owner, statik)) =
-            queue.find_static_declaration(ptr, queue.get_entry(self.file()))
-        {
+        } else if let Some((file_owner, statik)) = queue.find_static_declaration(ptr, self.file()) {
             let id = queue.enqueue_static(statik, queue.get_node(file_owner))?;
             Ok(HirName::Static(id))
         } else {
@@ -626,12 +624,28 @@ impl ExpressionBuilder {
 
     pub fn build_component_expression(
         &mut self,
-        queue: &HirQueueBuilder<'_>,
+        queue: &HirQueueBuilder,
         component: &ComponentExpression,
         span: Span,
     ) -> Result<Spanned<PoolId<HirComponentExpression>>> {
+        let name = queue.get_type(component.name.data).identifier;
         let node = queue.get_node(self.file());
-        let (_, ty) = node.find_type(component.name)?;
+        let (owner, ty) = node.find_type(component.name)?;
+        if let None = queue
+            .hir
+            .find_component_by_symbol(HirSymbol::new(owner, name))
+        {
+            let ty = queue.modules.find_type_inside_module(self.file(), name);
+            if let Some(ASTType {
+                content: ASTTypeKind::Component(comp),
+                ..
+            }) = ty
+            {
+                queue.enqueue_component(comp, self.file())?;
+            } else {
+                return Err(HIRError::component_not_found(name, span));
+            }
+        }
         let ty_view = queue.hir.view(ty);
         let deref = ty_view.dereference();
         let comp_view = deref

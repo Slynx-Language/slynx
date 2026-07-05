@@ -1,5 +1,5 @@
 use common::Span;
-use module_loader::ASTTypeKind;
+use module_loader::{ASTTypeKind, FileId};
 use slynx_parser::{ComponentDeclaration, ComponentMemberKind};
 
 use crate::{
@@ -53,35 +53,30 @@ impl<'a> HirQueueBuilder<'a> {
     ///Finds a component with the given `name` on-demand, hoisting it if needed.
     ///Mirrors the pattern of `find_function_named`.
     pub fn find_component_named(
-        &self,
+        &'a self,
         name: SymbolPointer,
-        requester: &'a HirNode,
+        requester: FileId,
         span: Span,
     ) -> Result<ComponentId> {
         // 1. Already hoisted in symbol registry?
         if let Some(comp) = self
             .hir
-            .find_component_by_symbol(HirSymbol::new(requester.entry, name))
+            .find_component_by_symbol(HirSymbol::new(requester, name))
         {
             return Ok(comp);
         }
 
         // 2. Already exists in the requester's file pool?
-        if let Some(id) = self
-            .hir
-            .get_file(requester.entry)
-            .find_component_with_name(name)
-        {
+        if let Some(id) = self.hir.get_file(requester).find_component_with_name(name) {
             return Ok(id);
         }
 
         // 3. Search AST through imports and hoist on-demand
-        if let Some(ast_type) = requester.find_type_inside_module(requester.get_source_node(), name)
-        {
+        if let Some(ast_type) = self.modules.find_type_inside_module(requester, name) {
             match ast_type.content {
                 ASTTypeKind::Component(component) => {
-                    let node = self.get_node(ast_type.owner);
-                    return self.enqueue_component(component, node);
+                    let out = self.enqueue_component(component, ast_type.owner)?;
+                    return Ok(out);
                 }
                 _ => {
                     return Err(HIRError::not_a_component(name, span));
@@ -95,8 +90,9 @@ impl<'a> HirQueueBuilder<'a> {
     pub(crate) fn enqueue_component(
         &self,
         component: &'a ComponentDeclaration,
-        node: HirNode<'_>,
+        node: FileId,
     ) -> Result<DeclarationId<HirComponentDeclaration>> {
+        let node = self.get_node(node);
         let (owner, ty) = node.find_type(component.name)?;
         let name = self.modules.get_type(component.name.data).identifier;
         let id = self.hir.symbols_registry.get_or_insert_component(

@@ -91,8 +91,9 @@ impl<'a> Modules<'a> {
     pub fn find_function_declaration(
         &self,
         name: SymbolPointer<FrontendSymbol>,
-        module: &'a SourceNode,
+        module: FileId,
     ) -> Option<(FileId, &slynx_parser::FuncDeclaration)> {
+        let module = &self.modules[module.as_raw() as usize];
         if let Some(v) = module.func().iter().find(|func| {
             let t = self.loader.types.get(func.name.data);
             t.identifier == name
@@ -111,9 +112,7 @@ impl<'a> Modules<'a> {
                     .paths
                     .get(&original)
                     .expect("Expected original path to properly map to some file");
-                if let Some(func) =
-                    self.find_function_declaration(target, &self.modules[file.as_raw() as usize])
-                {
+                if let Some(func) = self.find_function_declaration(target, *file) {
                     return Some(func);
                 };
             }
@@ -124,8 +123,9 @@ impl<'a> Modules<'a> {
     pub fn find_static_declaration(
         &self,
         name: SymbolPointer<FrontendSymbol>,
-        module: &'a SourceNode,
+        module: FileId,
     ) -> Option<(FileId, &slynx_parser::StaticDeclaration)> {
+        let module = &self.modules[module.as_raw() as usize];
         if let Some(v) = module.statics().iter().find(|statik| statik.name == name) {
             return Some((module.id, v));
         }
@@ -141,9 +141,7 @@ impl<'a> Modules<'a> {
                     .paths
                     .get(&original)
                     .expect("Expected original path to properly map to some file");
-                if let Some(statik) =
-                    self.find_static_declaration(target, &self.modules[file.as_raw() as usize])
-                {
+                if let Some(statik) = self.find_static_declaration(target, *file) {
                     return Some(statik);
                 };
             }
@@ -153,59 +151,62 @@ impl<'a> Modules<'a> {
 
     pub fn find_type_inside_module(
         &'a self,
-        module: &'a SourceNode,
+        module: FileId,
         name: SymbolPointer<FrontendSymbol>,
     ) -> Option<ASTType<'a>> {
         if let Some(kind) = Self::builtin_type(self.symbols().get_name(name)) {
             return Some(ASTType {
-                owner: module.id,
+                owner: module,
                 content: ASTTypeKind::Builtin(kind),
             });
         };
 
-        if let Some(strukt) = module.object().iter().find_map(|strukt| {
+        let raw = module.as_raw() as usize;
+        let module_ref = &self.modules[raw];
+
+        if let Some(strukt) = module_ref.object().iter().find_map(|strukt| {
             let strukt_name = self.get_type(strukt.name.data).identifier;
             (strukt_name == name).then_some(ASTType {
-                owner: module.id,
+                owner: module,
                 content: ASTTypeKind::Struct(strukt),
             })
         }) {
             return Some(strukt);
         }
-        if let Some(component) = module.component().iter().find_map(|component| {
+        if let Some(component) = module_ref.component().iter().find_map(|component| {
             let component_name = self.get_type(component.name.data).identifier;
             (component_name == name).then_some(ASTType {
-                owner: module.id,
+                owner: module,
                 content: ASTTypeKind::Component(component),
             })
         }) {
             return Some(component);
         }
 
-        if let Some(alias) = module.alias().iter().find_map(|alias| {
+        if let Some(alias) = module_ref.alias().iter().find_map(|alias| {
             let alias_name = self.get_type(alias.name.data).identifier;
             (alias_name == name).then_some(ASTType {
-                owner: module.id,
+                owner: module,
                 content: ASTTypeKind::Alias(alias),
             })
         }) {
             return Some(alias);
         }
 
-        for import in module.imports() {
+        for import in module_ref.imports() {
             for usage in &import.usages {
                 let target = match () {
                     _ if let Some(name) = usage.alias => name,
                     _ => usage.content_name,
                 };
 
-                let original = self.recreate_pathbuf(module.id, &import.path);
+                let original = self.recreate_pathbuf(module, &import.path);
 
                 let file = self
                     .paths
                     .get(&original)
                     .expect("Expected original path to map properly to some file");
-                let t = self.find_type_inside_module(&self.modules[file.as_raw() as usize], target);
+                let t = self.find_type_inside_module(*file, target);
                 if t.is_some() {
                     return t;
                 }

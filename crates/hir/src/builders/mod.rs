@@ -99,10 +99,10 @@ impl HirNode<'_> {
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
         let real = self.modules.get_type(ty.data);
 
-        if let Some(ty) = self.modules.find_type_inside_module(
-            &self.modules.entries()[self.entry.as_raw() as usize],
-            real.identifier,
-        ) {
+        if let Some(ty) = self
+            .modules
+            .find_type_inside_module(self.entry, real.identifier)
+        {
             let id = match ty.content {
                 ASTTypeKind::Builtin(builtin) => self.hir.create_type(builtin.into()),
                 ASTTypeKind::Alias(alias) => {
@@ -341,11 +341,7 @@ impl<'a> HirQueueBuilder<'a> {
         };
         let struct_name = self.hir.get_struct_name(struct_id);
 
-        let source_node = self.modules.get_entry(file_id);
-
-        let ast_type = self
-            .modules
-            .find_type_inside_module(source_node, struct_name);
+        let ast_type = self.modules.find_type_inside_module(file_id, struct_name);
         let (obj_file_id, obj_decl) = match ast_type {
             Some(ASTType {
                 owner,

@@ -1,5 +1,5 @@
 use common::{Span, Spanned, pool::DedupPoolId};
-use module_loader::ASTTypeKind;
+use module_loader::{ASTTypeKind, FileId};
 use slynx_parser::{ASTStatement, FuncDeclaration};
 
 use crate::{
@@ -55,25 +55,19 @@ impl<'a> HirQueueBuilder<'a> {
 
     ///Finds a function with the given `name` and returns it's id. If not found on the `requester` it tries to find on other files the requester imports. If not recognized by any, then hoists it properly
     pub fn find_function_named(
-        &self,
+        &'a self,
         name: SymbolPointer,
-        requester: &'a HirNode,
+        requester: FileId,
         span: Span,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
         if let Some(func) = self
             .hir
-            .find_function_by_symbol(HirSymbol::new(requester.entry, name))
+            .find_function_by_symbol(HirSymbol::new(requester, name))
         {
             Ok(func)
-        } else if let Some(func) = self
-            .hir
-            .get_file(requester.entry)
-            .find_function_with_name(name)
-        {
+        } else if let Some(func) = self.hir.get_file(requester).find_function_with_name(name) {
             Ok(func)
-        } else if let Some((id, func)) =
-            requester.find_function_declaration(name, requester.get_source_node())
-        {
+        } else if let Some((id, func)) = self.find_function_declaration(name, requester) {
             self.enqueue_function(func, self.get_node(id))
         } else {
             Err(HIRError::name_unrecognized(name, span))
