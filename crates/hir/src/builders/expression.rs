@@ -118,7 +118,7 @@ impl ExpressionBuilder {
         ) {
             (a, b) if *a == *b => Ok(a.data),
             (received, _) => {
-                let name = queue.hir.intern_name(&format!("{:?}", &*received));
+                let name = queue.hir.intern_name(&format!("{:?}", *received));
                 Err(HIRError::invalid_type(
                     name,
                     InvalidTypeReason::IncorrectUsage,
