@@ -9,7 +9,7 @@ fn extern_examples() {
     let mut entries: Vec<_> = std::fs::read_dir(&dir)
         .expect("extern examples directory should exist at examples/externs/")
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "slx"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "slx"))
         .collect();
     entries.sort_by_key(|e| e.path());
 

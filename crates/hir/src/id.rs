@@ -62,7 +62,7 @@ impl<T> DeclarationId<T> {
 }
 impl<T> Clone for DeclarationId<T> {
     fn clone(&self) -> Self {
-        Self::new(self.file_id, self.local_id)
+        *self
     }
 }
 impl<T> Copy for DeclarationId<T> {}

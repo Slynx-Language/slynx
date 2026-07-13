@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use common::{Spanned, pool::PoolId};
-use slynx_hir::{HirStatement, HirType, SlynxHir, VariableId};
+use slynx_hir::{HirStatement, SlynxHir, VariableId};
 use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, SlynxIR, Value};
 
 use crate::{Codegen, CodegenError, TypeId};

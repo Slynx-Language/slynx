@@ -31,6 +31,15 @@ pub(crate) struct ChildInitWork {
     /// Indices into the parent component's property list.
     pub parent_prop_indices: Vec<usize>,
 }
+
+impl ChildInitWork {
+    pub fn is_empty(&self) -> bool {
+        self.children_type.is_empty()
+            && self.parent_prop_indices.is_empty()
+            && self.children_index.is_empty()
+    }
+}
+
 pub type TypeId = DedupPoolId<HirType>;
 
 pub struct Codegen {
@@ -91,7 +100,7 @@ impl Codegen {
     /// Phase 0: Hoist declarations.
     fn hoist_declarations(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) {
         for file in &hir.files {
-            for (id, declaration) in file.declarations.objects.iter().with_ids() {
+            for (_, declaration) in file.declarations.objects.iter().with_ids() {
                 let obj = ir.create_struct(hir.get_name(declaration.name));
                 self.types.insert(declaration.ty, obj);
                 // declaration.ty is a Reference; also register the concrete
@@ -103,7 +112,7 @@ impl Codegen {
             }
             for (id, declaration) in file.declarations.functions.iter().with_ids() {
                 let name = hir.get_name(declaration.name);
-                let ptr = ir.create_function(name);
+                let ptr = ir.create_function(name, declaration.external);
                 let ty = ir.get(ptr).ty();
                 self.types.insert(declaration.ty, ty);
                 self.functions
@@ -119,8 +128,8 @@ impl Codegen {
             }
             for (id, declaration) in file.declarations.styles.iter().with_ids() {
                 let name = hir.get_name(declaration.name);
-                let init_func = ir.create_function(&format!("__init_{name}"));
-                let apply_func = ir.create_function(&format!("__apply_{name}"));
+                let init_func = ir.create_function(&format!("__init_{name}"), false);
+                let apply_func = ir.create_function(&format!("__apply_{name}"), false);
                 let struct_ty = ir.create_struct(&format!("__{name}_struct"));
                 self.types.insert(declaration.ty, struct_ty);
                 self.styles.insert(
@@ -213,7 +222,7 @@ impl Codegen {
             let mut decls = Vec::new();
             let mut idx = HashMap::new();
             for file in &hir.files {
-                for (id, decl) in file.value().declarations.styles.iter().with_ids() {
+                for (id, _decl) in file.value().declarations.styles.iter().with_ids() {
                     let id = DeclarationId::new(file.file, id);
                     idx.insert(id, decls.len());
                     decls.push(id);

@@ -12,6 +12,7 @@ use slynx_ir::{
 
 use crate::{ChildInitWork, Codegen, CodegenError, TypeId, functions::FunctionContext};
 
+#[allow(dead_code)]
 fn collect_var_ids_from_expr(
     hir: &SlynxHir,
     expr: &Spanned<PoolId<HirExpression>>,
@@ -45,9 +46,9 @@ fn collect_var_ids_from_expr(
 fn var_id_to_prop_index(
     hir: &SlynxHir,
     comp_ty: DedupPoolId<HirType>,
-    var_id: VariableId,
+    _var_id: VariableId,
 ) -> Option<usize> {
-    if let Some(component) = hir.view(comp_ty).is_component() {
+    if let Some(_component) = hir.view(comp_ty).is_component() {
         None
         //component.props().iter().position(|p| p.name() == name)
     } else {
@@ -56,8 +57,11 @@ fn var_id_to_prop_index(
 }
 
 pub struct StyleApplyData {
+    #[allow(dead_code)]
     pub init_func: IRPointer<Function, 1>,
+    #[allow(dead_code)]
     pub apply_func: IRPointer<Function, 1>,
+    #[allow(dead_code)]
     pub struct_ty: IRTypeId,
 }
 
@@ -130,7 +134,7 @@ impl Codegen {
     pub(crate) fn get_type_of_component_expression(
         &self,
         expr: &HirComponentExpression,
-        ir: &SlynxIR,
+        _ir: &SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
         self.get_mapped_type(&expr.name)
             .ok_or(CodegenError::IRTypeNotRecognized(expr.name))
@@ -157,6 +161,9 @@ impl Codegen {
             init_func: IRPointer::null(),
             parent_prop_indices: Vec::new(),
         };
+        if initcall_info.is_empty() {
+            return Ok(());
+        }
 
         self.component_child_inits
             .entry(ty)

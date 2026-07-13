@@ -1,7 +1,5 @@
-use common::SymbolPointer;
-use dashmap::DashMap;
 use slynx_codegen::CodegenError;
-use slynx_hir::{SlynxHir, VariableId, id::AnyLocalDeclarationId};
+use slynx_hir::{SlynxHir, id::AnyLocalDeclarationId};
 
 use crate::{
     SlynxContext,

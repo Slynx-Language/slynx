@@ -85,6 +85,12 @@ pub struct StyleState {
     pub transition_curve: Option<SymbolPointer>,
 }
 
+impl Default for StyleState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StyleState {
     pub fn new() -> Self {
         Self {

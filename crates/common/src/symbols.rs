@@ -1,8 +1,4 @@
-use std::{
-    hash::Hash,
-    marker::PhantomData,
-    ops::{Deref, Index},
-};
+use std::{hash::Hash, marker::PhantomData, ops::Index};
 
 use lasso::{Spur, ThreadedRodeo};
 

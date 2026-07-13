@@ -53,11 +53,11 @@
 //! - [`crate::hir::modules::TypesModule`] — Type management
 
 use crate::{
+    SymbolPointer,
     context::{ComponentDefinition, StructDefinition},
-    DeclarationId, HirFunctionDeclaration, SymbolPointer, VariableId,
 };
 
-use common::{pool::DedupPoolId, VisibilityModifier};
+use common::{VisibilityModifier, pool::DedupPoolId};
 use module_loader::ASTBuiltin;
 use smallvec::SmallVec;
 

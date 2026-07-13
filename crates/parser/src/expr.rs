@@ -246,7 +246,7 @@ impl Parser<'_> {
                 let span = prefix.span.merge_with(field.span);
                 let id = self.intern_expression(ASTExpression::FieldAccess {
                     parent: prefix,
-                    field: field,
+                    field,
                 });
                 Ok(Spanned::new(id, span))
             }

@@ -1,4 +1,4 @@
-use std::{hash::Hash, marker::PhantomData, u32};
+use std::{hash::Hash, marker::PhantomData};
 
 #[derive(Debug)]
 pub struct DedupPoolId<T>(pub(crate) u32, pub(crate) PhantomData<T>);
@@ -23,7 +23,7 @@ macro_rules! impl_derives {
 
             impl<T> Clone for $ty<T> {
                 fn clone(&self) -> Self {
-                    Self(self.0, self.1)
+                    *self
                 }
             }
 

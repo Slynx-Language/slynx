@@ -307,6 +307,7 @@ impl ExpressionBuilder {
         Ok(span.make_spanned(queue.hir.insert_expression(expr)))
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn build_expression(
         &mut self,
         queue: &HirQueueBuilder<'_>,
@@ -326,11 +327,10 @@ impl ExpressionBuilder {
             ASTExpression::Identifier(name) => {
                 match self.resolve_name(queue, *name, expression.span)? {
                     HirName::Variable(v) => {
-                        let ty = self
+                        let ty = *self
                             .variables_types
                             .get(&v)
-                            .expect("Expected variable to have a type defined on this builder")
-                            .clone();
+                            .expect("Expected variable to have a type defined on this builder");
                         HirExpression {
                             ty,
                             kind: HirExpressionKind::Identifier(v),
@@ -494,7 +494,7 @@ impl ExpressionBuilder {
                 }
             }
             ASTExpression::Component(component) => {
-                let child = self.build_component_expression(queue, &component, expression.span)?;
+                let child = self.build_component_expression(queue, component, expression.span)?;
                 HirExpression {
                     ty: queue.hir[child.data].name,
                     kind: HirExpressionKind::Component(child),
@@ -539,12 +539,12 @@ impl ExpressionBuilder {
                                 let (idx, _) = type_names
                                     .get(&fieldname)
                                     .expect("Field name should've been added into type names");
-                                let expr = self.build_expression(
+
+                                self.build_expression(
                                     queue,
                                     field.data.expr,
                                     Some(obj.field_types()[*idx]),
-                                )?;
-                                expr
+                                )?
                             }),
                             None => missing.push(obj.fields()[i].data),
                         }
@@ -638,7 +638,9 @@ impl ExpressionBuilder {
                 HirStatement::While { condition, body }
             }
             ASTStatement::Return { value } => {
-                let expr = value.map(|v| self.build_expression(queue, v, None)).transpose()?;
+                let expr = value
+                    .map(|v| self.build_expression(queue, v, None))
+                    .transpose()?;
                 HirStatement::Return { expr }
             }
         };
@@ -654,9 +656,10 @@ impl ExpressionBuilder {
         let name = queue.get_type(component.name.data).identifier;
         let node = queue.get_node(self.file());
         let (owner, ty) = node.find_type(component.name)?;
-        if let None = queue
+        if queue
             .hir
             .find_component_by_symbol(HirSymbol::new(owner, name))
+            .is_none()
         {
             let ty = queue.modules.find_type_inside_module(self.file(), name);
             if let Some(ASTType {

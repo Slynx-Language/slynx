@@ -48,7 +48,7 @@ impl<'a> SourceLoader<'a> {
         on_file_loaded: &mut impl FnMut(&Path, &str),
         provider: &impl SourceProvider<'static>,
     ) -> Result<Program, SourceError> {
-        let source = provider.read(&entry).map_err(|e| {
+        let source = provider.read(entry).map_err(|e| {
             SourceError::inexistant_module(
                 e,
                 entry.to_path_buf(),
@@ -56,15 +56,15 @@ impl<'a> SourceLoader<'a> {
                 Span { start: 0, end: 0 },
             )
         })?;
-        on_file_loaded(&entry, &source);
+        on_file_loaded(entry, &source);
         let tokens =
             Lexer::tokenize(&source).map_err(|e| SourceError::lexing(e, entry.to_path_buf()))?;
         let program = Parser::new(
             tokens,
-            &self.symbols,
-            &self.expressions,
-            &self.statements,
-            &self.types,
+            self.symbols,
+            self.expressions,
+            self.statements,
+            self.types,
         )
         .parse_declarations();
         let program = program.map_err(|e| SourceError::parsing(e, entry.to_path_buf()))?;
@@ -118,7 +118,7 @@ impl<'a> SourceLoader<'a> {
         generator: &Path,
         import: &FileImport,
     ) -> Result<(), SourceError> {
-        let entries = std::fs::read_dir(&resolved).map_err(|e| {
+        let entries = std::fs::read_dir(resolved).map_err(|e| {
             SourceError::inexistant_module(
                 e,
                 resolved.to_path_buf(),
@@ -142,6 +142,7 @@ impl<'a> SourceLoader<'a> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn load_file_module(
         &self,
         mut entry: PathBuf,

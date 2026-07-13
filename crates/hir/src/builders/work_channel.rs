@@ -21,6 +21,7 @@ impl<T> WorkChannel<T> {
         &self.recv
     }
 
+    #[allow(dead_code)]
     pub fn recv(&self) -> Option<T> {
         self.recv.recv().ok()
     }

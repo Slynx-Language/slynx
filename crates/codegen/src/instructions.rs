@@ -99,8 +99,10 @@ impl Codegen {
                 Ok(Some(value))
             }
             HirStatement::Return { expr } => {
-                let value = self.lower_expression(*expr, hir, context)?;
-                context.ret(value);
+                if let Some(expr) = expr {
+                    let value = self.lower_expression(*expr, hir, context)?;
+                    context.ret(value);
+                }
                 Ok(None)
             }
         }

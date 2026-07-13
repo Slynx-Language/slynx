@@ -3,7 +3,7 @@ mod common;
 
 #[test]
 fn test_objects() {
-    let mut context = slynx::SlynxContext::new(
+    let context = slynx::SlynxContext::new(
         PathBuf::from("examples/objects.syx"),
         Some(common::STD_PATH.clone()),
     )

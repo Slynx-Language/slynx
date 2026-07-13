@@ -17,9 +17,8 @@ pub fn load_source(source: &str) -> SlynxContext {
     SlynxContext::new(path, Some(PathBuf::from("./lib/std")))
         .expect("context should be created from temp file")
 }
-pub fn load_context<'a>(path: &str) -> SlynxContext {
-    let context = SlynxContext::new(path.into(), None).expect("Context should generate");
-    context
+pub fn load_context(path: &str) -> SlynxContext {
+    SlynxContext::new(path.into(), None).expect("Context should generate")
 }
 pub static STD_PATH: std::sync::LazyLock<PathBuf> =
     std::sync::LazyLock::new(|| PathBuf::from("lib/std"));

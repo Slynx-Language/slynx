@@ -34,6 +34,11 @@ pub struct FilesProvider {
     files: DashMap<Arc<PathBuf>, (String, Vec<usize>)>,
 }
 
+impl Default for FilesProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl FilesProvider {
     pub fn new() -> Self {
         Self {
@@ -126,6 +131,11 @@ pub struct GlobalPools {
     expressions: DedupPool<ASTExpression>,
     statements: DedupPool<ASTStatement>,
     types: DedupPool<GenericIdentifier>,
+}
+impl Default for GlobalPools {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 impl GlobalPools {
     pub fn new() -> Self {
@@ -329,7 +339,7 @@ impl SlynxContext {
 
     ///Builds the Slynx HIR from the given `ast`. And type checks the HIR. The result hir is already typed. Also returns the types module to be used if needed to get information about the types on the Hir.
     pub fn build_hir<'a>(&self, ast: &'a Modules) -> Result<SlynxHir<'a>, SlynxError> {
-        let mut hir = SlynxHir::new(&ast).map_err(|e| self.handle_hir_error(&e.0, &e.1))?;
+        let mut hir = SlynxHir::new(ast).map_err(|e| self.handle_hir_error(&e.0, &e.1))?;
 
         self.monomorphize(&mut hir)?;
 

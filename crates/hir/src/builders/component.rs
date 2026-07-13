@@ -5,7 +5,7 @@ use slynx_parser::{ComponentDeclaration, ComponentMemberKind};
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
     Result, SymbolPointer,
-    builders::{HirNode, HirQueueBuilder, PendantComponent, expression::ExpressionBuilder},
+    builders::{HirQueueBuilder, PendantComponent, expression::ExpressionBuilder},
     context::HirSymbol,
     id::{AnyDeclarationId, AnyLocalDeclarationId, OwnerId},
 };
@@ -52,6 +52,7 @@ impl<'a> HirQueueBuilder<'a> {
     }
     ///Finds a component with the given `name` on-demand, hoisting it if needed.
     ///Mirrors the pattern of `find_function_named`.
+    #[allow(dead_code)]
     pub fn find_component_named(
         &'a self,
         name: SymbolPointer,
@@ -111,18 +112,16 @@ impl<'a> HirQueueBuilder<'a> {
         )?;
 
         // Process attributes after the declaration is registered
-        let decl_id = AnyDeclarationId::new(
-            id.file_id,
-            AnyLocalDeclarationId::Component(id.local_id),
-        );
-        let attrs = super::attributes::process_attributes(
-            self.hir,
-            &component.attributes,
-            decl_id,
-        );
+        let decl_id =
+            AnyDeclarationId::new(id.file_id, AnyLocalDeclarationId::Component(id.local_id));
+        let attrs = super::attributes::process_attributes(self.hir, &component.attributes, decl_id);
         if !attrs.is_empty() {
-            self.hir.get_file_mut(id.file_id).declarations.components
-                .get_mut(id.local_id).attributes = attrs;
+            self.hir
+                .get_file_mut(id.file_id)
+                .declarations
+                .components
+                .get_mut(id.local_id)
+                .attributes = attrs;
         }
 
         self.components.send(PendantComponent {

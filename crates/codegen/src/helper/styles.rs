@@ -190,6 +190,7 @@ impl Codegen {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn create_style_constructor(
         &mut self,
         id: DeclarationId<HirStylesheetDeclaration>,

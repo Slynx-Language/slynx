@@ -31,9 +31,7 @@ use smallvec::SmallVec;
 
 use crate::{
     DeclarationId, HirType, SymbolPointer, VariableId,
-    model::{
-        HirComponentExpression, HirExpression, HirStatement, HirStyleStatement, PropertyExpression,
-    },
+    model::{HirComponentExpression, HirExpression, HirStatement, HirStyleStatement},
 };
 
 /// A processed attribute on an HIR declaration.

@@ -8,15 +8,12 @@ use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
-    HirComponentExpression, HirExpression, HirFunctionDeclaration, HirStatement, HirType, Result,
-    SlynxHir, SymbolPointer,
-    builders::component::ComponentBuilder,
+    DeclarationId, HIRError, HirComponentDeclaration, HirComponentExpression, HirExpression,
+    HirFunctionDeclaration, HirStatement, HirType, Result, SlynxHir, SymbolPointer,
     context::HirSymbol,
     file::HirFile,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
-    queries,
 };
 
 impl SlynxHir<'_> {

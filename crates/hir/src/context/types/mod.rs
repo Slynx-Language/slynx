@@ -42,6 +42,11 @@ pub struct TypesContext {
     styles: DedupPool<StyleType>,
     types: DedupPool<HirType>,
 }
+impl Default for TypesContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl TypesContext {
     /// Creates a new [`TypesContext`] with built-in types pre-registered under the given symbol names.
     pub fn new() -> Self {
@@ -213,7 +218,7 @@ impl TypesContext {
             let mut out = Vec::with_capacity(methos_map.len());
             for entry in methos_map.iter() {
                 let (key, value) = entry.pair();
-                out.push((*key, value.clone()));
+                out.push((*key, *value));
             }
             out
         } else {
@@ -223,7 +228,7 @@ impl TypesContext {
 
     ///Retrieves the DedupPoolId<HirType> of the provided `name` on the currentContext
     pub fn get_id_of_name(&self, name: &SymbolPointer) -> Option<DedupPoolId<HirType>> {
-        self.names.get(name).map(|v| v.value().clone())
+        self.names.get(name).map(|v| *v.value())
     }
     pub fn get_struct_name(&self, s: DedupPoolId<StructType>) -> SymbolPointer {
         let metadata = self.structs[s].metadata;
@@ -308,14 +313,9 @@ impl TypesContext {
     pub fn mark_external(&self, ty: DedupPoolId<HirType>) {
         self.externals.insert(ty);
         let mut current = ty;
-        loop {
-            match self[current] {
-                HirType::Reference { rf, .. } => {
-                    self.externals.insert(rf);
-                    current = rf;
-                }
-                _ => break,
-            }
+        while let HirType::Reference { rf, .. } = self[current] {
+            self.externals.insert(rf);
+            current = rf;
         }
     }
 

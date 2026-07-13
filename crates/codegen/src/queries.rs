@@ -22,12 +22,12 @@ impl Codegen {
             HirType::Void => ir.void_type(),
             HirType::Str => ir.str_type(),
             HirType::GenericComponent => ir.generic_component_type(),
-            _ if let Some(mapped) = self.get_mapped_type(&ty) => mapped,
+            _ if let Some(mapped) = self.get_mapped_type(ty) => mapped,
             _ if let Some(viewer) = view.is_tuple() => {
                 let ir_fields = {
                     let mut out = Vec::with_capacity(viewer.fields().len());
-                    for field in viewer.fields().clone() {
-                        out.push(self.get_or_create_ir_type(&field, hir, ir)?);
+                    for field in viewer.fields() {
+                        out.push(self.get_or_create_ir_type(field, hir, ir)?);
                     }
                     out
                 };

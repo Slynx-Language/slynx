@@ -7,9 +7,9 @@ use common::pool::PoolId;
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HirAliasDeclaration, HirComponentDeclaration, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration, SymbolPointer,
-    context::ScopeContext, file::declarations::FileDeclarations,
+    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
+    HirStaticDeclaration, HirStylesheetDeclaration, SymbolPointer, context::ScopeContext,
+    file::declarations::FileDeclarations,
 };
 
 #[derive(Debug)]
@@ -22,6 +22,7 @@ pub struct HirFile {
 macro_rules! create_methods {
     ($($name: ident = $target:ident($typ:ty)),* $(,)?) => {
         $(
+            #[allow(dead_code)]
             pub(crate) fn $name(&self, arg: $typ) -> DeclarationId<$typ> {
                 let out = self.$target(arg);
                 DeclarationId::new(self.file, out)

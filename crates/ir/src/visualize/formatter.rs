@@ -123,6 +123,9 @@ impl<'a> Formatter<'a> {
     pub fn format_functions(&self) -> String {
         let mut out = Vec::new();
         for func in self.functions {
+            if func.is_external() {
+                continue;
+            }
             out.push(self.format_function(func));
         }
         for component in self.components {

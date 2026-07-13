@@ -264,26 +264,6 @@ impl Codegen {
                 then_branch,
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
-            HirExpressionKind::MethodCall { parent, name, args } => {
-                {
-                    let parent_ty = hir[parent.data].ty;
-                    if !hir.types_module.is_external(&parent_ty) {
-                        unreachable!(
-                            "Method named as {} should have been transformed into function call on type checker",
-                            hir.get_name(*name)
-                        )
-                    }
-                }
-                let value = self.lower_expression(*parent, hir, context)?;
-
-                let name = self.intern_to_ir(hir, context.ir(), *name);
-                let args: Vec<Value> = args
-                    .iter()
-                    .map(|arg| self.lower_expression(*arg, hir, context))
-                    .collect::<Result<_, _>>()?;
-                let ret_ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
-                context.dyn_method_call(value, name, &args, ret_ty)
-            }
         };
         Ok(value)
     }

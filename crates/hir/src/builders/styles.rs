@@ -11,6 +11,7 @@ impl<'a> HirQueueBuilder<'a> {
     /// Lazily enqueues a stylesheet for processing. Called when a component or
     /// function body references a style. If the stylesheet hasn't been hoisted
     /// yet, it creates the declaration and registers it.
+    #[allow(dead_code)]
     pub(crate) fn enqueue_stylesheet(
         &self,
         name: SymbolPointer,
@@ -55,24 +56,23 @@ impl<'a> HirQueueBuilder<'a> {
             id
         };
 
-        let decl_id = AnyDeclarationId::new(
-            file_id,
-            AnyLocalDeclarationId::Style(id.local_id),
-        );
-        let attrs = super::attributes::process_attributes(
-            self.hir,
-            &stylesheet.attributes,
-            decl_id,
-        );
+        let decl_id = AnyDeclarationId::new(file_id, AnyLocalDeclarationId::Style(id.local_id));
+        let attrs =
+            super::attributes::process_attributes(self.hir, &stylesheet.attributes, decl_id);
         if !attrs.is_empty() {
-            self.hir.get_file_mut(file_id).declarations.styles
-                .get_mut(id.local_id).attributes = attrs;
+            self.hir
+                .get_file_mut(file_id)
+                .declarations
+                .styles
+                .get_mut(id.local_id)
+                .attributes = attrs;
         }
 
         Ok(id)
     }
 
     /// Finds a stylesheet by name, hoisting it lazily from the AST if needed.
+    #[allow(dead_code)]
     pub(crate) fn find_style_named(
         &self,
         name: SymbolPointer,

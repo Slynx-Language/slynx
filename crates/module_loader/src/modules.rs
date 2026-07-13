@@ -75,7 +75,7 @@ impl<'a> Modules<'a> {
         &self.modules
     }
     pub fn symbols(&self) -> &SymbolsModule<FrontendSymbol> {
-        &self.loader.symbols
+        self.loader.symbols
     }
 
     pub fn get_expr(&self, expr: DedupPoolId<ASTExpression>) -> &ASTExpression {

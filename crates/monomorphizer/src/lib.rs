@@ -1,10 +1,11 @@
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 use common::{Span, pool::DedupPoolId};
 use slynx_hir::{HIRError, HirType, Result, SlynxHir};
 
 ///A struct that handles all the monomorphization on the code
 pub struct Monomorphizer {
+    #[allow(dead_code)]
     reference_cache: HashMap<DedupPoolId<HirType>, DedupPoolId<HirType>>,
 }
 

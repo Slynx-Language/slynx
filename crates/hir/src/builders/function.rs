@@ -1,10 +1,10 @@
 use common::{Span, Spanned, pool::DedupPoolId};
-use module_loader::{ASTTypeKind, FileId};
+use module_loader::FileId;
 use slynx_parser::{ASTStatement, FuncDeclaration};
 
 use crate::{
-    ComponentId, DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result,
-    SymbolPointer, VariableId,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result, SymbolPointer,
+    VariableId,
     builders::{
         HirNode, HirQueueBuilder, PendantBody,
         expression::{ExpressionBuildResult, ExpressionBuilder},
@@ -47,18 +47,16 @@ impl<'a> HirQueueBuilder<'a> {
         );
 
         // Process attributes after the declaration is registered so we have the decl_id
-        let decl_id = AnyDeclarationId::new(
-            id.file_id,
-            AnyLocalDeclarationId::Function(id.local_id),
-        );
-        let attrs = super::attributes::process_attributes(
-            self.hir,
-            &f.attributes,
-            decl_id,
-        );
+        let decl_id =
+            AnyDeclarationId::new(id.file_id, AnyLocalDeclarationId::Function(id.local_id));
+        let attrs = super::attributes::process_attributes(self.hir, &f.attributes, decl_id);
         if !attrs.is_empty() {
-            self.hir.get_file_mut(id.file_id).declarations.functions
-                .get_mut(id.local_id).attributes = attrs;
+            self.hir
+                .get_file_mut(id.file_id)
+                .declarations
+                .functions
+                .get_mut(id.local_id)
+                .attributes = attrs;
         }
 
         self.bodies.send(PendantBody {
@@ -70,6 +68,7 @@ impl<'a> HirQueueBuilder<'a> {
     }
 
     ///Finds a function with the given `name` and returns it's id. If not found on the `requester` it tries to find on other files the requester imports. If not recognized by any, then hoists it properly
+    #[allow(dead_code)]
     pub fn find_function_named(
         &'a self,
         name: SymbolPointer,
@@ -126,9 +125,7 @@ impl HirFunctionBuilder {
                 let (data, span) = self.builder.build_statement_data(queue, statement)?;
                 let data = match data {
                     HirStatement::Return { .. } => data,
-                    HirStatement::Expression { expr } => HirStatement::Return {
-                        expr: Some(expr),
-                    },
+                    HirStatement::Expression { expr } => HirStatement::Return { expr: Some(expr) },
                     _ => HirStatement::Return { expr: None },
                 };
                 let id = queue.hir.insert_statement(data);

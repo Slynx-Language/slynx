@@ -3,7 +3,7 @@ mod common;
 
 #[test]
 fn test_object_methods() {
-    let mut context = slynx::SlynxContext::new(
+    let context = slynx::SlynxContext::new(
         PathBuf::from("examples/objMethod.syx"),
         Some(common::STD_PATH.clone()),
     )
@@ -16,7 +16,7 @@ fn test_object_methods() {
 
 #[test]
 fn test_object_methods_with_multiple_methods() {
-    let mut context = slynx::SlynxContext::new(
+    let context = slynx::SlynxContext::new(
         PathBuf::from("examples/objMethods.syx"),
         Some(common::STD_PATH.clone()),
     )
@@ -29,7 +29,7 @@ fn test_object_methods_with_multiple_methods() {
 
 #[test]
 fn test_object_static_methods() {
-    let mut context = slynx::SlynxContext::new(
+    let context = slynx::SlynxContext::new(
         PathBuf::from("examples/objMethodStatic.syx"),
         Some(common::STD_PATH.clone()),
     )

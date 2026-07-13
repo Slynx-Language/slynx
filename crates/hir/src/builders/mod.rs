@@ -13,7 +13,7 @@ use common::{
 
 use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
-use module_loader::{ASTType, ASTTypeKind, FileId, Modules, SourceNode};
+use module_loader::{ASTType, ASTTypeKind, FileId, Modules};
 use slynx_parser::{
     ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration, GenericIdentifier,
     StaticDeclaration,
@@ -33,11 +33,6 @@ use crate::{
 pub struct PendingSignatures<'a> {
     /// Signature resolution state per component (by (FileId, SymbolPointer)).
     pub signatures_in_progress: &'a DashSet<(FileId, SymbolPointer)>,
-    /// Body resolution state per component.
-    pub bodies_in_progress: &'a DashSet<ComponentId>,
-    /// Stack for cycle-detection error chains during signature resolution.
-    /// Single-threaded for now; see component-generation.md §8.
-    // TODO(threading): replace with thread-local or DashMap<ThreadId, Vec<...>> when Rayon lands.
     pub signature_stack: &'a RefCell<Vec<(FileId, SymbolPointer)>>,
 }
 
@@ -57,13 +52,13 @@ impl<'a> Deref for HirNode<'a> {
     }
 }
 
-struct PendantBody<'a> {
+pub(crate) struct PendantBody<'a> {
     func_id: DeclarationId<HirFunctionDeclaration>,
     body: &'a [Spanned<DedupPoolId<ASTStatement>>],
     argument_names: Vec<SymbolPointer>,
 }
 
-struct PendantComponent<'a> {
+pub(crate) struct PendantComponent<'a> {
     owner: DeclarationId<HirComponentDeclaration>,
     component: &'a ComponentDeclaration,
 }
@@ -73,6 +68,7 @@ pub struct HirQueueBuilder<'a> {
     pub(crate) modules: &'a Modules<'a>,
     pub(crate) bodies: WorkChannel<PendantBody<'a>>,
     pub(crate) statics: WorkChannel<()>,
+    #[allow(clippy::type_complexity)]
     pub(crate) resolved_bodies: DashMap<
         DeclarationId<HirFunctionDeclaration>,
         (Vec<Spanned<PoolId<HirStatement>>>, Vec<VariableId>),
@@ -92,9 +88,6 @@ pub struct HirQueueBuilder<'a> {
 }
 
 impl HirNode<'_> {
-    pub fn get_source_node(&self) -> &SourceNode {
-        self.modules.get_entry(self.entry)
-    }
     ///Finds the Hir type for the given `ty` and what file contains it if theres some. The given `file` is the file id where the given `ty` was generated at
     fn find_type(
         &self,
@@ -259,7 +252,6 @@ impl<'a> HirQueueBuilder<'a> {
             entry: id,
             pendings: PendingSignatures {
                 signatures_in_progress: &self.signatures_in_progress,
-                bodies_in_progress: &self.bodies_in_progress,
                 signature_stack: &self.signature_stack,
             },
         }
@@ -294,8 +286,12 @@ impl<'a> HirQueueBuilder<'a> {
         );
         let attrs = attributes::process_attributes(self.hir, &s.attributes, decl_id);
         if !attrs.is_empty() {
-            self.hir.get_file_mut(node.entry).declarations.statik
-                .get_mut(id.local_id).attributes = attrs;
+            self.hir
+                .get_file_mut(node.entry)
+                .declarations
+                .statik
+                .get_mut(id.local_id)
+                .attributes = attrs;
         }
 
         self.statics.send(());
@@ -311,7 +307,7 @@ impl<'a> HirQueueBuilder<'a> {
                         for (idx, name) in argument_names.into_iter().enumerate() {
                             builder.create_argument(&self, name, idx as u8);
                         }
-                        let ExpressionBuildResult { statements, args } = builder.build_body(&self, &body)?;
+                        let ExpressionBuildResult { statements, args } = builder.build_body(&self, body)?;
                         self.resolved_bodies.insert(func_id, (statements, args));
                     }else {
                         break;
@@ -399,8 +395,6 @@ impl<'a> HirQueueBuilder<'a> {
             ty
         };
 
-        drop(node);
-
         let func_ty = self.hir.create_function_type(args, return_type);
 
         let mangled = format!(
@@ -448,6 +442,6 @@ impl<'a> HirQueueBuilder<'a> {
 impl<'a> Deref for HirQueueBuilder<'a> {
     type Target = Modules<'a>;
     fn deref(&self) -> &Self::Target {
-        &self.modules
+        self.modules
     }
 }

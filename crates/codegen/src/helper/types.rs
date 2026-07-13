@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use common::pool::DedupPoolId;
 use slynx_hir::{HirType, SlynxHir};
 use slynx_ir::IRType;
@@ -19,7 +17,6 @@ impl Codegen {
         let IRType::Struct(obj) = ir.get_type(obj_handle) else {
             unreachable!();
         };
-        let mut current = decl;
         let fields = if let Some(viewer) = hir.view(decl).dereference().is_struct() {
             viewer.field_types().to_vec()
         } else {

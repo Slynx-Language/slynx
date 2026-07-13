@@ -94,8 +94,7 @@ use common::{
     FrontendSymbol, SymbolsModule,
     pool::{Pool, PoolId},
 };
-use dashmap::{DashMap, DashSet, mapref::one::RefMut};
-use std::cell::RefCell;
+use dashmap::{DashMap, mapref::one::RefMut};
 
 pub use id::{ComponentId, DeclarationId, ExpressionId, VariableId};
 pub use model::*;
@@ -203,6 +202,7 @@ impl<'a> SlynxHir<'a> {
     /// - [`generate`](SlynxHir::generate) — Populate the HIR from AST
     /// - [`modules::HirModules::new`](crate::hir::modules::HirModules::new)
     #[inline]
+    #[allow(clippy::result_large_err)]
     pub fn new(modules: &'a Modules<'a>) -> std::result::Result<Self, (Self, HIRError)> {
         let out = Self {
             expressions: Pool::new(),

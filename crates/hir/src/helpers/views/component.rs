@@ -13,7 +13,7 @@ impl HirViewer<'_, DedupPoolId<ComponentType>> {
     }
     pub fn prop_names(&self) -> &[SymbolPointer] {
         let metadata_id = self.hir.types_module[self.data].metadata;
-        let props = &self.hir.types_module[metadata_id].properties;
-        props
+
+        (&self.hir.types_module[metadata_id].properties) as _
     }
 }
