@@ -15,7 +15,6 @@ pub enum ASTStatement {
         rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     Assign {
-        ///The Left hand side of the assign, or, the one that will receive the value of `rhs`
         lhs: Spanned<DedupPoolId<ASTExpression>>,
         rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
@@ -23,7 +22,9 @@ pub enum ASTStatement {
         condition: Spanned<DedupPoolId<ASTExpression>>,
         body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     },
-
+    Return {
+        value: Option<Spanned<DedupPoolId<ASTExpression>>>,
+    },
     Expression(Spanned<DedupPoolId<ASTExpression>>),
 }
 

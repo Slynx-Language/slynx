@@ -62,6 +62,21 @@ impl Parser<'_> {
         Ok(Spanned::new(id, span.merge_with(block_span)))
     }
 
+    pub fn parse_return_statement(
+        &mut self,
+        span: Span,
+    ) -> Result<Spanned<DedupPoolId<ASTStatement>>> {
+        self.add_flag(ParserFlag::RequireSemicolon);
+        let value = if matches!(self.peek()?.kind, TokenKind::SemiColon) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        let end_span = value.as_ref().map(|v| v.span).unwrap_or(span);
+        let id = self.intern_statment(ASTStatement::Return { value });
+        Ok(Spanned::new(id, span.merge_with(end_span)))
+    }
+
     pub fn parse_statement(&mut self) -> Result<Spanned<DedupPoolId<ASTStatement>>> {
         match self.peek()?.kind {
             TokenKind::Let => {
@@ -72,6 +87,11 @@ impl Parser<'_> {
             TokenKind::While => {
                 let span = self.eat()?.span; //Consume "While"
                 self.parse_while_statement(span)
+            }
+
+            TokenKind::Return => {
+                let span = self.eat()?.span;
+                self.parse_return_statement(span)
             }
 
             _ => {
