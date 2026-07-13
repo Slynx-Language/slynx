@@ -202,7 +202,8 @@ impl Codegen {
             .iter()
             .filter_map(|p| match p {
                 ComponentMemberDeclaration::Child(c) => {
-                    Some(self.get_type_of_component_expression(c, ir))
+                    let comp_expr = &hir.component_expressions[c.data];
+                    Some(self.get_type_of_component_expression(comp_expr, ir))
                 }
                 ComponentMemberDeclaration::Property { .. } => None,
             })

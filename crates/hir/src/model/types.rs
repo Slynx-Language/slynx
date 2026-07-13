@@ -53,75 +53,13 @@
 //! - [`crate::hir::modules::TypesModule`] — Type management
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, SymbolPointer, VariableId,
     context::{ComponentDefinition, StructDefinition},
+    DeclarationId, HirFunctionDeclaration, SymbolPointer, VariableId,
 };
 
-use common::{VisibilityModifier, pool::DedupPoolId};
+use common::{pool::DedupPoolId, VisibilityModifier};
 use module_loader::ASTBuiltin;
 use smallvec::SmallVec;
-
-/// A method for accessing fields on types.
-///
-/// This enum describes how field accesses are resolved in the type system.
-/// Field accesses can target fields on concrete types, variables, or tuples.
-///
-/// # Variants
-///
-/// ## `Type`
-///
-/// Access a field on a concrete type by its type ID and field index.
-///
-/// ```slynx
-/// object Person { name: str, age: int }
-/// let p = Person(name: "Maria", age: 30);
-/// p.age  // Field(Type(Person, 1))
-/// ```
-///
-/// ## `Variable`
-///
-/// Access a field on a variable whose type may be a reference to a type.
-/// The actual type must be resolved during type checking.
-///
-/// ```slynx
-/// let x = get_person();  // x has type Person
-/// x.name  // Field(Variable(x_id, "name"))
-/// ```
-///
-/// ## `Tuple`
-///
-/// Access a field on a tuple by its numeric index.
-///
-/// ```slynx
-/// let t = (1, "hello", true);
-/// t.0  // Field(Tuple(t_id, 0))
-/// ```
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum FieldMethod {
-    /// Access a field on a concrete type.
-    ///
-    /// # Fields
-    ///
-    /// - `0` — The type ID of the containing type
-    /// - `1` — The index of the field within the type
-    Type(DedupPoolId<HirType>, usize),
-
-    /// Access a field on a variable.
-    ///
-    /// # Fields
-    ///
-    /// - `0` — The variable ID
-    /// - `1` — The field name as a symbol
-    Variable(VariableId, SymbolPointer),
-
-    /// Access a field on a tuple.
-    ///
-    /// # Fields
-    ///
-    /// - `0` — The tuple's type ID
-    /// - `1` — The numeric index of the field
-    Tuple(DedupPoolId<HirType>, usize),
-}
 
 /// A property of a component type.
 ///
@@ -217,7 +155,6 @@ pub struct TupleType {
 pub struct StructType {
     pub(crate) fields: Vec<DedupPoolId<HirType>>,
     pub(crate) metadata: DedupPoolId<StructDefinition>,
-    pub(crate) methods: Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>,
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
@@ -264,12 +201,9 @@ pub struct StyleType {
 /// ## Reference Types
 ///
 /// - [`Reference`](HirType::Reference) — References to named types with optional generics
-/// - [`VarReference`](HirType::VarReference) — References to variables
-/// - [`Field`](HirType::Field) — Type-level field accesses
 ///
 /// ## Special Types
 ///
-/// - [`Infer`](HirType::Infer) — A placeholder type to be inferred during type checking
 /// - [`GenericComponent`](HirType::GenericComponent) — A generic component type
 ///
 /// # Examples

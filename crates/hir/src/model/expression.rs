@@ -37,7 +37,6 @@
 //!
 //! ## References
 //! - [`Identifier`](HirExpressionKind::Identifier) — Variable references
-//! - [`Specialized`](HirExpressionKind::Specialized) — Specialized components
 //!
 //! # Examples
 //!
@@ -255,7 +254,6 @@ pub struct HirExpression {
 /// Expressions that refer to other values.
 ///
 /// - [`Identifier`](HirExpressionKind::Identifier) — Variable references like `x`
-/// - [`Specialized`](HirExpressionKind::Specialized) — Specialized component constructions
 ///
 /// # Examples
 ///
@@ -519,11 +517,6 @@ pub enum HirExpressionKind {
         name: DeclarationId<HirFunctionDeclaration>,
 
         /// The argument expressions passed to the function.
-        args: Vec<Spanned<PoolId<HirExpression>>>,
-    },
-    MethodCall {
-        parent: Spanned<PoolId<HirExpression>>,
-        name: SymbolPointer,
         args: Vec<Spanned<PoolId<HirExpression>>>,
     },
 

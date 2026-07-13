@@ -36,6 +36,27 @@ use crate::{
     },
 };
 
+/// A processed attribute on an HIR declaration.
+#[derive(Debug, Clone)]
+pub struct HirAttribute {
+    pub kind: HirAttributeKind,
+    pub span: Span,
+}
+
+/// The kind of an attribute.
+#[derive(Debug, Clone)]
+pub enum HirAttributeKind {
+    /// `@builtin("name")` — registers the declaration as a lang item.
+    Builtin { name: SymbolPointer },
+    /// `@capabilities("fs", "io", "net")` — declares effect-system capabilities.
+    Capabilities(Vec<SymbolPointer>),
+    /// An unrecognized attribute, stored but not processed further.
+    Unknown {
+        name: SymbolPointer,
+        args: Vec<SymbolPointer>,
+    },
+}
+
 #[derive(Debug)]
 ///A style usage. This contains an ID to another stylesheet, and the parameters used to generate before the actual style.
 pub struct HirStyleUsage {
@@ -52,6 +73,7 @@ pub struct HirFunctionDeclaration {
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
     pub external: bool,
+    pub attributes: Vec<HirAttribute>,
 }
 
 #[derive(Debug)]
@@ -60,6 +82,7 @@ pub struct HirObjectDeclaration {
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
     pub external: bool,
+    pub attributes: Vec<HirAttribute>,
 }
 
 #[derive(Debug)]
@@ -68,6 +91,7 @@ pub struct HirStaticDeclaration {
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
     pub external: bool,
+    pub attributes: Vec<HirAttribute>,
 }
 
 #[derive(Debug)]
@@ -83,6 +107,7 @@ pub struct HirComponentDeclaration {
     pub props: Vec<ComponentMemberDeclaration>,
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
+    pub attributes: Vec<HirAttribute>,
 }
 
 #[derive(Debug)]
@@ -94,6 +119,7 @@ pub struct HirStylesheetDeclaration {
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
     pub external: bool,
+    pub attributes: Vec<HirAttribute>,
 }
 
 /// A member of a component declaration.
@@ -131,11 +157,18 @@ pub enum ComponentMemberDeclaration {
     ///
     /// # Fields
     ///
-    /// - `id` — A unique ID for this property
+    /// - `name` — The property's name
+    /// - `modifier` — The visibility modifier (`pub` or private)
     /// - `index` — The property's position in the component's property list
     /// - `value` — The optional default value expression
     /// - `span` — Source location for error reporting
     Property {
+        /// The property's name.
+        name: SymbolPointer,
+
+        /// The visibility modifier (`pub` or private).
+        modifier: VisibilityModifier,
+
         /// The index of this property in the component's property list.
         ///
         /// Used for efficient property access at runtime.
@@ -187,11 +220,19 @@ impl ComponentMemberDeclaration {
     /// );
     /// ```
     pub fn new_property(
+        name: SymbolPointer,
+        modifier: VisibilityModifier,
         index: usize,
         value: Option<Spanned<PoolId<HirExpression>>>,
         span: Span,
     ) -> Self {
-        Self::Property { index, value, span }
+        Self::Property {
+            name,
+            modifier,
+            index,
+            value,
+            span,
+        }
     }
 
     /// Creates a new child component declaration.

@@ -288,13 +288,13 @@ pub enum HirStatement {
     ///
     /// # Fields
     ///
-    /// - `expr` — The expression to return (may be `void`)
+    /// - `expr` — The expression to return, or `None` for void returns
     Return {
-        /// The value to return from the function.
+        /// The value to return from the function, if any.
         ///
-        /// Must match the function's declared return type (or be `void` for
+        /// Must match the function's declared return type (or be absent for
         /// functions that don't return a value).
-        expr: Spanned<PoolId<HirExpression>>,
+        expr: Option<Spanned<PoolId<HirExpression>>>,
     },
 
     /// While loop statement.
