@@ -13,11 +13,12 @@ use dashmap::{DashMap, DashSet};
 
 use crate::{
     ComponentType, DeclarationId, FunctionType, HIRError, HirFunctionDeclaration, HirType, Result,
-    StructType, StyleType, SymbolPointer, TupleType, VariableId,
+    StructType, StyleType, SymbolPointer, TupleType, VariableId, helpers::Visible,
 };
 pub use components::ComponentDefinition;
 use components::*;
 pub use structs::StructDefinition;
+
 use structs::*;
 
 #[derive(Debug)]
@@ -84,8 +85,8 @@ impl TypesContext {
     pub fn create_struct_type(
         &self,
         name: SymbolPointer,
-        fields: Vec<(SymbolPointer, DedupPoolId<HirType>)>,
-        methods: Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>,
+        fields: Vec<Visible<(SymbolPointer, DedupPoolId<HirType>)>>,
+        methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
     ) -> DedupPoolId<HirType> {
         let (id, _) = self.structs.insert(name, fields, methods);
         let id = self.create_type(HirType::Struct(id));
@@ -101,6 +102,17 @@ impl TypesContext {
     ) -> DedupPoolId<HirType> {
         let (comp_ty, _) = self.components.insert(name, properties, children);
         let id = self.create_type(HirType::Component(comp_ty));
+        self.names.insert(name, id);
+        id
+    }
+
+    pub fn create_style_type(
+        &self,
+        name: SymbolPointer,
+        args: Vec<DedupPoolId<HirType>>,
+    ) -> DedupPoolId<HirType> {
+        let style_id = self.styles.insert(StyleType { args: args.into() });
+        let id = self.create_type(HirType::Style(style_id));
         self.names.insert(name, id);
         id
     }
@@ -217,7 +229,7 @@ impl TypesContext {
         let metadata = self.structs[s].metadata;
         self.structs[metadata].name
     }
-    pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[SymbolPointer] {
+    pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[Visible<SymbolPointer>] {
         let metadata = self.structs[s].metadata;
         &self.structs[metadata].fields
     }
@@ -229,7 +241,7 @@ impl TypesContext {
     pub fn get_struct_signature(
         &self,
         s: DedupPoolId<StructType>,
-    ) -> Vec<(&SymbolPointer, &DedupPoolId<HirType>)> {
+    ) -> Vec<(&Visible<SymbolPointer>, &DedupPoolId<HirType>)> {
         self.get_struct_fields(s)
             .iter()
             .zip(&self.structs[s].fields)
@@ -329,48 +341,37 @@ impl TypesContext {
     }
 }
 
-impl Index<DedupPoolId<HirType>> for TypesContext {
-    type Output = HirType;
-    fn index(&self, index: DedupPoolId<HirType>) -> &Self::Output {
-        self.types.get(index)
-    }
+macro_rules! impl_index {
+    ($($ty:ident => |$this:ident, $idx:ident| $body:expr),* $(,)?) => {
+        $(
+            impl Index<DedupPoolId<$ty>> for TypesContext {
+                type Output = $ty;
+
+                fn index(&self, index: DedupPoolId<$ty>) -> &Self::Output {
+                    let $this = self;
+                    let $idx = index;
+                    $body
+                }
+            }
+        )*
+    };
 }
 
-impl Index<DedupPoolId<StructType>> for TypesContext {
-    type Output = StructType;
-    fn index(&self, index: DedupPoolId<StructType>) -> &Self::Output {
-        &self.structs[index]
-    }
-}
-
-impl Index<DedupPoolId<TupleType>> for TypesContext {
-    type Output = TupleType;
-    fn index(&self, index: DedupPoolId<TupleType>) -> &Self::Output {
-        &self.structs[index]
-    }
-}
-
-impl Index<DedupPoolId<ComponentType>> for TypesContext {
-    type Output = ComponentType;
-    fn index(&self, index: DedupPoolId<ComponentType>) -> &Self::Output {
-        &self.components[index]
-    }
-}
-impl Index<DedupPoolId<ComponentDefinition>> for TypesContext {
-    type Output = ComponentDefinition;
-    fn index(&self, index: DedupPoolId<ComponentDefinition>) -> &Self::Output {
-        &self.components[index]
-    }
-}
-impl Index<DedupPoolId<FunctionType>> for TypesContext {
-    type Output = FunctionType;
-    fn index(&self, index: DedupPoolId<FunctionType>) -> &Self::Output {
-        &self.functions[index]
-    }
-}
-impl Index<DedupPoolId<StyleType>> for TypesContext {
-    type Output = StyleType;
-    fn index(&self, index: DedupPoolId<StyleType>) -> &Self::Output {
-        &self.styles[index]
-    }
-}
+impl_index!(
+    HirType => | this,
+    idx | this.types.get(idx),
+    StructType => | this,
+    idx | &this.structs[idx],
+    StructDefinition => | this,
+    idx | &this.structs[idx],
+    TupleType => | this,
+    idx | &this.structs[idx],
+    ComponentType => | this,
+    idx | &this.components[idx],
+    ComponentDefinition => |this,
+    idx | &this.components[idx],
+    FunctionType => | this,
+    idx | &this.functions[idx],
+    StyleType => | this,
+    idx | &this.styles[idx]
+);

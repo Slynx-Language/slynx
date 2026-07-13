@@ -5,12 +5,16 @@ use common::{
     pool::{DedupPool, DedupPoolId},
 };
 
-use crate::{DeclarationId, HirFunctionDeclaration, HirType, StructType, SymbolPointer, TupleType};
+use crate::{
+    DeclarationId, HirFunctionDeclaration, HirType, StructType, SymbolPointer, TupleType,
+    helpers::Visible,
+};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct StructDefinition {
     pub(crate) name: SymbolPointer,
-    pub(crate) fields: Vec<SymbolPointer>,
+    pub(crate) fields: Vec<Visible<SymbolPointer>>,
+    pub(crate) methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
 }
 
 dedup_pooled!(pub StructsPool {
@@ -23,18 +27,21 @@ impl StructsPool {
     pub fn insert(
         &self,
         name: SymbolPointer,
-        fields: Vec<(SymbolPointer, DedupPoolId<HirType>)>,
-        methods: Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>,
+        fields: Vec<Visible<(SymbolPointer, DedupPoolId<HirType>)>>,
+        methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
     ) -> (DedupPoolId<StructType>, DedupPoolId<StructDefinition>) {
-        let (names, types) = fields.into_iter().unzip();
+        let (names, types) = fields
+            .into_iter()
+            .map(|v| (Visible::new(v.visibility, v.data.0), v.data.1))
+            .collect();
         let def_id = self.bodies.insert(StructDefinition {
             name,
             fields: names,
+            methods,
         });
         let s = StructType {
             fields: types,
             metadata: def_id,
-            methods,
         };
 
         let id = self.structs.insert(s);

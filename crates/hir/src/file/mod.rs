@@ -44,6 +44,7 @@ impl HirFile {
         create_object = insert_at_objects(HirObjectDeclaration),
         create_component = insert_at_components(HirComponentDeclaration),
         create_static = insert_at_statik(HirStaticDeclaration),
+        create_stylesheet = insert_at_styles(HirStylesheetDeclaration),
     );
 
     pub fn find_function_with_name(
