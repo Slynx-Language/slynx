@@ -1,14 +1,16 @@
+pub(crate) mod attributes;
 pub(crate) mod component;
 mod expression;
 mod function;
+pub(crate) mod styles;
 mod work_channel;
 use std::{cell::RefCell, ops::Deref};
 
 use common::{
-    Span, Spanned,
+    Spanned,
     pool::{DedupPoolId, PoolId},
 };
-use component::*;
+
 use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
 use module_loader::{ASTType, ASTTypeKind, FileId, Modules, SourceNode};
@@ -25,6 +27,7 @@ use crate::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, work_channel::WorkChannel,
     },
     context::HirSymbol,
+    helpers::Visible,
 };
 
 pub struct PendingSignatures<'a> {
@@ -117,9 +120,11 @@ impl HirNode<'_> {
                             let field_name = field.name.data.name;
                             let field_ty = field.name.data.kind;
                             let (_, type_id) = self.find_type(field_ty)?;
-                            Ok((field_name, type_id))
+
+                            Ok(Visible::new(field.visibility, (field_name, type_id)))
                         })
                         .collect::<Result<Vec<_>>>()?;
+
                     let struct_ty = self.hir.create_struct_type(struct_name, fields, Vec::new());
                     // Register a HirObjectDeclaration so the codegen's
                     // hoist_declarations can create an IR struct for this type.
@@ -135,6 +140,7 @@ impl HirNode<'_> {
                             ty: struct_ty,
                             visibility: s.visibility,
                             external: s.external,
+                            attributes: Vec::new(),
                         });
                     }
                     struct_ty
@@ -274,11 +280,23 @@ impl<'a> HirQueueBuilder<'a> {
                     ty,
                     visibility: s.visibility,
                     external: s.external,
+                    attributes: Vec::new(),
                 };
                 let file = self.hir.get_or_create_file(node.entry);
                 file.create_static(decl)
             },
         );
+
+        // Process attributes after the declaration is registered
+        let decl_id = crate::id::AnyDeclarationId::new(
+            node.entry,
+            crate::id::AnyLocalDeclarationId::Static(id.local_id),
+        );
+        let attrs = attributes::process_attributes(self.hir, &s.attributes, decl_id);
+        if !attrs.is_empty() {
+            self.hir.get_file_mut(node.entry).declarations.statik
+                .get_mut(id.local_id).attributes = attrs;
+        }
 
         self.statics.send(());
         Ok(id)
@@ -402,6 +420,7 @@ impl<'a> HirQueueBuilder<'a> {
                     statements: Vec::new(),
                     visibility: obj_decl.visibility,
                     external: obj_decl.external,
+                    attributes: Vec::new(),
                 };
                 let file = self.hir.get_or_create_file(obj_file_id);
                 file.create_function(decl)

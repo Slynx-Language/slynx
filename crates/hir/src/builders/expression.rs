@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use common::{
-    Span, Spanned,
+    Span, Spanned, VisibilityModifier,
     pool::{DedupPoolId, PoolId},
 };
 use module_loader::{ASTType, ASTTypeKind, FileId};
@@ -13,7 +13,7 @@ use crate::{
     DeclarationId, HIRError, HirComponentExpression, HirExpression, HirExpressionKind,
     HirFunctionDeclaration, HirStatement, HirStaticDeclaration, HirType, PropertyExpression,
     Result, SymbolPointer, VariableId, builders::HirQueueBuilder, context::HirSymbol,
-    error::InvalidTypeReason, id::OwnerId,
+    error::InvalidTypeReason, helpers::Visible, id::OwnerId,
 };
 
 /// Result of building a body with the ExpressionBuilder.
@@ -206,17 +206,16 @@ impl ExpressionBuilder {
                     }
                     Some(view) => {
                         let (fields, field_types) = (view.fields(), view.field_types());
-                        let position =
-                            fields
-                                .iter()
-                                .position(|f| *f == *field_name)
-                                .ok_or_else(|| {
-                                    HIRError::property_unrecognized(
-                                        resolved.data,
-                                        vec![*field_name],
-                                        span,
-                                    )
-                                })?;
+                        let position = fields
+                            .iter()
+                            .position(|f| f.data == *field_name)
+                            .ok_or_else(|| {
+                                HIRError::property_unrecognized(
+                                    resolved.data,
+                                    vec![*field_name],
+                                    span,
+                                )
+                            })?;
 
                         HirExpression {
                             ty: field_types[position],
@@ -240,7 +239,16 @@ impl ExpressionBuilder {
                         let func_id =
                             view.methods()
                                 .iter()
-                                .find_map(|(method, func)| (*method == name_sym).then_some(*func))
+                                .find_map(
+                                    |Visible {
+                                         data: (method, func),
+                                         visibility,
+                                     }| {
+                                        (*method == name_sym
+                                            && *visibility == VisibilityModifier::Public)
+                                            .then_some(*func)
+                                    },
+                                )
                                 .or_else(|| {
                                     queue.hir.methods.get(&deref.data).and_then(|methods| {
                                         methods.get(&name_sym).map(|v| *v.value())
@@ -503,14 +511,17 @@ impl ExpressionBuilder {
                     .fields()
                     .iter()
                     .enumerate()
-                    .map(|(i, s)| (s, i))
+                    .map(|(i, s)| (s.data, (i, s.visibility)))
                     .collect();
                 let mut ordered = vec![None; obj.fields().len()];
 
                 for field in fields {
-                    let idx = *type_names.get(&field.data.name).ok_or(
+                    let (idx, visibility) = *type_names.get(&field.data.name).ok_or(
                         HIRError::property_unrecognized(ty, vec![field.data.name], field.span),
                     )?;
+                    if visibility != VisibilityModifier::Public {
+                        return Err(HIRError::not_visible_property(field.data.name, field.span));
+                    }
 
                     if ordered[idx].replace(field).is_some() {
                         return Err(HIRError::already_defined(field.data.name, field.span));
@@ -525,7 +536,7 @@ impl ExpressionBuilder {
                         match field {
                             Some(field) => fields.push({
                                 let fieldname = field.data.name;
-                                let idx = type_names
+                                let (idx, _) = type_names
                                     .get(&fieldname)
                                     .expect("Field name should've been added into type names");
                                 let expr = self.build_expression(
@@ -535,7 +546,7 @@ impl ExpressionBuilder {
                                 )?;
                                 expr
                             }),
-                            None => missing.push(obj.fields()[i]),
+                            None => missing.push(obj.fields()[i].data),
                         }
                     }
 
@@ -561,13 +572,24 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder<'_>,
         statement: &Spanned<DedupPoolId<ASTStatement>>,
     ) -> Result<Spanned<PoolId<HirStatement>>> {
+        let (data, span) = self.build_statement_data(queue, statement)?;
+        let id = queue.hir.insert_statement(data);
+        Ok(span.make_spanned(id))
+    }
+
+    /// Builds a statement and returns the raw `HirStatement` without inserting
+    /// into the pool. Used for the last statement in function bodies where we
+    /// may need to wrap it in an implicit return.
+    pub(crate) fn build_statement_data(
+        &mut self,
+        queue: &HirQueueBuilder<'_>,
+        statement: &Spanned<DedupPoolId<ASTStatement>>,
+    ) -> Result<(HirStatement, Span)> {
         let stmt = queue.get_statement(statement.data);
-        let id = match stmt {
+        let data = match stmt {
             ASTStatement::Expression(e) => {
                 let expr = self.build_expression(queue, *e, None)?;
-                queue
-                    .hir
-                    .insert_statement(HirStatement::Expression { expr })
+                HirStatement::Expression { expr }
             }
             ASTStatement::Var { name, ty, rhs } | ASTStatement::MutableVar { name, ty, rhs } => {
                 let expr = self.build_expression(queue, *rhs, None)?;
@@ -585,10 +607,10 @@ impl ExpressionBuilder {
                 );
 
                 self.variables_types.insert(varid, ty);
-                queue.hir.insert_statement(HirStatement::Variable {
+                HirStatement::Variable {
                     name: varid,
                     value: expr,
-                })
+                }
             }
             ASTStatement::Assign { lhs, rhs } => {
                 let lhs = self.build_expression(queue, *lhs, None)?;
@@ -600,9 +622,7 @@ impl ExpressionBuilder {
                     queue.hir.view(lhs.data).ty(),
                     statement.span,
                 )?;
-                queue
-                    .hir
-                    .insert_statement(HirStatement::Assign { lhs, value: rhs })
+                HirStatement::Assign { lhs, value: rhs }
             }
             ASTStatement::While { condition, body } => {
                 let condition = self.build_expression(
@@ -615,12 +635,14 @@ impl ExpressionBuilder {
                     .map(|statement| self.build_statement(queue, statement))
                     .collect::<Result<_>>()?;
 
-                queue
-                    .hir
-                    .insert_statement(HirStatement::While { condition, body })
+                HirStatement::While { condition, body }
+            }
+            ASTStatement::Return { value } => {
+                let expr = value.map(|v| self.build_expression(queue, v, None)).transpose()?;
+                HirStatement::Return { expr }
             }
         };
-        Ok(statement.span.make_spanned(id))
+        Ok((data, statement.span))
     }
 
     pub fn build_component_expression(

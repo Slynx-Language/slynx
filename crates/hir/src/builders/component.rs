@@ -7,7 +7,7 @@ use crate::{
     Result, SymbolPointer,
     builders::{HirNode, HirQueueBuilder, PendantComponent, expression::ExpressionBuilder},
     context::HirSymbol,
-    id::OwnerId,
+    id::{AnyDeclarationId, AnyLocalDeclarationId, OwnerId},
 };
 
 pub struct ComponentBuildResult {
@@ -103,11 +103,28 @@ impl<'a> HirQueueBuilder<'a> {
                     props: Vec::new(),
                     ty,
                     visibility: component.visibility,
+                    attributes: Vec::new(),
                 };
                 let file = self.hir.get_or_create_file(node.entry);
                 Ok(file.create_component(decl))
             },
         )?;
+
+        // Process attributes after the declaration is registered
+        let decl_id = AnyDeclarationId::new(
+            id.file_id,
+            AnyLocalDeclarationId::Component(id.local_id),
+        );
+        let attrs = super::attributes::process_attributes(
+            self.hir,
+            &component.attributes,
+            decl_id,
+        );
+        if !attrs.is_empty() {
+            self.hir.get_file_mut(id.file_id).declarations.components
+                .get_mut(id.local_id).attributes = attrs;
+        }
+
         self.components.send(PendantComponent {
             owner: id,
             component,
@@ -140,7 +157,12 @@ impl ComponentBuilder {
         let mut prop_index = 0;
         for member in &component.members {
             match &member.kind {
-                ComponentMemberKind::Property { rhs, .. } => {
+                ComponentMemberKind::Property {
+                    name,
+                    modifier,
+                    rhs,
+                    ..
+                } => {
                     let rhs = if let Some(rhs) = rhs {
                         Some(self.builder.build_expression(
                             queue,
@@ -151,6 +173,8 @@ impl ComponentBuilder {
                         None
                     };
                     decls.push(ComponentMemberDeclaration::Property {
+                        name: *name,
+                        modifier: *modifier,
                         index: prop_index,
                         value: rhs,
                         span: member.span,

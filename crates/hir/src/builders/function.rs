@@ -3,14 +3,14 @@ use module_loader::{ASTTypeKind, FileId};
 use slynx_parser::{ASTStatement, FuncDeclaration};
 
 use crate::{
-    ComponentId, DeclarationId, HIRError, HirFunctionDeclaration, Result, SymbolPointer,
-    VariableId,
+    ComponentId, DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result,
+    SymbolPointer, VariableId,
     builders::{
         HirNode, HirQueueBuilder, PendantBody,
         expression::{ExpressionBuildResult, ExpressionBuilder},
     },
     context::HirSymbol,
-    id::OwnerId,
+    id::{AnyDeclarationId, AnyLocalDeclarationId, OwnerId},
 };
 
 pub struct HirFunctionBuilder {
@@ -39,11 +39,27 @@ impl<'a> HirQueueBuilder<'a> {
                     statements: Vec::new(),
                     visibility: f.visibility,
                     external: f.external,
+                    attributes: Vec::new(),
                 };
                 let file = self.hir.get_or_create_file(node.entry);
                 file.create_function(decl)
             },
         );
+
+        // Process attributes after the declaration is registered so we have the decl_id
+        let decl_id = AnyDeclarationId::new(
+            id.file_id,
+            AnyLocalDeclarationId::Function(id.local_id),
+        );
+        let attrs = super::attributes::process_attributes(
+            self.hir,
+            &f.attributes,
+            decl_id,
+        );
+        if !attrs.is_empty() {
+            self.hir.get_file_mut(id.file_id).declarations.functions
+                .get_mut(id.local_id).attributes = attrs;
+        }
 
         self.bodies.send(PendantBody {
             func_id: id,
@@ -103,9 +119,24 @@ impl HirFunctionBuilder {
         body: &[Spanned<DedupPoolId<ASTStatement>>],
     ) -> Result<ExpressionBuildResult> {
         let mut statements = Vec::new();
-        for statement in body {
-            let stmt = self.builder.build_statement(queue, statement)?;
-            statements.push(stmt);
+        let len = body.len();
+        for (i, statement) in body.iter().enumerate() {
+            if i + 1 == len {
+                // Last statement: build raw data, apply implicit return, then insert
+                let (data, span) = self.builder.build_statement_data(queue, statement)?;
+                let data = match data {
+                    HirStatement::Return { .. } => data,
+                    HirStatement::Expression { expr } => HirStatement::Return {
+                        expr: Some(expr),
+                    },
+                    _ => HirStatement::Return { expr: None },
+                };
+                let id = queue.hir.insert_statement(data);
+                statements.push(span.make_spanned(id));
+            } else {
+                let stmt = self.builder.build_statement(queue, statement)?;
+                statements.push(stmt);
+            }
         }
 
         Ok(ExpressionBuildResult {
