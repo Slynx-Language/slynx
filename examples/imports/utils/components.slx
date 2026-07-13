@@ -1,0 +1,4 @@
+pub component Text {
+    pub prop text: str;
+}
+pub component Div {}

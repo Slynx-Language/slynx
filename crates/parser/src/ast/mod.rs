@@ -5,7 +5,6 @@ mod imports;
 mod statement;
 mod types;
 
-use common::Span;
 pub use common::VisibilityModifier;
 pub use component::*;
 pub use declarations::*;

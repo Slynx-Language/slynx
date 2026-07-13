@@ -49,6 +49,7 @@ pub struct ParserFlags {
 pub enum ParserFlag {
     RequireSemicolon = 0,
     OnlySignatures = 1,
+    ComponentExpr = 2,
 }
 
 impl ParserFlags {
@@ -70,5 +71,6 @@ impl ParserFlags {
     }
     pub fn reset(&mut self) {
         self.flags.clear();
+        self.set_flag(ParserFlag::ComponentExpr);
     }
 }

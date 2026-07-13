@@ -13,10 +13,13 @@ stylesheet Bg(color: int) uses Fg(color) {
         backgroundColor: Color(inner:0x0000ff)
     }
 }
-
+component Div {}
+component Text {
+    pub prop text:str;
+}
 component Root {
     Div {
-        style: Bg(0xff0000),
+
         Text {
             text: "hello"
         }

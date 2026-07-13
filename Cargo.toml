@@ -13,6 +13,9 @@ lasso = "0.7.3"
 boxcar = "0.2.14"
 dashmap = "6.2.1"
 parking_lot = "0.12.5"
+paste = "1.0.15"
+crossbeam-channel = "0.5.15"
+ordered-float = "5.3.0"
 
 [dependencies]
 clap={ version = "4.5.52", features = ["derive"] }
@@ -20,13 +23,16 @@ clap={ version = "4.5.52", features = ["derive"] }
 color-eyre.workspace=true
 common.workspace=true
 dashmap.workspace=true
+paste.workspace = true
+
 slynx-lexer.path="./crates/lexer"
 slynx-parser.path="./crates/parser"
 slynx-hir.path="./crates/hir"
-slynx-typechecker.path="./crates/type_checker"
+module_loader.path="./crates/module_loader"
 slynx-monomorphizer.path="./crates/monomorphizer"
 slynx-ir.path="./crates/ir"
 slynx-codegen.path="./crates/codegen"
+
 
 [workspace]
 members = ["crates/*"]

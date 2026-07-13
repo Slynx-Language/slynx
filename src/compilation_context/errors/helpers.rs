@@ -5,15 +5,12 @@ use std::{
 
 use std::fmt::Write;
 
+use module_loader::{SourceError, SourceErrorKind};
 use slynx_codegen::CodegenError;
-use slynx_hir::{
-    HIRError, HIRErrorKind, SlynxHir,
-    module_loader::{SourceError, SourceErrorKind},
-};
+use slynx_hir::{HIRError, HIRErrorKind, SlynxHir};
 
 use slynx_lexer::error::LexerError;
 use slynx_parser::error::ParseError;
-use slynx_typechecker::error::{TypeError, TypeErrorKind};
 
 #[derive(Debug)]
 ///A metadata containing the `file` and `message` amd `source` data in a single string. This is being made to don't explode the requirement of sizoef(error) < 128, of rust.
@@ -121,32 +118,7 @@ impl fmt::Display for SlynxSuggestion {
         }
     }
 }
-/// this function converts a [`TypeError`] into a [`Vec<SlynxSuggestion>`]
-pub fn suggestions_from_type_error(err: &TypeError) -> Vec<SlynxSuggestion> {
-    match &err.kind {
-        TypeErrorKind::IncompatibleTypes { expected, received } => {
-            vec![SlynxSuggestion::IncompatibleTypes(
-                format!("{:?}", received),
-                format!("{:?}", expected),
-            )]
-        }
-        TypeErrorKind::CyclicType { ty } => vec![SlynxSuggestion::CyclicType(format!("{:?}", ty))],
-        TypeErrorKind::IncompatibleComponent { reason } => {
-            vec![SlynxSuggestion::IncompatibleComponent(format!(
-                "{:?}",
-                reason
-            ))]
-        }
-        TypeErrorKind::InvalidFuncallArgLength {
-            expected_length,
-            received_length,
-        } => vec![SlynxSuggestion::InvalidFuncallArgLength(
-            format!("{}", received_length),
-            format!("{}", expected_length),
-        )],
-        _ => vec![],
-    }
-}
+
 /// this function converts a [`LexerError`] into a [`Vec<SlynxSuggestion>`]
 pub fn suggestions_from_lexer(err: &LexerError) -> Vec<SlynxSuggestion> {
     match &err {
@@ -209,7 +181,9 @@ mod tests {
 
     use super::*;
 
-    use slynx_hir::DeclarationId;
+    use common::pool::PoolId;
+    use module_loader::FileId;
+    use slynx_hir::id::{AnyDeclarationId, AnyLocalDeclarationId};
 
     #[test]
     /// tests that [`suggestions_from_lexer`] returns [`SlynxSuggestion::UnrecognizedChar`] for [`LexerError::UnrecognizedChar`]
@@ -230,16 +204,15 @@ mod tests {
     #[test]
     /// tests that [`suggestions_from_ir`] returns [`SlynxSuggestion::DeclarationNotRecognized`] for [`IRError::DeclarationNotRecognized`]
     fn test_suggestions_ir() {
-        use slynx_hir::id::LocalDeclId;
-        use slynx_hir::module_loader::FileId;
-        let id = DeclarationId::new(FileId::from_raw(0), LocalDeclId::from_raw(0));
+        let id = AnyDeclarationId::new(
+            FileId::from_raw(0),
+            AnyLocalDeclarationId::Static(PoolId::new(0)),
+        );
         let err = CodegenError::DeclarationNotRecognized(id);
         let result = suggestions_from_ir(&err);
         assert_eq!(
             result,
-            vec![SlynxSuggestion::DeclarationNotRecognized(
-                "DeclarationId { file_id: FileId(0), local_id: LocalDeclId(0) }".to_string()
-            )]
+            vec![SlynxSuggestion::DeclarationNotRecognized(format!("{id:?}"))]
         );
     }
 }

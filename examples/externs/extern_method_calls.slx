@@ -1,0 +1,14 @@
+extern {
+	object Logger {
+		func log(self, msg: str): void;
+		func info(self, msg: str): void;
+		func warn(self, msg: str): void;
+	}
+	static logger: Logger;
+}
+
+func main(): void {
+	logger.log("start");
+	logger.info("processing");
+	logger.warn("caution");
+}

@@ -67,49 +67,45 @@
 //! - [`HIRErrorKind::NotAFunction`] — Call of non-function value
 //! - [`HIRErrorKind::MissingProperty`] — Missing required object fields
 
-#![warn(rustdoc::broken_intra_doc_links)]
-pub mod module_loader;
+mod builders;
 
-mod components;
 /// Scope, symbol, type, and declaration management modules.
 pub mod context;
-mod declarations;
+
 /// HIR error types and diagnostic information.
 pub mod error;
-mod expression;
+/// Name resolution utilities.
+mod file;
 mod helpers;
 /// Unique ID types for HIR elements.
 pub mod id;
 pub mod model;
-/// Name resolution utilities.
-pub mod names;
-mod objects;
 mod queries;
-mod statements;
-mod styles;
 
-mod file;
+use std::ops::{Deref, Index};
 
 pub use crate::error::{HIRError, HIRErrorKind};
 use crate::{
-    context::{BUILTIN_NAMES, LangItems, SymbolsResolver, TypesContext},
-    declarations::FunctionData,
+    builders::HirQueueBuilder,
+    context::{LangItems, SymbolRegistry, TypesContext},
     file::HirFile,
-    module_loader::{FileId, SourceNode},
 };
-use common::SymbolsModule;
-use parking_lot::RwLock;
-use slynx_parser::{ASTDeclaration, ASTDeclarationKind};
+use common::{
+    FrontendSymbol, SymbolsModule,
+    pool::{Pool, PoolId},
+};
+use dashmap::{DashMap, mapref::one::RefMut};
 
-pub use id::{DeclarationId, ExpressionId, LocalDeclId, PropertyId, TypeId, VariableId};
+pub use id::{ComponentId, DeclarationId, ExpressionId, VariableId};
 pub use model::*;
+use module_loader::{FileId, Modules};
 
 /// Result type for HIR operations.
 ///
 /// This is the standard result type used throughout the HIR module, wrapping
 /// successful values or [`HIRError`] instances with detailed diagnostic information.
 pub type Result<T> = std::result::Result<T, HIRError>;
-pub type SymbolPointer = common::SymbolPointer<SlynxHir>;
+pub type SymbolPointer = common::SymbolPointer<FrontendSymbol>;
 
 /// The main HIR structure coordinating high-level intermediate representation.
 ///
@@ -162,12 +158,17 @@ pub type SymbolPointer = common::SymbolPointer<SlynxHir>;
 /// - [`generate`](SlynxHir::generate) — Main entry point for AST → HIR transformation
 /// - [`model`] module — HIR data structures
 /// - [`modules::HirModules`] — Scopes and symbol management
-#[derive(Debug, Default)]
-pub struct SlynxHir {
+
+#[derive(Debug)]
+pub struct SlynxHir<'a> {
     /// Resolver for interning and looking up symbol names.
-    pub symbols_resolver: SymbolsResolver,
+    pub symbols_resolver: &'a SymbolsModule<FrontendSymbol>,
+    pub symbols_registry: SymbolRegistry,
     /// Module managing all types and their IDs.
     pub types_module: TypesContext,
+    pub expressions: Pool<HirExpression>,
+    pub statements: Pool<HirStatement>,
+    pub component_expressions: Pool<HirComponentExpression>,
     /// All top-level declarations generated from the sources.
     ///
     /// This vector contains every function, component, object, and type alias
@@ -178,11 +179,11 @@ pub struct SlynxHir {
     /// - Its [`HirDeclarationKind`] describing what kind of declaration it is
     /// - The declaration's [`TypeId`]
     /// - The source [`Span`] for error reporting
-    pub files: Vec<RwLock<HirFile>>,
+    pub files: DashMap<FileId, HirFile>,
     pub lang_items: LangItems,
 }
 
-impl SlynxHir {
+impl<'a> SlynxHir<'a> {
     /// Creates a new, empty `SlynxHir` instance.
     ///
     /// The returned instance has no declarations and an initialized module
@@ -201,385 +202,70 @@ impl SlynxHir {
     /// - [`generate`](SlynxHir::generate) — Populate the HIR from AST
     /// - [`modules::HirModules::new`](crate::hir::modules::HirModules::new)
     #[inline]
-    pub fn new() -> Self {
-        let symbols = SymbolsModule::new();
-        let builtins = BUILTIN_NAMES.map(|v| symbols.intern(v));
-        Self {
-            symbols_resolver: SymbolsResolver::new(symbols),
-            types_module: TypesContext::new(&builtins),
-            files: Vec::new(),
+    #[allow(clippy::result_large_err)]
+    pub fn new(modules: &'a Modules<'a>) -> std::result::Result<Self, (Self, HIRError)> {
+        let out = Self {
+            expressions: Pool::new(),
+            statements: Pool::new(),
+            component_expressions: Pool::new(),
+            symbols_registry: SymbolRegistry::default(),
+            symbols_resolver: modules.symbols(),
+            types_module: TypesContext::new(),
+            files: DashMap::new(),
             lang_items: LangItems::new(),
-        }
-    }
-
-    /// Generates HIR declarations from the provided AST declarations.
-    ///
-    /// This is the primary entry point for transforming source code into the
-    /// high-level intermediate representation. The process occurs in two phases:
-    ///
-    /// ## Phase 1: Hoisting
-    ///
-    /// Each declaration is hoisted to register it in the appropriate scope before
-    /// its body is resolved. This allows forward references within the same
-    /// scope. For example:
-    ///
-    /// ```slynx
-    /// func later() { earlier(); }  // Valid: earlier is hoisted
-    /// func earlier() { }
-    /// ```
-    ///
-    /// During hoisting:
-    /// - Functions are registered with their signatures
-    /// - Components have their property layouts established
-    /// - Objects declare their field structure
-    /// - Type aliases create name → type mappings
-    ///
-    /// ## Phase 2: Resolution
-    ///
-    /// The bodies of declarations are processed to:
-    /// - Type-check expressions and statements
-    /// - Resolve variable and function references
-    /// - Validate field accesses and method calls
-    /// - Build the complete HIR representation
-    ///
-    /// # Arguments
-    ///
-    /// * `ast` — A vector of AST declarations to transform into HIR
-    ///
-    /// # Returns
-    ///
-    /// * [`Ok(())`] — HIR generation succeeded
-    /// * [`Err(HIRError)`] — A semantic error was encountered
-    ///
-    /// # Errors
-    ///
-    /// This function can return various [`HIRError`] kinds, including:
-    ///
-    /// - [`NameNotRecognized`] — Reference to undefined identifier
-    /// - [`PropertyNotRecognized`] — Invalid field access on object/component
-    /// - [`NotAFunction`] — Attempt to call a non-function value
-    /// - [`MissingProperty`] — Required object field not provided
-    /// - [`RecursiveType`] — Illegal recursive type definition
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use slynx_frontend::hir::{SlynxHir, Result};
-    /// # use common::ast::{ASTDeclaration, ASTDeclarationKind};
-    /// # fn process(source: Vec<ASTDeclaration>) -> Result<()> {
-    /// let mut hir = SlynxHir::new();
-    /// hir.generate(source)?;
-    ///
-    /// // HIR is now ready for analysis
-    /// for decl in &hir.declarations {
-    ///     println!("Decl: {:?}", decl.kind);
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Implementation Details
-    ///
-    /// The function iterates over the AST declarations twice:
-    ///
-    /// 1. First pass (hoisting): Calls [`hoist`](SlynxHir::hoist) on each declaration
-    ///    to register it without resolving its body
-    ///
-    /// 2. Second pass (resolution): Calls [`resolve`](SlynxHir::resolve) on each
-    ///    declaration to process its full body and build HIR nodes
-    ///
-    /// This two-pass approach ensures that all names are available before any
-    /// references to them are resolved, supporting mutual recursion.
-    ///
-    /// # See Also
-    ///
-    /// - [`hoist`](SlynxHir::hoist) — Phase 1: Declaration registration
-    /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
-    /// - [`modules::HirModules`] — Scope and symbol management during generation
-    pub fn generate(&mut self, modules: &[SourceNode]) -> Result<()> {
-        // Phase 0: allocate file slots (requires &mut self for Vec growth)
-        for module in modules {
-            let idx = module.id.as_raw() as usize;
-            if idx >= self.files.len() {
-                self.files
-                    .resize_with(idx + 1, || RwLock::new(HirFile::new(FileId::from_raw(0))));
-            }
-            *self.files[idx].write() = HirFile::new(module.id);
-        }
-
-        for module in modules {
-            for ast in &module.declarations {
-                let mut should_register = None;
-                for attribute in &ast.attributes {
-                    if attribute.name == "intrinsic" {
-                        should_register = attribute.args.first();
-                        break;
-                    }
-                }
-                self.hoist(ast, module.id, should_register)?;
-            }
-        }
-
-        // Phase 2: resolve type-level definitions (object fields, alias targets, import aliases)
-        // before body resolution so cross-module type dependencies are available.
-        for module in modules {
-            let mut import_idx = 0;
-            for ast in &module.declarations {
-                if matches!(ast.kind, ASTDeclarationKind::Import(_)) {
-                    let submodules = &module.import_submodules[import_idx];
-                    self.resolve_type(ast, module.id, submodules)?;
-                    import_idx += 1;
-                } else {
-                    self.resolve_type(ast, module.id, &[])?;
-                }
-            }
-        }
-
-        // Phase 3: resolve bodies (functions, components, stylesheets)
-        for module in modules {
-            for ast in &module.declarations {
-                self.resolve_body(ast, module.id)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Hoists a single AST declaration, registering it in its scope without
-    /// resolving its body.
-    ///
-    /// Hoisting is the first phase of HIR generation where declarations are
-    /// made known to the type system before their implementations are processed.
-    /// This enables:
-    ///
-    /// - Forward references within the same scope
-    /// - Mutual recursion between functions
-    /// - Type-safe references to later-defined declarations
-    ///
-    /// # Arguments
-    ///
-    /// * `ast` — The AST declaration to hoist
-    ///
-    /// # Returns
-    ///
-    /// * [`Ok(())`] — Declaration was successfully registered
-    /// * [`Err(HIRError)`] — A semantic error occurred during hoisting
-    ///
-    /// # Processing by Declaration Kind
-    ///
-    /// | Declaration Kind | Hoisting Action |
-    /// |-----------------|----------------|
-    /// | [`Alias`] | Creates type alias mapping |
-    /// | [`ObjectDeclaration`] | Registers object layout with fields |
-    /// | [`FuncDeclaration`] | Registers function signature |
-    /// | [`ComponentDeclaration`] | Registers component with property types |
-    ///
-    /// # Errors
-    ///
-    /// - [`RecursiveType`] — Object field references its own type
-    /// - [`NameAlreadyDefined`] — Duplicate declaration in same scope
-    ///
-    /// # Note
-    ///
-    /// This method is called during the first pass of [`generate`](SlynxHir::generate).
-    /// It does not process function bodies, component children, or expression
-    /// details — those are handled during the resolution phase.
-    ///
-    /// # See Also
-    ///
-    /// - [`generate`](SlynxHir::generate) — Main entry point (calls this in phase 1)
-    /// - [`resolve`](SlynxHir::resolve) — Phase 2: Body resolution
-    /// - [`implementation::declarations::hoist_function`](crate::hir::implementation::declarations::hoist_function)
-    fn hoist(
-        &self,
-        ast: &ASTDeclaration,
-        file: FileId,
-        should_register: Option<&String>,
-    ) -> Result<()> {
-        let declarationid = match &ast.kind {
-            ASTDeclarationKind::StyleSheet { name, args, .. } => {
-                self.hoist_stylesheet(file, &name.identifier, args, ast.visibility)
-            }
-            ASTDeclarationKind::Alias { name, target } => {
-                let alias_symbol = self.intern_name(&name.identifier);
-                self.intern_name(&target.identifier);
-                self.create_empty_alias(alias_symbol, file, ast.visibility)
-            }
-            ASTDeclarationKind::ObjectDeclaration {
-                name,
-                fields,
-                methods,
-            } => {
-                let id = self.create_empty_object(file, name, fields, ast.visibility);
-                if ast.external {
-                    let decl_ty = self.get_declaration_type(id);
-                    self.types_module.mark_external(decl_ty);
-                    for method in methods {
-                        let return_type = self.get_type_of_name(
-                            self.intern_name(&method.return_type.identifier),
-                            &method.return_type.span,
-                        )?;
-                        let method_symbol = self.intern_name(&method.method_name.identifier);
-                        self.types_module.register_external_method(
-                            decl_ty,
-                            method_symbol,
-                            return_type,
-                        );
-                    }
-                } else {
-                    self.lower_methods(id, methods)?;
-                }
-                id
-            }
-
-            ASTDeclarationKind::FuncDeclaration { name, args, .. } => {
-                let id = self.hoist_function(file, name, args, ast.visibility)?;
-                if ast.external {
-                    let decl_ty = self.get_declaration_type(id);
-                    self.types_module.mark_external(decl_ty);
-                }
-                id
-            }
-            ASTDeclarationKind::ComponentDeclaration { name, members, .. } => {
-                let id = self.hoist_component(file, name, members, ast.visibility)?;
-                if ast.external {
-                    let decl_ty = self.get_declaration_type(id);
-                    self.types_module.mark_external(decl_ty);
-                }
-                id
-            }
-            ASTDeclarationKind::Import(_) => {
-                return Ok(());
-                //modules loader already solved so
-            }
-            ASTDeclarationKind::Static { name, .. } => self.create_static(file, name)?,
         };
-        if let Some(name) = should_register {
-            self.lang_items.register(name, declarationid);
+        if let Err(e) = out.generate(modules) {
+            Err((out, e))
+        } else {
+            Ok(out)
         }
+    }
 
+    ///Gets or create an Hir file with the given `id`
+    fn get_or_create_file(&self, id: FileId) -> RefMut<'_, FileId, HirFile> {
+        self.files.entry(id).or_insert_with(|| HirFile::new(id))
+    }
+
+    fn generate(&'a self, modules: &'a Modules<'a>) -> Result<()> {
+        let mut builder = HirQueueBuilder::new(self, modules);
+        let entry = &modules.entries()[0];
+        for func in entry.func() {
+            let node = builder.get_node(entry.id);
+            builder.enqueue_function(func, node)?;
+        }
+        for comp in entry.component() {
+            builder.enqueue_component(comp, entry.id)?;
+        }
+        builder.close_bodies();
+        builder.process()?;
         Ok(())
     }
+}
 
-    /// Resolves type-level definitions (object fields, alias targets, import aliases),
-    /// run before body resolution so cross-module type dependencies are available.
-    fn resolve_type(
-        &mut self,
-        ast: &ASTDeclaration,
-        file: FileId,
-        submodules: &[FileId],
-    ) -> Result<()> {
-        match &ast.kind {
-            ASTDeclarationKind::ObjectDeclaration {
-                name,
-                fields,
-                methods,
-            } => self.resolve_object(file, name, fields, methods),
-            ASTDeclarationKind::Alias { name, target } => self.resolve_alias(name, target),
-            ASTDeclarationKind::Import(import) => {
-                for usage in &import.usages {
-                    let content_symbol = self.intern_name(&usage.content_name);
-                    let (decl, orig_ty) =
-                        self.find_declaration_in_files(&content_symbol, submodules, ast.span)?;
-                    let alias_symbol = match &usage.alias {
-                        Some(alias) => self.intern_name(alias),
-                        None => content_symbol,
-                    };
-                    self.get_file_mut(file).declarations.register_import_alias(
-                        alias_symbol,
-                        decl.file_id,
-                        decl.local_id,
-                        orig_ty,
-                    );
-                }
-                Ok(())
-            }
-            ASTDeclarationKind::Static { value: Some(_), .. } => unimplemented!(
-                "Statics with initial values not implemented yet. Feature for comptime"
-            ),
-            ASTDeclarationKind::Static {
-                value: None,
-                name,
-                ty,
-            } => self.resolve_static_type(name, ty, &ast.span),
-            _ => Ok(()),
-        }
+impl<'a> Deref for SlynxHir<'a> {
+    type Target = TypesContext;
+    fn deref(&self) -> &Self::Target {
+        &self.types_module
     }
+}
 
-    /// Resolves bodies (functions, components, stylesheets).
-    fn resolve_body(&mut self, ast: &ASTDeclaration, file: FileId) -> Result<()> {
-        match &ast.kind {
-            ASTDeclarationKind::ObjectDeclaration { name, methods, .. } => {
-                let symbol = self.intern_name(&name.identifier);
-                let (decl, declty) = self.find_declaration_by_name(&symbol, ast.span)?;
-                self.get_file_mut(file)
-                    .create_declaration(HirDeclaration::new_object(
-                        decl,
-                        declty,
-                        ast.span,
-                        ast.external,
-                    ));
-                if !ast.external {
-                    let self_ty = self.get_declaration_type(decl);
-                    for method in methods {
-                        self.resolve_function(
-                            file,
-                            FunctionData {
-                                name: &method.method_name,
-                                args: &method.arguments,
-                                return_type: &method.return_type,
-                                body: &method.body,
-                                span: &method.span,
-                                external: ast.external,
-                            },
-                            Some(self_ty),
-                        )?;
-                    }
-                }
-                Ok(())
-            }
-            ASTDeclarationKind::Alias { name, .. } => {
-                let alias_name = self.intern_name(&name.identifier);
-                let (decl, ty) = self.find_declaration_by_name(&alias_name, ast.span)?;
-                self.get_file_mut(file)
-                    .create_declaration(HirDeclaration::new_alias(
-                        decl,
-                        ty,
-                        ast.span,
-                        ast.external,
-                    ));
-                Ok(())
-            }
-            ASTDeclarationKind::FuncDeclaration {
-                name,
-                args,
-                body,
-                return_type,
-            } => self.resolve_function(
-                file,
-                FunctionData {
-                    name,
-                    args,
-                    return_type,
-                    body,
-                    span: &ast.span,
-                    external: ast.external,
-                },
-                None,
-            ),
-            ASTDeclarationKind::ComponentDeclaration { members, name } => {
-                self.resolve_component_declaration(file, members, name, ast.span)
-            }
-            ASTDeclarationKind::StyleSheet {
-                name,
-                args,
-                usages,
-                body,
-            } => self.resolve_stylesheet(file, name, args, usages, body, ast.span),
-            ASTDeclarationKind::Static {
-                value: None, name, ..
-            } => self.create_static_declaration(name, &ast.span, ast.external),
-            _ => Ok(()),
-        }
+impl Index<PoolId<HirExpression>> for SlynxHir<'_> {
+    type Output = HirExpression;
+    fn index(&self, index: PoolId<HirExpression>) -> &Self::Output {
+        &self.expressions[index]
+    }
+}
+
+impl Index<PoolId<HirStatement>> for SlynxHir<'_> {
+    type Output = HirStatement;
+    fn index(&self, index: PoolId<HirStatement>) -> &Self::Output {
+        &self.statements[index]
+    }
+}
+
+impl Index<PoolId<HirComponentExpression>> for SlynxHir<'_> {
+    type Output = HirComponentExpression;
+    fn index(&self, index: PoolId<HirComponentExpression>) -> &Self::Output {
+        &self.component_expressions[index]
     }
 }

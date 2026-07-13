@@ -1,2 +1,14 @@
 import another;
-import styles using BgGreen as Bg;
+import styles using {BgGreen as Bg};
+
+stylesheet Slaoq() uses BgGreen(){}
+
+component Suamae {
+	Text{
+		style: Slaoq()
+	}
+}
+
+func main(): Suamae{
+	Suamae {}
+}

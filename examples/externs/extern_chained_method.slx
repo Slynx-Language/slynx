@@ -1,0 +1,16 @@
+extern {
+	object Document {
+		func createElement(self, tag: str): Element;
+	}
+	object Element {
+		func setAttribute(self, name: str, value: str): void;
+		func appendChild(self, child: Element): void;
+	}
+	static doc: Document;
+}
+
+func main(): void {
+	let el = doc.createElement("div");
+	el.setAttribute("class", "main");
+	el.appendChild(el);
+}

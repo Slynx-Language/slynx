@@ -1,0 +1,9 @@
+extern {
+	static appName: str;
+	static version: int;
+}
+
+func main(): void {
+	let name = appName;
+	let ver = version;
+}

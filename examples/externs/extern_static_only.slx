@@ -1,0 +1,9 @@
+extern {
+	static PI: f64;
+	static E: f64;
+}
+
+func main(): void {
+	let p = PI;
+	let e = E;
+}

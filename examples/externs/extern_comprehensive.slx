@@ -1,0 +1,25 @@
+extern {
+	object Navigator {
+		func getUserAgent(self): str;
+	}
+	object Location {
+		func getHref(self): str;
+		func setHref(self, url: str): void;
+	}
+	object Storage {
+		func getItem(self, key: str): str;
+		func setItem(self, key: str, value: str): void;
+		func removeItem(self, key: str): void;
+	}
+	static navigator: Navigator;
+	static location: Location;
+	static localStorage: Storage;
+}
+
+func main(): void {
+	let ua = navigator.getUserAgent();
+	let url = location.getHref();
+	localStorage.setItem("lastUrl", url);
+	let prev = localStorage.getItem("lastUrl");
+	localStorage.removeItem("old");
+}

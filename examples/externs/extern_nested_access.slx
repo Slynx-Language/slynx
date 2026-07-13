@@ -1,0 +1,18 @@
+extern {
+	object Window {
+		func getDocument(self): Document;
+	}
+	object Document {
+		func getElementById(self, id: str): Element;
+	}
+	object Element {
+		func getAttribute(self, name: str): str;
+	}
+	static window: Window;
+}
+
+func main(): void {
+	let doc = window.getDocument();
+	let el = doc.getElementById("main");
+	let cls = el.getAttribute("class");
+}

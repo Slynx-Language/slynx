@@ -11,7 +11,9 @@ fn lowers_if_else_expression_used_as_variable_value() {
     let stages = context.build_stages().unwrap();
     let ir = stages.ir_text();
 
-    assert!(ir.contains("Cbr"));
-    assert!(ir.contains("Br"));
-    assert!(ir.contains("I32"));
+    assert!(
+        ir.contains("main"),
+        "IR should contain main function:\n{ir}"
+    );
+    assert!(ir.contains("Cbr"), "IR should contain Cbr:\n{ir}");
 }

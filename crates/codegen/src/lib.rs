@@ -5,16 +5,19 @@ mod functions;
 mod helper;
 mod instructions;
 mod queries;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref};
 
-use common::SymbolPointer;
+use common::{FrontendSymbol, SymbolPointer, pool::DedupPoolId};
 pub use error::*;
 use helper::styles::StyleData;
 use petgraph::{
     algo::toposort,
     graph::{DiGraph, NodeIndex},
 };
-use slynx_hir::{DeclarationId, HirDeclarationKind, HirType, SlynxHir, TypeId};
+use slynx_hir::{
+    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
+    HirStylesheetDeclaration, HirType, SlynxHir,
+};
 use slynx_ir::{
     Component, Function, GlobalValue, IRPointer, IRStorage, IRTypeId, InitValue, SlynxIR,
 };
@@ -29,14 +32,24 @@ pub(crate) struct ChildInitWork {
     pub parent_prop_indices: Vec<usize>,
 }
 
+impl ChildInitWork {
+    pub fn is_empty(&self) -> bool {
+        self.children_type.is_empty()
+            && self.parent_prop_indices.is_empty()
+            && self.children_index.is_empty()
+    }
+}
+
+pub type TypeId = DedupPoolId<HirType>;
+
 pub struct Codegen {
-    external_statics: HashMap<DeclarationId, IRTypeId>,
-    globals: HashMap<DeclarationId, IRPointer<GlobalValue, 1>>,
-    names: HashMap<SymbolPointer<SlynxHir>, SymbolPointer<SlynxIR>>,
+    external_statics: HashMap<DeclarationId<HirStaticDeclaration>, IRTypeId>,
+    globals: HashMap<DeclarationId<HirStaticDeclaration>, IRPointer<GlobalValue, 1>>,
+    names: HashMap<SymbolPointer<FrontendSymbol>, SymbolPointer<SlynxIR>>,
     types: HashMap<TypeId, IRTypeId>,
-    functions: HashMap<DeclarationId, IRPointer<Function, 1>>,
-    components: HashMap<DeclarationId, IRPointer<Component, 1>>,
-    styles: HashMap<DeclarationId, StyleData>,
+    functions: HashMap<DeclarationId<HirFunctionDeclaration>, IRPointer<Function, 1>>,
+    components: HashMap<DeclarationId<HirComponentDeclaration>, IRPointer<Component, 1>>,
+    styles: HashMap<DeclarationId<HirStylesheetDeclaration>, StyleData>,
     /// Child-init work items queued by `initialize_component` and
     /// executed by `get_component_expression`.
     pub(crate) component_child_inits: HashMap<TypeId, Vec<ChildInitWork>>,
@@ -67,7 +80,7 @@ impl Codegen {
         &mut self,
         hir: &SlynxHir,
         ir: &mut SlynxIR,
-        symbol: SymbolPointer<SlynxHir>,
+        symbol: SymbolPointer<FrontendSymbol>,
     ) -> SymbolPointer<SlynxIR> {
         let s = hir.get_name(symbol);
         let ptr = ir.strings.intern(s);
@@ -87,76 +100,63 @@ impl Codegen {
     /// Phase 0: Hoist declarations.
     fn hoist_declarations(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) {
         for file in &hir.files {
-            let file = file.read();
-            for declaration in file.declarations() {
-                let declaration = declaration.1;
-
-                match &declaration.kind {
-                    HirDeclarationKind::Static => {}
-                    HirDeclarationKind::Object => {
-                        let name = hir.get_declaration_name(declaration.id);
-                        let obj = ir.create_struct(name);
-                        self.types.insert(declaration.ty, obj);
-                        // declaration.ty is a Reference; also register the concrete
-                        // Struct TypeId so tuple fields (which resolve through the
-                        // Reference) can be found in get_or_create_ir_type.
-                        if let HirType::Reference { rf, .. } = &*hir.get_type(&declaration.ty) {
-                            self.types.insert(*rf, obj);
-                        }
-                    }
-                    HirDeclarationKind::Function { name, .. } => {
-                        let name = hir.get_name(*name);
-                        let ptr = ir.create_function(name);
-                        let ty = ir.get(ptr).ty();
-                        self.types.insert(declaration.ty, ty);
-                        self.functions.insert(declaration.id, ptr);
-                    }
-                    HirDeclarationKind::ComponentDeclaration { name, .. } => {
-                        let comp_name = hir.get_name(*name);
-                        let component = ir.create_component(comp_name);
-                        let component_ty = ir.get(component).ir_type();
-                        self.types.insert(declaration.ty, component_ty);
-                        self.components.insert(declaration.id, component);
-                    }
-                    HirDeclarationKind::StyleSheet { .. } => {
-                        let name = hir.get_declaration_name(declaration.id);
-                        let init_func = ir.create_function(&format!("__init_{name}"));
-                        let apply_func = ir.create_function(&format!("__apply_{name}"));
-                        let struct_ty = ir.create_struct(&format!("__{name}_struct"));
-                        self.types.insert(declaration.ty, struct_ty);
-                        self.styles.insert(
-                            declaration.id,
-                            StyleData {
-                                init_func,
-                                apply_func,
-                                struct_ty,
-                                property_codes: Vec::new(),
-                            },
-                        );
-                    }
-                    HirDeclarationKind::Alias => {}
+            for (_, declaration) in file.declarations.objects.iter().with_ids() {
+                let obj = ir.create_struct(hir.get_name(declaration.name));
+                self.types.insert(declaration.ty, obj);
+                // declaration.ty is a Reference; also register the concrete
+                // Struct TypeId so tuple fields (which resolve through the
+                // Reference) can be found in get_or_create_ir_type.
+                if let HirType::Reference { rf, .. } = &hir.deref()[declaration.ty] {
+                    self.types.insert(*rf, obj);
                 }
+            }
+            for (id, declaration) in file.declarations.functions.iter().with_ids() {
+                let name = hir.get_name(declaration.name);
+                let ptr = ir.create_function(name, declaration.external);
+                let ty = ir.get(ptr).ty();
+                self.types.insert(declaration.ty, ty);
+                self.functions
+                    .insert(DeclarationId::new(file.file, id), ptr);
+            }
+            for (id, declaration) in file.declarations.components.iter().with_ids() {
+                let comp_name = hir.get_name(declaration.name);
+                let component = ir.create_component(comp_name);
+                let component_ty = ir.get(component).ir_type();
+                self.types.insert(declaration.ty, component_ty);
+                self.components
+                    .insert(DeclarationId::new(file.file, id), component);
+            }
+            for (id, declaration) in file.declarations.styles.iter().with_ids() {
+                let name = hir.get_name(declaration.name);
+                let init_func = ir.create_function(&format!("__init_{name}"), false);
+                let apply_func = ir.create_function(&format!("__apply_{name}"), false);
+                let struct_ty = ir.create_struct(&format!("__{name}_struct"));
+                self.types.insert(declaration.ty, struct_ty);
+                self.styles.insert(
+                    DeclarationId::new(file.file, id),
+                    StyleData {
+                        init_func,
+                        apply_func,
+                        struct_ty,
+                        property_codes: Vec::new(),
+                    },
+                );
             }
         }
     }
 
     /// Pre-pass: compute property codes for all stylesheets.
     fn stylesheet_pre_pass(&mut self, hir: &SlynxHir, _ir: &mut SlynxIR) {
-        for file in &hir.files {
-            let file = file.read();
-            for declaration in file.declarations() {
-                let declaration = declaration.1;
-                if let HirDeclarationKind::StyleSheet {
-                    ref usages,
-                    ref statements,
-                    ..
-                } = declaration.kind
-                {
-                    let own_props = self.collect_style_properties(statements);
-                    let resolved = self.resolve_style_inheritance(usages, &own_props, hir);
-                    if let Some(style_data) = self.styles.get_mut(&declaration.id) {
-                        style_data.property_codes = resolved.iter().map(|rp| rp.property).collect();
-                    }
+        for file in hir.files.iter() {
+            for (id, declaration) in file.declarations.declarations.styles.iter().with_ids() {
+                let HirStylesheetDeclaration {
+                    usages, statements, ..
+                } = declaration;
+
+                let own_props = self.collect_style_properties(statements);
+                let resolved = self.resolve_style_inheritance(usages, &own_props, hir);
+                if let Some(style_data) = self.styles.get_mut(&DeclarationId::new(file.file, id)) {
+                    style_data.property_codes = resolved.iter().map(|rp| rp.property).collect();
                 }
             }
         }
@@ -169,46 +169,47 @@ impl Codegen {
         ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
         for file in &hir.files {
-            let file = file.read();
-            for declaration in file.declarations() {
-                let declaration = declaration.1;
-                match &declaration.kind {
-                    HirDeclarationKind::Static => {
-                        let name = hir.get_declaration_name(declaration.id);
-                        let ty = hir.get_declaration_type(declaration.id);
-                        let ty = self.get_or_create_ir_type(&ty, hir, ir)?;
-                        if declaration.external {
-                            self.external_statics.insert(declaration.id, ty);
-                        } else {
-                            let global = ir.create_global(name, InitValue::ZeroInit(ty));
-                            self.globals.insert(declaration.id, global);
-                        }
-                    }
-                    HirDeclarationKind::Object => {
-                        self.insert_object_fields_for(declaration.ty, hir, ir)?;
-                    }
-                    HirDeclarationKind::Function {
-                        statements, args, ..
-                    } => {
-                        let function_ptr = self
-                            .functions
-                            .get(&declaration.id)
-                            .expect("Function should have been hoisted");
+            for obj in file.declarations.objects.iter() {
+                self.insert_object_fields_for(obj.ty, hir, ir)?;
+            }
+            for (id, component) in file.declarations.components.iter().with_ids() {
+                self.initialize_component(
+                    DeclarationId::new(file.file, id),
+                    component,
+                    &component.props,
+                    hir,
+                    ir,
+                )?;
+            }
+            for (id, statik) in file.statik.iter().with_ids() {
+                let name = statik.name;
+                let ty = self.get_or_create_ir_type(&statik.ty, hir, ir)?;
+                let id = DeclarationId::new(file.file, id);
+                if statik.external {
+                    self.external_statics.insert(id, ty);
+                } else {
+                    let global = ir.create_global(hir.get_name(name), InitValue::ZeroInit(ty));
+                    self.globals.insert(id, global);
+                }
+            }
+            for (id, declaration) in file.declarations.functions.iter().with_ids() {
+                let HirFunctionDeclaration {
+                    statements, args, ..
+                } = declaration;
+                {
+                    let function_ptr = self
+                        .functions
+                        .get(&DeclarationId::new(file.file, id))
+                        .expect("Function should have been hoisted");
 
-                        self.initialize_function(
-                            *function_ptr,
-                            declaration.ty,
-                            statements,
-                            args,
-                            hir,
-                            ir,
-                        )?;
-                    }
-                    HirDeclarationKind::ComponentDeclaration { props, .. } => {
-                        self.initialize_component(declaration, props, hir, ir)?;
-                    }
-                    HirDeclarationKind::Alias => {}
-                    HirDeclarationKind::StyleSheet { .. } => {}
+                    self.initialize_function(
+                        *function_ptr,
+                        declaration.ty,
+                        statements,
+                        args,
+                        hir,
+                        ir,
+                    )?;
                 }
             }
         }
@@ -221,59 +222,46 @@ impl Codegen {
             let mut decls = Vec::new();
             let mut idx = HashMap::new();
             for file in &hir.files {
-                let file = file.read();
-                for decl in file.declarations() {
-                    let declaration = decl.1;
-                    idx.insert(declaration.id, decls.len());
-                    decls.push(declaration.id);
+                for (id, _decl) in file.value().declarations.styles.iter().with_ids() {
+                    let id = DeclarationId::new(file.file, id);
+                    idx.insert(id, decls.len());
+                    decls.push(id);
                 }
             }
             (decls, idx)
         };
-        let all_stylesheets: Vec<usize> = (0..flat_decls.len())
-            .filter(|i| {
-                let id = flat_decls[*i];
-                let reader = hir.get_file(id.file_id);
-                let decl = reader.declarations.get_declaration(id.local_id);
-                matches!(decl.kind, HirDeclarationKind::StyleSheet { .. })
-            })
-            .collect();
-
-        if all_stylesheets.is_empty() {
+        if flat_decls.is_empty() {
             return Ok(());
         }
 
         let mut graph: DiGraph<usize, ()> = DiGraph::new();
         let mut node_indices: HashMap<usize, NodeIndex<u32>> = HashMap::new();
 
-        for &idx in &all_stylesheets {
+        for (idx, _) in flat_decls.iter().enumerate() {
             node_indices.insert(idx, graph.add_node(idx));
         }
 
-        for &idx in &all_stylesheets {
-            let id = flat_decls[idx];
+        for (idx, id) in flat_decls.iter().enumerate() {
             let reader = hir.get_file(id.file_id);
-            let decl = reader.declarations.get_declaration(id.local_id);
-            if let HirDeclarationKind::StyleSheet { ref usages, .. } = decl.kind {
-                for usage in usages {
-                    let parent_idx = decl_to_idx[&usage.style];
-                    if let Some(&parent_node) = node_indices.get(&parent_idx) {
-                        graph.add_edge(parent_node, node_indices[&idx], ());
-                    }
+            let HirStylesheetDeclaration { usages, .. } = &reader[id.local_id];
+
+            for usage in usages {
+                let parent_idx = decl_to_idx[&usage.style];
+                if let Some(&parent_node) = node_indices.get(&parent_idx) {
+                    graph.add_edge(parent_node, node_indices[&idx], ());
                 }
             }
         }
 
         let order = match toposort(&graph, None) {
             Ok(order) => order.into_iter().map(|n| graph[n]).collect::<Vec<_>>(),
-            Err(_) => all_stylesheets,
+            Err(_) => (0..flat_decls.len()).collect(),
         };
 
         for &idx in &order {
             let id = flat_decls[idx];
             let reader = hir.get_file(id.file_id);
-            let decl = reader.declarations.get_declaration(id.local_id);
-            self.lower_stylesheet(decl, hir, ir)?;
+            self.lower_stylesheet(id, &reader[id.local_id], hir, ir)?;
         }
         Ok(())
     }

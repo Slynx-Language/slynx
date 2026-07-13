@@ -1,0 +1,10 @@
+extern {
+	object Document {
+		func getElementById(self, id: str): Document;
+	}
+	static doc: Document;
+}
+
+func main(): void {
+	let el = doc.getElementById("root");
+}

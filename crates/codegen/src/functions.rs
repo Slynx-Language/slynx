@@ -1,9 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use slynx_hir::{HirStatement, HirType, SlynxHir, TypeId, VariableId};
+use common::{Spanned, pool::PoolId};
+use slynx_hir::{HirStatement, SlynxHir, VariableId};
 use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, SlynxIR, Value};
 
-use crate::{Codegen, CodegenError};
+use crate::{Codegen, CodegenError, TypeId};
 
 /// Per-function state during HIR-to-IR lowering.
 pub struct FunctionContext<'a> {
@@ -59,11 +60,11 @@ impl Codegen {
         ir: &mut SlynxIR,
     ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
         let (args, return_type) = {
-            let ty = hir.get_type(&func_ty);
-            let HirType::Function { args, return_type } = &*ty else {
+            let view = hir.view(func_ty);
+            let Some(viewer) = view.is_function() else {
                 unreachable!("Initialize function should initialize with the type of a function");
             };
-            (args.clone(), *return_type)
+            (viewer.arguments().to_vec(), viewer.return_type())
         };
         let args = args
             .iter()
@@ -88,7 +89,7 @@ impl Codegen {
         &mut self,
         fptr: IRPointer<Function, 1>,
         func_ty: TypeId,
-        statements: &[HirStatement],
+        statements: &[Spanned<PoolId<HirStatement>>],
         args: &[VariableId],
         hir: &SlynxHir,
         ir: &mut SlynxIR,
@@ -115,10 +116,10 @@ impl Codegen {
         &mut self,
         ctx: &mut FunctionContext<'a>,
         hir: &SlynxHir,
-        statements: &[HirStatement],
+        statements: &[Spanned<PoolId<HirStatement>>],
     ) -> Result<(), CodegenError> {
         for (idx, statement) in statements.iter().enumerate() {
-            if let Some(value) = self.lower_statement(statement, hir, ctx)?
+            if let Some(value) = self.lower_statement(*statement, hir, ctx)?
                 && idx == statements.len() - 1
             {
                 ctx.ret(value);

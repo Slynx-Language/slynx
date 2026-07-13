@@ -1,4 +1,5 @@
-use slynx_hir::module_loader::SourceError;
+use module_loader::{SourceError, SourceErrorKind};
+use slynx_lexer::LexerError;
 
 use crate::{
     SlynxContext,
@@ -8,7 +9,10 @@ use crate::{
 impl SlynxContext {
     ///Finds the `Arc<PathBuf>` key for a given path in the context's file map.
     fn find_file_key(&self, path: &std::path::Path) -> Option<std::sync::Arc<std::path::PathBuf>> {
-        self.files.keys().find(|k| ***k == *path).cloned()
+        self.files.iter().find_map(|k| {
+            let key = k.key().clone();
+            (*key == *path).then_some(key)
+        })
     }
 
     ///Handles a source error. The `generator` is the path of the file that generated the provided `error`
@@ -18,10 +22,10 @@ impl SlynxContext {
         let file_key = self.find_file_key(error.entry());
 
         match error.kind() {
-            slynx_hir::module_loader::SourceErrorKind::InexsitantSource(inner, span, generator) => {
+            SourceErrorKind::InexsitantSource(inner, span, generator) => {
                 let file_key = self.find_file_key(generator);
                 let (line, col_start, col_end, src) = if let Some(ref key) = file_key {
-                    let info = self.get_line_info(key, span.start);
+                    let info = self.get_line_info(key, span.start as usize);
                     (
                         info.line,
                         info.column_start,
@@ -42,14 +46,10 @@ impl SlynxContext {
                     suggestion,
                 )
             }
-            slynx_hir::module_loader::SourceErrorKind::Lexing(lex_err) => {
+            SourceErrorKind::Lexing(lex_err) => {
                 let (index, _end_index) = match lex_err {
-                    slynx_lexer::error::LexerError::MalformedNumber { init, end, .. } => {
-                        (*init, *end)
-                    }
-                    slynx_lexer::error::LexerError::UnrecognizedChar { index, .. } => {
-                        (*index, *index)
-                    }
+                    LexerError::MalformedNumber { init, end, .. } => (*init, *end),
+                    LexerError::UnrecognizedChar { index, .. } => (*index, *index),
                 };
                 let (line, col_start, col_end, src) = if let Some(ref key) = file_key {
                     let info = self.get_line_info(key, index);
@@ -72,13 +72,13 @@ impl SlynxContext {
                     suggestion,
                 )
             }
-            slynx_hir::module_loader::SourceErrorKind::Parsing(parse_err) => {
+            SourceErrorKind::Parsing(parse_err) => {
                 let index = match parse_err {
                     slynx_parser::error::ParseError::UnexpectedToken(token, _) => token.span.start,
                     _ => 0,
                 };
                 let (line, col_start, col_end, src) = if let Some(ref key) = file_key {
-                    let info = self.get_line_info(key, index);
+                    let info = self.get_line_info(key, index as usize);
                     (
                         info.line,
                         info.column_start,

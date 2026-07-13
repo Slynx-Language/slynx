@@ -1,6 +1,10 @@
-use std::{hash::Hash, marker::PhantomData};
+use std::{hash::Hash, marker::PhantomData, ops::Index};
 
 use lasso::{Spur, ThreadedRodeo};
+
+#[derive(Debug)]
+pub struct FrontendSymbol;
+
 ///A pointer to some intern string. This is 48bits for the actual position of the string in the internalized string, and 16bits for it's length
 #[derive(Debug)]
 pub struct SymbolPointer<T>(Spur, PhantomData<T>);
@@ -61,6 +65,13 @@ impl<Ctx> SymbolsModule<Ctx> {
 
     pub fn get_name(&self, ptr: SymbolPointer<Ctx>) -> &str {
         self.names.resolve(&ptr.0)
+    }
+}
+
+impl<Ctx> Index<SymbolPointer<Ctx>> for SymbolsModule<Ctx> {
+    type Output = str;
+    fn index(&self, index: SymbolPointer<Ctx>) -> &Self::Output {
+        self.get_name(index)
     }
 }
 

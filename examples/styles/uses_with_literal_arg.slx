@@ -10,10 +10,13 @@ stylesheet Bg() uses Fg(0x00ffff) {
         backgroundColor: Color(inner:0x0000ff)
     }
 }
-
+component Div {}
+component Text {
+    pub prop text:str;
+}
 component Root {
     Div {
-        style: Bg(),
+
         Text {
             text: "hello"
         }

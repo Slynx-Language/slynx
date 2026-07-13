@@ -53,6 +53,8 @@ pub enum TokenKind {
     Import,
     #[token("extern")]
     Extern,
+    #[token("return")]
+    Return,
 
     // Multi-char operators (must come before single-char)
     #[token("&&")]

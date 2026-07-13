@@ -10,9 +10,9 @@ impl SlynxIR {
     }
 
     /// Create a new empty function with the given name and return its pointer.
-    pub fn create_function(&mut self, name: &str) -> IRPointer<Function, 1> {
+    pub fn create_function(&mut self, name: &str, external: bool) -> IRPointer<Function, 1> {
         let name = self.strings.intern(name);
-        let func = Function::new(name, self.types.create_function_type().0);
+        let func = Function::new(name, self.types.create_function_type().0, external);
         let ptr = self.functions.len();
         self.functions.push(func);
         IRPointer::new(ptr, 1)

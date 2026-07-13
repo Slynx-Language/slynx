@@ -10,15 +10,21 @@ pub struct Function {
     labels: IRPointer<Label>,
     ///The type of the context. Must be either Function
     ty: IRTypeId,
+    external: bool,
 }
 
 impl Function {
-    pub fn new(name: SymbolPointer, ty: IRTypeId) -> Self {
+    pub fn new(name: SymbolPointer, ty: IRTypeId, external: bool) -> Self {
         Self {
             name,
             labels: IRPointer::new(0, 0),
             ty,
+            external,
         }
+    }
+
+    pub fn is_external(&self) -> bool {
+        self.external
     }
 
     #[inline]

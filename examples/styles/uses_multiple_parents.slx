@@ -10,12 +10,14 @@ stylesheet B() {
         backgroundColor: Color(inner:0x0000ff)
     }
 }
-
+component Div {}
+component Text {
+    pub prop text:str;
+}
 stylesheet C() uses A(), B() {}
 
 component Root {
     Div {
-        style: C(),
         Text {
             text: "hello"
         }

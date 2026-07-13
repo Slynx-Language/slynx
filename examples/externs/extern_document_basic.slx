@@ -1,0 +1,21 @@
+extern {
+	object Document {
+		func createElement(self, tag: str): Element;
+		func getElementById(self, id: str): Element;
+		func querySelector(self, selector: str): Element;
+	}
+	object Element {
+		func setAttribute(self, name: str, value: str): void;
+		func appendChild(self, child: Element): void;
+		func remove(self): void;
+	}
+	static document: Document;
+}
+
+func main(): void {
+	let div = document.createElement("div");
+	div.setAttribute("id", "container");
+	let found = document.getElementById("container");
+	let match = document.querySelector("div");
+	match.remove();
+}

@@ -1,6 +1,6 @@
 use slynx_hir::{
     SlynxHir,
-    error::{HIRError, HIRErrorKind},
+    error::{HIRError, HIRErrorKind, InvalidWriteReason},
 };
 
 use crate::{
@@ -11,6 +11,24 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::ComponentNotFound(name) => format!(
+                "Component named as '{}' could not be found",
+                hir.get_name(*name)
+            ),
+            HIRErrorKind::NotAComponent(name) => {
+                let name = hir.get_name(*name);
+                format!("'{name}' is not a component")
+            }
+            HIRErrorKind::ComponentPropertyMissingType => {
+                "Component property is missing type definition".to_string()
+            }
+            HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable) => {
+                "Expression not assignable".to_string()
+            }
+            HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(v)) => format!(
+                "Invalid write to '{}' variable, which is immutable.",
+                hir.get_name(*v)
+            ),
             HIRErrorKind::InvalidFieldAccess => "Invalid field access".to_string(),
             HIRErrorKind::InvalidFuncallArgLength {
                 func_name,
@@ -84,22 +102,18 @@ impl SlynxContext {
                 } else {
                     "Properties"
                 };
-                let objname = hir.get_name_of_type(*ty).map(|name| hir.get_name(name));
+                let objname = hir.view(*ty).name();
                 let names = prop_names
                     .iter()
                     .map(|v| format!("'{}'", hir.get_name(*v)))
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                format!(
-                    "{property} {names} are not recognized for object {}",
-                    objname.unwrap_or("(unknown name)")
-                )
+                format!("{property} {names} are not recognized for object {objname}",)
             }
             HIRErrorKind::RecursiveType { ty } => {
-                let name = hir.get_name_of_type(*ty).expect("Type should be named");
-                let ty = hir.get_name(name);
-                format!("The type named as '{ty}' is recursive at this point")
+                let name = hir.view(*ty).name();
+                format!("The type named as '{name}' is recursive at this point")
             }
             HIRErrorKind::InvalidStyleEvent { name } => {
                 let name = hir.get_name(*name);
@@ -123,6 +137,18 @@ impl SlynxContext {
                 let name = hir.get_name(*name);
                 format!("intrinsic '{name}' is not defined — ensure the standard library is loaded")
             }
+            HIRErrorKind::CyclicComponentSignature { component, chain } => {
+                let comp_name = hir.get_name(*component);
+                let chain_str = chain
+                    .iter()
+                    .map(|(_, n)| hir.get_name(*n))
+                    .collect::<Vec<_>>()
+                    .join(" → ");
+                format!("cyclic component signature: component '{comp_name}' at chain: {chain_str}")
+            }
+            HIRErrorKind::CyclicComponentBody { component: _ } => {
+                "cyclic component body resolution".to_string()
+            }
         }
     }
 
@@ -133,7 +159,7 @@ impl SlynxContext {
             column_start,
             column_end,
             src,
-        } = self.get_line_info(&self.entry_point, error.span.start);
+        } = self.get_line_info(&self.entry_point, error.span.start as usize);
         SlynxError::new_hir(
             line,
             column_start,

@@ -1,54 +1,42 @@
-use crate::{ASTExpression, ASTExpressionKind, ASTStatement, ASTStatementKind, Parser, Result};
-use common::Span;
+use crate::{ASTExpression, ASTStatement, Parser, Result};
+use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::tokens::TokenKind;
 
-impl Parser {
+impl Parser<'_> {
     /// Parses an if statement. The provided `span` is the initial span for the 'if' keyword.
-    pub fn parse_if(&mut self, span: Span) -> Result<ASTExpression> {
+    pub fn parse_if(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.flags.reset();
 
         let condition = self.parse_without_component_expr(Self::parse_expression)?;
         let (body, block_span) = self.parse_block()?;
 
-        let (else_body, end) = if self.peek()?.kind == TokenKind::Else {
-            self.eat()?;
+        let (else_body, end) = match self.peek()?.kind {
+            TokenKind::Else if self.peek_at(1)?.kind == TokenKind::If => {
+                self.eat()?;
 
-            if self.peek()?.kind == TokenKind::If {
                 let if_span = self.eat()?.span;
                 let expr = self.parse_if(if_span)?;
-                let end = expr.span.end;
+                let end = expr.span;
 
                 let span = expr.span;
-
-                (
-                    Some(vec![ASTStatement {
-                        span,
-                        kind: ASTStatementKind::Expression(expr),
-                    }]),
-                    end,
-                )
-            } else {
-                let (eb, es) = self.parse_block()?;
-                (Some(eb), es.end)
+                let id = self.intern_statment(ASTStatement::Expression(expr));
+                (vec![Spanned::new(id, span)], end)
             }
-        } else {
-            (None, block_span.end)
+            TokenKind::Else => {
+                self.eat()?;
+                self.parse_block()?
+            }
+            _ => (vec![], block_span),
         };
-
-        Ok(ASTExpression {
-            span: Span {
-                start: span.start,
-                end,
-            },
-            kind: ASTExpressionKind::If {
-                condition: Box::new(condition),
-                body,
-                else_body,
-            },
-        })
+        let id = self.intern_expression(ASTExpression::If {
+            condition,
+            body,
+            else_body,
+        });
+        Ok(Spanned::new(id, span.merge_with(end)))
     }
 
-    pub fn parse_block(&mut self) -> Result<(Vec<ASTStatement>, Span)> {
+    pub fn parse_block(&mut self) -> Result<(Vec<Spanned<DedupPoolId<ASTStatement>>>, Span)> {
         self.flags.reset();
         let lbrace = self.expect(&TokenKind::LBrace)?;
         let start = lbrace.span.start;
@@ -56,8 +44,9 @@ impl Parser {
         while !matches!(self.peek()?.kind, TokenKind::RBrace) {
             let stmt = self.parse_statement()?;
             body.push(stmt);
-            if let Some(ASTStatementKind::Expression(expr)) = body.last().map(|expr| &expr.kind)
-                && matches!(expr.kind, ASTExpressionKind::If { .. })
+            if let Some(ASTStatement::Expression(expr)) =
+                body.last().map(|stmt| self.statements.get(stmt.data))
+                && let ASTExpression::If { .. } = self.expressions.get(expr.data)
             {
                 continue;
             }

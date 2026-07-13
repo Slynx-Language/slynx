@@ -1,56 +1,61 @@
 use crate::{
-    ASTStatement,
+    ASTStatement, SymbolPointer,
     ast::{ComponentExpression, GenericIdentifier},
 };
-use common::{Operator, Span};
+use common::{Operator, Spanned, pool::DedupPoolId};
+use ordered_float::OrderedFloat;
+use smallvec::SmallVec;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 ///Simply a name that comes before an expression. It represents anything like 'name: expr', '.name:expr' etc
 pub struct NamedExpr {
-    pub name: String,
-    pub expr: ASTExpression,
-    pub span: Span,
+    pub name: SymbolPointer,
+    pub expr: Spanned<DedupPoolId<ASTExpression>>,
 }
 
-#[derive(Debug)]
-pub struct ASTExpression {
-    pub kind: ASTExpressionKind,
-    pub span: Span,
-}
-
-#[derive(Debug)]
-pub enum ASTExpressionKind {
-    Component(ComponentExpression),
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum ASTExpression {
     IntLiteral(i32),
-    StringLiteral(String),
-    FloatLiteral(f32),
-    Tuple(Vec<ASTExpression>),
+    StringLiteral(SymbolPointer),
+    FloatLiteral(OrderedFloat<f32>),
+    Identifier(SymbolPointer),
+    True,
+    False,
+    Tuple(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
     TupleAccess {
-        tuple: Box<ASTExpression>,
-        index: usize,
+        tuple: Spanned<DedupPoolId<ASTExpression>>,
+        index: u8,
     },
-    Boolean(bool),
+    Component(ComponentExpression),
     Binary {
-        lhs: Box<ASTExpression>,
+        lhs: Spanned<DedupPoolId<ASTExpression>>,
         op: Operator,
-        rhs: Box<ASTExpression>,
+        rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
-    Identifier(String),
     ObjectExpression {
-        name: GenericIdentifier,
-        fields: Vec<NamedExpr>,
+        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        fields: SmallVec<[Spanned<NamedExpr>; 4]>,
     },
     FieldAccess {
-        parent: Box<ASTExpression>,
-        field: Box<ASTExpression>,
+        parent: Spanned<DedupPoolId<ASTExpression>>,
+        field: Spanned<DedupPoolId<ASTExpression>>,
     },
     FunctionCall {
-        name: GenericIdentifier,
-        args: Vec<ASTExpression>,
+        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        args: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 7]>,
     },
     If {
-        condition: Box<ASTExpression>,
-        body: Vec<ASTStatement>,
-        else_body: Option<Vec<ASTStatement>>,
+        condition: Spanned<DedupPoolId<ASTExpression>>,
+        body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
+        else_body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     },
+}
+
+impl ASTExpression {
+    pub fn is_assignable(&self) -> bool {
+        matches!(
+            self,
+            ASTExpression::Identifier(_) | ASTExpression::FieldAccess { .. },
+        )
+    }
 }

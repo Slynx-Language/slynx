@@ -1,39 +1,16 @@
-import std;
-stylesheet Bg(color: Color) uses Fg(0x00ff00) {
-	styles {
-		backgroundColor: color,
-		foregroundColor: color,
-	}
-}
-stylesheet Fg(color: int) {
-	styles {
-		foregroundColor: Color(inner:color)
-	}
+func main(): void {
+    let v = Counter.new();
+    v.increment(5);
 }
 
-component Pedrinho {
-	Div {
-		style: Bg(Color.new(0xff,0xff,0, 0xff)),
-		Text {
-			text: "Pedrinho leitazedo"
-		}
-	}
-}
+pub object Counter {
+    value: int,
 
-component Jorgin {
-    pub prop color:int;
-	Text {
-	    style: Fg(color),
-		text: "Jorginho neguinho"
-	}
-	Pedrinho {}
-}
+    func new(): Self {
+        Self(value: 0)
+    }
 
-func main(): Component {
-	let a = 5;
-	let b = 12;
-	let c = a + b;
-	Jorgin {
-        color: 0
-	}
+    func increment(self, amount: int): void {
+        self.value = self.value + amount;
+    }
 }

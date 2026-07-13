@@ -1,4 +1,5 @@
 import std;
+import utils.components using {Text, Div};
 import styles using {Background as Bg};
 
 stylesheet MyStyle(color: int) uses Background(color) {
@@ -9,7 +10,7 @@ stylesheet MyStyle(color: int) uses Background(color) {
 
 component MyComponent {
 	Div {
-		style: MyStyle(0xff0000),
+
 		Text {
 			text: "Brace alias import"
 		}

@@ -1,6 +1,5 @@
 use color_eyre::owo_colors::OwoColorize;
 
-pub mod checker;
 pub mod helpers;
 pub mod hir;
 pub mod ir;

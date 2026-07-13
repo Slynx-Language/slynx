@@ -1,0 +1,9 @@
+extern {
+	func alert(msg: str): void;
+	func confirm(msg: str): bool;
+}
+
+func main(): void {
+	alert("Hello");
+	let ok = confirm("Proceed?");
+}

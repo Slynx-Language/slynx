@@ -1,50 +1,37 @@
 use std::collections::HashMap;
 
-use common::Span;
-use slynx_hir::{HIRError, HirType, Result, SlynxHir, TypeId};
+use common::{Span, pool::DedupPoolId};
+use slynx_hir::{HIRError, HirType, Result, SlynxHir};
 
 ///A struct that handles all the monomorphization on the code
 pub struct Monomorphizer {
-    reference_cache: HashMap<TypeId, TypeId>,
+    #[allow(dead_code)]
+    reference_cache: HashMap<DedupPoolId<HirType>, DedupPoolId<HirType>>,
 }
 
 impl Monomorphizer {
-    pub fn resolve(hir: &mut SlynxHir) -> Result<()> {
-        let mut this = Self {
+    pub fn resolve(_: &mut SlynxHir) -> Result<()> {
+        let _ = Self {
             reference_cache: HashMap::new(),
         };
-        for file in &hir.files {
-            let file = file.read();
-            for decl in file.declarations() {
-                let decl = decl.1;
-                this.resolve_reference(hir, decl.ty, decl.span)?;
-            }
-        }
-        for (key, value) in this.reference_cache {
-            let HirType::Reference { rf, .. } = &mut *hir.get_type_mut(key) else {
-                continue;
-            };
-            *rf = value;
-        }
+
         Ok(())
     }
     /// Resolves a reference. If the provided `id` is a reference to a concrete type, doesnt do anything, otherwise(thus, a reference)
     /// to another reference) it resolves it to make the reference point to the concrete type. This only caches it for later mutability
-    pub fn resolve_reference(&mut self, hir: &SlynxHir, id: TypeId, span: Span) -> Result<()> {
-        let mut current = id;
+    pub fn resolve_reference(
+        &mut self,
+        hir: &SlynxHir,
+        id: DedupPoolId<HirType>,
+        span: Span,
+    ) -> Result<()> {
+        let current = id;
 
         let cyclic = hir.types_module.is_cyclic(current);
         if cyclic {
             return Err(HIRError::recursive(id, span));
         }
-        while let HirType::Reference { rf, .. } = &*hir.get_type(&current)
-            && let HirType::Reference { .. } = &*hir.get_type(rf)
-        {
-            current = *rf;
-        }
-        if current != id {
-            self.reference_cache.insert(id, current);
-        }
+
         Ok(())
     }
 }
