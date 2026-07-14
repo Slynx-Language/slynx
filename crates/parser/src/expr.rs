@@ -1,5 +1,5 @@
 use crate::{
-    ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, GenericIdentifier,
+    ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, Type,
     NamedExpr,
 };
 use crate::{Parser, Result, error::ParseError};
@@ -54,7 +54,7 @@ impl Parser<'_> {
     ///Parses an component expression but, starting from the LBrace, assuming the name of the component is the provided `name`
     pub fn parse_component_expr_with_name(
         &mut self,
-        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        name: Spanned<DedupPoolId<Type>>,
     ) -> Result<Spanned<ComponentExpression>> {
         let mut span = name.span;
         self.expect(&TokenKind::LBrace)?;

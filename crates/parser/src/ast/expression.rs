@@ -1,6 +1,6 @@
 use crate::{
     ASTStatement, SymbolPointer,
-    ast::{ComponentExpression, GenericIdentifier},
+    ast::{ComponentExpression, Type},
 };
 use common::{Operator, Spanned, pool::DedupPoolId};
 use ordered_float::OrderedFloat;
@@ -33,7 +33,7 @@ pub enum ASTExpression {
         rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     ObjectExpression {
-        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        name: Spanned<DedupPoolId<Type>>,
         fields: SmallVec<[Spanned<NamedExpr>; 4]>,
     },
     FieldAccess {
@@ -41,7 +41,7 @@ pub enum ASTExpression {
         field: Spanned<DedupPoolId<ASTExpression>>,
     },
     FunctionCall {
-        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        name: Spanned<DedupPoolId<Type>>,
         args: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 7]>,
     },
     If {

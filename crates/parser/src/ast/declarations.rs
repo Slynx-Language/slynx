@@ -1,7 +1,7 @@
 use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 
 use crate::{
-    ASTExpression, ASTStatement, ComponentMember, GenericIdentifier, ObjectField,
+    ASTExpression, ASTStatement, ComponentMember, ObjectField, Type,
     StyleSheetStatement, SymbolPointer, TypedName,
 };
 
@@ -14,23 +14,23 @@ pub struct ASTAttribute {
 
 #[derive(Debug)]
 pub struct ObjectMethod {
-    pub method_name: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub method_name: Spanned<DedupPoolId<Type>>,
     pub arguments: Vec<Spanned<TypedName>>,
-    pub return_type: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub return_type: Spanned<DedupPoolId<Type>>,
     pub body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct AliasDeclaration {
-    pub name: Spanned<DedupPoolId<GenericIdentifier>>,
-    pub target: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub name: Spanned<DedupPoolId<Type>>,
+    pub target: Spanned<DedupPoolId<Type>>,
     pub span: Span,
     pub visibility: VisibilityModifier,
 }
 #[derive(Debug)]
 pub struct ObjectDeclaration {
-    pub name: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub name: Spanned<DedupPoolId<Type>>,
     pub fields: Vec<ObjectField>,
     pub methods: Vec<ObjectMethod>,
     pub attributes: Vec<Spanned<ASTAttribute>>,
@@ -40,7 +40,7 @@ pub struct ObjectDeclaration {
 }
 #[derive(Debug)]
 pub struct ComponentDeclaration {
-    pub name: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub name: Spanned<DedupPoolId<Type>>,
     pub members: Vec<ComponentMember>,
     pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,
@@ -48,9 +48,9 @@ pub struct ComponentDeclaration {
 }
 #[derive(Debug)]
 pub struct FuncDeclaration {
-    pub name: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub name: Spanned<DedupPoolId<Type>>,
     pub args: Vec<Spanned<TypedName>>,
-    pub return_type: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub return_type: Spanned<DedupPoolId<Type>>,
     pub body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,
@@ -59,7 +59,7 @@ pub struct FuncDeclaration {
 }
 #[derive(Debug)]
 pub struct StyleSheet {
-    pub name: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub name: Spanned<DedupPoolId<Type>>,
     pub args: Vec<Spanned<TypedName>>,
     pub usages: Vec<Spanned<DedupPoolId<ASTExpression>>>,
     pub body: Vec<Spanned<StyleSheetStatement>>,
@@ -70,7 +70,7 @@ pub struct StyleSheet {
 #[derive(Debug)]
 pub struct StaticDeclaration {
     pub name: SymbolPointer,
-    pub ty: Spanned<DedupPoolId<GenericIdentifier>>,
+    pub ty: Spanned<DedupPoolId<Type>>,
     pub value: Option<Spanned<DedupPoolId<ASTExpression>>>, //option because, if not provided, it yet can be used, even though might lead to runtime bugs. Should be None only on externs
     pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,

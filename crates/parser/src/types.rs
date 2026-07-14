@@ -1,6 +1,6 @@
 use super::Parser;
 use crate::error::ParseError;
-use crate::{AliasDeclaration, ExpectedContent, TypedName};
+use crate::{ASTExpression, AliasDeclaration, ExpectedContent, Type, TypedName};
 use crate::{Result, ast::GenericIdentifier};
 use common::pool::DedupPoolId;
 use common::{Span, Spanned, VisibilityModifier};
@@ -15,10 +15,10 @@ impl Parser<'_> {
                 TypedName {
                     name,
                     kind: Spanned::new(
-                        self.intern_type(GenericIdentifier {
+                        self.intern_type(Type::Plain(GenericIdentifier {
                             generic: SmallVec::new(),
                             identifier: self.intern("Self"),
-                        }),
+                        })),
                         span,
                     ),
                 },
@@ -71,26 +71,22 @@ impl Parser<'_> {
     }
 
     ///Parses a type.
-    pub fn parse_type(&mut self) -> Result<Spanned<DedupPoolId<GenericIdentifier>>> {
+    pub fn parse_type(&mut self) -> Result<Spanned<DedupPoolId<Type>>> {
         let token = self.peek()?;
         let start_span = token.span;
-
         if let TokenKind::LParen = &token.kind {
             self.eat()?;
             if let TokenKind::RParen = self.peek()?.kind {
                 let end_span = self.eat()?.span;
-                let id = self.intern_type(GenericIdentifier {
+                let id = self.intern_type(Type::Plain(GenericIdentifier {
                     identifier: self.intern("()"),
                     generic: smallvec![],
-                });
-                return Ok(Spanned {
-                    data: id,
-                    span: end_span,
-                });
+                }));
+                return Ok(end_span.make_spanned(id));
             }
             let mut types = smallvec![];
             loop {
-                types.push(self.parse_type()?.data);
+                types.push(self.parse_type()?);
                 match self.peek()?.kind {
                     TokenKind::Comma => {
                         self.eat()?;
@@ -105,12 +101,34 @@ impl Parser<'_> {
                 }
             }
             let span = start_span.merge_with(self.eat()?.span);
-            let ty = self.intern_type(GenericIdentifier {
+            let ty = self.intern_type(Type::Plain(GenericIdentifier {
                 identifier: self.intern("()"),
                 generic: types,
-            });
+            }));
 
-            return Ok(Spanned::new(ty, span));
+            return Ok(span.make_spanned(ty));
+        }
+        if self.peek()?.kind == TokenKind::LBracket {
+            enum TypeVariant {
+                Vector,
+                Array(DedupPoolId<ASTExpression>),
+            }
+            let start_span = self.eat()?.span;
+            let ty = if self.peek()?.kind == TokenKind::RBracket {
+                self.eat()?;
+                TypeVariant::Vector
+            } else {
+                let expr = self.parse_expression()?;
+                self.expect(&TokenKind::RBracket)?;
+                TypeVariant::Array(expr.data)
+            };
+            let inner_type = self.parse_type()?;
+            let span = start_span.merge_with(inner_type.span);
+            let out = match ty {
+                TypeVariant::Vector => self.intern_type(Type::Vector(inner_type.data)),
+                TypeVariant::Array(size) => self.intern_type(Type::Array(inner_type.data, size)),
+            };
+            return Ok(span.make_spanned(out));
         }
         let (ident, mut span) = self.expect_identifier()?;
         if let Token {
@@ -126,20 +144,20 @@ impl Parser<'_> {
                     span.end = end.end;
                     break;
                 }
-                let ty = self.parse_type()?.data;
+                let ty = self.parse_type()?;
                 generics.push(ty);
             }
-            let id = self.intern_type(GenericIdentifier {
+            let id = self.intern_type(Type::Plain(GenericIdentifier {
                 generic: generics,
                 identifier: ident,
-            });
-            Ok(Spanned { data: id, span })
+            }));
+            Ok(span.make_spanned(id))
         } else {
-            let id = self.intern_type(GenericIdentifier {
+            let id = self.intern_type(Type::Plain(GenericIdentifier {
                 generic: smallvec![],
                 identifier: ident,
-            });
-            Ok(Spanned { data: id, span })
+            }));
+            Ok(span.make_spanned(id))
         }
     }
 }
