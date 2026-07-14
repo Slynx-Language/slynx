@@ -11,7 +11,7 @@ use std::{
 
 use common::{FrontendSymbol, Span, SymbolsModule, pool::DedupPool};
 use slynx_lexer::Lexer;
-use slynx_parser::{ASTExpression, ASTPath, ASTStatement, FileImport, GenericIdentifier, Parser};
+use slynx_parser::{ASTExpression, ASTPath, ASTStatement, FileImport, Parser, Type};
 use slynx_parser::{Program, SymbolPointer};
 
 pub trait SourceProvider<'a> {
@@ -22,7 +22,7 @@ pub struct SourceLoader<'a> {
     symbols: &'a SymbolsModule<FrontendSymbol>,
     statements: &'a DedupPool<ASTStatement>,
     expressions: &'a DedupPool<ASTExpression>,
-    types: &'a DedupPool<GenericIdentifier>,
+    types: &'a DedupPool<Type>,
 }
 
 impl<'a> SourceLoader<'a> {
@@ -30,7 +30,7 @@ impl<'a> SourceLoader<'a> {
         symbols: &'a SymbolsModule<FrontendSymbol>,
         statements: &'a DedupPool<ASTStatement>,
         expressions: &'a DedupPool<ASTExpression>,
-        types: &'a DedupPool<GenericIdentifier>,
+        types: &'a DedupPool<Type>,
     ) -> Self {
         Self {
             symbols,

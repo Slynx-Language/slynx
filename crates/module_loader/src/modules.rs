@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 use common::{FrontendSymbol, SymbolPointer, SymbolsModule, pool::DedupPoolId};
 use slynx_parser::{
     ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration,
-    GenericIdentifier, ObjectDeclaration,
+    ObjectDeclaration, Type,
 };
 
 use crate::{FileId, SourceLoader, SourceNode};
@@ -84,8 +84,11 @@ impl<'a> Modules<'a> {
     pub fn get_statement(&self, stmt: DedupPoolId<ASTStatement>) -> &ASTStatement {
         self.loader.statements.get(stmt)
     }
-    pub fn get_type(&self, ty: DedupPoolId<GenericIdentifier>) -> &GenericIdentifier {
+    pub fn get_type(&self, ty: DedupPoolId<Type>) -> &Type {
         self.loader.types.get(ty)
+    }
+    pub fn type_name(&self, ty: DedupPoolId<Type>) -> SymbolPointer<FrontendSymbol> {
+        self.loader.types.get(ty).name()
     }
 
     pub fn find_function_declaration(
@@ -95,8 +98,8 @@ impl<'a> Modules<'a> {
     ) -> Option<(FileId, &slynx_parser::FuncDeclaration)> {
         let module = &self.modules[module.as_raw() as usize];
         if let Some(v) = module.func().iter().find(|func| {
-            let t = self.loader.types.get(func.name.data);
-            t.identifier == name
+            let t = self.type_name(func.name.data);
+            t == name
         }) {
             return Some((module.id, v));
         }
@@ -165,7 +168,7 @@ impl<'a> Modules<'a> {
         let module_ref = &self.modules[raw];
 
         if let Some(strukt) = module_ref.object().iter().find_map(|strukt| {
-            let strukt_name = self.get_type(strukt.name.data).identifier;
+            let strukt_name = self.type_name(strukt.name.data);
             (strukt_name == name).then_some(ASTType {
                 owner: module,
                 content: ASTTypeKind::Struct(strukt),
@@ -174,7 +177,7 @@ impl<'a> Modules<'a> {
             return Some(strukt);
         }
         if let Some(component) = module_ref.component().iter().find_map(|component| {
-            let component_name = self.get_type(component.name.data).identifier;
+            let component_name = self.type_name(component.name.data);
             (component_name == name).then_some(ASTType {
                 owner: module,
                 content: ASTTypeKind::Component(component),
@@ -184,7 +187,7 @@ impl<'a> Modules<'a> {
         }
 
         if let Some(alias) = module_ref.alias().iter().find_map(|alias| {
-            let alias_name = self.get_type(alias.name.data).identifier;
+            let alias_name = self.type_name(alias.name.data);
             (alias_name == name).then_some(ASTType {
                 owner: module,
                 content: ASTTypeKind::Alias(alias),

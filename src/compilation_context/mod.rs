@@ -14,7 +14,7 @@ use slynx_hir::SlynxHir;
 use slynx_ir::SlynxIR;
 use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
-use slynx_parser::{ASTExpression, ASTStatement, GenericIdentifier, Parser, Program};
+use slynx_parser::{ASTExpression, ASTStatement, Parser, Program, Type};
 
 pub use crate::compilation_context::errors::*;
 
@@ -130,7 +130,7 @@ pub struct GlobalPools {
     names: SymbolsModule<FrontendSymbol>,
     expressions: DedupPool<ASTExpression>,
     statements: DedupPool<ASTStatement>,
-    types: DedupPool<GenericIdentifier>,
+    types: DedupPool<Type>,
 }
 impl Default for GlobalPools {
     fn default() -> Self {

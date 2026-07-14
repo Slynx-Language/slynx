@@ -15,8 +15,8 @@ use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
 use module_loader::{ASTType, ASTTypeKind, FileId, Modules};
 use slynx_parser::{
-    ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration, GenericIdentifier,
-    StaticDeclaration,
+    ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration,
+    StaticDeclaration, Type,
 };
 
 use crate::{
@@ -91,13 +91,13 @@ impl HirNode<'_> {
     ///Finds the Hir type for the given `ty` and what file contains it if theres some. The given `file` is the file id where the given `ty` was generated at
     fn find_type(
         &self,
-        ty: Spanned<DedupPoolId<GenericIdentifier>>,
+        ty: Spanned<DedupPoolId<Type>>,
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
         let real = self.modules.get_type(ty.data);
 
         if let Some(ty) = self
             .modules
-            .find_type_inside_module(self.entry, real.identifier)
+            .find_type_inside_module(self.entry, real.name())
         {
             let id = match ty.content {
                 ASTTypeKind::Builtin(builtin) => self.hir.create_type(builtin.into()),
@@ -105,7 +105,7 @@ impl HirNode<'_> {
                     return self.find_type(alias.target);
                 }
                 ASTTypeKind::Struct(s) => {
-                    let struct_name = self.get_type(s.name.data).identifier;
+                    let struct_name = self.type_name(s.name.data);
                     let fields = s
                         .fields
                         .iter()
@@ -142,7 +142,7 @@ impl HirNode<'_> {
             };
             Ok((ty.owner, id))
         } else {
-            Err(HIRError::type_unrecognized(real.identifier, ty.span))
+            Err(HIRError::type_unrecognized(real.name(), ty.span))
         }
     }
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
@@ -164,7 +164,7 @@ impl HirNode<'_> {
         &self,
         component: &ComponentDeclaration,
     ) -> Result<DedupPoolId<HirType>> {
-        let name = self.get_type(component.name.data).identifier;
+        let name = self.type_name(component.name.data);
         let (properties, children) = {
             let mut properties = Vec::with_capacity(component.members.len());
             let mut components = Vec::with_capacity(component.members.len());
@@ -184,7 +184,7 @@ impl HirNode<'_> {
                         if let Some(view) = view.is_component() {
                             components.push(view.data);
                         } else {
-                            let name = self.get_type(c.data.name.data).identifier;
+                            let name = self.type_name(c.data.name.data);
                             return Err(HIRError::not_a_component(name, c.span));
                         };
                     }
@@ -200,7 +200,7 @@ impl HirNode<'_> {
         &self,
         component: &ComponentDeclaration,
     ) -> Result<DedupPoolId<HirType>> {
-        let name = self.get_type(component.name.data).identifier;
+        let name = self.type_name(component.name.data);
         let key = (self.entry, name);
 
         // Push onto cycle-detection stack
@@ -367,7 +367,7 @@ impl<'a> HirQueueBuilder<'a> {
         let method = obj_decl
             .methods
             .iter()
-            .find(|m| self.modules.get_type(m.method_name.data).identifier == method_name);
+            .find(|m| self.modules.type_name(m.method_name.data) == method_name);
 
         let Some(method) = method else {
             return Ok(None);
@@ -379,7 +379,7 @@ impl<'a> HirQueueBuilder<'a> {
 
         let mut args = Vec::with_capacity(method.arguments.len());
         for arg in &method.arguments {
-            let ty = if self.modules.get_type(arg.data.kind.data).identifier == self_sym {
+            let ty = if self.modules.type_name(arg.data.kind.data) == self_sym {
                 struct_ty
             } else {
                 let (_, ty) = node.find_type(arg.data.kind)?;
@@ -388,7 +388,7 @@ impl<'a> HirQueueBuilder<'a> {
             args.push(ty);
         }
 
-        let return_type = if self.modules.get_type(method.return_type.data).identifier == self_sym {
+        let return_type = if self.modules.type_name(method.return_type.data) == self_sym {
             struct_ty
         } else {
             let (_, ty) = node.find_type(method.return_type)?;

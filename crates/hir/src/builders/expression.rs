@@ -6,7 +6,7 @@ use common::{
 };
 use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{
-    ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, GenericIdentifier,
+    ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, Type,
 };
 
 use crate::{
@@ -160,9 +160,9 @@ impl ExpressionBuilder {
     fn lookup_function(
         &self,
         queue: &HirQueueBuilder<'_>,
-        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        name: Spanned<DedupPoolId<Type>>,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let identifier = queue.get_type(name.data).identifier;
+        let identifier = queue.type_name(name.data);
 
         if let Some(func) = queue
             .hir
@@ -229,7 +229,7 @@ impl ExpressionBuilder {
                 }
             }
             ASTExpression::FunctionCall { name, args } => {
-                let name_sym = queue.get_type(name.data).identifier;
+                let name_sym = queue.type_name(name.data);
                 let parent_ty = queue.hir[parent.data].ty;
                 let real_ty = queue.hir.view(parent_ty);
                 let deref = real_ty.dereference();
@@ -418,7 +418,7 @@ impl ExpressionBuilder {
                 let expected_args = func_real_type.arguments();
 
                 if expected_args.len() != args.len() {
-                    let func_name = queue.get_type(name.data).identifier;
+                    let func_name = queue.type_name(name.data);
                     return Err(HIRError::invalid_funcall_arg_length(
                         func_name,
                         expected_args.len(),
@@ -653,7 +653,7 @@ impl ExpressionBuilder {
         component: &ComponentExpression,
         span: Span,
     ) -> Result<Spanned<PoolId<HirComponentExpression>>> {
-        let name = queue.get_type(component.name.data).identifier;
+        let name = queue.type_name(component.name.data);
         let node = queue.get_node(self.file());
         let (owner, ty) = node.find_type(component.name)?;
         if queue

@@ -95,7 +95,7 @@ impl<'a> HirQueueBuilder<'a> {
     ) -> Result<DeclarationId<HirComponentDeclaration>> {
         let node = self.get_node(node);
         let (owner, ty) = node.find_type(component.name)?;
-        let name = self.modules.get_type(component.name.data).identifier;
+        let name = self.modules.type_name(component.name.data);
         let id = self.hir.symbols_registry.get_or_insert_component(
             HirSymbol::new(owner, name),
             || {
