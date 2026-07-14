@@ -1,0 +1,7 @@
+func main(){
+    let a: [4]int = [1,2,3,4];
+    let b = []int = [];
+    let c = a[:];
+    let d = a[1:]
+    let e = a[1:3];
+}
