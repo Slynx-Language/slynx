@@ -1,6 +1,6 @@
 use common::{Operator, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
+    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType,
     SlynxHir, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
@@ -203,6 +203,24 @@ impl Codegen {
         let expression = &hir[expr.data];
 
         let value = match &expression.kind {
+            HirExpressionKind::Array(arr) => {
+                let view_type = hir.view(expression.ty);
+                let values = arr
+                    .iter()
+                    .map(|expr| self.lower_expression(*expr, hir, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let value_type = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
+                match view_type.raw() {
+                    HirType::Array(ty, s) => context.emit(Opcode::Array, values, value_type),
+                    HirType::Vector(ty) => context.emit(Opcode::Vector, values, value_type),
+                    ty => {
+                        return Err(CodegenError::InternalError(format!(
+                            "When generating an array expression, got it with type '{}'. For some reason the HIR did not generate the type properly",
+                            view_type.name()
+                        )));
+                    }
+                }
+            }
             HirExpressionKind::Static { id } => {
                 if let Some(ty) = self.external_statics.get(id) {
                     let name = hir.get_name(hir.get_file(id.file_id)[id.local_id].name);

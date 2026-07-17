@@ -133,6 +133,8 @@ pub enum Opcode {
 
     Global(IRPointer<GlobalValue, 1>),
     GlobalExtern(SymbolPointer),
+    Array,
+    Vector,
 }
 
 // ── Instruction ────────────────────────────────────────────────────────────
