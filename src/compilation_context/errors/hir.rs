@@ -11,6 +11,7 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::CouldntInfer => format!("Could not infer the type of expression"),
             HIRErrorKind::ComponentNotFound(name) => format!(
                 "Component named as '{}' could not be found",
                 hir.get_name(*name)
