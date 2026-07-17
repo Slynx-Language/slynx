@@ -49,6 +49,7 @@ pub enum ASTExpression {
         body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
         else_body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     },
+    Array(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
 }
 
 impl ASTExpression {

@@ -1,6 +1,5 @@
 use crate::{
-    ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, Type,
-    NamedExpr,
+    ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, NamedExpr, Type,
 };
 use crate::{Parser, Result, error::ParseError};
 use common::pool::DedupPoolId;
@@ -455,12 +454,33 @@ impl Parser<'_> {
         Ok(lhs)
     }
 
+    pub fn parse_array(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut exprs = SmallVec::new();
+        loop {
+            if self.peek()?.kind == TokenKind::RBracket {
+                break;
+            }
+            let expr = self.parse_expression()?;
+            self.expect(&TokenKind::Comma)?;
+            exprs.push(expr);
+        }
+        let end = self.expect(&TokenKind::RBracket)?.span;
+        let id = self.intern_expression(ASTExpression::Array(exprs));
+        Ok(span.merge_with(end).make_spanned(id))
+    }
+
     /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.
     pub fn parse_expression(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        if self.peek()?.kind == TokenKind::If {
-            let span = self.eat()?.span;
-            return self.parse_if(span);
+        match self.peek()?.kind {
+            TokenKind::If => {
+                let span = self.eat()?.span;
+                self.parse_if(span)
+            }
+            TokenKind::LBracket => {
+                let span = self.eat()?.span;
+                self.parse_array(span)
+            }
+            _ => self.parse_logical(),
         }
-        self.parse_logical()
     }
 }
