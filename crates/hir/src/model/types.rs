@@ -266,6 +266,8 @@ pub struct StyleType {
 /// - [`crate::hir::model::ComponentProperty`] — Component property definitions
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum HirType {
+    Array(DedupPoolId<HirType>, usize),
+    Vector(DedupPoolId<HirType>),
     /// A struct type with named fields.
     ///
     /// Structs are user-defined data structures with a fixed set of named fields.

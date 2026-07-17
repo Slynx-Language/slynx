@@ -31,6 +31,7 @@ pub enum InvalidWriteReason {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    CouldntInfer,
     NotAComponent(SymbolPointer),
     ComponentPropertyMissingType,
     ComponentNotFound(SymbolPointer),
@@ -154,6 +155,12 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn couldnt_infer(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::CouldntInfer,
+            span,
+        }
+    }
     pub fn component_not_found(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::ComponentNotFound(name),
@@ -376,6 +383,7 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::CouldntInfer => write!(f, "Expression type couldn't be infered"),
             HIRErrorKind::ComponentNotFound(_) => write!(f, "Component not found"),
             HIRErrorKind::NotAComponent(_) => write!(f, "Atempt to use value as a component"),
             HIRErrorKind::ComponentPropertyMissingType => {

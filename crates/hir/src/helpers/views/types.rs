@@ -48,6 +48,14 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
         }
     }
 
+    pub fn is_array(&self) -> Option<(DedupPoolId<HirType>, usize)> {
+        if let HirType::Array(inner, size) = self.hir.deref()[self.data] {
+            Some((inner, size))
+        } else {
+            None
+        }
+    }
+
     pub fn is_function(&self) -> Option<HirViewer<'_, DedupPoolId<FunctionType>>> {
         if let HirType::Function(f) = self.hir.deref()[self.data] {
             Some(self.new_with(f))
