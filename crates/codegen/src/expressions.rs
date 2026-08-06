@@ -5,7 +5,7 @@ use slynx_hir::{
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 use crate::{Codegen, CodegenError, TypeId, functions::FunctionContext};
 
@@ -203,6 +203,13 @@ impl Codegen {
         let expression = &hir[expr.data];
 
         let value = match &expression.kind {
+            HirExpressionKind::ArrayIndex(arr, index) => {
+                let index = self.lower_expression(*index, hir, context)?;
+                let arr_type = hir.view(expr.data).ty();
+                let arr = self.lower_expression(*arr, hir, context)?;
+                let ty = self.get_or_create_ir_type(&arr_type, hir, context.ir())?;
+                context.emit(Opcode::ArrayGet, smallvec![arr, index], ty)
+            }
             HirExpressionKind::Array(arr) => {
                 let view_type = hir.view(expression.ty);
                 let values = arr

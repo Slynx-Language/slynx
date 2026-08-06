@@ -557,4 +557,8 @@ pub enum HirExpressionKind {
         id: DeclarationId<HirStaticDeclaration>,
     },
     Array(Vec<Spanned<PoolId<HirExpression>>>),
+    ArrayIndex(
+        Spanned<PoolId<HirExpression>>,
+        Spanned<PoolId<HirExpression>>,
+    ),
 }

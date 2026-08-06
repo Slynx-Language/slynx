@@ -31,6 +31,13 @@ pub enum InvalidWriteReason {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    UnexpectedType {
+        expected: DedupPoolId<HirType>,
+        received: DedupPoolId<HirType>,
+    },
+    ///Invalid indexing error occurs when the expression being indexed cannot be indexed. So 5[12] cannot be indexed, which then gives this error
+    InvalidIndexing,
+    ///Couldnt infer is an error when the type of something could not be inferred
     CouldntInfer,
     NotAComponent(SymbolPointer),
     ComponentPropertyMissingType,
@@ -38,6 +45,7 @@ pub enum HIRErrorKind {
 
     InvalidWrite(InvalidWriteReason),
 
+    ///An invalid field access occurs when some invalid expression is used to access a field. For example 'struct."j"' this is invalid because we cannot index things with strings since the struct layout is not runtime based
     InvalidFieldAccess,
     /// A type name was used but is not defined in the current scope.
     TypeNotRecognized(SymbolPointer),
@@ -155,6 +163,22 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn invalid_indexing(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidIndexing,
+            span,
+        }
+    }
+    pub fn unexpected_type(
+        received: DedupPoolId<HirType>,
+        expected: DedupPoolId<HirType>,
+        span: Span,
+    ) -> Self {
+        Self {
+            kind: HIRErrorKind::UnexpectedType { received, expected },
+            span,
+        }
+    }
     pub fn couldnt_infer(span: Span) -> Self {
         Self {
             kind: HIRErrorKind::CouldntInfer,
@@ -383,6 +407,13 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::UnexpectedType { .. } => {
+                write!(f, "Received mismatched types")
+            }
+            HIRErrorKind::InvalidIndexing => write!(
+                f,
+                "The given expression cannot be indexed because it is not an array nor vector"
+            ),
             HIRErrorKind::CouldntInfer => write!(f, "Expression type couldn't be infered"),
             HIRErrorKind::ComponentNotFound(_) => write!(f, "Component not found"),
             HIRErrorKind::NotAComponent(_) => write!(f, "Atempt to use value as a component"),

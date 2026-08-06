@@ -421,6 +421,7 @@ impl<'a> Formatter<'a> {
 
     pub fn format_instruction(&self, instr: &Instruction) -> String {
         match &instr.opcode {
+            Opcode::ArrayGet => format!("array_get {}", self.fmt_operands(&instr.operands)),
             Opcode::Array => format!("[{}]", self.fmt_operands(&instr.operands)),
             Opcode::Vector => format!("vec[{}]", self.fmt_operands(&instr.operands)),
             Opcode::GlobalExtern(global) => format!("@extern \"{}\"", self.ir.get_name(*global)),

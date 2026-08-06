@@ -8,7 +8,9 @@ use common::{
     pool::{DedupPoolId, PoolId},
 };
 use module_loader::{ASTType, ASTTypeKind, FileId};
-use slynx_parser::{ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, Type};
+use slynx_parser::{
+    ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, RangeType, Type,
+};
 
 use crate::{
     DeclarationId, HIRError, HirComponentExpression, HirExpression, HirExpressionKind,
@@ -401,7 +403,6 @@ impl ExpressionBuilder {
         })
     }
 
-    #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn build_expression(
         &mut self,
         queue: &HirQueueBuilder<'_>,
@@ -410,6 +411,40 @@ impl ExpressionBuilder {
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let expr = queue.get_expr(expression.data);
         let expr = match expr {
+            ASTExpression::IndexExpression(expr, range) => {
+                let expr = self.build_expression(queue, *expr, expected)?;
+                let after_index_type = {
+                    let expr_type = queue.hir[expr.data].ty;
+                    let actual_type = queue.hir.deref()[expr_type].clone();
+                    match actual_type {
+                        HirType::Vector(t) => t,
+                        HirType::Array(t, _) => t,
+                        _ => return Err(HIRError::invalid_indexing(expression.span)),
+                    }
+                };
+                match range {
+                    RangeType::NoRange(index) => {
+                        let index = self.build_expression(queue, *index, expected)?;
+                        let viewer = queue.hir.view(index.data);
+                        let ty_viewer = viewer.ty_viewer();
+                        match ty_viewer.raw() {
+                            HirType::Int => {}
+                            _ => {
+                                return Err(HIRError::unexpected_type(
+                                    ty_viewer.data,
+                                    queue.hir.create_type(HirType::Int),
+                                    index.span,
+                                ));
+                            }
+                        }
+                        HirExpression {
+                            kind: HirExpressionKind::ArrayIndex(expr, index),
+                            ty: after_index_type,
+                        }
+                    }
+                    _ => unimplemented!("Ranges are not implemented yet"),
+                }
+            }
             ASTExpression::False => HirExpression {
                 ty: queue.hir.create_type(HirType::Bool),
                 kind: HirExpressionKind::False,
