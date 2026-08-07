@@ -28,7 +28,7 @@ pub struct Parser<'a> {
     symbols: &'a SymbolsModule<FrontendSymbol>,
     expressions: &'a DedupPool<ASTExpression>,
     statements: &'a DedupPool<ASTStatement>,
-    types: &'a DedupPool<GenericIdentifier>,
+    types: &'a DedupPool<Type>,
     flags: ParserFlags,
     stream: TokenStream,
 }
@@ -40,7 +40,7 @@ impl<'a> Parser<'a> {
         symbols: &'a SymbolsModule<FrontendSymbol>,
         expressions: &'a DedupPool<ASTExpression>,
         statements: &'a DedupPool<ASTStatement>,
-        types: &'a DedupPool<GenericIdentifier>,
+        types: &'a DedupPool<Type>,
     ) -> Self {
         Parser {
             types,

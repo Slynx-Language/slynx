@@ -1,17 +1,17 @@
 use common::{Spanned, pool::DedupPoolId};
 
-use crate::{ASTExpression, GenericIdentifier, NamedExpr, StyleState, SymbolPointer};
+use crate::{ASTExpression, NamedExpr, StyleState, SymbolPointer, Type};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ASTStatement {
     Var {
         name: SymbolPointer,
-        ty: Option<Spanned<DedupPoolId<GenericIdentifier>>>,
+        ty: Option<Spanned<DedupPoolId<Type>>>,
         rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     MutableVar {
         name: SymbolPointer,
-        ty: Option<Spanned<DedupPoolId<GenericIdentifier>>>,
+        ty: Option<Spanned<DedupPoolId<Type>>>,
         rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     Assign {

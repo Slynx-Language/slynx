@@ -87,6 +87,7 @@ use crate::{
     DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, HirType, SymbolPointer,
     VariableId, model::HirStatement,
 };
+
 use common::{
     Operator, Spanned,
     pool::{DedupPoolId, PoolId},
@@ -555,4 +556,12 @@ pub enum HirExpressionKind {
     Static {
         id: DeclarationId<HirStaticDeclaration>,
     },
+    Array(Vec<Spanned<PoolId<HirExpression>>>),
+    /// A vector literal, delimited by `{` and `}` in source. Unlike [`Array`](HirExpressionKind::Array),
+    /// the size of a vector is dynamic.
+    Vector(Vec<Spanned<PoolId<HirExpression>>>),
+    ArrayIndex(
+        Spanned<PoolId<HirExpression>>,
+        Spanned<PoolId<HirExpression>>,
+    ),
 }

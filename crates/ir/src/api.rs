@@ -1,9 +1,17 @@
 use crate::{
-    Component, ComponentBuilder, ControlFlowGraph, Function, IRPointer, IRTypeId, SlynxIR,
+    Component, ComponentBuilder, ControlFlowGraph, Function, IRPointer, IRType, IRTypeId, SlynxIR,
     builder::FunctionBuilder,
 };
 
 impl SlynxIR {
+    pub fn create_vector(&self, ty: IRTypeId) -> IRTypeId {
+        self.types.insert_type(IRType::Vector(ty))
+    }
+
+    pub fn create_array(&self, ty: IRTypeId, len: usize) -> IRTypeId {
+        self.types.insert_type(IRType::Array(ty, len))
+    }
+
     pub fn create_struct(&mut self, name: &str) -> IRTypeId {
         let name = self.strings.intern(name);
         self.create_empty_struct(name).0

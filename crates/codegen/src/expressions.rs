@@ -5,7 +5,7 @@ use slynx_hir::{
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 use crate::{Codegen, CodegenError, TypeId, functions::FunctionContext};
 
@@ -71,6 +71,7 @@ impl Codegen {
             let IRType::Function(fid) = ctx.ir().get_type(ty) else {
                 unreachable!()
             };
+            let fid = *fid;
             ctx.ir().get_function_type(fid).get_return_type()
         };
         let mut arg_values = Vec::with_capacity(args.len());
@@ -203,6 +204,29 @@ impl Codegen {
         let expression = &hir[expr.data];
 
         let value = match &expression.kind {
+            HirExpressionKind::ArrayIndex(arr, index) => {
+                let index = self.lower_expression(*index, hir, context)?;
+                let arr_type = hir.view(expr.data).ty();
+                let arr = self.lower_expression(*arr, hir, context)?;
+                let ty = self.get_or_create_ir_type(&arr_type, hir, context.ir())?;
+                context.emit(Opcode::ArrayGet, smallvec![arr, index], ty)
+            }
+            HirExpressionKind::Array(arr) => {
+                let values = arr
+                    .iter()
+                    .map(|expr| self.lower_expression(*expr, hir, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let value_type = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
+                context.emit(Opcode::Array, values, value_type)
+            }
+            HirExpressionKind::Vector(vec) => {
+                let values = vec
+                    .iter()
+                    .map(|expr| self.lower_expression(*expr, hir, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let value_type = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
+                context.emit(Opcode::Vector, values, value_type)
+            }
             HirExpressionKind::Static { id } => {
                 if let Some(ty) = self.external_statics.get(id) {
                     let name = hir.get_name(hir.get_file(id.file_id)[id.local_id].name);

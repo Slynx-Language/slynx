@@ -26,7 +26,7 @@ impl<'a> HirQueueBuilder<'a> {
         f: &'a FuncDeclaration,
         node: HirNode<'_>,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let name = self.modules.get_type(f.name.data).identifier;
+        let name = self.modules.type_name(f.name.data);
         let signature = node.get_signature_of_function(f)?;
         let names = f.args.iter().map(|arg| arg.data.name).collect();
         let id = self.hir.symbols_registry.get_or_insert_function(

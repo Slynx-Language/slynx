@@ -101,6 +101,10 @@ pub enum TokenKind {
     LBrace,
     #[token("}")]
     RBrace,
+    #[token("[")]
+    LBracket,
+    #[token("]")]
+    RBracket,
     #[token(";")]
     SemiColon,
     #[token("<")]

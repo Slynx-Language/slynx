@@ -33,6 +33,14 @@ impl Codegen {
                 };
                 ir.create_or_get_tuple(ir_fields)
             }
+            HirType::Array(t, len) => {
+                let ty = self.get_or_create_ir_type(t, hir, ir)?;
+                ir.create_array(ty, *len)
+            }
+            HirType::Vector(t) => {
+                let ty = self.get_or_create_ir_type(t, hir, ir)?;
+                ir.create_vector(ty)
+            }
 
             _ => return Err(CodegenError::IRTypeNotRecognized(*ty)),
         };

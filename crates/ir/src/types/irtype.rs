@@ -1,3 +1,5 @@
+use common::pool::DedupPoolId;
+
 use crate::{
     IRComponentId, IRSpecializedComponentType, IRStructId, types::functions::IRFunctionId,
 };
@@ -27,15 +29,6 @@ pub enum IRType {
     Component(IRComponentId),
     Struct(IRStructId),
     Function(IRFunctionId),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-///A reference to some type on the IR
-pub struct IRTypeId(pub usize);
-
-impl IRTypeId {
-    ///Creates a new `IRTypeId` from a raw usize
-    pub fn from_raw(raw: usize) -> Self {
-        IRTypeId(raw)
-    }
+    Array(DedupPoolId<IRType>, usize),
+    Vector(DedupPoolId<IRType>),
 }

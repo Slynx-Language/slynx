@@ -133,6 +133,10 @@ pub enum Opcode {
 
     Global(IRPointer<GlobalValue, 1>),
     GlobalExtern(SymbolPointer),
+    Array,
+    Vector,
+    ///Gets the array on the given index. The first operand is the value to be indexed, and the second operand is the index
+    ArrayGet,
 }
 
 // ── Instruction ────────────────────────────────────────────────────────────

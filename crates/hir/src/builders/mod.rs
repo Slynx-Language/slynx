@@ -15,8 +15,8 @@ use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
 use module_loader::{ASTType, ASTTypeKind, FileId, Modules};
 use slynx_parser::{
-    ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration, GenericIdentifier,
-    StaticDeclaration,
+    ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration,
+    StaticDeclaration, Type,
 };
 
 use crate::{
@@ -89,60 +89,80 @@ pub struct HirQueueBuilder<'a> {
 
 impl HirNode<'_> {
     ///Finds the Hir type for the given `ty` and what file contains it if theres some. The given `file` is the file id where the given `ty` was generated at
-    fn find_type(
+    pub fn find_type(
         &self,
-        ty: Spanned<DedupPoolId<GenericIdentifier>>,
+        ty: Spanned<DedupPoolId<Type>>,
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
         let real = self.modules.get_type(ty.data);
+        match real {
+            Type::Plain(_) => {
+                let name = self.modules.type_name(ty.data);
+                if let Some(ty) = self.modules.find_type_inside_module(self.entry, name) {
+                    let id = match ty.content {
+                        ASTTypeKind::Builtin(builtin) => self.hir.create_type(builtin.into()),
+                        ASTTypeKind::Alias(alias) => {
+                            return self.find_type(alias.target);
+                        }
+                        ASTTypeKind::Struct(s) => {
+                            let struct_name = self.type_name(s.name.data);
+                            let fields = s
+                                .fields
+                                .iter()
+                                .map(|field| {
+                                    let field_name = field.name.data.name;
+                                    let field_ty = field.name.data.kind;
+                                    let (_, type_id) = self.find_type(field_ty)?;
 
-        if let Some(ty) = self
-            .modules
-            .find_type_inside_module(self.entry, real.identifier)
-        {
-            let id = match ty.content {
-                ASTTypeKind::Builtin(builtin) => self.hir.create_type(builtin.into()),
-                ASTTypeKind::Alias(alias) => {
-                    return self.find_type(alias.target);
+                                    Ok(Visible::new(field.visibility, (field_name, type_id)))
+                                })
+                                .collect::<Result<Vec<_>>>()?;
+
+                            let struct_ty =
+                                self.hir.create_struct_type(struct_name, fields, Vec::new());
+                            // Register a HirObjectDeclaration so the codegen's
+                            // hoist_declarations can create an IR struct for this type.
+                            let file = self.hir.get_or_create_file(ty.owner);
+                            let already = file
+                                .declarations
+                                .objects
+                                .iter()
+                                .any(|d| d.name == struct_name);
+                            if !already {
+                                file.create_object(HirObjectDeclaration {
+                                    name: struct_name,
+                                    ty: struct_ty,
+                                    visibility: s.visibility,
+                                    external: s.external,
+                                    attributes: Vec::new(),
+                                });
+                            }
+                            struct_ty
+                        }
+                        ASTTypeKind::Component(component) => {
+                            self.resolve_component_signature(component)?
+                        }
+                    };
+                    Ok((ty.owner, id))
+                } else {
+                    Err(HIRError::type_unrecognized(name, ty.span))
                 }
-                ASTTypeKind::Struct(s) => {
-                    let struct_name = self.get_type(s.name.data).identifier;
-                    let fields = s
-                        .fields
-                        .iter()
-                        .map(|field| {
-                            let field_name = field.name.data.name;
-                            let field_ty = field.name.data.kind;
-                            let (_, type_id) = self.find_type(field_ty)?;
-
-                            Ok(Visible::new(field.visibility, (field_name, type_id)))
-                        })
-                        .collect::<Result<Vec<_>>>()?;
-
-                    let struct_ty = self.hir.create_struct_type(struct_name, fields, Vec::new());
-                    // Register a HirObjectDeclaration so the codegen's
-                    // hoist_declarations can create an IR struct for this type.
-                    let file = self.hir.get_or_create_file(ty.owner);
-                    let already = file
-                        .declarations
-                        .objects
-                        .iter()
-                        .any(|d| d.name == struct_name);
-                    if !already {
-                        file.create_object(HirObjectDeclaration {
-                            name: struct_name,
-                            ty: struct_ty,
-                            visibility: s.visibility,
-                            external: s.external,
-                            attributes: Vec::new(),
-                        });
-                    }
-                    struct_ty
-                }
-                ASTTypeKind::Component(component) => self.resolve_component_signature(component)?,
-            };
-            Ok((ty.owner, id))
-        } else {
-            Err(HIRError::type_unrecognized(real.identifier, ty.span))
+            }
+            Type::Array(t, len) => {
+                let (id, ty) = self.find_type(ty.span.make_spanned(*t))?;
+                let len = match self.modules.get_expr(*len) {
+                    ASTExpression::IntLiteral(i) => *i as usize,
+                    _ => unimplemented!(
+                        "Array length can only be used as integers at the moment. It is idealized to be used in comptime in the future"
+                    ),
+                };
+                let ty = self.hir.create_type(HirType::Array(ty, len));
+                Ok((id, ty))
+            }
+            Type::Vector(t) => {
+                let (id, ty) = self.find_type(ty.span.make_spanned(*t))?;
+                let ty = self.hir.create_type(HirType::Vector(ty));
+                Ok((id, ty))
+            }
         }
     }
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
@@ -164,7 +184,7 @@ impl HirNode<'_> {
         &self,
         component: &ComponentDeclaration,
     ) -> Result<DedupPoolId<HirType>> {
-        let name = self.get_type(component.name.data).identifier;
+        let name = self.type_name(component.name.data);
         let (properties, children) = {
             let mut properties = Vec::with_capacity(component.members.len());
             let mut components = Vec::with_capacity(component.members.len());
@@ -184,7 +204,7 @@ impl HirNode<'_> {
                         if let Some(view) = view.is_component() {
                             components.push(view.data);
                         } else {
-                            let name = self.get_type(c.data.name.data).identifier;
+                            let name = self.type_name(c.data.name.data);
                             return Err(HIRError::not_a_component(name, c.span));
                         };
                     }
@@ -200,7 +220,7 @@ impl HirNode<'_> {
         &self,
         component: &ComponentDeclaration,
     ) -> Result<DedupPoolId<HirType>> {
-        let name = self.get_type(component.name.data).identifier;
+        let name = self.type_name(component.name.data);
         let key = (self.entry, name);
 
         // Push onto cycle-detection stack
@@ -367,7 +387,7 @@ impl<'a> HirQueueBuilder<'a> {
         let method = obj_decl
             .methods
             .iter()
-            .find(|m| self.modules.get_type(m.method_name.data).identifier == method_name);
+            .find(|m| self.modules.type_name(m.method_name.data) == method_name);
 
         let Some(method) = method else {
             return Ok(None);
@@ -379,7 +399,7 @@ impl<'a> HirQueueBuilder<'a> {
 
         let mut args = Vec::with_capacity(method.arguments.len());
         for arg in &method.arguments {
-            let ty = if self.modules.get_type(arg.data.kind.data).identifier == self_sym {
+            let ty = if self.modules.type_name(arg.data.kind.data) == self_sym {
                 struct_ty
             } else {
                 let (_, ty) = node.find_type(arg.data.kind)?;
@@ -388,7 +408,7 @@ impl<'a> HirQueueBuilder<'a> {
             args.push(ty);
         }
 
-        let return_type = if self.modules.get_type(method.return_type.data).identifier == self_sym {
+        let return_type = if self.modules.type_name(method.return_type.data) == self_sym {
             struct_ty
         } else {
             let (_, ty) = node.find_type(method.return_type)?;

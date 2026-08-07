@@ -4,6 +4,7 @@ mod irtype;
 mod structs;
 mod tuple;
 
+use common::pool::{DedupPool, DedupPoolId};
 pub use components::*;
 pub use functions::*;
 pub use irtype::*;
@@ -32,19 +33,29 @@ pub const BUILTIN_TYPES: &[IRType] = &[
     IRType::Specialized(IRSpecializedComponentType::Div),
     IRType::Specialized(IRSpecializedComponentType::Text),
 ];
-
-#[derive(Debug, Default)]
+pub type IRTypeId = DedupPoolId<IRType>;
+#[derive(Debug)]
 pub struct IRTypes {
-    types: Vec<IRType>,
+    types: DedupPool<IRType>,
     structs: Vec<IRStruct>,
     functions: Vec<IRFunction>,
     components: Vec<IRComponent>,
 }
 
+impl std::default::Default for IRTypes {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IRTypes {
     pub fn new() -> Self {
+        let types = DedupPool::new();
+        for builtin in BUILTIN_TYPES {
+            types.insert(*builtin);
+        }
         Self {
-            types: BUILTIN_TYPES.to_vec(),
+            types,
             structs: Vec::new(),
             functions: Vec::new(),
             components: Vec::new(),
@@ -59,23 +70,18 @@ impl IRTypes {
     }
 
     ///Checks if the provided `ty` is some variant of unsigned int
-    pub fn is_negative_int(&self, ty: IRTypeId) -> bool {
-        let index = self.usize_type().0;
-        if ty.0 == index {
-            let typ = self.types[ty.0];
-            typ == IRType::U8
-                || typ == IRType::U16
-                || typ == IRType::U32
-                || typ == IRType::U64
-                || typ == IRType::USIZE
-        } else {
-            false
-        }
+    pub fn is_negative_int(&self, ty: DedupPoolId<IRType>) -> bool {
+        let typ = *self.types.get(ty);
+        typ == IRType::U8
+            || typ == IRType::U16
+            || typ == IRType::U32
+            || typ == IRType::U64
+            || typ == IRType::USIZE
     }
 
     ///Retrieves the raw IR type from the provided `id`
-    pub fn get_type(&self, id: IRTypeId) -> IRType {
-        self.types[id.0]
+    pub fn get_type(&self, id: IRTypeId) -> &IRType {
+        self.types.get(id)
     }
 
     ///Gets a mutable referente to the type of the function with the provided `id`
@@ -96,7 +102,7 @@ impl IRTypes {
     ///Panics if `ty` is not a Struct or Component, or if `field_index` is out of bounds.
     pub fn get_field_type(&self, ty: IRTypeId, field_index: u16) -> IRTypeId {
         let field_index = field_index as usize;
-        match self.types[ty.0] {
+        match self.types.get(ty) {
             IRType::Struct(sid) => self.structs[sid.0].get_fields()[field_index],
             IRType::Component(cid) => self.components[cid.0].fields[field_index],
             ref other => panic!(
@@ -120,64 +126,67 @@ impl IRTypes {
     }
 
     #[inline]
-    fn find_type_index(&self, ty: IRType) -> Option<IRTypeId> {
-        self.types.iter().position(|v| *v == ty).map(IRTypeId)
+    ///Inserts the given `ty` and returns its ID.
+    pub fn insert_type(&self, ty: IRType) -> IRTypeId {
+        self.types.insert(ty)
+    }
+
+    pub fn vector_type(&self, ty: IRTypeId) -> IRTypeId {
+        let ty = IRType::Vector(ty);
+        self.insert_type(ty)
     }
 
     ///Returns the int type
     pub fn int_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::I32).unwrap()
+        self.insert_type(IRType::I32)
     }
 
     ///Returns the float type
     pub fn float_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::F32).unwrap()
+        self.insert_type(IRType::F32)
     }
 
     ///Returns the bool type
     pub fn bool_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::BOOL).unwrap()
+        self.insert_type(IRType::BOOL)
     }
 
     ///Returns the void type
     pub fn void_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::VOID).unwrap()
+        self.insert_type(IRType::VOID)
     }
 
     ///Returns the str type
     pub fn str_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::STR).unwrap()
+        self.insert_type(IRType::STR)
     }
 
     ///Returns the usize type
     pub fn usize_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::USIZE).unwrap()
+        self.insert_type(IRType::USIZE)
     }
 
     ///Returns the generic component type
     pub fn generic_component_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::GenericComponent).unwrap()
+        self.insert_type(IRType::GenericComponent)
     }
 
     ///Returns the usize type
     pub fn specialized_div_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::Specialized(IRSpecializedComponentType::Div))
-            .unwrap()
+        self.insert_type(IRType::Specialized(IRSpecializedComponentType::Div))
     }
 
     ///Returns the generic component type
     pub fn specialized_text_type(&self) -> IRTypeId {
-        self.find_type_index(IRType::Specialized(IRSpecializedComponentType::Text))
-            .unwrap()
+        self.insert_type(IRType::Specialized(IRSpecializedComponentType::Text))
     }
     ///Creates a new empty struct and returns its type ID
     pub(crate) fn create_empty_struct(&mut self, name: SymbolPointer) -> (IRTypeId, IRStructId) {
         let sout = self.structs.len();
         self.structs.push(IRStruct::new(Some(name)));
         let struct_id = IRStructId(sout);
-        let out = self.types.len();
-        self.types.push(IRType::Struct(struct_id));
-        (IRTypeId(out), struct_id)
+        let out = self.insert_type(IRType::Struct(struct_id));
+        (out, struct_id)
     }
     ///Creates a new empty struct and returns its type ID
     pub(crate) fn create_empty_component(
@@ -186,29 +195,22 @@ impl IRTypes {
     ) -> (IRTypeId, IRComponentId) {
         let sout = self.components.len();
         self.components.push(IRComponent::new(name));
-        let out = self.types.len();
         let component_id = IRComponentId(sout);
-        self.types.push(IRType::Component(component_id));
-        (IRTypeId(out), component_id)
+        let out = self.insert_type(IRType::Component(component_id));
+        (out, component_id)
     }
     ///Creates a new empty function type with return `void`
     pub(crate) fn create_function_type(&mut self) -> (IRTypeId, IRFunctionId) {
         let fout = self.functions.len();
         self.functions.push(IRFunction::new(&[], self.void_type()));
-        let out = self.types.len();
         let func_id = IRFunctionId(fout);
-        self.types.push(IRType::Function(func_id));
-        (IRTypeId(out), func_id)
+        let out = self.insert_type(IRType::Function(func_id));
+        (out, func_id)
     }
     pub fn create_or_get_tuple(&mut self, elements: Vec<IRTypeId>) -> IRTypeId {
         for (i, strukt) in self.structs.iter().enumerate() {
             if strukt.get_fields() == elements {
-                return IRTypeId(
-                    self.types
-                        .iter()
-                        .position(|t| matches!(t, IRType::Struct(id) if id.0 == i))
-                        .unwrap(),
-                );
+                return self.insert_type(IRType::Struct(IRStructId(i)));
             }
         }
         let mut s = IRStruct::new(None);
@@ -217,8 +219,6 @@ impl IRTypes {
         }
         let sid = IRStructId(self.structs.len());
         self.structs.push(s);
-        let tid = IRTypeId(self.types.len());
-        self.types.push(IRType::Struct(sid));
-        tid
+        self.insert_type(IRType::Struct(sid))
     }
 }

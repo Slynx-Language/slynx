@@ -15,6 +15,7 @@ impl<'a> IRViewer<'a, Function> {
         let IRType::Function(id) = self.ir.types.get_type(ty) else {
             unreachable!();
         };
+        let id = *id;
         self.ir.types.get_function_type(id)
     }
 

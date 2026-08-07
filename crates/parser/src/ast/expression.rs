@@ -1,6 +1,6 @@
 use crate::{
     ASTStatement, SymbolPointer,
-    ast::{ComponentExpression, GenericIdentifier},
+    ast::{ComponentExpression, Type},
 };
 use common::{Operator, Spanned, pool::DedupPoolId};
 use ordered_float::OrderedFloat;
@@ -11,6 +11,23 @@ use smallvec::SmallVec;
 pub struct NamedExpr {
     pub name: SymbolPointer,
     pub expr: Spanned<DedupPoolId<ASTExpression>>,
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum RangeType {
+    ///Range type that represents everything. Same as rust's '..'
+    All,
+    ///Range type that represents where it starts from. Same as rust's 'x..'
+    From(Spanned<DedupPoolId<ASTExpression>>),
+    ///Range type that represents where it ends at. Same as rust's '..x'
+    To(Spanned<DedupPoolId<ASTExpression>>),
+    ///Normal range representing where it starts and where it ends at. Same as rust's 'x..y'
+    Normal {
+        from: Spanned<DedupPoolId<ASTExpression>>,
+        to: Spanned<DedupPoolId<ASTExpression>>,
+    },
+    ///A basic index without ranges at all
+    NoRange(Spanned<DedupPoolId<ASTExpression>>),
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -33,7 +50,7 @@ pub enum ASTExpression {
         rhs: Spanned<DedupPoolId<ASTExpression>>,
     },
     ObjectExpression {
-        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        name: Spanned<DedupPoolId<Type>>,
         fields: SmallVec<[Spanned<NamedExpr>; 4]>,
     },
     FieldAccess {
@@ -41,7 +58,7 @@ pub enum ASTExpression {
         field: Spanned<DedupPoolId<ASTExpression>>,
     },
     FunctionCall {
-        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        name: Spanned<DedupPoolId<Type>>,
         args: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 7]>,
     },
     If {
@@ -49,6 +66,9 @@ pub enum ASTExpression {
         body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
         else_body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     },
+    Array(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
+    Vector(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
+    IndexExpression(Spanned<DedupPoolId<ASTExpression>>, RangeType),
 }
 
 impl ASTExpression {

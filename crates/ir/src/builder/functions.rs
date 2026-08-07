@@ -74,6 +74,7 @@ impl<'a> FunctionBuilder<'a> {
         let IRType::Function(func_id) = self.ir.get_type(ty) else {
             unreachable!()
         };
+        let func_id = *func_id;
         let func_ty = self.ir.get_function_type_mut(func_id);
         func_ty.insert_arg_types(&args);
         func_ty.set_return_type(ret);

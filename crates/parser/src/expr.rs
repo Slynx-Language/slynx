@@ -1,6 +1,6 @@
 use crate::{
-    ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, GenericIdentifier,
-    NamedExpr,
+    ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, NamedExpr,
+    RangeType, Type,
 };
 use crate::{Parser, Result, error::ParseError};
 use common::pool::DedupPoolId;
@@ -54,7 +54,7 @@ impl Parser<'_> {
     ///Parses an component expression but, starting from the LBrace, assuming the name of the component is the provided `name`
     pub fn parse_component_expr_with_name(
         &mut self,
-        name: Spanned<DedupPoolId<GenericIdentifier>>,
+        name: Spanned<DedupPoolId<Type>>,
     ) -> Result<Spanned<ComponentExpression>> {
         let mut span = name.span;
         self.expect(&TokenKind::LBrace)?;
@@ -455,12 +455,139 @@ impl Parser<'_> {
         Ok(lhs)
     }
 
+    pub fn parse_array(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut exprs = SmallVec::new();
+        loop {
+            if self.peek()?.kind == TokenKind::RBracket {
+                break;
+            }
+            let expr = self.parse_expression()?;
+            exprs.push(expr);
+            if self.peek()?.kind != TokenKind::RBracket {
+                self.expect(&TokenKind::Comma)?;
+            }
+        }
+        let end = self.expect(&TokenKind::RBracket)?.span;
+        let id = self.intern_expression(ASTExpression::Array(exprs));
+        Ok(span.merge_with(end).make_spanned(id))
+    }
+    ///Parses a vector literal, which is delimited by `{` and `}`. Unlike array
+    ///literals, the size of a vector is not known, so it is dynamic.
+    pub fn parse_vector(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut exprs = SmallVec::new();
+        loop {
+            if self.peek()?.kind == TokenKind::RBrace {
+                break;
+            }
+            let expr = self.parse_expression()?;
+            exprs.push(expr);
+            if self.peek()?.kind != TokenKind::RBrace {
+                self.expect(&TokenKind::Comma)?;
+            }
+        }
+        let end = self.expect(&TokenKind::RBrace)?.span;
+        let id = self.intern_expression(ASTExpression::Vector(exprs));
+        Ok(span.merge_with(end).make_spanned(id))
+    }
+    ///Parses an array access on the given `arr_expression` expression. And the given ¯span` its the span of the left bracket.This function starts right after the '['. So a[5], this function starts looking up to '5'
+    pub fn parse_array_access(
+        &mut self,
+        arr_expression: Spanned<DedupPoolId<ASTExpression>>,
+        _: Span,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        match (self.peek()?.kind.clone(), self.peek_at(1)?.kind.clone()) {
+            (TokenKind::Colon, TokenKind::RBracket) => {
+                //parses [:]
+                self.eat()?; //:
+                let end = self.eat()?.span; //]
+                let expr = self.intern_expression(ASTExpression::IndexExpression(
+                    arr_expression,
+                    RangeType::All,
+                ));
+                Ok(arr_expression.span.merge_with(end).make_spanned(expr))
+            }
+            (TokenKind::Colon, _) => {
+                self.eat()?;
+                let expr = self.parse_expression()?;
+                let expr = self.intern_expression(ASTExpression::IndexExpression(
+                    arr_expression,
+                    RangeType::To(expr),
+                ));
+                let bracket_span = self.expect(&TokenKind::RBracket)?.span;
+                Ok(arr_expression
+                    .span
+                    .merge_with(bracket_span)
+                    .make_spanned(expr))
+            }
+            _ => {
+                let expr = self.parse_expression()?;
+                match (self.peek()?.kind.clone(), self.peek_at(1)?.kind.clone()) {
+                    (TokenKind::Colon, TokenKind::RBracket) => {
+                        self.eat()?;
+                        let bracket_span = self.eat()?.span;
+                        let expr = self.intern_expression(ASTExpression::IndexExpression(
+                            arr_expression,
+                            RangeType::From(expr),
+                        ));
+                        Ok(arr_expression
+                            .span
+                            .merge_with(bracket_span)
+                            .make_spanned(expr))
+                    }
+                    (TokenKind::Colon, _) => {
+                        self.eat()?;
+                        let end_expr = self.parse_expression()?;
+                        let bracket_span = self.eat()?.span;
+                        let expr = self.intern_expression(ASTExpression::IndexExpression(
+                            arr_expression,
+                            RangeType::Normal {
+                                from: expr,
+                                to: end_expr,
+                            },
+                        ));
+                        Ok(arr_expression
+                            .span
+                            .merge_with(bracket_span)
+                            .make_spanned(expr))
+                    }
+                    (_, _) => {
+                        let expr = self.intern_expression(ASTExpression::IndexExpression(
+                            arr_expression,
+                            RangeType::NoRange(expr),
+                        ));
+                        let bracket_span = self.expect(&TokenKind::RBracket)?.span;
+                        Ok(arr_expression
+                            .span
+                            .merge_with(bracket_span)
+                            .make_spanned(expr))
+                    }
+                }
+            }
+        }
+    }
+
     /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.
     pub fn parse_expression(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        if self.peek()?.kind == TokenKind::If {
+        let expr = match self.peek()?.kind {
+            TokenKind::If => {
+                let span = self.eat()?.span;
+                self.parse_if(span)
+            }
+            TokenKind::LBracket => {
+                let span = self.eat()?.span;
+                self.parse_array(span)
+            }
+            TokenKind::LBrace => {
+                let span = self.eat()?.span;
+                self.parse_vector(span)
+            }
+            _ => self.parse_logical(),
+        }?;
+        if self.peek()?.kind == TokenKind::LBracket {
             let span = self.eat()?.span;
-            return self.parse_if(span);
+            self.parse_array_access(expr, span)
+        } else {
+            Ok(expr)
         }
-        self.parse_logical()
     }
 }
