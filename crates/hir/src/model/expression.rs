@@ -557,6 +557,9 @@ pub enum HirExpressionKind {
         id: DeclarationId<HirStaticDeclaration>,
     },
     Array(Vec<Spanned<PoolId<HirExpression>>>),
+    /// A vector literal, delimited by `{` and `}` in source. Unlike [`Array`](HirExpressionKind::Array),
+    /// the size of a vector is dynamic.
+    Vector(Vec<Spanned<PoolId<HirExpression>>>),
     ArrayIndex(
         Spanned<PoolId<HirExpression>>,
         Spanned<PoolId<HirExpression>>,

@@ -120,12 +120,6 @@ impl ExpressionBuilder {
             queue.hir.view(expected).dereference(),
         ) {
             (a, b) if *a == *b => Ok(a.data),
-            (received, expected)
-                if received.is_vector().is_some()
-                    && let Some((inner, size)) = expected.is_array() =>
-            {
-                Ok(queue.hir.create_type(HirType::Array(inner, size)))
-            }
             (received, expected) => Err(HIRError::unexpected_type(
                 received.data,
                 expected.data,
@@ -637,34 +631,25 @@ impl ExpressionBuilder {
                 let mut exprs = Vec::with_capacity(expressions.len());
                 let Some(first) = expressions.first() else {
                     return match expected {
-                        Some(ty) if queue.hir.view(ty).is_vector().is_some() => {
+                        Some(ty) if queue.hir.view(ty).is_array().is_some() => {
                             let expr = queue.hir.insert_expression(HirExpression {
                                 ty,
                                 kind: HirExpressionKind::Array(exprs),
                             });
                             Ok(expression.span.make_spanned(expr))
                         }
-                        Some(_) | None => Err(HIRError::couldnt_infer(expression.span)), //ideal is to make Some(t) => unexecpted_type(unknown.vector(), t), but i dont know if this is good enough due to adding a type that will be used only as fallback for errors
+                        Some(_) | None => Err(HIRError::couldnt_infer(expression.span)),
                     };
                 };
-                let (inner_type, real_type) = {
-                    match () {
-                        _ if let Some((ty, size)) =
-                            expected.and_then(|expected| queue.hir.view(expected).is_array()) =>
-                        {
-                            (
-                                Some(ty),
-                                Some(queue.hir.create_type(HirType::Array(ty, size))),
-                            )
-                        }
-                        _ if let Some(HirType::Vector(ty)) =
-                            expected.map(|ty| &queue.hir.deref()[ty]) =>
-                        {
-                            (Some(*ty), Some(queue.hir.create_type(HirType::Vector(*ty))))
-                        }
-                        () => (None, expected),
-                    }
-                };
+                let (inner_type, real_type) =
+                    if let Some((ty, size)) = expected.and_then(|e| queue.hir.view(e).is_array()) {
+                        (
+                            Some(ty),
+                            Some(queue.hir.create_type(HirType::Array(ty, size))),
+                        )
+                    } else {
+                        (None, None)
+                    };
                 let expr = self.build_expression(queue, *first, inner_type)?;
                 let ty = queue.hir[expr.data].ty;
                 if let Some(expected) = inner_type {
@@ -678,11 +663,42 @@ impl ExpressionBuilder {
                 let final_type = if let Some(ty) = real_type {
                     ty
                 } else {
-                    queue.hir.create_type(HirType::Vector(ty))
+                    queue.hir.create_type(HirType::Array(ty, exprs.len()))
                 };
                 HirExpression {
                     ty: final_type,
                     kind: HirExpressionKind::Array(exprs),
+                }
+            }
+            ASTExpression::Vector(expressions) => {
+                let mut exprs = Vec::with_capacity(expressions.len());
+                let Some(first) = expressions.first() else {
+                    return match expected {
+                        Some(ty) if queue.hir.view(ty).is_vector().is_some() => {
+                            let expr = queue.hir.insert_expression(HirExpression {
+                                ty,
+                                kind: HirExpressionKind::Vector(exprs),
+                            });
+                            Ok(expression.span.make_spanned(expr))
+                        }
+                        Some(_) | None => Err(HIRError::couldnt_infer(expression.span)),
+                    };
+                };
+                let inner_type = expected.and_then(|e| queue.hir.view(e).is_vector());
+                let expr = self.build_expression(queue, *first, inner_type)?;
+                let ty = queue.hir[expr.data].ty;
+                if let Some(expected) = inner_type {
+                    self.unify_types(queue, ty, expected, expression.span)?;
+                }
+                exprs.push(expr);
+                for expr in &expressions[1..] {
+                    let expr = self.build_expression(queue, *expr, Some(ty))?;
+                    exprs.push(expr);
+                }
+                let final_type = queue.hir.create_type(HirType::Vector(ty));
+                HirExpression {
+                    ty: final_type,
+                    kind: HirExpressionKind::Vector(exprs),
                 }
             }
         };
