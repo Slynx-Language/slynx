@@ -14,7 +14,7 @@ impl Codegen {
         let obj_handle = self
             .get_mapped_type(&decl)
             .ok_or(CodegenError::IRTypeNotRecognized(decl))?;
-        let IRType::Struct(obj) = ir.get_type(obj_handle) else {
+        let IRType::Struct(obj) = ir.get_type(obj_handle).clone() else {
             unreachable!();
         };
         let fields = if let Some(viewer) = hir.view(decl).dereference().is_struct() {

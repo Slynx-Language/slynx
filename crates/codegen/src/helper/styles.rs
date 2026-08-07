@@ -153,7 +153,7 @@ impl Codegen {
             .flat_map(|rp| hir.flatten_type(rp.hir_type))
             .map(|prim_ty| self.get_or_create_ir_type(&prim_ty, hir, ir))
             .collect::<Result<Vec<_>, _>>()?;
-        let IRType::Struct(id) = ir.get_type(struct_ty) else {
+        let IRType::Struct(id) = ir.get_type(struct_ty).clone() else {
             unreachable!("Style struct type must be IRType::Struct");
         };
         let struct_obj = ir.get_object_type_mut(id);

@@ -71,6 +71,7 @@ impl Codegen {
             let IRType::Function(fid) = ctx.ir().get_type(ty) else {
                 unreachable!()
             };
+            let fid = *fid;
             ctx.ir().get_function_type(fid).get_return_type()
         };
         let mut arg_values = Vec::with_capacity(args.len());
