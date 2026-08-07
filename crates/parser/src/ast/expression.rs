@@ -67,6 +67,7 @@ pub enum ASTExpression {
         else_body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
     },
     Array(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
+    Vector(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
     IndexExpression(Spanned<DedupPoolId<ASTExpression>>, RangeType),
 }
 

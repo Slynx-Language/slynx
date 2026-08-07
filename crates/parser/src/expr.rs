@@ -471,6 +471,24 @@ impl Parser<'_> {
         let id = self.intern_expression(ASTExpression::Array(exprs));
         Ok(span.merge_with(end).make_spanned(id))
     }
+    ///Parses a vector literal, which is delimited by `{` and `}`. Unlike array
+    ///literals, the size of a vector is not known, so it is dynamic.
+    pub fn parse_vector(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut exprs = SmallVec::new();
+        loop {
+            if self.peek()?.kind == TokenKind::RBrace {
+                break;
+            }
+            let expr = self.parse_expression()?;
+            exprs.push(expr);
+            if self.peek()?.kind != TokenKind::RBrace {
+                self.expect(&TokenKind::Comma)?;
+            }
+        }
+        let end = self.expect(&TokenKind::RBrace)?.span;
+        let id = self.intern_expression(ASTExpression::Vector(exprs));
+        Ok(span.merge_with(end).make_spanned(id))
+    }
     ///Parses an array access on the given `arr_expression` expression. And the given ¯span` its the span of the left bracket.This function starts right after the '['. So a[5], this function starts looking up to '5'
     pub fn parse_array_access(
         &mut self,
@@ -558,6 +576,10 @@ impl Parser<'_> {
             TokenKind::LBracket => {
                 let span = self.eat()?.span;
                 self.parse_array(span)
+            }
+            TokenKind::LBrace => {
+                let span = self.eat()?.span;
+                self.parse_vector(span)
             }
             _ => self.parse_logical(),
         }?;
