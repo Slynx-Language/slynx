@@ -516,7 +516,7 @@ impl std::fmt::Display for InvalidTypeReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InvalidTypeReason::MissingGeneric => write!(f, "missing generic type"),
-            InvalidTypeReason::IncorrectUsage => write!(f, "is being used incorrectly"),
+            InvalidTypeReason::IncorrectUsage => write!(f, "being used incorrectly"),
             InvalidTypeReason::CouldntInfer => write!(f, "could not infer type"),
         }
     }

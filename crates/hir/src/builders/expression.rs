@@ -120,14 +120,17 @@ impl ExpressionBuilder {
             queue.hir.view(expected).dereference(),
         ) {
             (a, b) if *a == *b => Ok(a.data),
-            (received, _) => {
-                let name = queue.hir.intern_name(&format!("{:?}", *received));
-                Err(HIRError::invalid_type(
-                    name,
-                    InvalidTypeReason::IncorrectUsage,
-                    span,
-                ))
+            (received, expected)
+                if received.is_vector().is_some()
+                    && let Some((inner, size)) = expected.is_array() =>
+            {
+                Ok(queue.hir.create_type(HirType::Array(inner, size)))
             }
+            (received, expected) => Err(HIRError::unexpected_type(
+                received.data,
+                expected.data,
+                span,
+            )),
         }
     }
 
@@ -442,7 +445,7 @@ impl ExpressionBuilder {
                             ty: after_index_type,
                         }
                     }
-                    _ => unimplemented!("Ranges are not implemented yet"),
+                    r => unimplemented!("Ranges {r:?} are not implemented yet"),
                 }
             }
             ASTExpression::False => HirExpression {
@@ -633,14 +636,15 @@ impl ExpressionBuilder {
             ASTExpression::Array(expressions) => {
                 let mut exprs = Vec::with_capacity(expressions.len());
                 let Some(first) = expressions.first() else {
-                    return if let Some(ty) = expected {
-                        let expr = queue.hir.insert_expression(HirExpression {
-                            ty: ty,
-                            kind: HirExpressionKind::Array(exprs),
-                        });
-                        Ok(expression.span.make_spanned(expr))
-                    } else {
-                        Err(HIRError::couldnt_infer(expression.span))
+                    return match expected {
+                        Some(ty) if queue.hir.view(ty).is_vector().is_some() => {
+                            let expr = queue.hir.insert_expression(HirExpression {
+                                ty,
+                                kind: HirExpressionKind::Array(exprs),
+                            });
+                            Ok(expression.span.make_spanned(expr))
+                        }
+                        Some(_) | None => Err(HIRError::couldnt_infer(expression.span)), //ideal is to make Some(t) => unexecpted_type(unknown.vector(), t), but i dont know if this is good enough due to adding a type that will be used only as fallback for errors
                     };
                 };
                 let (inner_type, real_type) = {
@@ -712,7 +716,12 @@ impl ExpressionBuilder {
                 HirStatement::Expression { expr }
             }
             ASTStatement::Var { name, ty, rhs } | ASTStatement::MutableVar { name, ty, rhs } => {
-                let expr = self.build_expression(queue, *rhs, None)?;
+                let var_type = if let Some(ty) = ty {
+                    Some(queue.get_node(self.file()).find_type(*ty)?.1)
+                } else {
+                    None
+                };
+                let expr = self.build_expression(queue, *rhs, var_type)?;
                 let exprty = queue.hir.view(expr.data).ty();
                 let expected_type = if let Some(expected_ty) = ty {
                     queue.get_node(self.file()).find_type(*expected_ty)?.1
