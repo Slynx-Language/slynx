@@ -1,8 +1,8 @@
 use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 
 use crate::{
-    ASTExpression, ASTStatement, ComponentMember, ObjectField, Type,
-    StyleSheetStatement, SymbolPointer, TypedName,
+    ASTExpression, ASTStatement, ComponentMember, ObjectField, StyleSheetStatement, SymbolPointer,
+    Type, TypedName,
 };
 
 #[derive(Debug)]

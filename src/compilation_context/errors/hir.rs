@@ -19,9 +19,9 @@ impl SlynxContext {
                 )
             }
             HIRErrorKind::InvalidIndexing => {
-                format!("Expression cannot be indexed. It is not an array nor a vector.")
+                "Expression cannot be indexed. It is not an array nor a vector.".to_string()
             }
-            HIRErrorKind::CouldntInfer => format!("Could not infer the type of expression"),
+            HIRErrorKind::CouldntInfer => "Could not infer the type of expression".to_string(),
             HIRErrorKind::ComponentNotFound(name) => format!(
                 "Component named as '{}' could not be found",
                 hir.get_name(*name)

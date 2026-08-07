@@ -2,8 +2,8 @@ use common::{Span, pool::DedupPoolId};
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{
-    ASTExpression, ASTStatement, ExpectedContent, ParseError, Parser, Result,
-    SymbolPointer, Type, flags::ParserFlag,
+    ASTExpression, ASTStatement, ExpectedContent, ParseError, Parser, Result, SymbolPointer, Type,
+    flags::ParserFlag,
 };
 
 impl<'a> Parser<'a> {

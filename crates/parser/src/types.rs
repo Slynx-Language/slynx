@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use super::Parser;
 use crate::error::ParseError;
 use crate::{ASTExpression, AliasDeclaration, ExpectedContent, SymbolPointer, Type, TypedName};

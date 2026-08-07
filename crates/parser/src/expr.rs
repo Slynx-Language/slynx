@@ -493,7 +493,7 @@ impl Parser<'_> {
     pub fn parse_array_access(
         &mut self,
         arr_expression: Spanned<DedupPoolId<ASTExpression>>,
-        span: Span,
+        _: Span,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         match (self.peek()?.kind.clone(), self.peek_at(1)?.kind.clone()) {
             (TokenKind::Colon, TokenKind::RBracket) => {

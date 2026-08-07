@@ -48,7 +48,7 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
         }
     }
 
-    pub fn is_vector(&self) -> Option<(DedupPoolId<HirType>)> {
+    pub fn is_vector(&self) -> Option<DedupPoolId<HirType>> {
         if let HirType::Vector(inner) = self.hir.deref()[self.data] {
             Some(inner)
         } else {

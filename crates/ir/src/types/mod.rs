@@ -219,7 +219,6 @@ impl IRTypes {
         }
         let sid = IRStructId(self.structs.len());
         self.structs.push(s);
-        let out = self.insert_type(IRType::Struct(sid));
-        out
+        self.insert_type(IRType::Struct(sid))
     }
 }

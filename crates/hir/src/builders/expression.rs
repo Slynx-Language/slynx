@@ -16,7 +16,7 @@ use crate::{
     DeclarationId, HIRError, HirComponentExpression, HirExpression, HirExpressionKind,
     HirFunctionDeclaration, HirStatement, HirStaticDeclaration, HirType, PropertyExpression,
     Result, SymbolPointer, VariableId, builders::HirQueueBuilder, context::HirSymbol,
-    error::InvalidTypeReason, helpers::Visible, id::OwnerId,
+    helpers::Visible, id::OwnerId,
 };
 
 /// Result of building a body with the ExpressionBuilder.
