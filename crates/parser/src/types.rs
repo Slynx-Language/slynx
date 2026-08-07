@@ -1,12 +1,34 @@
+use std::ops::Deref;
+
 use super::Parser;
 use crate::error::ParseError;
-use crate::{ASTExpression, AliasDeclaration, ExpectedContent, Type, TypedName};
+use crate::{ASTExpression, AliasDeclaration, ExpectedContent, SymbolPointer, Type, TypedName};
 use crate::{Result, ast::GenericIdentifier};
 use common::pool::DedupPoolId;
 use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::tokens::{Token, TokenKind};
 use smallvec::{SmallVec, smallvec};
 impl Parser<'_> {
+    pub fn type_name(&self, ty: DedupPoolId<Type>) -> SymbolPointer {
+        match &self.types[ty] {
+            Type::Plain(gi) => gi.identifier,
+            Type::Array(arr, len) => {
+                let name = self.symbols.get_name(self.type_name(*arr));
+                let len = match self.expressions.get(*len) {
+                    ASTExpression::IntLiteral(int) => int.to_string(),
+                    _ => unimplemented!(
+                        "This is not supported. An array type should contain a number inside it to determine its size. This is an expression due to the possibility of comptime, that is idealized. But at the moment only integer literals are accepted"
+                    ),
+                };
+                self.intern(&format!("[{len}]{name}"))
+            }
+            Type::Vector(inner) => self.intern(&format!(
+                "[]{}",
+                self.symbols.get_name(self.type_name(*inner))
+            )),
+        }
+    }
+
     ///Parses a typed name. A typed name is `name: type`, which is a name that contains a type
     pub fn parse_typedname(&mut self) -> Result<Spanned<TypedName>> {
         let (name, span) = self.expect_identifier()?;

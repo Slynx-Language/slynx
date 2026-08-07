@@ -88,7 +88,23 @@ impl<'a> Modules<'a> {
         self.loader.types.get(ty)
     }
     pub fn type_name(&self, ty: DedupPoolId<Type>) -> SymbolPointer<FrontendSymbol> {
-        self.loader.types.get(ty).name()
+        match &self.loader.types[ty] {
+            Type::Plain(gi) => gi.identifier,
+            Type::Array(arr, len) => {
+                let name = self.loader.symbols.get_name(self.type_name(*arr));
+                let len = match self.loader.expressions.get(*len) {
+                    ASTExpression::IntLiteral(int) => int.to_string(),
+                    _ => unimplemented!(
+                        "This is not supported. An array type should contain a number inside it to determine its size. This is an expression due to the possibility of comptime, that is idealized. But at the moment only integer literals are accepted"
+                    ),
+                };
+                self.loader.symbols.intern(&format!("[{len}]{name}"))
+            }
+            Type::Vector(inner) => self.loader.symbols.intern(&format!(
+                "[]{}",
+                self.loader.symbols.get_name(self.type_name(*inner))
+            )),
+        }
     }
 
     pub fn find_function_declaration(

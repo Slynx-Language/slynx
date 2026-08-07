@@ -1,9 +1,6 @@
 use std::hash::Hash;
 
-use common::{
-    Spanned, VisibilityModifier,
-    pool::DedupPoolId,
-};
+use common::{Spanned, VisibilityModifier, pool::DedupPoolId};
 use smallvec::SmallVec;
 
 use crate::{ASTExpression, SymbolPointer};
@@ -20,15 +17,6 @@ pub enum Type {
     Plain(GenericIdentifier),
     Array(DedupPoolId<Type>, DedupPoolId<ASTExpression>),
     Vector(DedupPoolId<Type>),
-}
-
-impl Type {
-    pub fn name(&self) -> SymbolPointer {
-        match self {
-            Type::Plain(gi) => gi.identifier,
-            _ => panic!("expected named type"),
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
