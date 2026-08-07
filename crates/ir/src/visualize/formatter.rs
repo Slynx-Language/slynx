@@ -74,6 +74,14 @@ impl<'a> Formatter<'a> {
             IRType::Component(c) => self.fmt_component_type(c),
             IRType::Specialized(IRSpecializedComponentType::Div) => "@div".to_string(),
             IRType::Specialized(IRSpecializedComponentType::Text) => "@text".to_string(),
+            IRType::Array(t, len) => format!("[{len}]{}", {
+                let ty = self.types.get_type(*t);
+                self.fmt_type(&ty)
+            }),
+            IRType::Vector(t) => format!("[]{}", {
+                let ty = self.types.get_type(*t);
+                self.fmt_type(&ty)
+            }),
         }
     }
 
@@ -138,7 +146,7 @@ impl<'a> Formatter<'a> {
         let IRType::Function(fty) = self.types.get_type(func.ty()) else {
             unreachable!("Type of function should be function");
         };
-        let func_ty = self.types.get_function_type(fty);
+        let func_ty = self.types.get_function_type(*fty);
         let args = func_ty
             .get_args()
             .iter()
@@ -148,7 +156,7 @@ impl<'a> Formatter<'a> {
         let ret_ty = self.fmt_type(
             &self
                 .types
-                .get_type(self.types.get_function_type(fty).get_return_type()),
+                .get_type(self.types.get_function_type(*fty).get_return_type()),
         );
         let mut out = format!(
             "{ret_ty} {}({args}){{\n",
@@ -260,7 +268,7 @@ impl<'a> Formatter<'a> {
         let IRType::Component(cid) = self.types.get_type(component.ir_type()) else {
             unreachable!("Type of component should be Component");
         };
-        let comp_ty = self.types.get_component_type(cid);
+        let comp_ty = self.types.get_component_type(*cid);
         let params = comp_ty
             .fields()
             .iter()

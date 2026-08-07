@@ -7,6 +7,7 @@ impl<'a> IRViewer<'a, Component> {
         let IRType::Component(c) = ty else {
             unreachable!("Type of component internally isnt a component? {ty:?}")
         };
+        let c = *c;
         self.ir.types.get_component_type(c)
     }
 }

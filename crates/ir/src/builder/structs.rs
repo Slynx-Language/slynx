@@ -17,9 +17,9 @@ impl<'a> StructBuilder<'a> {
         };
 
         Ok(Self {
+            ir_struct_id: *struct_id,
             ir,
             ty,
-            ir_struct_id: struct_id,
         })
     }
     pub fn insert_type(&mut self, ty: IRTypeId) {

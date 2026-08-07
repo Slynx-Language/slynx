@@ -115,6 +115,7 @@ impl<'a> ComponentBuilder<'a> {
             let IRType::Component(ty) = self.ir.get_type(component.ty) else {
                 unreachable!("Type of component should be, on IR, component");
             };
+            let ty = *ty;
             let ty = self.ir.get_component_type_mut(ty);
             ty.fields.extend_from_slice(&self.fields);
             ty.children.extend_from_slice(&self.children);
