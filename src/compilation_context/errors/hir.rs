@@ -11,6 +11,16 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::UnexpectedType { expected, received } => {
+                let expected_name = hir.view(*expected).name();
+                let received_name = hir.view(*received).name();
+                format!(
+                    "Received an incorrect type. Expected {expected_name} instead, received type {received_name}"
+                )
+            }
+            HIRErrorKind::InvalidIndexing => {
+                format!("Expression cannot be indexed. It is not an array nor a vector.")
+            }
             HIRErrorKind::CouldntInfer => format!("Could not infer the type of expression"),
             HIRErrorKind::ComponentNotFound(name) => format!(
                 "Component named as '{}' could not be found",
