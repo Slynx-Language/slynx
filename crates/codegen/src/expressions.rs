@@ -1,6 +1,6 @@
 use common::{Operator, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType,
+    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
     SlynxHir, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
@@ -212,22 +212,20 @@ impl Codegen {
                 context.emit(Opcode::ArrayGet, smallvec![arr, index], ty)
             }
             HirExpressionKind::Array(arr) => {
-                let view_type = hir.view(expression.ty);
                 let values = arr
                     .iter()
                     .map(|expr| self.lower_expression(*expr, hir, context))
                     .collect::<Result<Vec<_>, _>>()?;
                 let value_type = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
-                match view_type.raw() {
-                    HirType::Array(ty, s) => context.emit(Opcode::Array, values, value_type),
-                    HirType::Vector(ty) => context.emit(Opcode::Vector, values, value_type),
-                    ty => {
-                        return Err(CodegenError::InternalError(format!(
-                            "When generating an array expression, got it with type '{}'. For some reason the HIR did not generate the type properly",
-                            view_type.name()
-                        )));
-                    }
-                }
+                context.emit(Opcode::Array, values, value_type)
+            }
+            HirExpressionKind::Vector(vec) => {
+                let values = vec
+                    .iter()
+                    .map(|expr| self.lower_expression(*expr, hir, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let value_type = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
+                context.emit(Opcode::Vector, values, value_type)
             }
             HirExpressionKind::Static { id } => {
                 if let Some(ty) = self.external_statics.get(id) {
