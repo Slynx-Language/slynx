@@ -6,7 +6,10 @@ Arrays which are represented by `[N]T` where N is a number, such as `[64]int`, `
 And lastly a slice which is T[:].
 
 ## Creation
-For creating an array and a vector, the syntax is the same: `let a = [1uint8,2,3,4];` which by default will be an [N]T, in this case, `[4]uint8`. To represent it such as a vector it must be determined such as `let a: []uint8 = [1,2,3,4]`.
+For creating an array, the syntax is `[1uint8,2,3,4]`, which by default will be an `[N]T`, in this case, `[4]uint8`. To create a vector, the syntax is `{1uint8,2,3,4}`, whose type will be `[]T`(also `[]uint8` in this case). Note that a vector's size is not fixed, so the type of a vector literal is always `[]T`.
+
+An array literal is always an array, and a vector literal is always a vector; the expected type does not change this. So, to create a `[]int` out of values, use `let a: []int = {1,2,3,4}`, and to create a `[4]int`, use `let a: [4]int = [1,2,3,4]`.
+
 Expressions prefixed by `[N]` understands that the next value is an array with N size, and the value of all the positions is the given value, such as `[44]0` is the same as [0,0,0,0,..44 0]. Same rule applies to vectors.
 
 ## Slices
