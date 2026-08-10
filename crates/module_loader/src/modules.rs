@@ -104,6 +104,10 @@ impl<'a> Modules<'a> {
                 "[]{}",
                 self.loader.symbols.get_name(self.type_name(*inner))
             )),
+            Type::Nullable(inner) => self.loader.symbols.intern(&format!(
+                "{}?",
+                self.loader.symbols.get_name(self.type_name(*inner))
+            )),
         }
     }
 
