@@ -96,7 +96,6 @@ impl Codegen {
         self.lower_stylesheets(hir, &mut ir)?;
         Ok(ir)
     }
-
     /// Phase 0: Hoist declarations.
     fn hoist_declarations(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) {
         for file in &hir.files {

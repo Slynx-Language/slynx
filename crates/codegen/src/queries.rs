@@ -1,5 +1,5 @@
 use slynx_hir::{HirType, SlynxHir};
-use slynx_ir::{IRTypeId, SlynxIR};
+use slynx_ir::{IRType, IRTypeId, SlynxIR};
 
 use crate::{Codegen, CodegenError, TypeId};
 
@@ -40,6 +40,20 @@ impl Codegen {
             HirType::Vector(t) => {
                 let ty = self.get_or_create_ir_type(t, hir, ir)?;
                 ir.create_vector(ty)
+            }
+            HirType::Nullable(inner) => {
+                let name = hir.view(*inner).name();
+                let s = ir.create_struct(&format!("Nullable{name}"));
+                let inner_type = self.get_or_create_ir_type(&inner, hir, ir)?;
+                let boolean = ir.bool_type();
+                let IRType::Struct(strukt_id) = *ir.get_type(s) else {
+                    unreachable!("Expected type from ir.create_struct to be a struct one");
+                };
+                let strukt = ir.get_object_type_mut(strukt_id);
+                //struct {T, bool}
+                strukt.insert_field(inner_type);
+                strukt.insert_field(boolean);
+                s
             }
 
             _ => return Err(CodegenError::IRTypeNotRecognized(*ty)),

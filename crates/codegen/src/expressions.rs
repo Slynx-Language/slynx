@@ -1,6 +1,6 @@
 use common::{Operator, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
+    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType,
     SlynxHir, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
@@ -204,11 +204,20 @@ impl Codegen {
         let expression = &hir[expr.data];
 
         let value = match &expression.kind {
+            HirExpressionKind::Null => {
+                let HirType::Nullable(inner) = hir.types_module[expression.ty].clone() else {
+                    unreachable!("Type of null should be a nullable");
+                };
+                let inner_ty = self.get_or_create_ir_type(&inner, hir, context.ir())?;
+                let ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
+                let zeroed = context.emit(Opcode::Zeroed, smallvec![], inner_ty);
+                let true_value = context.emit_const(Operand::Bool(true), bool_ty);
+                context.emit(Opcode::Struct, smallvec![zeroed, true_value], ty)
+            }
             HirExpressionKind::ArrayIndex(arr, index) => {
                 let index = self.lower_expression(*index, hir, context)?;
-                let arr_type = hir.view(expr.data).ty();
                 let arr = self.lower_expression(*arr, hir, context)?;
-                let ty = self.get_or_create_ir_type(&arr_type, hir, context.ir())?;
+                let ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
                 context.emit(Opcode::ArrayGet, smallvec![arr, index], ty)
             }
             HirExpressionKind::Array(arr) => {
