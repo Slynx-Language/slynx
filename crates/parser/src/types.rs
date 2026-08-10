@@ -24,6 +24,10 @@ impl Parser<'_> {
                 "[]{}",
                 self.symbols.get_name(self.type_name(*inner))
             )),
+            Type::Nullable(inner) => self.intern(&format!(
+                "{}?",
+                self.symbols.get_name(self.type_name(*inner))
+            )),
         }
     }
 
@@ -92,92 +96,106 @@ impl Parser<'_> {
 
     ///Parses a type.
     pub fn parse_type(&mut self) -> Result<Spanned<DedupPoolId<Type>>> {
-        let token = self.peek()?;
-        let start_span = token.span;
-        if let TokenKind::LParen = &token.kind {
-            self.eat()?;
-            if let TokenKind::RParen = self.peek()?.kind {
+        let ty = match self.peek()?.kind {
+            TokenKind::LBracket => {
+                enum TypeVariant {
+                    Vector,
+                    Array(DedupPoolId<ASTExpression>),
+                }
+                let start_span = self.eat()?.span;
+                let ty = if self.peek()?.kind == TokenKind::RBracket {
+                    self.eat()?;
+                    TypeVariant::Vector
+                } else {
+                    let expr = self.parse_expression()?;
+                    self.expect(&TokenKind::RBracket)?;
+                    TypeVariant::Array(expr.data)
+                };
+                let inner_type = self.parse_type()?;
+                let span = start_span.merge_with(inner_type.span);
+                let out = match ty {
+                    TypeVariant::Vector => self.intern_type(Type::Vector(inner_type.data)),
+                    TypeVariant::Array(size) => {
+                        self.intern_type(Type::Array(inner_type.data, size))
+                    }
+                };
+                span.make_spanned(out)
+            }
+            TokenKind::LParen if self.peek_at(1)?.kind == TokenKind::RParen => {
+                let start_span = self.eat()?.span;
                 let end_span = self.eat()?.span;
                 let id = self.intern_type(Type::Plain(GenericIdentifier {
                     identifier: self.intern("()"),
                     generic: smallvec![],
                 }));
-                return Ok(end_span.make_spanned(id));
+                end_span.make_spanned(id)
             }
-            let mut types = smallvec![];
-            loop {
-                types.push(self.parse_type()?);
-                match self.peek()?.kind {
-                    TokenKind::Comma => {
-                        self.eat()?;
-                    }
-                    TokenKind::RParen => break,
-                    _ => {
-                        return Err(ParseError::UnexpectedToken(
-                            self.eat()?,
-                            ExpectedContent::Raw("Was expecting ',' or ')' in tuple type".into()),
-                        ));
+            TokenKind::LParen => {
+                let start_span = self.eat()?.span;
+                let mut types = smallvec![];
+                loop {
+                    types.push(self.parse_type()?);
+                    match self.peek()?.kind {
+                        TokenKind::Comma => {
+                            self.eat()?;
+                        }
+                        TokenKind::RParen => break,
+                        _ => {
+                            return Err(ParseError::UnexpectedToken(
+                                self.eat()?,
+                                ExpectedContent::Raw(
+                                    "Was expecting ',' or ')' in tuple type".into(),
+                                ),
+                            ));
+                        }
                     }
                 }
+                let span = start_span.merge_with(self.eat()?.span);
+                let ty = self.intern_type(Type::Plain(GenericIdentifier {
+                    identifier: self.intern("()"),
+                    generic: types,
+                }));
+                span.make_spanned(ty)
             }
-            let span = start_span.merge_with(self.eat()?.span);
-            let ty = self.intern_type(Type::Plain(GenericIdentifier {
-                identifier: self.intern("()"),
-                generic: types,
-            }));
-
-            return Ok(span.make_spanned(ty));
-        }
-        if self.peek()?.kind == TokenKind::LBracket {
-            enum TypeVariant {
-                Vector,
-                Array(DedupPoolId<ASTExpression>),
-            }
-            let start_span = self.eat()?.span;
-            let ty = if self.peek()?.kind == TokenKind::RBracket {
-                self.eat()?;
-                TypeVariant::Vector
-            } else {
-                let expr = self.parse_expression()?;
-                self.expect(&TokenKind::RBracket)?;
-                TypeVariant::Array(expr.data)
-            };
-            let inner_type = self.parse_type()?;
-            let span = start_span.merge_with(inner_type.span);
-            let out = match ty {
-                TypeVariant::Vector => self.intern_type(Type::Vector(inner_type.data)),
-                TypeVariant::Array(size) => self.intern_type(Type::Array(inner_type.data, size)),
-            };
-            return Ok(span.make_spanned(out));
-        }
-        let (ident, mut span) = self.expect_identifier()?;
-        if let Token {
-            kind: TokenKind::Lt,
-            ..
-        } = self.peek()?
-        {
-            let mut generics = SmallVec::new();
-            self.eat()?;
-            loop {
-                if let TokenKind::Gt = self.peek()?.kind {
-                    let end = self.eat()?.span;
-                    span.end = end.end;
-                    break;
+            _ => {
+                let (ident, mut span) = self.expect_identifier()?;
+                if let Token {
+                    kind: TokenKind::Lt,
+                    ..
+                } = self.peek()?
+                {
+                    let mut generics = SmallVec::new();
+                    self.eat()?;
+                    loop {
+                        if let TokenKind::Gt = self.peek()?.kind {
+                            let end = self.eat()?.span;
+                            span.end = end.end;
+                            break;
+                        }
+                        let ty = self.parse_type()?;
+                        generics.push(ty);
+                    }
+                    let id = self.intern_type(Type::Plain(GenericIdentifier {
+                        generic: generics,
+                        identifier: ident,
+                    }));
+                    span.make_spanned(id)
+                } else {
+                    let id = self.intern_type(Type::Plain(GenericIdentifier {
+                        generic: smallvec![],
+                        identifier: ident,
+                    }));
+                    span.make_spanned(id)
                 }
-                let ty = self.parse_type()?;
-                generics.push(ty);
             }
-            let id = self.intern_type(Type::Plain(GenericIdentifier {
-                generic: generics,
-                identifier: ident,
-            }));
-            Ok(span.make_spanned(id))
+        };
+        if self.peek()?.kind == TokenKind::Question {
+            let end = self.eat()?.span;
+            let span = ty.span.merge_with(end);
+            let ty = self.intern_type(Type::Nullable(ty.data));
+            Ok(span.make_spanned(ty))
         } else {
-            let id = self.intern_type(Type::Plain(GenericIdentifier {
-                generic: smallvec![],
-                identifier: ident,
-            }));
-            Ok(span.make_spanned(id))
+            Ok(ty)
         }
     }
 }

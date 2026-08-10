@@ -280,6 +280,10 @@ impl Parser<'_> {
         } else {
             let current = self.eat()?;
             match current.kind {
+                TokenKind::Null => Ok(Spanned::new(
+                    self.intern_expression(ASTExpression::Null),
+                    current.span,
+                )),
                 TokenKind::Int(i) => Ok(Spanned::new(
                     self.intern_expression(ASTExpression::IntLiteral(i)),
                     current.span,
