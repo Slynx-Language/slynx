@@ -357,6 +357,7 @@ pub enum HirExpressionKind {
 
     True,
     False,
+    Null,
 
     /// A tuple expression.
     ///

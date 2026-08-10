@@ -408,6 +408,25 @@ impl ExpressionBuilder {
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let expr = queue.get_expr(expression.data);
         let expr = match expr {
+            ASTExpression::Null => {
+                let ty = match expected {
+                    None => {
+                        return Err(HIRError::couldnt_infer(expression.span));
+                    }
+                    Some(ty) if let HirType::Nullable(_) = queue.hir.deref()[ty] => ty,
+                    Some(ty) => {
+                        return Err(HIRError::unexpected_type(
+                            ty,
+                            queue.hir.create_type(HirType::Nullable(ty)),
+                            expression.span,
+                        ));
+                    }
+                };
+                HirExpression {
+                    ty,
+                    kind: HirExpressionKind::Null,
+                }
+            }
             ASTExpression::IndexExpression(expr, range) => {
                 let expr = self.build_expression(queue, *expr, expected)?;
                 let after_index_type = {

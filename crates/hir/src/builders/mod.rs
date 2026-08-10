@@ -163,6 +163,11 @@ impl HirNode<'_> {
                 let ty = self.hir.create_type(HirType::Vector(ty));
                 Ok((id, ty))
             }
+            Type::Nullable(nullable) => {
+                let (id, ty) = self.find_type(ty.span.make_spanned(*nullable))?;
+                let ty = self.hir.create_type(HirType::Nullable(ty));
+                Ok((id, ty))
+            }
         }
     }
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
