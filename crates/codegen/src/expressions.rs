@@ -299,12 +299,13 @@ impl Codegen {
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
         };
         if let HirType::Nullable(_) = &hir.types_module[expression.ty] {
-            let false_value = context.emit_const(Operand::Bool(false), context.ir().bool_type());
+            let bool_ty = context.ir().bool_type();
+            let false_value = context.emit_const(Operand::Bool(false), bool_ty);
             let nullable_type = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?; //since its nullable, its certain for it to be an struct at this moment, so we can emit it like so
             Ok(context.emit(Opcode::Struct, smallvec![value, false_value], nullable_type))
         } else {
             Ok(value)
-        };
+        }
     }
 
     fn lower_if_expression(
