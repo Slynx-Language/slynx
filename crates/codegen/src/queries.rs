@@ -1,5 +1,5 @@
 use slynx_hir::{HirType, SlynxHir};
-use slynx_ir::{IRType, IRTypeId, SlynxIR};
+use slynx_ir::{IRStructFlags, IRType, IRTypeId, SlynxIR};
 
 use crate::{Codegen, CodegenError, TypeId};
 
@@ -51,6 +51,7 @@ impl Codegen {
                 };
                 let strukt = ir.get_object_type_mut(strukt_id);
                 //struct {T, bool}
+                strukt.insert(IRStructFlags::NULLABLE);
                 strukt.insert_field(inner_type);
                 strukt.insert_field(boolean);
                 s
