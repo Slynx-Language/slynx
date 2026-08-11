@@ -209,10 +209,7 @@ impl Codegen {
                     unreachable!("Type of null should be a nullable");
                 };
                 let inner_ty = self.get_or_create_ir_type(&inner, hir, context.ir())?;
-                let ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
-                let zeroed = context.emit(Opcode::Zeroed, smallvec![], inner_ty);
-                let true_value = context.emit_const(Operand::Bool(true), bool_ty);
-                context.emit(Opcode::Struct, smallvec![zeroed, true_value], ty)
+                context.emit(Opcode::Zeroed, smallvec![], inner_ty)
             }
             HirExpressionKind::ArrayIndex(arr, index) => {
                 let index = self.lower_expression(*index, hir, context)?;
@@ -298,13 +295,14 @@ impl Codegen {
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
         };
-        if !matches!(expression.kind, HirExpressionKind::Null)
-            && let HirType::Nullable(_) = &hir.types_module[expression.ty]
-        {
+        if let HirType::Nullable(_) = &hir.types_module[expression.ty] {
             let bool_ty = context.ir().bool_type();
-            let false_value = context.emit_const(Operand::Bool(false), bool_ty);
+            let bool_value = context.emit_const(
+                Operand::Bool(matches!(expression.kind, HirExpressionKind::Null)),
+                bool_ty,
+            );
             let nullable_type = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?; //since its nullable, its certain for it to be an struct at this moment, so we can emit it like so
-            Ok(context.emit(Opcode::Struct, smallvec![value, false_value], nullable_type))
+            Ok(context.emit(Opcode::Struct, smallvec![value, bool_value], nullable_type))
         } else {
             Ok(value)
         }
