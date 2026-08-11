@@ -109,13 +109,12 @@ impl<'a> Formatter<'a> {
 
     pub fn format_types(&self) -> String {
         let mut out = String::new();
-        for (name, fields) in self
-            .types
-            .structs()
-            .iter()
-            .filter_map(|s| s.name().map(|name| (name, s.get_fields())))
-        {
-            let fields = fields
+        for strukt in self.types.structs() {
+            let Some(name) = strukt.name() else {
+                continue;
+            };
+            let fields = strukt
+                .get_fields()
                 .iter()
                 .map(|f| self.fmt_type(self.types.get_type(*f)))
                 .collect::<Vec<_>>()

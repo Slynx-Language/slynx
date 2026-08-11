@@ -37,9 +37,9 @@ pub type IRTypeId = DedupPoolId<IRType>;
 #[derive(Debug)]
 pub struct IRTypes {
     types: DedupPool<IRType>,
-    structs: Vec<IRStruct>,
+    structs: DedupPool<IRStruct>,
     functions: Vec<IRFunction>,
-    components: Vec<IRComponent>,
+    components: DedupPool<IRComponent>,
 }
 
 impl std::default::Default for IRTypes {
@@ -56,17 +56,17 @@ impl IRTypes {
         }
         Self {
             types,
-            structs: Vec::new(),
+            structs: DedupPool::new(),
             functions: Vec::new(),
-            components: Vec::new(),
+            components: DedupPool::new(),
         }
     }
 
-    pub fn structs(&self) -> &[IRStruct] {
-        &self.structs
+    pub fn structs(&self) -> impl Iterator<Item = &IRStruct> {
+        self.structs.iter().map(|(_, s)| s)
     }
-    pub fn components(&self) -> &[IRComponent] {
-        &self.components
+    pub fn components(&self) -> impl Iterator<Item = &IRComponent> {
+        self.components.iter().map(|(_, c)| c)
     }
 
     ///Checks if the provided `ty` is some variant of unsigned int
@@ -91,11 +91,11 @@ impl IRTypes {
 
     ///Gets a mutable referente to the type of the function with the provided `id`
     pub fn get_object_type(&self, id: IRStructId) -> &IRStruct {
-        &self.structs[id.0]
+        self.structs.get(id)
     }
     ///Gets a mutable referente to the type of the function with the provided `id`
     pub fn get_component_type(&self, id: IRComponentId) -> &IRComponent {
-        &self.components[id.0]
+        self.components.get(id)
     }
 
     ///Returns the IRTypeId of the `field_index`th field of the given struct/component type.
@@ -103,8 +103,8 @@ impl IRTypes {
     pub fn get_field_type(&self, ty: IRTypeId, field_index: u16) -> IRTypeId {
         let field_index = field_index as usize;
         match self.types.get(ty) {
-            IRType::Struct(sid) => self.structs[sid.0].get_fields()[field_index],
-            IRType::Component(cid) => self.components[cid.0].fields[field_index],
+            IRType::Struct(sid) => self.structs[*sid].get_fields()[field_index],
+            IRType::Component(cid) => self.components[*cid].fields[field_index],
             ref other => panic!(
                 "Expected struct or component type for field access, got {:?}",
                 other
@@ -118,11 +118,11 @@ impl IRTypes {
 
     ///Gets a mutable referente to the type of the function with the provided `id`
     pub fn get_object_type_mut(&mut self, id: IRStructId) -> &mut IRStruct {
-        &mut self.structs[id.0]
+        self.structs.get_mut(id)
     }
     ///Gets a mutable referente to the type of the function with the provided `id`
     pub fn get_component_type_mut(&mut self, id: IRComponentId) -> &mut IRComponent {
-        &mut self.components[id.0]
+        self.components.get_mut(id)
     }
 
     #[inline]
@@ -182,20 +182,29 @@ impl IRTypes {
     }
     ///Creates a new empty struct and returns its type ID
     pub(crate) fn create_empty_struct(&mut self, name: SymbolPointer) -> (IRTypeId, IRStructId) {
-        let sout = self.structs.len();
-        self.structs.push(IRStruct::new(Some(name)));
-        let struct_id = IRStructId(sout);
+        let struct_id = self.structs.insert(IRStruct::new(Some(name)));
         let out = self.insert_type(IRType::Struct(struct_id));
         (out, struct_id)
+    }
+    ///Creates a new struct fully formed with the given `fields` and `flags`,
+    ///dedup'd on its `name`, and returns its type ID
+    pub(crate) fn create_named_struct(
+        &mut self,
+        name: SymbolPointer,
+        fields: Vec<IRTypeId>,
+        flags: IRStructFlags,
+    ) -> IRTypeId {
+        let struct_id = self
+            .structs
+            .insert(IRStruct::new(Some(name)).with_flags(flags).with_fields(fields));
+        self.insert_type(IRType::Struct(struct_id))
     }
     ///Creates a new empty struct and returns its type ID
     pub(crate) fn create_empty_component(
         &mut self,
         name: SymbolPointer,
     ) -> (IRTypeId, IRComponentId) {
-        let sout = self.components.len();
-        self.components.push(IRComponent::new(name));
-        let component_id = IRComponentId(sout);
+        let component_id = self.components.insert(IRComponent::new(name));
         let out = self.insert_type(IRType::Component(component_id));
         (out, component_id)
     }
@@ -208,17 +217,11 @@ impl IRTypes {
         (out, func_id)
     }
     pub fn create_or_get_tuple(&mut self, elements: Vec<IRTypeId>) -> IRTypeId {
-        for (i, strukt) in self.structs.iter().enumerate() {
-            if strukt.get_fields() == elements {
-                return self.insert_type(IRType::Struct(IRStructId(i)));
-            }
-        }
         let mut s = IRStruct::new(None);
         for field in elements {
             s.insert_field(field);
         }
-        let sid = IRStructId(self.structs.len());
-        self.structs.push(s);
+        let sid = self.structs.insert(s);
         self.insert_type(IRType::Struct(sid))
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
-    Component, ComponentBuilder, ControlFlowGraph, Function, IRPointer, IRType, IRTypeId, SlynxIR,
-    builder::FunctionBuilder,
+    Component, ComponentBuilder, ControlFlowGraph, Function, IRPointer, IRStructFlags, IRType,
+    IRTypeId, SlynxIR, builder::FunctionBuilder,
 };
 
 impl SlynxIR {
@@ -15,6 +15,20 @@ impl SlynxIR {
     pub fn create_struct(&mut self, name: &str) -> IRTypeId {
         let name = self.strings.intern(name);
         self.create_empty_struct(name).0
+    }
+
+    /// Creates a named struct with the given `fields` and `flags`.
+    ///
+    /// Structs are dedup'd by name, so calling this multiple times with the same
+    /// `name` returns the same struct type regardless of `fields`.
+    pub fn create_struct_full(
+        &mut self,
+        name: &str,
+        fields: Vec<IRTypeId>,
+        flags: IRStructFlags,
+    ) -> IRTypeId {
+        let name = self.strings.intern(name);
+        self.types.create_named_struct(name, fields, flags)
     }
 
     /// Create a new empty function with the given name and return its pointer.
