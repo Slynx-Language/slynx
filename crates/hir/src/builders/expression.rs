@@ -443,12 +443,12 @@ impl ExpressionBuilder {
                 let expr = self.build_expression(queue, *expr, expected)?;
                 let after_index_type = {
                     let expr_type = queue.hir[expr.data].ty;
-                    let actual_type = queue.hir.deref()[expr_type].clone();
-                    match actual_type {
-                        HirType::Vector(t) => t,
-                        HirType::Array(t, _) => t,
-                        _ => return Err(HIRError::invalid_indexing(expression.span)),
-                    }
+                    let actual_type = match &queue.hir.deref()[expr_type] {
+                        HirType::Vector(t) => t.clone(),
+                        HirType::Array(t, _) => t.clone(),
+                        _ => return Err(HIRError::invalid_indexing(expr_type, expression.span)),
+                    };
+                    queue.hir.create_type(HirType::Nullable(actual_type))
                 };
                 match range {
                     RangeType::NoRange(index) => {
