@@ -21,8 +21,11 @@ impl SlynxContext {
                     "Received an incorrect type. Expected {expected_name} instead, received type {received_name}"
                 )
             }
-            HIRErrorKind::InvalidIndexing => {
-                "Expression cannot be indexed. It is not an array nor a vector.".to_string()
+            HIRErrorKind::InvalidIndexing(ty) => {
+                format!(
+                    "Expression cannot be indexed. Type is '{}', instead expected an array/vector type.",
+                    hir.view(*ty).name()
+                )
             }
             HIRErrorKind::CouldntInfer => "Could not infer the type of expression".to_string(),
             HIRErrorKind::ComponentNotFound(name) => format!(

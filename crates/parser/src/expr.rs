@@ -572,7 +572,7 @@ impl Parser<'_> {
 
     /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.
     pub fn parse_expression(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let expr = match self.peek()?.kind {
+        let mut expr = match self.peek()?.kind {
             TokenKind::If => {
                 let span = self.eat()?.span;
                 self.parse_if(span)
@@ -587,11 +587,10 @@ impl Parser<'_> {
             }
             _ => self.parse_logical(),
         }?;
-        if self.peek()?.kind == TokenKind::LBracket {
+        while self.peek()?.kind == TokenKind::LBracket {
             let span = self.eat()?.span;
-            self.parse_array_access(expr, span)
-        } else {
-            Ok(expr)
+            expr = self.parse_array_access(expr, span)?;
         }
+        Ok(expr)
     }
 }
