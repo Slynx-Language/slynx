@@ -23,6 +23,10 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                 let name = self.new_with(*ty).name();
                 format!("{name}?")
             }
+            HirType::Array(ty, len) => {
+                format!("[{len}]{}", self.new_with(*ty).name())
+            }
+            HirType::Vector(ty) => format!("[]{}", self.new_with(*ty).name()),
             _ if let Some(func) = self.is_function() => {
                 let args = func
                     .arguments()
