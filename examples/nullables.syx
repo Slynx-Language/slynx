@@ -1,0 +1,5 @@
+func main():void {
+    let a:int? = null;
+    let b: ([]int)? = null;
+    let c: int? = 15;
+}
