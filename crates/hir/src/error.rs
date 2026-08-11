@@ -31,6 +31,8 @@ pub enum InvalidWriteReason {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    MissingReturn,
+
     UnexpectedType {
         expected: DedupPoolId<HirType>,
         received: DedupPoolId<HirType>,
@@ -163,6 +165,13 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn missing_return(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::MissingReturn,
+            span,
+        }
+    }
+
     pub fn invalid_indexing(span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidIndexing,
@@ -407,6 +416,10 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::MissingReturn => write!(
+                f,
+                "This function does not return at all, even though it should"
+            ),
             HIRErrorKind::UnexpectedType { .. } => {
                 write!(f, "Received mismatched types")
             }

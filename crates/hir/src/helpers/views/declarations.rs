@@ -1,7 +1,10 @@
 use common::{FrontendSymbol, SymbolPointer, pool::DedupPoolId};
+use dashmap::mapref::one::MappedRef;
+use module_loader::FileId;
 
 use crate::{
     DeclarationId, HirFunctionDeclaration, HirType, VariableId,
+    file::HirFile,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
@@ -68,5 +71,8 @@ impl HirViewer<'_, DeclarationId<HirFunctionDeclaration>> {
     pub fn ty(&self) -> HirViewer<'_, DedupPoolId<HirType>> {
         let ty = self.hir.get_function(self.data).ty;
         self.new_with(ty)
+    }
+    pub fn raw_declaration(&self) -> MappedRef<'_, FileId, HirFile, HirFunctionDeclaration> {
+        self.hir.get_function(self.data)
     }
 }
