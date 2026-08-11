@@ -151,11 +151,15 @@ impl Parser<'_> {
                     }
                 }
                 let span = start_span.merge_with(self.eat()?.span);
-                let ty = self.intern_type(Type::Plain(GenericIdentifier {
-                    identifier: self.intern("()"),
-                    generic: types,
-                }));
-                span.make_spanned(ty)
+                if types.len() == 1 {
+                    types[0]
+                } else {
+                    let ty = self.intern_type(Type::Plain(GenericIdentifier {
+                        identifier: self.intern("()"),
+                        generic: types,
+                    }));
+                    span.make_spanned(ty)
+                }
             }
             _ => {
                 let (ident, mut span) = self.expect_identifier()?;
