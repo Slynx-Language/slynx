@@ -11,6 +11,9 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::MissingReturn => {
+                format!("Function does not contain return, but its return type is NOT void")
+            }
             HIRErrorKind::UnexpectedType { expected, received } => {
                 let expected_name = hir.view(*expected).name();
                 let received_name = hir.view(*received).name();
