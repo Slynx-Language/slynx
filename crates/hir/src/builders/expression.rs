@@ -120,6 +120,18 @@ impl ExpressionBuilder {
             queue.hir.view(expected).dereference(),
         ) {
             (a, b) if *a == *b => Ok(a.data),
+            (a, b)
+                if let Some(inner) = a.is_nullable()
+                    && inner == b.data =>
+            {
+                Ok(a.data)
+            }
+            (b, a)
+                if let Some(inner) = a.is_nullable()
+                    && inner == b.data =>
+            {
+                Ok(a.data)
+            }
             (received, expected) => Err(HIRError::unexpected_type(
                 received.data,
                 expected.data,
