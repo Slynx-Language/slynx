@@ -104,6 +104,16 @@ impl<'a> Modules<'a> {
                 "[]{}",
                 self.loader.symbols.get_name(self.type_name(*inner))
             )),
+            Type::Nullable(inner) => {
+                let inner_name = self.loader.symbols.get_name(self.type_name(*inner));
+                match self.loader.types.get(*inner) {
+                    Type::Array(_, _) | Type::Vector(_) => {
+                        self.loader.symbols.intern(&format!("({inner_name})?"))
+                    }
+
+                    _ => self.loader.symbols.intern(&format!("{inner_name}?")),
+                }
+            }
         }
     }
 

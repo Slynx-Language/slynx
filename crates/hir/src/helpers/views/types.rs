@@ -19,6 +19,14 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
             HirType::Int => "int".to_string(),
             HirType::Void => "void".to_string(),
             HirType::GenericComponent => "anycomponent".to_string(),
+            HirType::Nullable(ty) => {
+                let name = self.new_with(*ty).name();
+                format!("{name}?")
+            }
+            HirType::Array(ty, len) => {
+                format!("[{len}]{}", self.new_with(*ty).name())
+            }
+            HirType::Vector(ty) => format!("[]{}", self.new_with(*ty).name()),
             _ if let Some(func) = self.is_function() => {
                 let args = func
                     .arguments()
@@ -45,6 +53,14 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
             }
             _ if let Some(component) = self.is_component() => component.name().to_string(),
             t => unreachable!("Type {t:?} is not be able to have a name"),
+        }
+    }
+
+    pub fn is_nullable(&self) -> Option<DedupPoolId<HirType>> {
+        if let HirType::Nullable(inner) = self.hir.deref()[self.data] {
+            Some(inner)
+        } else {
+            None
         }
     }
 

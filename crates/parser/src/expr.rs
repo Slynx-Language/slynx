@@ -216,15 +216,21 @@ impl Parser<'_> {
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         // Keep postfix parsing iterative so tuple access and chained field access
         // share the same code path.
-        while let Ok(token) = self.peek()
-            && token.kind == TokenKind::Dot
-        {
-            self.eat()?;
-            expr = self.parse_dot_postfix(expr)?;
+        loop {
+            match self.peek()?.kind {
+                TokenKind::Dot => {
+                    self.eat()?;
+                    expr = self.parse_dot_postfix(expr)?;
+                }
+                TokenKind::LBracket => {
+                    let span = self.eat()?.span;
+                    expr = self.parse_array_access(expr, span)?;
+                }
+                _ => break Ok(expr),
+            }
         }
-
-        Ok(expr)
     }
+
     ///Parses a postfix that comes after a '.'. This function initializes right after the '.'
     pub fn parse_dot_postfix(
         &mut self,
@@ -280,6 +286,10 @@ impl Parser<'_> {
         } else {
             let current = self.eat()?;
             match current.kind {
+                TokenKind::Null => Ok(Spanned::new(
+                    self.intern_expression(ASTExpression::Null),
+                    current.span,
+                )),
                 TokenKind::Int(i) => Ok(Spanned::new(
                     self.intern_expression(ASTExpression::IntLiteral(i)),
                     current.span,
@@ -583,11 +593,7 @@ impl Parser<'_> {
             }
             _ => self.parse_logical(),
         }?;
-        if self.peek()?.kind == TokenKind::LBracket {
-            let span = self.eat()?.span;
-            self.parse_array_access(expr, span)
-        } else {
-            Ok(expr)
-        }
+
+        Ok(expr)
     }
 }

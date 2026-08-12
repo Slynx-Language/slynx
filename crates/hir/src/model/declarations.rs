@@ -72,6 +72,7 @@ pub struct HirFunctionDeclaration {
     pub visibility: VisibilityModifier,
     pub external: bool,
     pub attributes: Vec<HirAttribute>,
+    pub span: Span,
 }
 
 #[derive(Debug)]

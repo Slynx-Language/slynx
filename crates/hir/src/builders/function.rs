@@ -3,7 +3,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTStatement, FuncDeclaration};
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result, SymbolPointer,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, HirType, Result, SymbolPointer,
     VariableId,
     builders::{
         HirNode, HirQueueBuilder, PendantBody,
@@ -40,6 +40,7 @@ impl<'a> HirQueueBuilder<'a> {
                     visibility: f.visibility,
                     external: f.external,
                     attributes: Vec::new(),
+                    span: f.span,
                 };
                 let file = self.hir.get_or_create_file(node.entry);
                 file.create_function(decl)
@@ -117,23 +118,36 @@ impl HirFunctionBuilder {
         queue: &HirQueueBuilder<'_>,
         body: &[Spanned<DedupPoolId<ASTStatement>>],
     ) -> Result<ExpressionBuildResult> {
-        let mut statements = Vec::new();
-        let len = body.len();
-        for (i, statement) in body.iter().enumerate() {
-            if i + 1 == len {
-                // Last statement: build raw data, apply implicit return, then insert
-                let (data, span) = self.builder.build_statement_data(queue, statement)?;
-                let data = match data {
-                    HirStatement::Return { .. } => data,
-                    HirStatement::Expression { expr } => HirStatement::Return { expr: Some(expr) },
-                    _ => HirStatement::Return { expr: None },
+        let mut contains_return = false;
+        let statements = {
+            let mut statements = Vec::new();
+            let len = body.len();
+
+            for (i, statment) in body.iter().enumerate() {
+                if contains_return {
+                    break;
+                }
+                let (statment, span) = self.builder.build_statement_data(queue, statment)?;
+                let statment = if i + 1 == len
+                    && let HirStatement::Expression { expr } = statment
+                {
+                    HirStatement::Return { expr: Some(expr) }
+                } else {
+                    statment
                 };
-                let id = queue.hir.insert_statement(data);
-                statements.push(span.make_spanned(id));
-            } else {
-                let stmt = self.builder.build_statement(queue, statement)?;
-                statements.push(stmt);
+                contains_return = matches!(statment, HirStatement::Return { .. });
+                let stmt = queue.hir.insert_statement(statment);
+                statements.push(span.make_spanned(stmt));
             }
+            statements
+        };
+        let func_view = queue.hir.view(self.target);
+
+        if !func_view.raw_declaration().external
+            && !contains_return
+            && func_view.return_type() != queue.hir.create_type(HirType::Void)
+        {
+            return Err(HIRError::missing_return(func_view.raw_declaration().span));
         }
 
         Ok(ExpressionBuildResult {

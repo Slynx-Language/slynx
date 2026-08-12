@@ -26,7 +26,7 @@ fn rejects_function_without_return_value_for_non_void_return_type() {
     // The HIR builder does not yet validate that non-void functions
     // return a value; this test is a placeholder.
     compile_source("func main(): int { let x = 12; }")
-        .expect("return type checking is not yet in the builder");
+        .expect_err("expected function to fail due to not containing return type even though its return type is not void");
 }
 
 #[test]

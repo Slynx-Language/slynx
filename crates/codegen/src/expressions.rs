@@ -1,6 +1,6 @@
 use common::{Operator, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
+    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType,
     SlynxHir, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
@@ -204,11 +204,17 @@ impl Codegen {
         let expression = &hir[expr.data];
 
         let value = match &expression.kind {
+            HirExpressionKind::Null => {
+                let HirType::Nullable(inner) = hir.types_module[expression.ty].clone() else {
+                    unreachable!("Type of null should be a nullable");
+                };
+                let inner_ty = self.get_or_create_ir_type(&inner, hir, context.ir())?;
+                context.emit(Opcode::Zeroed, smallvec![], inner_ty)
+            }
             HirExpressionKind::ArrayIndex(arr, index) => {
                 let index = self.lower_expression(*index, hir, context)?;
-                let arr_type = hir.view(expr.data).ty();
                 let arr = self.lower_expression(*arr, hir, context)?;
-                let ty = self.get_or_create_ir_type(&arr_type, hir, context.ir())?;
+                let ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
                 context.emit(Opcode::ArrayGet, smallvec![arr, index], ty)
             }
             HirExpressionKind::Array(arr) => {
@@ -289,7 +295,17 @@ impl Codegen {
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
         };
-        Ok(value)
+        if let HirType::Nullable(_) = &hir.types_module[expression.ty] {
+            let bool_ty = context.ir().bool_type();
+            let bool_value = context.emit_const(
+                Operand::Bool(matches!(expression.kind, HirExpressionKind::Null)),
+                bool_ty,
+            );
+            let nullable_type = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?; //since its nullable, its certain for it to be an struct at this moment, so we can emit it like so
+            Ok(context.emit(Opcode::Struct, smallvec![value, bool_value], nullable_type))
+        } else {
+            Ok(value)
+        }
     }
 
     fn lower_if_expression(

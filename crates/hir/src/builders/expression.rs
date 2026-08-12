@@ -120,6 +120,18 @@ impl ExpressionBuilder {
             queue.hir.view(expected).dereference(),
         ) {
             (a, b) if *a == *b => Ok(a.data),
+            (a, b)
+                if let Some(inner) = a.is_nullable()
+                    && inner == b.data =>
+            {
+                Ok(a.data)
+            }
+            (b, a)
+                if let Some(inner) = a.is_nullable()
+                    && inner == b.data =>
+            {
+                Ok(a.data)
+            }
             (received, expected) => Err(HIRError::unexpected_type(
                 received.data,
                 expected.data,
@@ -408,15 +420,33 @@ impl ExpressionBuilder {
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let expr = queue.get_expr(expression.data);
         let expr = match expr {
+            ASTExpression::Null => {
+                let ty = match expected {
+                    None => {
+                        return Err(HIRError::couldnt_infer(expression.span));
+                    }
+                    Some(ty) if let HirType::Nullable(_) = queue.hir.deref()[ty] => ty,
+                    Some(ty) => {
+                        return Err(HIRError::unexpected_type(
+                            ty,
+                            queue.hir.create_type(HirType::Nullable(ty)),
+                            expression.span,
+                        ));
+                    }
+                };
+                HirExpression {
+                    ty,
+                    kind: HirExpressionKind::Null,
+                }
+            }
             ASTExpression::IndexExpression(expr, range) => {
                 let expr = self.build_expression(queue, *expr, expected)?;
                 let after_index_type = {
                     let expr_type = queue.hir[expr.data].ty;
-                    let actual_type = queue.hir.deref()[expr_type].clone();
-                    match actual_type {
-                        HirType::Vector(t) => t,
-                        HirType::Array(t, _) => t,
-                        _ => return Err(HIRError::invalid_indexing(expression.span)),
+                    match &queue.hir.deref()[expr_type] {
+                        HirType::Vector(t) => *t,
+                        HirType::Array(t, _) => *t,
+                        _ => return Err(HIRError::invalid_indexing(expr_type, expression.span)),
                     }
                 };
                 match range {

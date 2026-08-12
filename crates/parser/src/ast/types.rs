@@ -17,6 +17,7 @@ pub enum Type {
     Plain(GenericIdentifier),
     Array(DedupPoolId<Type>, DedupPoolId<ASTExpression>),
     Vector(DedupPoolId<Type>),
+    Nullable(DedupPoolId<Type>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]

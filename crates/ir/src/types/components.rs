@@ -1,5 +1,9 @@
-use crate::{IRTypeId, SymbolPointer};
+use std::hash::{Hash, Hasher};
+
+use common::pool::DedupPoolId;
 use smallvec::SmallVec;
+
+use crate::{IRTypeId, SymbolPointer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IRSpecializedComponentType {
@@ -14,8 +18,8 @@ pub struct IRComponent {
     pub(crate) children: SmallVec<[IRTypeId; 4]>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IRComponentId(pub usize);
+///A reference to some component on the IR
+pub type IRComponentId = DedupPoolId<IRComponent>;
 
 impl IRComponent {
     pub fn new(name: SymbolPointer) -> Self {
@@ -47,5 +51,18 @@ impl IRComponent {
 
     pub fn children(&self) -> &[IRTypeId] {
         &self.children
+    }
+}
+
+impl PartialEq for IRComponent {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+impl Eq for IRComponent {}
+
+impl Hash for IRComponent {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
     }
 }

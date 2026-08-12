@@ -1,9 +1,24 @@
+use common::pool::DedupPoolId;
 use slynx_hir::{HirType, SlynxHir};
-use slynx_ir::{IRTypeId, SlynxIR};
+use slynx_ir::{IRStructFlags, IRTypeId, SlynxIR};
 
 use crate::{Codegen, CodegenError, TypeId};
 
 impl Codegen {
+    ///Generates a type name for use inside a Nullable struct name. Nested
+    ///containers are encoded recursively so the produced name carries no
+    ///special characters (e.g. `[4][]int` -> `ArrayVectorint4`).
+    fn nullable_inner_name(&self, ty: &DedupPoolId<HirType>, hir: &SlynxHir) -> String {
+        let view = hir.view(*ty);
+        if let Some(vec_inner) = view.is_vector() {
+            format!("Vector{}", self.nullable_inner_name(&vec_inner, hir))
+        } else if let Some((arr_inner, len)) = view.is_array() {
+            format!("Array{}{}", self.nullable_inner_name(&arr_inner, hir), len)
+        } else {
+            view.name()
+        }
+    }
+
     pub(crate) fn get_mapped_type(&self, ty: &TypeId) -> Option<IRTypeId> {
         self.types.get(ty).cloned()
     }
@@ -40,6 +55,17 @@ impl Codegen {
             HirType::Vector(t) => {
                 let ty = self.get_or_create_ir_type(t, hir, ir)?;
                 ir.create_vector(ty)
+            }
+            HirType::Nullable(inner) => {
+                let name = self.nullable_inner_name(inner, hir);
+                let inner_type = self.get_or_create_ir_type(inner, hir, ir)?;
+                let boolean = ir.bool_type();
+                //struct {T, bool}
+                ir.create_struct_full(
+                    &format!("Nullable{name}"),
+                    vec![inner_type, boolean],
+                    IRStructFlags::NULLABLE,
+                )
             }
 
             _ => return Err(CodegenError::IRTypeNotRecognized(*ty)),

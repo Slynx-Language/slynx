@@ -163,6 +163,11 @@ impl HirNode<'_> {
                 let ty = self.hir.create_type(HirType::Vector(ty));
                 Ok((id, ty))
             }
+            Type::Nullable(nullable) => {
+                let (id, ty) = self.find_type(ty.span.make_spanned(*nullable))?;
+                let ty = self.hir.create_type(HirType::Nullable(ty));
+                Ok((id, ty))
+            }
         }
     }
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
@@ -435,6 +440,7 @@ impl<'a> HirQueueBuilder<'a> {
                     visibility: obj_decl.visibility,
                     external: obj_decl.external,
                     attributes: Vec::new(),
+                    span: method.span,
                 };
                 let file = self.hir.get_or_create_file(obj_file_id);
                 file.create_function(decl)

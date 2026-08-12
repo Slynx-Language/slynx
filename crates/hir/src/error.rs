@@ -31,12 +31,14 @@ pub enum InvalidWriteReason {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    MissingReturn,
+
     UnexpectedType {
         expected: DedupPoolId<HirType>,
         received: DedupPoolId<HirType>,
     },
     ///Invalid indexing error occurs when the expression being indexed cannot be indexed. So 5[12] cannot be indexed, which then gives this error
-    InvalidIndexing,
+    InvalidIndexing(DedupPoolId<HirType>),
     ///Couldnt infer is an error when the type of something could not be inferred
     CouldntInfer,
     NotAComponent(SymbolPointer),
@@ -163,9 +165,16 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
-    pub fn invalid_indexing(span: Span) -> Self {
+    pub fn missing_return(span: Span) -> Self {
         Self {
-            kind: HIRErrorKind::InvalidIndexing,
+            kind: HIRErrorKind::MissingReturn,
+            span,
+        }
+    }
+
+    pub fn invalid_indexing(expr_type: DedupPoolId<HirType>, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidIndexing(expr_type),
             span,
         }
     }
@@ -407,10 +416,14 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::MissingReturn => write!(
+                f,
+                "This function does not return at all, even though it should"
+            ),
             HIRErrorKind::UnexpectedType { .. } => {
                 write!(f, "Received mismatched types")
             }
-            HIRErrorKind::InvalidIndexing => write!(
+            HIRErrorKind::InvalidIndexing(_) => write!(
                 f,
                 "The given expression cannot be indexed because it is not an array nor vector"
             ),

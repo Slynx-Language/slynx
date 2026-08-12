@@ -52,6 +52,33 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
             .get(id.as_raw() as usize)
             .expect("Expected to retrieve data from pool id originated from insert")
     }
+
+    ///Gets a mutable reference to the data that originated the given `id`.
+    ///
+    /// Note: mutating a value that was inserted into a dedup pool invalidates
+    /// its stored hash key. Only mutate values whose hash is stable under the
+    /// mutation (e.g. structs dedup'd by name) and never re-`insert` a value
+    /// that expects to be dedup'd on the mutated fields.
+    pub fn get_mut(&mut self, id: DedupPoolId<T>) -> &mut T {
+        self.inner
+            .get_mut(id.as_raw() as usize)
+            .expect("Expected to retrieve data from pool id originated from insert")
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    ///Iterates over all values stored on this pool, yielding their `id` and a reference to the data
+    pub fn iter(&self) -> impl Iterator<Item = (DedupPoolId<T>, &T)> {
+        self.inner
+            .iter()
+            .map(|(index, value)| (DedupPoolId::new(index as u32), value))
+    }
 }
 
 impl<T> Pool<T> {

@@ -55,6 +55,8 @@ pub enum TokenKind {
     Extern,
     #[token("return")]
     Return,
+    #[token("null")]
+    Null,
 
     // Multi-char operators (must come before single-char)
     #[token("&&")]
@@ -125,6 +127,8 @@ pub enum TokenKind {
     Comma,
     #[token(":")]
     Colon,
+    #[token("?")]
+    Question,
 
     // Literals
     #[regex(r"0x[0-9a-fA-F]+", |lex| i32::from_str_radix(&lex.slice()[2..], 16).ok())]

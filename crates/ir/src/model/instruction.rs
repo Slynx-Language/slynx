@@ -137,6 +137,7 @@ pub enum Opcode {
     Vector,
     ///Gets the array on the given index. The first operand is the value to be indexed, and the second operand is the index
     ArrayGet,
+    Zeroed,
 }
 
 // ── Instruction ────────────────────────────────────────────────────────────
@@ -211,6 +212,13 @@ macro_rules! binop_ctor {
 }
 
 impl Instruction {
+    pub fn zeroed(ty: IRTypeId) -> Self {
+        Self {
+            opcode: Opcode::Zeroed,
+            value_type: ty,
+            operands: smallvec![],
+        }
+    }
     /// Build a call instruction.
     pub fn call(
         func: IRPointer<Function, 1>,
