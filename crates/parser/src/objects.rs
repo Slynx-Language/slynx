@@ -24,7 +24,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_object(&mut self, start: Span) -> Result<ObjectDeclaration> {
-        let name = self.parse_type()?;
+        let name = self.parse_type(&[])?;
         self.expect(&TokenKind::LBrace)?;
         let mut fields = Vec::new();
         let mut methods = Vec::new();
@@ -37,7 +37,7 @@ impl<'a> Parser<'a> {
                 }
                 continue;
             }
-            let name = self.parse_typedname()?;
+            let name = self.parse_typedname(&[])?;
             fields.push(ObjectField {
                 visibility: VisibilityModifier::Public,
                 name,

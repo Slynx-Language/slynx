@@ -23,7 +23,7 @@ impl Parser<'_> {
         {
             self.eat()?;
             let duration = if self.peek()?.kind != TokenKind::RParen {
-                Some(self.parse_expression()?)
+                Some(self.parse_expression(&[])?)
             } else {
                 None
             };
@@ -66,7 +66,7 @@ impl Parser<'_> {
                     children_blocks.push(block);
                 }
                 _ => {
-                    let stmt = self.parse_named_expr()?;
+                    let stmt = self.parse_named_expr(&[])?;
                     properties.push(stmt);
                     if let TokenKind::Comma | TokenKind::SemiColon = self.peek()?.kind {
                         self.eat()?;
@@ -113,7 +113,7 @@ impl Parser<'_> {
         match self.peek()?.kind {
             TokenKind::Identifier(ref s) if s == "styles" => self.parse_styles_statement(),
             _ => {
-                let out = self.parse_statement().map(|arg| {
+                let out = self.parse_statement(&[]).map(|arg| {
                     let span = arg.span;
                     Spanned::new(StyleSheetStatement::Statement(arg), span)
                 });
@@ -146,7 +146,7 @@ impl Parser<'_> {
     ) -> Result<Vec<Spanned<DedupPoolId<ASTExpression>>>, ParseError> {
         let mut exprs = vec![];
         loop {
-            let usage = self.parse_funcall()?;
+            let usage = self.parse_funcall(&[])?;
             exprs.push(usage);
             match self.peek()?.kind {
                 TokenKind::Comma => {
@@ -168,7 +168,7 @@ impl Parser<'_> {
 
     ///Parses a stylesheet. Thus the syntax `stylesheet Name(p1: T) uses Name2(f), F {...}`. The given `span` is the `stylesheet` keyword span
     pub fn parse_stylesheet(&mut self, span: Span) -> Result<StyleSheet, ParseError> {
-        let name = self.parse_type()?;
+        let name = self.parse_type(&[])?;
         self.expect(&TokenKind::LParen)?;
         let args = {
             let mut out = Vec::new();
@@ -176,7 +176,7 @@ impl Parser<'_> {
                 if let TokenKind::RParen = self.peek()?.kind {
                     break out;
                 }
-                let arg = self.parse_typedname()?;
+                let arg = self.parse_typedname(&[])?;
                 out.push(arg);
                 if let TokenKind::Comma = self.peek()?.kind {
                     self.eat()?;

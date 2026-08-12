@@ -1,6 +1,6 @@
 use crate::{
     ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, NamedExpr,
-    RangeType, Type,
+    RangeType, Type, TypeParamScope,
 };
 use crate::{Parser, Result, error::ParseError};
 use common::pool::DedupPoolId;
@@ -12,9 +12,22 @@ use smallvec::{SmallVec, smallvec};
 impl Parser<'_> {
     /// Parses a function call expression.
     /// It expects the current token to be an identifier, followed by a left parenthesis '(', then a list of expressions as arguments separated by commas, and finally a right parenthesis ')'.
-    pub fn parse_funcall(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let identifier = self.parse_type()?;
+    pub fn parse_funcall(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let identifier = self.parse_type(type_params)?;
+        self.parse_funcall_args(identifier, type_params)
+    }
 
+    ///Parses the arguments of a function call, given the already-parsed call name.
+    ///This allows generic calls such as `identity<i32>(x)`, whose name has
+    ///already been parsed as a generic type.
+    pub fn parse_funcall_args(
+        &mut self,
+        identifier: Spanned<DedupPoolId<Type>>,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.expect(&TokenKind::LParen)?;
         let mut params = SmallVec::new();
         if self.peek()?.kind == TokenKind::RParen {
@@ -27,7 +40,7 @@ impl Parser<'_> {
             return Ok(Spanned { data: id, span });
         }
         loop {
-            let param = self.parse_expression()?;
+            let param = self.parse_expression(type_params)?;
             params.push(param);
             match self.peek()?.kind {
                 TokenKind::RParen => break,
@@ -55,6 +68,7 @@ impl Parser<'_> {
     pub fn parse_component_expr_with_name(
         &mut self,
         name: Spanned<DedupPoolId<Type>>,
+        type_params: TypeParamScope,
     ) -> Result<Spanned<ComponentExpression>> {
         let mut span = name.span;
         self.expect(&TokenKind::LBrace)?;
@@ -71,7 +85,7 @@ impl Parser<'_> {
                 TokenKind::Colon => {
                     let (ident, _) = self.expect_identifier()?;
                     self.expect(&TokenKind::Colon)?;
-                    let val = self.parse_expression()?;
+                    let val = self.parse_expression(type_params)?;
                     values.push(ComponentMemberValue::Assign {
                         prop_name: ident,
                         rhs: val,
@@ -81,7 +95,7 @@ impl Parser<'_> {
                     }
                 }
                 _ => {
-                    let val = self.parse_component_expr()?;
+                    let val = self.parse_component_expr(type_params)?;
                     values.push(ComponentMemberValue::Child(val.data));
                 }
             }
@@ -89,17 +103,20 @@ impl Parser<'_> {
         self.expect(&TokenKind::RBrace)?;
         Ok(Spanned::new(ComponentExpression { name, values }, span))
     }
-    pub fn parse_component_expr(&mut self) -> Result<Spanned<ComponentExpression>> {
-        let ty = self.parse_type()?;
-        self.parse_component_expr_with_name(ty)
+    pub fn parse_component_expr(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<ComponentExpression>> {
+        let ty = self.parse_type(type_params)?;
+        self.parse_component_expr_with_name(ty, type_params)
     }
 
     ///From the current token parses a `NamedExpr`. It starts from the current token supposing it's a identifier,
     ///and parses expecting ':' and then another expression
-    pub fn parse_named_expr(&mut self) -> Result<Spanned<NamedExpr>> {
+    pub fn parse_named_expr(&mut self, type_params: TypeParamScope) -> Result<Spanned<NamedExpr>> {
         let (name, start) = self.expect_identifier()?;
         self.expect(&TokenKind::Colon)?;
-        let expr = self.parse_expression()?;
+        let expr = self.parse_expression(type_params)?;
         let span = start.merge_with(expr.span);
         Ok(Spanned::new(NamedExpr { name, expr }, span))
     }
@@ -107,6 +124,7 @@ impl Parser<'_> {
     pub fn parse_tuple_with_first(
         &mut self,
         start: Spanned<DedupPoolId<ASTExpression>>,
+        type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let start_span = start.span;
 
@@ -116,7 +134,7 @@ impl Parser<'_> {
         }
         let mut vec = smallvec![start];
         while self.peek()?.kind != TokenKind::RParen {
-            vec.push(self.parse_expression()?);
+            vec.push(self.parse_expression(type_params)?);
             if self.peek()?.kind == TokenKind::Comma {
                 self.eat()?;
             }
@@ -130,6 +148,7 @@ impl Parser<'_> {
     pub fn parse_tupleparse_tuple_with_first(
         &mut self,
         start_span: &Span,
+        type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         if self.peek()?.kind == TokenKind::RParen {
             let end = self.eat()?;
@@ -137,7 +156,7 @@ impl Parser<'_> {
             return Ok(Spanned::new(id, start_span.merge_with(end.span)));
         }
 
-        let first = self.parse_expression()?;
+        let first = self.parse_expression(type_params)?;
         if self.peek()?.kind == TokenKind::RParen {
             let _ = self.eat()?;
             return Ok(first);
@@ -145,7 +164,7 @@ impl Parser<'_> {
         self.expect(&TokenKind::Comma)?;
         let mut items = smallvec![first];
         while self.peek()?.kind != TokenKind::RParen {
-            items.push(self.parse_expression()?);
+            items.push(self.parse_expression(type_params)?);
             if self.peek()?.kind == TokenKind::Comma {
                 self.eat()?;
             }
@@ -157,12 +176,15 @@ impl Parser<'_> {
     }
 
     ///Parses an object expression, which follows the rule Object(field: expr, field: value)
-    pub fn parse_object_expression(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let name = self.parse_type()?;
+    pub fn parse_object_expression(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let name = self.parse_type(type_params)?;
         self.expect(&TokenKind::LParen)?;
         let mut fields = SmallVec::new();
         while self.peek()?.kind != TokenKind::RParen {
-            let named_expr = self.parse_named_expr()?;
+            let named_expr = self.parse_named_expr(type_params)?;
             fields.push(named_expr);
             if let TokenKind::RParen = self.peek()?.kind {
                 break;
@@ -180,20 +202,31 @@ impl Parser<'_> {
     ///return
     pub fn parse_identifier_exprs(
         &mut self,
+        type_params: TypeParamScope,
     ) -> Result<Option<Spanned<DedupPoolId<ASTExpression>>>> {
         let after_identifier = &self.peek_at(1)?.kind;
         match after_identifier {
-            TokenKind::Lt if self.is_generic(2)?.0 => {
-                let ty = self.parse_type()?;
-                self.expect(&TokenKind::LBrace)?;
-                let component = self.parse_component_expr_with_name(ty)?;
-                let span = component.span;
-                let id = self.intern_expression(ASTExpression::Component(component.data));
-                Ok(Some(Spanned::new(id, span)))
+            TokenKind::Lt if self.is_generic_application()? => {
+                let ty = self.parse_type(type_params)?;
+                match self.peek()?.kind {
+                    TokenKind::LParen => Ok(Some(self.parse_funcall_args(ty, type_params)?)),
+                    TokenKind::LBrace => {
+                        let component = self.parse_component_expr_with_name(ty, type_params)?;
+                        let span = component.span;
+                        let id = self.intern_expression(ASTExpression::Component(component.data));
+                        Ok(Some(Spanned::new(id, span)))
+                    }
+                    _ => Err(ParseError::UnexpectedToken(
+                        self.eat()?,
+                        ExpectedContent::Raw(
+                            "Instead was expecting '(' or '{' after a generic name".to_string(),
+                        ),
+                    )),
+                }
             }
             TokenKind::Lt => Ok(None),
             TokenKind::LBrace if self.has_flag(crate::flags::ParserFlag::ComponentExpr) => {
-                let component = self.parse_component_expr()?;
+                let component = self.parse_component_expr(type_params)?;
                 let id = self.intern_expression(ASTExpression::Component(component.data));
                 Ok(Some(Spanned::new(id, component.span)))
             }
@@ -201,9 +234,9 @@ impl Parser<'_> {
                 match (&self.peek_at(2)?.kind, &self.peek_at(3)?.kind) {
                     //check if its name(a,b) or name(a:b), or name(.a:b)
                     (TokenKind::Identifier(_), TokenKind::Colon) => {
-                        Ok(Some(self.parse_object_expression()?))
+                        Ok(Some(self.parse_object_expression(type_params)?))
                     }
-                    _ => Ok(Some(self.parse_funcall()?)),
+                    _ => Ok(Some(self.parse_funcall(type_params)?)),
                 }
             }
             _ => Ok(None),
@@ -213,6 +246,7 @@ impl Parser<'_> {
     fn parse_postfix_chain(
         &mut self,
         mut expr: Spanned<DedupPoolId<ASTExpression>>,
+        type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         // Keep postfix parsing iterative so tuple access and chained field access
         // share the same code path.
@@ -220,11 +254,11 @@ impl Parser<'_> {
             match self.peek()?.kind {
                 TokenKind::Dot => {
                     self.eat()?;
-                    expr = self.parse_dot_postfix(expr)?;
+                    expr = self.parse_dot_postfix(expr, type_params)?;
                 }
                 TokenKind::LBracket => {
                     let span = self.eat()?.span;
-                    expr = self.parse_array_access(expr, span)?;
+                    expr = self.parse_array_access(expr, span, type_params)?;
                 }
                 _ => break Ok(expr),
             }
@@ -235,6 +269,7 @@ impl Parser<'_> {
     pub fn parse_dot_postfix(
         &mut self,
         prefix: Spanned<DedupPoolId<ASTExpression>>,
+        type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         match &self.peek()?.kind {
             TokenKind::Int(index) if *index >= 0 => {
@@ -248,7 +283,7 @@ impl Parser<'_> {
                 Ok(Spanned::new(id, span))
             }
             TokenKind::Identifier(_) if self.peek_at(1)?.kind == TokenKind::LParen => {
-                let field = self.parse_funcall()?;
+                let field = self.parse_funcall(type_params)?;
                 let span = prefix.span.merge_with(field.span);
                 let id = self.intern_expression(ASTExpression::FieldAccess {
                     parent: prefix,
@@ -273,14 +308,17 @@ impl Parser<'_> {
         }
     }
     /// Parses a primary expression, which can be a literal (integer, float, string, boolean), an identifier, a parenthesized expression, or a field access expression.
-    pub fn parse_primary(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+    pub fn parse_primary(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let current = self.peek()?;
 
         let expr = if let TokenKind::If = current.kind {
             let span = self.eat()?.span;
-            self.parse_if(span)?
+            self.parse_if(span, type_params)?
         } else if let TokenKind::Identifier(_) = self.peek()?.kind
-            && let Some(value) = self.parse_identifier_exprs()?
+            && let Some(value) = self.parse_identifier_exprs(type_params)?
         {
             value
         } else {
@@ -316,10 +354,10 @@ impl Parser<'_> {
                     current.span,
                 )),
                 TokenKind::LParen => {
-                    let first = self.parse_expression()?;
+                    let first = self.parse_expression(type_params)?;
                     if self.peek()?.kind == TokenKind::Comma {
                         self.eat()?;
-                        self.parse_tuple_with_first(first)
+                        self.parse_tuple_with_first(first, type_params)
                     } else {
                         self.expect(&TokenKind::RParen)?;
                         Ok(first)
@@ -333,12 +371,15 @@ impl Parser<'_> {
             }?
         };
 
-        self.parse_postfix_chain(expr)
+        self.parse_postfix_chain(expr, type_params)
     }
 
     /// Parses multiplicative expressions, which consist of primary expressions combined with multiplication '*' or division '/' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a primary expression, and then repeatedly checking for multiplicative operators and parsing the right-hand side (RHS) as another primary expression until no more multiplicative operators are found.
-    pub fn parse_multiplicative(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_primary()?;
+    pub fn parse_multiplicative(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut lhs = self.parse_primary(type_params)?;
         while let Ok(curr) = self.peek()
             && matches!(curr.kind, TokenKind::Star | TokenKind::Slash)
         {
@@ -347,7 +388,7 @@ impl Parser<'_> {
             } else {
                 Operator::Slash
             };
-            let rhs = self.parse_primary()?;
+            let rhs = self.parse_primary(type_params)?;
             let span = lhs.span.merge_with(rhs.span);
             lhs = Spanned::new(
                 self.intern_expression(ASTExpression::Binary { lhs, op, rhs }),
@@ -357,8 +398,11 @@ impl Parser<'_> {
         Ok(lhs)
     }
     /// Parses additive expressions, which consist of multiplicative expressions combined with addition '+' or subtraction '-' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a multiplicative expression, and then repeatedly checking for additive operators and parsing the right-hand side (RHS) as another multiplicative expression until no more additive operators are found.
-    pub fn parse_additive(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_multiplicative()?;
+    pub fn parse_additive(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut lhs = self.parse_multiplicative(type_params)?;
         while let Ok(curr) = self.peek()
             && matches!(curr.kind, TokenKind::Plus | TokenKind::Sub)
         {
@@ -367,7 +411,7 @@ impl Parser<'_> {
             } else {
                 Operator::Sub
             };
-            let rhs = self.parse_multiplicative()?;
+            let rhs = self.parse_multiplicative(type_params)?;
             let span = lhs.span.merge_with(rhs.span);
             lhs = Spanned::new(
                 self.intern_expression(ASTExpression::Binary { lhs, op, rhs }),
@@ -378,8 +422,11 @@ impl Parser<'_> {
     }
 
     ///Parses binary expressions, thus, anything that has a bit operator
-    pub fn parse_bitoperation(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_additive()?;
+    pub fn parse_bitoperation(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut lhs = self.parse_additive(type_params)?;
         while let Ok(curr) = self.peek()
             && matches!(
                 curr.kind,
@@ -398,7 +445,7 @@ impl Parser<'_> {
                 TokenKind::Xor => Operator::Xor,
                 _ => unreachable!(),
             };
-            let rhs = self.parse_bitoperation()?;
+            let rhs = self.parse_bitoperation(type_params)?;
             let span = Span {
                 start: lhs.span.start,
                 end: rhs.span.end,
@@ -412,8 +459,11 @@ impl Parser<'_> {
     }
 
     ///Parses comparison expressions, thus, anything whose value returned is a boolean
-    pub fn parse_comparison(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_bitoperation()?;
+    pub fn parse_comparison(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut lhs = self.parse_bitoperation(type_params)?;
         while let Ok(curr) = self.peek()
             && matches!(
                 curr.kind,
@@ -428,7 +478,7 @@ impl Parser<'_> {
                 TokenKind::GtEq => Operator::GreaterThanOrEqual,
                 _ => unreachable!(),
             };
-            let rhs = self.parse_bitoperation()?;
+            let rhs = self.parse_bitoperation(type_params)?;
             let span = Span {
                 start: lhs.span.start,
                 end: rhs.span.end,
@@ -442,8 +492,11 @@ impl Parser<'_> {
     }
 
     ///Parses logical expressions, thus, anything whose value returned is a boolean
-    pub fn parse_logical(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_comparison()?;
+    pub fn parse_logical(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut lhs = self.parse_comparison(type_params)?;
         while let Ok(curr) = self.peek()
             && matches!(curr.kind, TokenKind::And | TokenKind::Or)
         {
@@ -452,7 +505,7 @@ impl Parser<'_> {
                 TokenKind::Or => Operator::LogicOr,
                 _ => unreachable!(),
             };
-            let rhs = self.parse_comparison()?;
+            let rhs = self.parse_comparison(type_params)?;
             let span = Span {
                 start: lhs.span.start,
                 end: rhs.span.end,
@@ -465,13 +518,17 @@ impl Parser<'_> {
         Ok(lhs)
     }
 
-    pub fn parse_array(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+    pub fn parse_array(
+        &mut self,
+        span: Span,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let mut exprs = SmallVec::new();
         loop {
             if self.peek()?.kind == TokenKind::RBracket {
                 break;
             }
-            let expr = self.parse_expression()?;
+            let expr = self.parse_expression(type_params)?;
             exprs.push(expr);
             if self.peek()?.kind != TokenKind::RBracket {
                 self.expect(&TokenKind::Comma)?;
@@ -483,13 +540,17 @@ impl Parser<'_> {
     }
     ///Parses a vector literal, which is delimited by `{` and `}`. Unlike array
     ///literals, the size of a vector is not known, so it is dynamic.
-    pub fn parse_vector(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+    pub fn parse_vector(
+        &mut self,
+        span: Span,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let mut exprs = SmallVec::new();
         loop {
             if self.peek()?.kind == TokenKind::RBrace {
                 break;
             }
-            let expr = self.parse_expression()?;
+            let expr = self.parse_expression(type_params)?;
             exprs.push(expr);
             if self.peek()?.kind != TokenKind::RBrace {
                 self.expect(&TokenKind::Comma)?;
@@ -504,6 +565,7 @@ impl Parser<'_> {
         &mut self,
         arr_expression: Spanned<DedupPoolId<ASTExpression>>,
         _: Span,
+        type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         match (self.peek()?.kind.clone(), self.peek_at(1)?.kind.clone()) {
             (TokenKind::Colon, TokenKind::RBracket) => {
@@ -518,7 +580,7 @@ impl Parser<'_> {
             }
             (TokenKind::Colon, _) => {
                 self.eat()?;
-                let expr = self.parse_expression()?;
+                let expr = self.parse_expression(type_params)?;
                 let expr = self.intern_expression(ASTExpression::IndexExpression(
                     arr_expression,
                     RangeType::To(expr),
@@ -530,7 +592,7 @@ impl Parser<'_> {
                     .make_spanned(expr))
             }
             _ => {
-                let expr = self.parse_expression()?;
+                let expr = self.parse_expression(type_params)?;
                 match (self.peek()?.kind.clone(), self.peek_at(1)?.kind.clone()) {
                     (TokenKind::Colon, TokenKind::RBracket) => {
                         self.eat()?;
@@ -546,7 +608,7 @@ impl Parser<'_> {
                     }
                     (TokenKind::Colon, _) => {
                         self.eat()?;
-                        let end_expr = self.parse_expression()?;
+                        let end_expr = self.parse_expression(type_params)?;
                         let bracket_span = self.eat()?.span;
                         let expr = self.intern_expression(ASTExpression::IndexExpression(
                             arr_expression,
@@ -577,21 +639,24 @@ impl Parser<'_> {
     }
 
     /// Parses an expression, which is the top-level function for parsing any kind of expression. It starts by parsing a logical expression, which can include comparisons, additive, multiplicative, and primary expressions, and returns the resulting ASTExpression.
-    pub fn parse_expression(&mut self) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+    pub fn parse_expression(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let expr = match self.peek()?.kind {
             TokenKind::If => {
                 let span = self.eat()?.span;
-                self.parse_if(span)
+                self.parse_if(span, type_params)
             }
             TokenKind::LBracket => {
                 let span = self.eat()?.span;
-                self.parse_array(span)
+                self.parse_array(span, type_params)
             }
             TokenKind::LBrace => {
                 let span = self.eat()?.span;
-                self.parse_vector(span)
+                self.parse_vector(span, type_params)
             }
-            _ => self.parse_logical(),
+            _ => self.parse_logical(type_params),
         }?;
 
         Ok(expr)

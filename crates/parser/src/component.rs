@@ -1,5 +1,5 @@
 use crate::{
-    ComponentDeclaration, ExpectedContent, Result,
+    ComponentDeclaration, ExpectedContent, Result, TypeParamScope,
     ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
 };
 use common::Span;
@@ -43,14 +43,14 @@ impl Parser<'_> {
     }
 
     /// Parses a component member, which can be either a child component or a property. It first checks for any visibility modifiers (like 'pub'), then determines if the member is a child component (identified by an identifier followed by an expression) or a property (identified by the 'prop' keyword followed by an identifier and optional type and default value). The function constructs and returns a `ComponentMember` based on the parsed information, including its kind and span.
-    fn parse_component_member(&mut self) -> Result<ComponentMember> {
+    fn parse_component_member(&mut self, type_params: TypeParamScope) -> Result<ComponentMember> {
         let mut span = self.peek()?.span;
         let modifier = self.parse_modifier()?;
         let curr = self.peek()?;
         match curr.kind {
             TokenKind::Identifier(_) => {
                 let span = curr.span;
-                let expr = self.parse_component_expr()?;
+                let expr = self.parse_component_expr(type_params)?;
                 Ok(ComponentMember {
                     kind: ComponentMemberKind::Child(expr),
                     span,
@@ -75,7 +75,7 @@ impl Parser<'_> {
 
                     TokenKind::Colon => {
                         self.eat()?;
-                        let ty = self.parse_type()?;
+                        let ty = self.parse_type(type_params)?;
 
                         let curr = self.eat()?;
                         let rhs = match curr.kind {
@@ -84,7 +84,7 @@ impl Parser<'_> {
                                 None
                             }
                             TokenKind::Eq => {
-                                let expr = self.parse_expression()?;
+                                let expr = self.parse_expression(type_params)?;
 
                                 span.end = self.expect(&TokenKind::SemiColon)?.span.end;
                                 Some(expr)
@@ -108,7 +108,7 @@ impl Parser<'_> {
                     }
                     TokenKind::Eq => {
                         self.eat()?;
-                        let expr = self.parse_expression()?;
+                        let expr = self.parse_expression(type_params)?;
                         span.end = self.expect(&TokenKind::SemiColon)?.span.end;
                         Ok(ComponentMember {
                             kind: ComponentMemberKind::Property {
@@ -136,11 +136,11 @@ impl Parser<'_> {
     }
     ///Parses a component declaration. This initializes on the 'component' keyword
     pub(crate) fn parse_component(&mut self, mut span: Span) -> Result<ComponentDeclaration> {
-        let ty = self.parse_type()?;
+        let ty = self.parse_type(&[])?;
         self.expect(&TokenKind::LBrace)?;
         let mut defs = Vec::new();
         while self.peek()?.kind != TokenKind::RBrace {
-            defs.push(self.parse_component_member()?);
+            defs.push(self.parse_component_member(&[])?);
         }
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
         span.end = end.end;

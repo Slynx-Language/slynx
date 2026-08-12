@@ -18,6 +18,10 @@ pub enum Type {
     Array(DedupPoolId<Type>, DedupPoolId<ASTExpression>),
     Vector(DedupPoolId<Type>),
     Nullable(DedupPoolId<Type>),
+    ///A reference to the i-th type parameter of the enclosing generic declaration.
+    ///For example, in `func A<T>(arg: T): T`, both the `arg` type and the return
+    ///type are represented as `Generic(0)`.
+    Generic(u8),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]

@@ -1,16 +1,19 @@
+use crate::SymbolPointer;
 use crate::{
-    ExpectedContent, FuncDeclaration, Parser, Result, error::ParseError, flags::ParserFlag,
+    ExpectedContent, FuncDeclaration, Parser, Result, Type, TypeParamScope, error::ParseError,
+    flags::ParserFlag,
 };
 use slynx_lexer::tokens::TokenKind;
 
 use crate::ast::{ASTStatement, TypedName};
+use common::pool::DedupPoolId;
 use common::{Span, Spanned};
 impl Parser<'_> {
     ///Parses the arguments of a function. It parses until the `)` of the function args.
-    pub fn parse_args(&mut self) -> Result<Vec<Spanned<TypedName>>> {
+    pub fn parse_args(&mut self, type_params: TypeParamScope) -> Result<Vec<Spanned<TypedName>>> {
         let mut names = Vec::new();
         while !matches!(self.peek()?.kind, TokenKind::RParen) {
-            names.push(self.parse_typedname()?);
+            names.push(self.parse_typedname(type_params)?);
             if matches!(self.peek()?.kind, TokenKind::RParen) {
                 break;
             } else {
@@ -24,12 +27,28 @@ impl Parser<'_> {
     ///Parses a function. The provided `span` is the initial span for the 'func' keyword.
     ///Parses both `func main(arg1:T): Q {...}` and `func main(arg1:T): Q -> ...`
     pub fn parse_func(&mut self, span: Span) -> Result<FuncDeclaration> {
-        let name = self.parse_type()?;
+        let name = self.parse_type(&[])?;
+        let (name, type_params) = self.split_type_params(name);
+        let mut param_types = Vec::new();
+        self.push_type_params(&type_params, &mut param_types);
+        self.parse_func_rest(span, name, type_params, &param_types)
+    }
+
+    ///Parses everything that comes after the function name: the arguments, the
+    ///return type and the body. The type parameters are kept in scope while this
+    ///runs, so `T` in argument/return types resolves to [`Type::Generic`].
+    fn parse_func_rest(
+        &mut self,
+        span: Span,
+        name: Spanned<DedupPoolId<Type>>,
+        type_params: Vec<SymbolPointer>,
+        scope: TypeParamScope,
+    ) -> Result<FuncDeclaration> {
         self.expect(&TokenKind::LParen)?;
-        let args = self.parse_args()?;
+        let args = self.parse_args(scope)?;
         self.expect(&TokenKind::RParen)?;
         self.expect(&TokenKind::Colon)?;
-        let return_type = self.parse_type()?;
+        let return_type = self.parse_type(scope)?;
         if self.flags.has_flag(ParserFlag::OnlySignatures) {
             self.expect(&TokenKind::SemiColon).map_err(|e| {
                 let ParseError::UnexpectedToken(tk, _) = e else {
@@ -46,6 +65,7 @@ impl Parser<'_> {
                 span: span.merge_with(return_type.span),
                 external: false,
                 name,
+                type_params,
                 args,
                 return_type,
                 body: vec![],
@@ -56,7 +76,7 @@ impl Parser<'_> {
         //func main(arg:T):Q ->/{}
         match current.kind {
             TokenKind::Arrow => {
-                let expr = self.parse_expression()?;
+                let expr = self.parse_expression(scope)?;
                 let end = expr
                     .span
                     .merge_with(self.expect(&TokenKind::SemiColon)?.span);
@@ -69,6 +89,7 @@ impl Parser<'_> {
                     visibility: Default::default(),
                     span: span.merge_with(end),
                     name,
+                    type_params,
                     args,
                     return_type,
                     body,
@@ -79,7 +100,7 @@ impl Parser<'_> {
                 self.reset_flags();
                 let mut body = vec![];
                 while !matches!(self.peek()?.kind, TokenKind::RBrace) {
-                    let stmt = self.parse_statement()?;
+                    let stmt = self.parse_statement(scope)?;
                     body.push(stmt);
 
                     if self.peek()?.kind == TokenKind::RBrace {
@@ -94,6 +115,7 @@ impl Parser<'_> {
                     external: false,
                     span: span.merge_with(end),
                     name,
+                    type_params,
                     args,
                     return_type,
                     body,

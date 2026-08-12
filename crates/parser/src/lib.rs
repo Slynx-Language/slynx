@@ -18,18 +18,26 @@ mod types;
 pub use ast::*;
 pub use program::*;
 
+#[cfg(test)]
+mod tests;
+
 use slynx_lexer::{TokenKind, TokenStream};
 
 use crate::flags::{ParserFlag, ParserFlags};
 
 pub type Result<T> = std::result::Result<T, ParseError>;
 pub type SymbolPointer = common::SymbolPointer<common::FrontendSymbol>;
+///The type parameters of the generic function currently being parsed. Each
+///entry maps a parameter's name to its index, so that `T` inside
+///`func identity<T>(x: T): T` resolves to `Type::Generic(0)`.
+pub type TypeParamScope<'a> = &'a [(SymbolPointer, u8)];
 pub struct Parser<'a> {
     symbols: &'a SymbolsModule<FrontendSymbol>,
     expressions: &'a DedupPool<ASTExpression>,
     statements: &'a DedupPool<ASTStatement>,
     types: &'a DedupPool<Type>,
     flags: ParserFlags,
+
     stream: TokenStream,
 }
 

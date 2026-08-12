@@ -12,11 +12,11 @@ impl<'a> Parser<'a> {
     pub fn parse_static(&mut self, span: Span) -> Result<StaticDeclaration> {
         let (name, _) = self.expect_identifier()?;
         self.expect(&TokenKind::Colon)?;
-        let ty = self.parse_type()?;
+        let ty = self.parse_type(&[])?;
         let expr = if self.flags.has_flag(ParserFlag::OnlySignatures) {
             None
         } else {
-            Some(self.parse_expression()?)
+            Some(self.parse_expression(&[])?)
         };
         self.expect(&TokenKind::SemiColon)?;
         Ok(StaticDeclaration {

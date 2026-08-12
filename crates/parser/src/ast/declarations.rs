@@ -49,6 +49,10 @@ pub struct ComponentDeclaration {
 #[derive(Debug)]
 pub struct FuncDeclaration {
     pub name: Spanned<DedupPoolId<Type>>,
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
     pub args: Vec<Spanned<TypedName>>,
     pub return_type: Spanned<DedupPoolId<Type>>,
     pub body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
