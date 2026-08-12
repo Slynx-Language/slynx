@@ -427,7 +427,7 @@ impl<'a> Formatter<'a> {
 
     pub fn format_instruction(&self, instr: &Instruction) -> String {
         match &instr.opcode {
-            Opcode::Zeroed => format!("zeroed"),
+            Opcode::Zeroed => "zeroed".to_string(),
             Opcode::ArrayGet => format!("array_get {}", self.fmt_operands(&instr.operands)),
             Opcode::Array => format!("[{}]", self.fmt_operands(&instr.operands)),
             Opcode::Vector => format!("vec[{}]", self.fmt_operands(&instr.operands)),

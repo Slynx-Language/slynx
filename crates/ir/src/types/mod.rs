@@ -194,9 +194,11 @@ impl IRTypes {
         fields: Vec<IRTypeId>,
         flags: IRStructFlags,
     ) -> IRTypeId {
-        let struct_id = self
-            .structs
-            .insert(IRStruct::new(Some(name)).with_flags(flags).with_fields(fields));
+        let struct_id = self.structs.insert(
+            IRStruct::new(Some(name))
+                .with_flags(flags)
+                .with_fields(fields),
+        );
         self.insert_type(IRType::Struct(struct_id))
     }
     ///Creates a new empty struct and returns its type ID

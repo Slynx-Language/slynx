@@ -1,8 +1,7 @@
 use common::pool::DedupPoolId;
 
 use crate::{
-    IRComponentId, IRSpecializedComponentType, IRStructId, Instruction,
-    types::functions::IRFunctionId,
+    IRComponentId, IRSpecializedComponentType, IRStructId, types::functions::IRFunctionId,
 };
 
 /// Logical identifier for a type inside IR type storage.

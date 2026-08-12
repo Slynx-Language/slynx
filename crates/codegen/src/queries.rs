@@ -58,7 +58,7 @@ impl Codegen {
             }
             HirType::Nullable(inner) => {
                 let name = self.nullable_inner_name(inner, hir);
-                let inner_type = self.get_or_create_ir_type(&inner, hir, ir)?;
+                let inner_type = self.get_or_create_ir_type(inner, hir, ir)?;
                 let boolean = ir.bool_type();
                 //struct {T, bool}
                 ir.create_struct_full(

@@ -12,7 +12,7 @@ impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
             HIRErrorKind::MissingReturn => {
-                format!("Function does not contain return, but its return type is NOT void")
+                "Function does not contain return, but its return type is NOT void".to_string()
             }
             HIRErrorKind::UnexpectedType { expected, received } => {
                 let expected_name = hir.view(*expected).name();

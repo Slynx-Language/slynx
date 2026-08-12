@@ -119,7 +119,7 @@ impl HirFunctionBuilder {
         body: &[Spanned<DedupPoolId<ASTStatement>>],
     ) -> Result<ExpressionBuildResult> {
         let mut contains_return = false;
-        let mut statements = {
+        let statements = {
             let mut statements = Vec::new();
             let len = body.len();
 
@@ -143,7 +143,10 @@ impl HirFunctionBuilder {
         };
         let func_view = queue.hir.view(self.target);
 
-        if !contains_return && func_view.return_type() != queue.hir.create_type(HirType::Void) {
+        if !func_view.raw_declaration().external
+            && !contains_return
+            && func_view.return_type() != queue.hir.create_type(HirType::Void)
+        {
             return Err(HIRError::missing_return(func_view.raw_declaration().span));
         }
 

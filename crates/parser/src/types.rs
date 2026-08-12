@@ -128,7 +128,7 @@ impl Parser<'_> {
                     identifier: self.intern("()"),
                     generic: smallvec![],
                 }));
-                end_span.make_spanned(id)
+                start_span.merge_with(end_span).make_spanned(id)
             }
             TokenKind::LParen => {
                 let start_span = self.eat()?.span;
