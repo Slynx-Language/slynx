@@ -68,10 +68,19 @@ impl Parser<'_> {
     ///Parses an alias declaration which follows `alias ty = AnotherType`
     pub fn parse_alias(&mut self, init: Span) -> Result<AliasDeclaration> {
         let name = self.parse_type(&[])?;
+        let (name, generics) = self.split_type_params(name);
         self.expect(&TokenKind::Eq)?;
-        let target = self.parse_type(&[])?;
+        let target = self.parse_type(
+            &generics
+                .iter()
+                .enumerate()
+                .map(|(idx, name)| (*name, idx as u8))
+                .collect::<Vec<_>>(),
+        )?;
+
         self.expect(&TokenKind::SemiColon)?;
         Ok(AliasDeclaration {
+            type_params: generics,
             visibility: VisibilityModifier::default(),
             span: init.merge_with(target.span),
             name,

@@ -169,6 +169,7 @@ impl Parser<'_> {
     ///Parses a stylesheet. Thus the syntax `stylesheet Name(p1: T) uses Name2(f), F {...}`. The given `span` is the `stylesheet` keyword span
     pub fn parse_stylesheet(&mut self, span: Span) -> Result<StyleSheet, ParseError> {
         let name = self.parse_type(&[])?;
+        let (name, generics) = self.split_type_params(name);
         self.expect(&TokenKind::LParen)?;
         let args = {
             let mut out = Vec::new();
@@ -196,6 +197,7 @@ impl Parser<'_> {
         self.expect(&TokenKind::LBrace)?;
         let body = self.parse_stylesheet_body()?;
         let out = StyleSheet {
+            type_params: generics,
             attributes: Vec::new(),
             visibility: Default::default(),
             name,

@@ -137,6 +137,7 @@ impl Parser<'_> {
     ///Parses a component declaration. This initializes on the 'component' keyword
     pub(crate) fn parse_component(&mut self, mut span: Span) -> Result<ComponentDeclaration> {
         let ty = self.parse_type(&[])?;
+        let (ty, generics) = self.split_type_params(ty);
         self.expect(&TokenKind::LBrace)?;
         let mut defs = Vec::new();
         while self.peek()?.kind != TokenKind::RBrace {
@@ -144,7 +145,9 @@ impl Parser<'_> {
         }
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
         span.end = end.end;
+
         Ok(ComponentDeclaration {
+            type_params: generics,
             attributes: Vec::new(),
             visibility: Default::default(),
             name: ty,

@@ -24,6 +24,19 @@ pub enum Type {
     Generic(u8),
 }
 
+///A context to determine what the type is being related to. This can contain information of generic names, at the moment
+pub struct TypeContext<'a> {
+    pub generic_names: &'a [SymbolPointer],
+}
+
+impl<'a> TypeContext<'a> {
+    pub fn new(generics: &'a [SymbolPointer]) -> Self {
+        Self {
+            generic_names: generics,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 ///A Identifier that might contain a generic. Such as `Component<int>`
 pub struct GenericIdentifier {

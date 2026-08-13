@@ -14,6 +14,10 @@ pub struct ASTAttribute {
 
 #[derive(Debug)]
 pub struct ObjectMethod {
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
     pub method_name: Spanned<DedupPoolId<Type>>,
     pub arguments: Vec<Spanned<TypedName>>,
     pub return_type: Spanned<DedupPoolId<Type>>,
@@ -23,6 +27,10 @@ pub struct ObjectMethod {
 
 #[derive(Debug)]
 pub struct AliasDeclaration {
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
     pub name: Spanned<DedupPoolId<Type>>,
     pub target: Spanned<DedupPoolId<Type>>,
     pub span: Span,
@@ -30,6 +38,10 @@ pub struct AliasDeclaration {
 }
 #[derive(Debug)]
 pub struct ObjectDeclaration {
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
     pub name: Spanned<DedupPoolId<Type>>,
     pub fields: Vec<ObjectField>,
     pub methods: Vec<ObjectMethod>,
@@ -40,6 +52,10 @@ pub struct ObjectDeclaration {
 }
 #[derive(Debug)]
 pub struct ComponentDeclaration {
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
     pub name: Spanned<DedupPoolId<Type>>,
     pub members: Vec<ComponentMember>,
     pub attributes: Vec<Spanned<ASTAttribute>>,
@@ -63,6 +79,10 @@ pub struct FuncDeclaration {
 }
 #[derive(Debug)]
 pub struct StyleSheet {
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
     pub name: Spanned<DedupPoolId<Type>>,
     pub args: Vec<Spanned<TypedName>>,
     pub usages: Vec<Spanned<DedupPoolId<ASTExpression>>>,
