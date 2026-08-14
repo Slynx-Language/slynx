@@ -1,0 +1,8 @@
+object Option<T> {
+    value: T
+}
+
+func main(): int {
+    let some = Option<int>(value: 42);
+    some.value
+}

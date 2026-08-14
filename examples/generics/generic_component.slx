@@ -1,0 +1,13 @@
+component Box<T> {
+    pub prop item: T;
+}
+
+component Main {
+    Box<int> {
+        item: 42
+    }
+}
+
+func main(): Component {
+    Main {}
+}
