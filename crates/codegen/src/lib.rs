@@ -5,7 +5,10 @@ mod functions;
 mod helper;
 mod instructions;
 mod queries;
-use std::{collections::HashMap, ops::Deref};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+};
 
 use common::{FrontendSymbol, SymbolPointer, pool::DedupPoolId};
 pub use error::*;
@@ -17,6 +20,7 @@ use petgraph::{
 use slynx_hir::{
     DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
     HirStylesheetDeclaration, HirType, SlynxHir,
+    id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 use slynx_ir::{
     Component, Function, GlobalValue, IRPointer, IRStorage, IRTypeId, InitValue, SlynxIR,
@@ -88,18 +92,33 @@ impl Codegen {
         ptr
     }
 
-    pub fn generate(&mut self, hir: &SlynxHir) -> Result<SlynxIR, CodegenError> {
+    pub fn generate(
+        &mut self,
+        hir: &SlynxHir,
+        deadcode: HashSet<AnyDeclarationId>,
+    ) -> Result<SlynxIR, CodegenError> {
         let mut ir = SlynxIR::new();
-        self.hoist_declarations(hir, &mut ir);
-        self.stylesheet_pre_pass(hir, &mut ir);
-        self.lower_non_stylesheets(hir, &mut ir)?;
-        self.lower_stylesheets(hir, &mut ir)?;
+        self.hoist_declarations(hir, &mut ir, &deadcode);
+        self.stylesheet_pre_pass(hir, &mut ir, &deadcode);
+        self.lower_non_stylesheets(hir, &mut ir, &deadcode)?;
+        self.lower_stylesheets(hir, &mut ir, &deadcode)?;
         Ok(ir)
     }
     /// Phase 0: Hoist declarations.
-    fn hoist_declarations(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) {
+    fn hoist_declarations(
+        &mut self,
+        hir: &SlynxHir,
+        ir: &mut SlynxIR,
+        deadcode: &HashSet<AnyDeclarationId>,
+    ) {
         for file in &hir.files {
-            for (_, declaration) in file.declarations.objects.iter().with_ids() {
+            for (id, declaration) in file.declarations.objects.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Object(id),
+                )) {
+                    continue;
+                }
                 let obj = ir.create_struct(hir.get_name(declaration.name));
                 self.types.insert(declaration.ty, obj);
                 // declaration.ty is a Reference; also register the concrete
@@ -110,6 +129,12 @@ impl Codegen {
                 }
             }
             for (id, declaration) in file.declarations.functions.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Function(id),
+                )) {
+                    continue;
+                }
                 let name = hir.get_name(declaration.name);
                 let ptr = ir.create_function(name, declaration.external);
                 let ty = ir.get(ptr).ty();
@@ -118,6 +143,12 @@ impl Codegen {
                     .insert(DeclarationId::new(file.file, id), ptr);
             }
             for (id, declaration) in file.declarations.components.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Component(id),
+                )) {
+                    continue;
+                }
                 let comp_name = hir.get_name(declaration.name);
                 let component = ir.create_component(comp_name);
                 let component_ty = ir.get(component).ir_type();
@@ -126,6 +157,12 @@ impl Codegen {
                     .insert(DeclarationId::new(file.file, id), component);
             }
             for (id, declaration) in file.declarations.styles.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Style(id),
+                )) {
+                    continue;
+                }
                 let name = hir.get_name(declaration.name);
                 let init_func = ir.create_function(&format!("__init_{name}"), false);
                 let apply_func = ir.create_function(&format!("__apply_{name}"), false);
@@ -145,9 +182,20 @@ impl Codegen {
     }
 
     /// Pre-pass: compute property codes for all stylesheets.
-    fn stylesheet_pre_pass(&mut self, hir: &SlynxHir, _ir: &mut SlynxIR) {
+    fn stylesheet_pre_pass(
+        &mut self,
+        hir: &SlynxHir,
+        _ir: &mut SlynxIR,
+        deadcode: &HashSet<AnyDeclarationId>,
+    ) {
         for file in hir.files.iter() {
             for (id, declaration) in file.declarations.declarations.styles.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Style(id),
+                )) {
+                    continue;
+                }
                 let HirStylesheetDeclaration {
                     usages, statements, ..
                 } = declaration;
@@ -166,12 +214,25 @@ impl Codegen {
         &mut self,
         hir: &SlynxHir,
         ir: &mut SlynxIR,
+        deadcode: &HashSet<AnyDeclarationId>,
     ) -> Result<(), CodegenError> {
         for file in &hir.files {
-            for obj in file.declarations.objects.iter() {
+            for (id, obj) in file.declarations.objects.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Object(id),
+                )) {
+                    continue;
+                }
                 self.insert_object_fields_for(obj.ty, hir, ir)?;
             }
             for (id, component) in file.declarations.components.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Component(id),
+                )) {
+                    continue;
+                }
                 self.initialize_component(
                     DeclarationId::new(file.file, id),
                     component,
@@ -192,6 +253,12 @@ impl Codegen {
                 }
             }
             for (id, declaration) in file.declarations.functions.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Function(id),
+                )) {
+                    continue;
+                }
                 let HirFunctionDeclaration {
                     statements, args, ..
                 } = declaration;
@@ -216,12 +283,23 @@ impl Codegen {
     }
 
     /// Phase 2: Lower stylesheets in dependency order.
-    fn lower_stylesheets(&mut self, hir: &SlynxHir, ir: &mut SlynxIR) -> Result<(), CodegenError> {
+    fn lower_stylesheets(
+        &mut self,
+        hir: &SlynxHir,
+        ir: &mut SlynxIR,
+        deadcode: &HashSet<AnyDeclarationId>,
+    ) -> Result<(), CodegenError> {
         let (flat_decls, decl_to_idx): (Vec<_>, _) = {
             let mut decls = Vec::new();
             let mut idx = HashMap::new();
             for file in &hir.files {
                 for (id, _decl) in file.value().declarations.styles.iter().with_ids() {
+                    if deadcode.contains(&AnyDeclarationId::new(
+                        file.file,
+                        AnyLocalDeclarationId::Style(id),
+                    )) {
+                        continue;
+                    }
                     let id = DeclarationId::new(file.file, id);
                     idx.insert(id, decls.len());
                     decls.push(id);
