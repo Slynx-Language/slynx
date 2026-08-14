@@ -162,6 +162,25 @@ pub enum HIRErrorKind {
         /// The component whose body caused the cycle.
         component: ComponentId,
     },
+    /// A generic function was called with the wrong number of explicit type
+    /// arguments (e.g. `compare<int>(a, b)` on a `func compare<T, U>`).
+    GenericArityMismatch {
+        /// The name of the generic function being instantiated.
+        func: SymbolPointer,
+        /// The number of type parameters the function declares.
+        declared: usize,
+        /// The number of type arguments supplied at the call site.
+        supplied: usize,
+    },
+    /// Monomorphizing a generic function would never terminate because each
+    /// instantiation requests a new, larger instantiation (e.g. a function
+    /// whose generic argument grows without bound).
+    CyclicMonomorphization {
+        /// The name of the function whose instantiation cycles.
+        func: SymbolPointer,
+        /// The generic type arguments that keep growing.
+        args: Vec<DedupPoolId<HirType>>,
+    },
 }
 
 impl HIRError {
@@ -395,6 +414,35 @@ impl HIRError {
         }
     }
 
+    /// Creates a [`HIRErrorKind::GenericArityMismatch`] error.
+    pub fn generic_arity_mismatch(
+        func: SymbolPointer,
+        declared: usize,
+        supplied: usize,
+        span: Span,
+    ) -> Self {
+        Self {
+            kind: HIRErrorKind::GenericArityMismatch {
+                func,
+                declared,
+                supplied,
+            },
+            span,
+        }
+    }
+
+    /// Creates a [`HIRErrorKind::CyclicMonomorphization`] error.
+    pub fn cyclic_monomorphization(
+        func: SymbolPointer,
+        args: Vec<DedupPoolId<HirType>>,
+        span: Span,
+    ) -> Self {
+        Self {
+            kind: HIRErrorKind::CyclicMonomorphization { func, args },
+            span,
+        }
+    }
+
     /// Creates a [`HIRErrorKind::AmbiguousDeclaration`] error.
     pub fn ambiguous_declaration(
         name: SymbolPointer,
@@ -508,6 +556,22 @@ impl std::fmt::Display for HIRError {
             }
             HIRErrorKind::CyclicComponentBody { component: _ } => {
                 write!(f, "cyclic component body resolution")
+            }
+            HIRErrorKind::GenericArityMismatch {
+                func,
+                declared,
+                supplied,
+            } => {
+                write!(
+                    f,
+                    "generic function '{func:?}' expects {declared} type argument(s), got {supplied}"
+                )
+            }
+            HIRErrorKind::CyclicMonomorphization { func, .. } => {
+                write!(
+                    f,
+                    "monomorphization of generic function '{func:?}' does not terminate"
+                )
             }
         }
     }

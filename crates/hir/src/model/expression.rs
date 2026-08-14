@@ -289,6 +289,7 @@ pub struct HirExpression {
 /// let call_expr = HirExpressionKind::FunctionCall {
 ///     name: DeclarationId::from_raw(0),
 ///     args: vec![HirExpression { id: expr_id, ty: int_type, kind: int_expr, span }],
+///     generics: vec![],
 /// };
 ///
 /// // Field access expression
@@ -520,6 +521,14 @@ pub enum HirExpressionKind {
 
         /// The argument expressions passed to the function.
         args: Vec<Spanned<PoolId<HirExpression>>>,
+
+        /// The explicit generic type arguments supplied at the call site, if any.
+        ///
+        /// For a call like `compare<int>(a, b)` this holds the resolved `int`
+        /// type id. Inside a generic function body, an argument may still be a
+        /// [`HirType::GenericParam`] id (e.g. `identity<T>(x)`); it is resolved
+        /// to a concrete type during monomorphization.
+        generics: Vec<DedupPoolId<HirType>>,
     },
 
     /// A conditional (if) expression.

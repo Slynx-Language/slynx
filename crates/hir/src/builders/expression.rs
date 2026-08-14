@@ -311,6 +311,7 @@ impl ExpressionBuilder {
                             kind: HirExpressionKind::FunctionCall {
                                 name: func_id,
                                 args: method_args,
+                                generics: Vec::new(),
                             },
                         }
                     }
@@ -541,6 +542,9 @@ impl ExpressionBuilder {
                         name.span,
                     ));
                 }
+                let generics = queue
+                    .get_node(self.file())
+                    .resolve_call_generics(identifier, context)?;
                 let args = args
                     .iter()
                     .enumerate()
@@ -550,7 +554,11 @@ impl ExpressionBuilder {
                     .collect::<Result<_>>()?;
                 let ty = func_real_type.return_type();
                 HirExpression {
-                    kind: HirExpressionKind::FunctionCall { name: func, args },
+                    kind: HirExpressionKind::FunctionCall {
+                        name: func,
+                        args,
+                        generics,
+                    },
                     ty,
                 }
             }

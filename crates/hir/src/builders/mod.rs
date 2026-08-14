@@ -201,6 +201,23 @@ impl HirNode<'_> {
         Ok(self.hir.create_function_type(args, ret))
     }
 
+    ///Resolves the explicit generic type arguments of a call like
+    ///`compare<int>(a, b)` into their HIR type ids. Types that are generic
+    ///parameters of the enclosing declaration (e.g. `identity<T>(x)`) resolve
+    ///to [`HirType::GenericParam`] ids, which monomorphization later
+    ///substitutes with concrete types.
+    pub fn resolve_call_generics(
+        &self,
+        identifier: &GenericIdentifier,
+        context: &TypeContext,
+    ) -> Result<Vec<DedupPoolId<HirType>>> {
+        identifier
+            .generic
+            .iter()
+            .map(|ty| self.find_type(*ty, context).map(|(_, ty)| ty))
+            .collect()
+    }
+
     /// Pure computation of a component's signature type (no cycle detection).
     fn compute_component_type(
         &self,
