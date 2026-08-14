@@ -140,8 +140,10 @@ impl Parser<'_> {
 
         self.expect(&TokenKind::LBrace)?;
         let mut defs = Vec::new();
+        let mut type_params = Vec::new();
+        self.push_type_params(&generics, &mut type_params);
         while self.peek()?.kind != TokenKind::RBrace {
-            defs.push(self.parse_component_member(&[])?);
+            defs.push(self.parse_component_member(&type_params)?);
         }
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
         span.end = end.end;

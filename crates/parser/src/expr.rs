@@ -182,11 +182,11 @@ impl Parser<'_> {
     }
 
     ///Parses an object expression, which follows the rule Object(field: expr, field: value)
-    pub fn parse_object_expression(
+    pub fn parse_object_expression_with_name(
         &mut self,
+        name: Spanned<DedupPoolId<Type>>,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let name = self.parse_type(type_params)?;
         self.expect(&TokenKind::LParen)?;
         let mut fields = SmallVec::new();
         while self.peek()?.kind != TokenKind::RParen {
@@ -204,6 +204,14 @@ impl Parser<'_> {
         Ok(Spanned::new(id, span))
     }
 
+    fn parse_object_expression(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let name = self.parse_type(type_params)?;
+        self.parse_object_expression_with_name(name, type_params)
+    }
+
     ///Parses anything that comes prefixed by a identifier. This can be a function call, object creation, or a struct creation. This is executed without eating the identifier to be able to choose what to
     ///return
     pub fn parse_identifier_exprs(
@@ -215,7 +223,15 @@ impl Parser<'_> {
             TokenKind::Lt if self.is_generic_application()? => {
                 let ty = self.parse_type(type_params)?;
                 match self.peek()?.kind {
-                    TokenKind::LParen => Ok(Some(self.parse_funcall_args(ty, type_params)?)),
+                    TokenKind::LParen => {
+                        match (&self.peek_at(1)?.kind, &self.peek_at(2)?.kind) {
+                            //check if its name<T>(a,b) or name<T>(a:b)
+                            (TokenKind::Identifier(_), TokenKind::Colon) => Ok(Some(
+                                self.parse_object_expression_with_name(ty, type_params)?,
+                            )),
+                            _ => Ok(Some(self.parse_funcall_args(ty, type_params)?)),
+                        }
+                    }
                     TokenKind::LBrace => {
                         let component = self.parse_component_expr_with_name(ty, type_params)?;
                         let span = component.span;

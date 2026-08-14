@@ -30,6 +30,8 @@ impl<'a> Parser<'a> {
         self.expect(&TokenKind::LBrace)?;
         let mut fields = Vec::new();
         let mut methods = Vec::new();
+        let mut type_params = Vec::new();
+        self.push_type_params(&generics, &mut type_params);
         while self.peek()?.kind != TokenKind::RBrace {
             if self.peek()?.kind == TokenKind::Func {
                 let start = self.eat()?.span;
@@ -39,7 +41,7 @@ impl<'a> Parser<'a> {
                 }
                 continue;
             }
-            let name = self.parse_typedname(&[])?;
+            let name = self.parse_typedname(&type_params)?;
             fields.push(ObjectField {
                 visibility: VisibilityModifier::Public,
                 name,
