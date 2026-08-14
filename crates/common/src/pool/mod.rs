@@ -50,7 +50,17 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
     pub fn get(&self, id: DedupPoolId<T>) -> &T {
         self.inner
             .get(id.as_raw() as usize)
-            .expect("Expected to retrieve data from pool id originated from insert")
+            .unwrap_or_else(|| {
+                panic!(
+                    "Expected to retrieve data from pool id originated from insert (id={} count={})",
+                    id.as_raw(),
+                    self.inner.count()
+                )
+            })
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.count()
     }
 
     ///Gets a mutable reference to the data that originated the given `id`.
