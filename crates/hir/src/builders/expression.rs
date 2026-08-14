@@ -513,6 +513,11 @@ impl ExpressionBuilder {
                 let lhs_ty = queue.hir.view(lhs.data).ty();
                 let rhs_ty = queue.hir.view(rhs.data).ty();
                 let ty = self.unify_types(queue, lhs_ty, rhs_ty, expression.span)?;
+                let ty = if op.is_logical() {
+                    queue.hir.create_type(HirType::Bool)
+                } else {
+                    ty
+                };
                 queue.hir.create_binary_expression(lhs, rhs, *op, ty)
             }
             ASTExpression::FunctionCall { name, args } => {
