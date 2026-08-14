@@ -27,6 +27,7 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                 format!("[{len}]{}", self.new_with(*ty).name())
             }
             HirType::Vector(ty) => format!("[]{}", self.new_with(*ty).name()),
+            HirType::GenericParam { name, .. } => self.hir.get_name(*name).to_string(),
             _ if let Some(func) = self.is_function() => {
                 let args = func
                     .arguments()

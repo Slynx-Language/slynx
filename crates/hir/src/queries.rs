@@ -73,6 +73,21 @@ impl SlynxHir<'_> {
         }
     }
 
+    pub fn get_declaration_generics(&self, id: AnyDeclarationId) -> Vec<SymbolPointer> {
+        let file = self.get_or_create_file(id.file_id);
+        match id.local_id {
+            AnyLocalDeclarationId::Alias(alias) => &file.alias.get(alias).generics,
+            AnyLocalDeclarationId::Component(component) => &file.components.get(component).generics,
+            AnyLocalDeclarationId::Function(func) => &file.functions.get(func).generics,
+            AnyLocalDeclarationId::Object(obj) => &file.objects.get(obj).generics,
+            AnyLocalDeclarationId::Style(style) => &file.styles.get(style).generics,
+            AnyLocalDeclarationId::Static(_) => {
+                unreachable!("An static should not contain generics")
+            }
+        }
+        .to_vec()
+    }
+
     pub fn type_of_intrinsic(&self, name: &str, span: Span) -> Result<DedupPoolId<HirType>> {
         let id = self.lang_items.get(name).map_err(|_| {
             let sym = self.intern_name(name);

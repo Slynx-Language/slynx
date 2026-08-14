@@ -66,6 +66,7 @@ pub struct HirStyleUsage {
 #[derive(Debug)]
 pub struct HirFunctionDeclaration {
     pub name: SymbolPointer,
+    pub generics: Vec<SymbolPointer>,
     pub args: SmallVec<[VariableId; 2]>,
     pub statements: Vec<Spanned<PoolId<HirStatement>>>,
     pub ty: DedupPoolId<HirType>,
@@ -78,6 +79,7 @@ pub struct HirFunctionDeclaration {
 #[derive(Debug)]
 pub struct HirObjectDeclaration {
     pub name: SymbolPointer,
+    pub generics: Vec<SymbolPointer>,
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
     pub external: bool,
@@ -96,6 +98,7 @@ pub struct HirStaticDeclaration {
 #[derive(Debug)]
 pub struct HirAliasDeclaration {
     pub name: SymbolPointer,
+    pub generics: Vec<SymbolPointer>,
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
 }
@@ -103,6 +106,7 @@ pub struct HirAliasDeclaration {
 #[derive(Debug)]
 pub struct HirComponentDeclaration {
     pub name: SymbolPointer,
+    pub generics: Vec<SymbolPointer>,
     pub props: Vec<ComponentMemberDeclaration>,
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
@@ -111,8 +115,9 @@ pub struct HirComponentDeclaration {
 
 #[derive(Debug)]
 pub struct HirStylesheetDeclaration {
-    pub usages: Vec<HirStyleUsage>,
     pub name: SymbolPointer,
+    pub usages: Vec<HirStyleUsage>,
+    pub generics: Vec<SymbolPointer>,
     pub args: SmallVec<[VariableId; 2]>,
     pub statements: Vec<HirStyleStatement>,
     pub ty: DedupPoolId<HirType>,

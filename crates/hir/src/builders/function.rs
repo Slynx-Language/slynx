@@ -1,12 +1,12 @@
 use common::{Span, Spanned, pool::DedupPoolId};
 use module_loader::FileId;
-use slynx_parser::{ASTStatement, FuncDeclaration};
+use slynx_parser::{ASTStatement, FuncDeclaration, TypeContext};
 
 use crate::{
     DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, HirType, Result, SymbolPointer,
     VariableId,
     builders::{
-        HirNode, HirQueueBuilder, PendantBody,
+        HirNode, HirQueueBuilder, PendantFunction,
         expression::{ExpressionBuildResult, ExpressionBuilder},
     },
     context::HirSymbol,
@@ -33,6 +33,7 @@ impl<'a> HirQueueBuilder<'a> {
             || {
                 let decl = HirFunctionDeclaration {
                     name: f.name,
+                    generics: f.type_params.clone(),
                     args: Default::default(),
                     ty: signature,
                     statements: Vec::new(),
@@ -59,7 +60,8 @@ impl<'a> HirQueueBuilder<'a> {
                 .attributes = attrs;
         }
 
-        self.bodies.send(PendantBody {
+        self.bodies.send(PendantFunction {
+            context: TypeContext::new(&f.type_params),
             func_id: id,
             body: &f.body,
             argument_names: names,
@@ -116,8 +118,10 @@ impl HirFunctionBuilder {
         mut self,
         queue: &HirQueueBuilder<'_>,
         body: &[Spanned<DedupPoolId<ASTStatement>>],
+        context: &TypeContext,
     ) -> Result<ExpressionBuildResult> {
         let mut contains_return = false;
+        let len = body.len();
         let statements = {
             let mut statements = Vec::new();
             let len = body.len();
@@ -126,7 +130,9 @@ impl HirFunctionBuilder {
                 if contains_return {
                     break;
                 }
-                let (statment, span) = self.builder.build_statement_data(queue, statment)?;
+                let (statment, span) = self
+                    .builder
+                    .build_statement_data(queue, statment, context)?;
                 let statment = if i + 1 == len
                     && let HirStatement::Expression { expr } = statment
                 {
@@ -141,17 +147,16 @@ impl HirFunctionBuilder {
             statements
         };
         let func_view = queue.hir.view(self.target);
-
         if !func_view.raw_declaration().external
             && !contains_return
             && func_view.return_type() != queue.hir.create_type(HirType::Void)
         {
-            return Err(HIRError::missing_return(func_view.raw_declaration().span));
+            Err(HIRError::missing_return(func_view.raw_declaration().span))
+        } else {
+            Ok(ExpressionBuildResult {
+                args: self.args,
+                statements,
+            })
         }
-
-        Ok(ExpressionBuildResult {
-            args: self.args,
-            statements,
-        })
     }
 }

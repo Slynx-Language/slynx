@@ -94,13 +94,17 @@ impl<'a> HirQueueBuilder<'a> {
         node: FileId,
     ) -> Result<DeclarationId<HirComponentDeclaration>> {
         let node = self.get_node(node);
-        let (owner, ty) = node.find_type_named_as(component.span.make_spanned(component.name))?;
+        let (owner, ty) = node.find_type_named_as(
+            component.span.make_spanned(component.name),
+            &TypeContext::new(&component.type_params),
+        )?;
 
         let id = self.hir.symbols_registry.get_or_insert_component(
             HirSymbol::new(owner, component.name),
             || {
                 let decl = HirComponentDeclaration {
                     name: component.name,
+                    generics: component.type_params.clone(),
                     props: Vec::new(),
                     ty,
                     visibility: component.visibility,
@@ -154,6 +158,7 @@ impl ComponentBuilder {
         };
 
         let mut prop_index = 0;
+        let context = TypeContext::new(&component.type_params);
         for member in &component.members {
             match &member.kind {
                 ComponentMemberKind::Property {
@@ -167,6 +172,7 @@ impl ComponentBuilder {
                             queue,
                             *rhs,
                             component_type.props().get(prop_index).cloned(),
+                            &context,
                         )?)
                     } else {
                         None
@@ -183,7 +189,7 @@ impl ComponentBuilder {
                 ComponentMemberKind::Child(c) => {
                     let expr = self
                         .builder
-                        .build_component_expression(queue, &c.data, c.span)?;
+                        .build_component_expression(queue, &c.data, c.span, &context)?;
                     decls.push(ComponentMemberDeclaration::Child(expr));
                 }
             }

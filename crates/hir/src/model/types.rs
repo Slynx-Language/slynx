@@ -55,6 +55,7 @@
 use crate::{
     SymbolPointer,
     context::{ComponentDefinition, StructDefinition},
+    id::AnyDeclarationId,
 };
 
 use common::{VisibilityModifier, pool::DedupPoolId};
@@ -175,6 +176,7 @@ pub struct StyleType {
     ///The arguments the stylesheet receives
     pub(crate) args: SmallVec<[DedupPoolId<HirType>; 2]>,
 }
+
 /// The type system for the HIR.
 ///
 /// `HirType` represents all possible types in the Slynx language. Each variant
@@ -267,6 +269,11 @@ pub struct StyleType {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum HirType {
     Nullable(DedupPoolId<HirType>),
+    GenericParam {
+        index: u8,
+        name: SymbolPointer,
+    },
+
     Array(DedupPoolId<HirType>, usize),
     Vector(DedupPoolId<HirType>),
     /// A struct type with named fields.

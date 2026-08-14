@@ -52,8 +52,9 @@ impl<'a> Deref for HirNode<'a> {
     }
 }
 
-pub(crate) struct PendantBody<'a> {
+pub(crate) struct PendantFunction<'a> {
     func_id: DeclarationId<HirFunctionDeclaration>,
+    context: TypeContext<'a>,
     body: &'a [Spanned<DedupPoolId<ASTStatement>>],
     argument_names: Vec<SymbolPointer>,
 }
@@ -66,7 +67,7 @@ pub(crate) struct PendantComponent<'a> {
 pub struct HirQueueBuilder<'a> {
     pub(crate) hir: &'a SlynxHir<'a>,
     pub(crate) modules: &'a Modules<'a>,
-    pub(crate) bodies: WorkChannel<PendantBody<'a>>,
+    pub(crate) bodies: WorkChannel<PendantFunction<'a>>,
     pub(crate) statics: WorkChannel<()>,
     #[allow(clippy::type_complexity)]
     pub(crate) resolved_bodies: DashMap<
@@ -93,12 +94,13 @@ impl HirNode<'_> {
     pub fn find_type_named_as(
         &self,
         name: Spanned<SymbolPointer>,
+        context: &TypeContext,
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
         if let Some(data) = self.modules.find_type_inside_module(self.entry, name.data) {
             let id = match data.content {
                 ASTTypeKind::Builtin(builtin) => self.hir.create_type(builtin.into()),
                 ASTTypeKind::Alias(alias) => {
-                    return self.find_type(alias.target);
+                    return self.find_type(alias.target, context);
                 }
                 ASTTypeKind::Struct(s) => {
                     let struct_name = s.name;
@@ -108,7 +110,7 @@ impl HirNode<'_> {
                         .map(|field| {
                             let field_name = field.name.data.name;
                             let field_ty = field.name.data.kind;
-                            let (_, type_id) = self.find_type(field_ty)?;
+                            let (_, type_id) = self.find_type(field_ty, &context)?;
 
                             Ok(Visible::new(field.visibility, (field_name.data, type_id)))
                         })
@@ -126,6 +128,7 @@ impl HirNode<'_> {
                     if !already {
                         file.create_object(HirObjectDeclaration {
                             name: struct_name,
+                            generics: s.type_params.clone(),
                             ty: struct_ty,
                             visibility: s.visibility,
                             external: s.external,
@@ -146,14 +149,15 @@ impl HirNode<'_> {
     pub fn find_type(
         &self,
         ty: Spanned<DedupPoolId<Type>>,
+        context: &TypeContext,
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
         let real = self.modules.get_type(ty.data);
         match real {
             Type::Plain(generic) => {
-                self.find_type_named_as(ty.span.make_spanned(generic.identifier))
+                self.find_type_named_as(ty.span.make_spanned(generic.identifier), context)
             }
             Type::Array(t, len) => {
-                let (id, ty) = self.find_type(ty.span.make_spanned(*t))?;
+                let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
                 let len = match self.modules.get_expr(*len) {
                     ASTExpression::IntLiteral(i) => *i as usize,
                     _ => unimplemented!(
@@ -164,29 +168,34 @@ impl HirNode<'_> {
                 Ok((id, ty))
             }
             Type::Vector(t) => {
-                let (id, ty) = self.find_type(ty.span.make_spanned(*t))?;
+                let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
                 let ty = self.hir.create_type(HirType::Vector(ty));
                 Ok((id, ty))
             }
             Type::Nullable(nullable) => {
-                let (id, ty) = self.find_type(ty.span.make_spanned(*nullable))?;
+                let (id, ty) = self.find_type(ty.span.make_spanned(*nullable), context)?;
                 let ty = self.hir.create_type(HirType::Nullable(ty));
                 Ok((id, ty))
             }
-            Type::Generic(_) => panic!(
-                "A type 'generic' should not be at `find_type` method, since it should not try to be found at first"
-            ),
+            Type::Generic(index) => {
+                let ty = self.hir.create_type(HirType::GenericParam {
+                    index: *index,
+                    name: context.generic_names[*index as usize],
+                });
+                Ok((self.entry, ty))
+            }
         }
     }
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
     fn get_signature_of_function(&self, f: &FuncDeclaration) -> Result<DedupPoolId<HirType>> {
-        let ret = self.find_type(f.return_type)?.1;
+        let context = TypeContext::new(&f.type_params);
+        let ret = self.find_type(f.return_type, &context)?.1;
         let args = f
             .args
             .iter()
             .map(|f| {
                 let inner = f.data.kind;
-                self.find_type(inner).map(|v| v.1)
+                self.find_type(inner, &context).map(|v| v.1)
             })
             .collect::<Result<_>>()?;
         Ok(self.hir.create_function_type(args, ret))
@@ -197,6 +206,7 @@ impl HirNode<'_> {
         &self,
         component: &ComponentDeclaration,
     ) -> Result<DedupPoolId<HirType>> {
+        let context = TypeContext::new(&component.type_params);
         let (properties, children) = {
             let mut properties = Vec::with_capacity(component.members.len());
             let mut components = Vec::with_capacity(component.members.len());
@@ -204,14 +214,14 @@ impl HirNode<'_> {
                 match &member.kind {
                     ComponentMemberKind::Property { name, ty, .. } => {
                         if let Some(ty) = ty {
-                            let (_, field) = self.find_type(*ty)?;
+                            let (_, field) = self.find_type(*ty, &context)?;
                             properties.push((*name, field));
                         } else {
                             return Err(HIRError::component_missing_prop_type(member.span));
                         }
                     }
                     ComponentMemberKind::Child(c) => {
-                        let (_, ty) = self.find_type(c.data.name)?;
+                        let (_, ty) = self.find_type(c.data.name, &context)?;
                         let view = self.hir.view(ty);
                         if let Some(view) = view.is_component() {
                             components.push(view.data);
@@ -302,7 +312,7 @@ impl<'a> HirQueueBuilder<'a> {
         s: &StaticDeclaration,
         node: HirNode<'_>,
     ) -> Result<DeclarationId<HirStaticDeclaration>> {
-        let (_, ty) = node.find_type(s.ty)?;
+        let (_, ty) = node.find_type(s.ty, &TypeContext::EMPTY)?;
         let name = s.name;
         let id = self.hir.symbols_registry.get_or_insert_static(
             HirSymbol::new(node.entry, name),
@@ -342,12 +352,12 @@ impl<'a> HirQueueBuilder<'a> {
         loop {
             select! {
                 recv(self.bodies.receiver()) -> body => {
-                    if let Ok(PendantBody { func_id, body, argument_names }) = body {
+                    if let Ok(PendantFunction { func_id, body, argument_names, context }) = body {
                         let mut builder = HirFunctionBuilder::new(func_id);
                         for (idx, name) in argument_names.into_iter().enumerate() {
                             builder.create_argument(&self, name, idx as u8);
                         }
-                        let ExpressionBuildResult { statements, args } = builder.build_body(&self, body)?;
+                        let ExpressionBuildResult { statements, args } = builder.build_body(&self, body, &context)?;
                         self.resolved_bodies.insert(func_id, (statements, args));
                     }else {
                         break;
@@ -418,28 +428,21 @@ impl<'a> HirQueueBuilder<'a> {
         let node = self.get_node(file_id);
 
         let mut args = Vec::with_capacity(method.arguments.len());
+        let context = TypeContext::new(&method.type_params);
         for arg in &method.arguments {
-            let ty = if self
-                .modules
-                .type_name(arg.data.kind.data, &TypeContext::EMPTY)
-                == self_sym
-            {
+            let ty = if self.modules.type_name(arg.data.kind.data, &context) == self_sym {
                 struct_ty
             } else {
-                let (_, ty) = node.find_type(arg.data.kind)?;
+                let (_, ty) = node.find_type(arg.data.kind, &context)?;
                 ty
             };
             args.push(ty);
         }
 
-        let return_type = if self
-            .modules
-            .type_name(method.return_type.data, &TypeContext::EMPTY)
-            == self_sym
-        {
+        let return_type = if self.modules.type_name(method.return_type.data, &context) == self_sym {
             struct_ty
         } else {
-            let (_, ty) = node.find_type(method.return_type)?;
+            let (_, ty) = node.find_type(method.return_type, &context)?;
             ty
         };
 
@@ -457,6 +460,7 @@ impl<'a> HirQueueBuilder<'a> {
             || {
                 let decl = HirFunctionDeclaration {
                     name: method_name,
+                    generics: method.type_params.clone(),
                     args: Default::default(),
                     ty: func_ty,
                     statements: Vec::new(),
@@ -480,7 +484,8 @@ impl<'a> HirQueueBuilder<'a> {
                 .iter()
                 .map(|arg| arg.data.name.data)
                 .collect();
-            self.bodies.send(PendantBody {
+            self.bodies.send(PendantFunction {
+                context: TypeContext::new(&method.type_params),
                 func_id: decl_id,
                 body: &method.body,
                 argument_names: arg_names,

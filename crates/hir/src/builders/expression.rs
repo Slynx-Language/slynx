@@ -9,18 +9,14 @@ use common::{
 };
 use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{
-    ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, GenericIdentifier,
-    RangeType, Type, TypeContext,
+    ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, RangeType, TypeContext,
 };
 
 use crate::{
     DeclarationId, HIRError, HirComponentExpression, HirExpression, HirExpressionKind,
     HirFunctionDeclaration, HirStatement, HirStaticDeclaration, HirType, PropertyExpression,
-    Result, SymbolPointer, VariableId,
-    builders::HirQueueBuilder,
-    context::HirSymbol,
-    helpers::Visible,
-    id::{self, OwnerId},
+    Result, SymbolPointer, VariableId, builders::HirQueueBuilder, context::HirSymbol,
+    helpers::Visible, id::OwnerId,
 };
 
 /// Result of building a body with the ExpressionBuilder.
@@ -202,14 +198,16 @@ impl ExpressionBuilder {
         parent: Spanned<PoolId<HirExpression>>,
         field_ast: Spanned<DedupPoolId<ASTExpression>>,
         span: Span,
+        context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let expr = match queue.get_expr(field_ast.data) {
             ASTExpression::FieldAccess {
                 parent: inner_parent,
                 field: inner_field,
             } => {
-                let intermediate = self.build_field_access(queue, parent, *inner_parent, span)?;
-                return self.build_field_access(queue, intermediate, *inner_field, span);
+                let intermediate =
+                    self.build_field_access(queue, parent, *inner_parent, span, context)?;
+                return self.build_field_access(queue, intermediate, *inner_field, span, context);
             }
             ASTExpression::Identifier(field_name) => {
                 let parent_ty = queue.hir[parent.data].ty;
@@ -303,7 +301,7 @@ impl ExpressionBuilder {
                             .iter()
                             .enumerate()
                             .map(|(idx, arg)| {
-                                self.build_expression(queue, *arg, Some(expected[idx]))
+                                self.build_expression(queue, *arg, Some(expected[idx]), context)
                             })
                             .collect::<Result<Vec<_>>>()?;
                         let mut method_args = vec![parent];
@@ -354,6 +352,7 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder,
         fields: &[Spanned<DedupPoolId<ASTExpression>>],
         expected: Option<DedupPoolId<HirType>>,
+        context: &TypeContext,
     ) -> Result<HirExpression> {
         let mut expressions = Vec::with_capacity(fields.len());
         let mut types = Vec::with_capacity(fields.len());
@@ -366,7 +365,7 @@ impl ExpressionBuilder {
             } else {
                 None
             };
-            let expr = self.build_expression(queue, *field, field_type)?;
+            let expr = self.build_expression(queue, *field, field_type, context)?;
             types.push(queue.hir[expr.data].ty);
             expressions.push(expr);
         }
@@ -383,8 +382,9 @@ impl ExpressionBuilder {
         expected: Option<DedupPoolId<HirType>>,
         span: Span,
         index: usize,
+        context: &TypeContext,
     ) -> Result<HirExpression> {
-        let expr = self.build_expression(queue, tuple, expected)?;
+        let expr = self.build_expression(queue, tuple, expected, context)?;
         let raw_expr = &queue.hir[expr.data];
         let parent_view = queue.hir.view(raw_expr.ty);
         let resolved = parent_view.dereference();
@@ -421,6 +421,7 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder<'_>,
         expression: Spanned<DedupPoolId<ASTExpression>>,
         expected: Option<DedupPoolId<HirType>>,
+        context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let expr = queue.get_expr(expression.data);
         let expr = match expr {
@@ -444,7 +445,7 @@ impl ExpressionBuilder {
                 }
             }
             ASTExpression::IndexExpression(expr, range) => {
-                let expr = self.build_expression(queue, *expr, expected)?;
+                let expr = self.build_expression(queue, *expr, expected, context)?;
                 let after_index_type = {
                     let expr_type = queue.hir[expr.data].ty;
                     match &queue.hir.deref()[expr_type] {
@@ -455,7 +456,7 @@ impl ExpressionBuilder {
                 };
                 match range {
                     RangeType::NoRange(index) => {
-                        let index = self.build_expression(queue, *index, expected)?;
+                        let index = self.build_expression(queue, *index, expected, context)?;
                         let viewer = queue.hir.view(index.data);
                         let ty_viewer = viewer.ty_viewer();
                         match ty_viewer.raw() {
@@ -490,18 +491,25 @@ impl ExpressionBuilder {
             ASTExpression::IntLiteral(i) => queue.hir.create_int_expression(*i, 0),
             ASTExpression::FloatLiteral(f) => queue.hir.create_float_expression(f.into_inner()),
             ASTExpression::StringLiteral(s) => queue.hir.create_strliteral_expression(*s),
-            ASTExpression::Tuple(fields) => self.build_tuple_expression(queue, fields, expected)?,
+            ASTExpression::Tuple(fields) => {
+                self.build_tuple_expression(queue, fields, expected, context)?
+            }
 
             ASTExpression::FieldAccess { parent, field } => {
-                let parent = self.build_expression(queue, *parent, expected)?;
-                return self.build_field_access(queue, parent, *field, expression.span);
+                let parent = self.build_expression(queue, *parent, expected, context)?;
+                return self.build_field_access(queue, parent, *field, expression.span, context);
             }
-            ASTExpression::TupleAccess { tuple, index } => {
-                self.build_tuple_access(queue, *tuple, expected, expression.span, *index as usize)?
-            }
+            ASTExpression::TupleAccess { tuple, index } => self.build_tuple_access(
+                queue,
+                *tuple,
+                expected,
+                expression.span,
+                *index as usize,
+                context,
+            )?,
             ASTExpression::Binary { lhs, op, rhs } => {
-                let lhs = self.build_expression(queue, *lhs, expected)?;
-                let rhs = self.build_expression(queue, *rhs, expected)?;
+                let lhs = self.build_expression(queue, *lhs, expected, context)?;
+                let rhs = self.build_expression(queue, *rhs, expected, context)?;
                 let lhs_ty = queue.hir.view(lhs.data).ty();
                 let rhs_ty = queue.hir.view(rhs.data).ty();
                 let ty = self.unify_types(queue, lhs_ty, rhs_ty, expression.span)?;
@@ -531,7 +539,9 @@ impl ExpressionBuilder {
                 let args = args
                     .iter()
                     .enumerate()
-                    .map(|(idx, arg)| self.build_expression(queue, *arg, Some(expected_args[idx])))
+                    .map(|(idx, arg)| {
+                        self.build_expression(queue, *arg, Some(expected_args[idx]), context)
+                    })
                     .collect::<Result<_>>()?;
                 let ty = func_real_type.return_type();
                 HirExpression {
@@ -544,7 +554,7 @@ impl ExpressionBuilder {
                 body,
                 else_body,
             } => {
-                let condition = self.build_expression(queue, *condition, expected)?;
+                let condition = self.build_expression(queue, *condition, expected, context)?;
                 let bool_ty = queue.hir.create_type(HirType::Bool);
                 self.unify_types(
                     queue,
@@ -555,7 +565,7 @@ impl ExpressionBuilder {
 
                 let then_branch = body
                     .iter()
-                    .map(|stmt| self.build_statement(queue, stmt))
+                    .map(|stmt| self.build_statement(queue, stmt, context))
                     .collect::<Result<Vec<_>>>()?;
                 let else_branch = if else_body.is_empty() {
                     None
@@ -563,7 +573,7 @@ impl ExpressionBuilder {
                     Some(
                         else_body
                             .iter()
-                            .map(|stmt| self.build_statement(queue, stmt))
+                            .map(|stmt| self.build_statement(queue, stmt, context))
                             .collect::<Result<Vec<_>>>()?,
                     )
                 };
@@ -596,14 +606,15 @@ impl ExpressionBuilder {
                 }
             }
             ASTExpression::Component(component) => {
-                let child = self.build_component_expression(queue, component, expression.span)?;
+                let child =
+                    self.build_component_expression(queue, component, expression.span, context)?;
                 HirExpression {
                     ty: queue.hir[child.data].name,
                     kind: HirExpressionKind::Component(child),
                 }
             }
             ASTExpression::ObjectExpression { name, fields } => {
-                let (_, ty) = queue.get_node(self.file()).find_type(*name)?;
+                let (_, ty) = queue.get_node(self.file()).find_type(*name, context)?;
                 let ty_view = queue.hir.view(ty);
                 let obj = ty_view
                     .is_struct()
@@ -646,6 +657,7 @@ impl ExpressionBuilder {
                                     queue,
                                     field.data.expr,
                                     Some(obj.field_types()[*idx]),
+                                    context,
                                 )?
                             }),
                             None => missing.push(obj.fields()[i].data),
@@ -686,14 +698,14 @@ impl ExpressionBuilder {
                     } else {
                         (None, None)
                     };
-                let expr = self.build_expression(queue, *first, inner_type)?;
+                let expr = self.build_expression(queue, *first, inner_type, context)?;
                 let ty = queue.hir[expr.data].ty;
                 if let Some(expected) = inner_type {
                     self.unify_types(queue, ty, expected, expression.span)?;
                 }
                 exprs.push(expr);
                 for expr in &expressions[1..] {
-                    let expr = self.build_expression(queue, *expr, Some(ty))?;
+                    let expr = self.build_expression(queue, *expr, Some(ty), context)?;
                     exprs.push(expr);
                 }
                 let final_type = if let Some(ty) = real_type {
@@ -721,14 +733,14 @@ impl ExpressionBuilder {
                     };
                 };
                 let inner_type = expected.and_then(|e| queue.hir.view(e).is_vector());
-                let expr = self.build_expression(queue, *first, inner_type)?;
+                let expr = self.build_expression(queue, *first, inner_type, context)?;
                 let ty = queue.hir[expr.data].ty;
                 if let Some(expected) = inner_type {
                     self.unify_types(queue, ty, expected, expression.span)?;
                 }
                 exprs.push(expr);
                 for expr in &expressions[1..] {
-                    let expr = self.build_expression(queue, *expr, Some(ty))?;
+                    let expr = self.build_expression(queue, *expr, Some(ty), context)?;
                     exprs.push(expr);
                 }
                 let final_type = queue.hir.create_type(HirType::Vector(ty));
@@ -747,8 +759,9 @@ impl ExpressionBuilder {
         &mut self,
         queue: &HirQueueBuilder<'_>,
         statement: &Spanned<DedupPoolId<ASTStatement>>,
+        context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirStatement>>> {
-        let (data, span) = self.build_statement_data(queue, statement)?;
+        let (data, span) = self.build_statement_data(queue, statement, context)?;
         let id = queue.hir.insert_statement(data);
         Ok(span.make_spanned(id))
     }
@@ -760,23 +773,27 @@ impl ExpressionBuilder {
         &mut self,
         queue: &HirQueueBuilder<'_>,
         statement: &Spanned<DedupPoolId<ASTStatement>>,
+        context: &TypeContext,
     ) -> Result<(HirStatement, Span)> {
         let stmt = queue.get_statement(statement.data);
         let data = match stmt {
             ASTStatement::Expression(e) => {
-                let expr = self.build_expression(queue, *e, None)?;
+                let expr = self.build_expression(queue, *e, None, context)?;
                 HirStatement::Expression { expr }
             }
             ASTStatement::Var { name, ty, rhs } | ASTStatement::MutableVar { name, ty, rhs } => {
                 let var_type = if let Some(ty) = ty {
-                    Some(queue.get_node(self.file()).find_type(*ty)?.1)
+                    Some(queue.get_node(self.file()).find_type(*ty, context)?.1)
                 } else {
                     None
                 };
-                let expr = self.build_expression(queue, *rhs, var_type)?;
+                let expr = self.build_expression(queue, *rhs, var_type, context)?;
                 let exprty = queue.hir.view(expr.data).ty();
                 let expected_type = if let Some(expected_ty) = ty {
-                    queue.get_node(self.file()).find_type(*expected_ty)?.1
+                    queue
+                        .get_node(self.file())
+                        .find_type(*expected_ty, context)?
+                        .1
                 } else {
                     exprty
                 };
@@ -794,9 +811,9 @@ impl ExpressionBuilder {
                 }
             }
             ASTStatement::Assign { lhs, rhs } => {
-                let lhs = self.build_expression(queue, *lhs, None)?;
+                let lhs = self.build_expression(queue, *lhs, None, context)?;
                 self.is_expression_able_to_write(queue, lhs)?;
-                let rhs = self.build_expression(queue, *rhs, None)?;
+                let rhs = self.build_expression(queue, *rhs, None, context)?;
                 self.unify_types(
                     queue,
                     queue.hir.view(rhs.data).ty(),
@@ -810,17 +827,18 @@ impl ExpressionBuilder {
                     queue,
                     *condition,
                     Some(queue.hir.create_type(HirType::Bool)),
+                    context,
                 )?;
                 let body = body
                     .iter()
-                    .map(|statement| self.build_statement(queue, statement))
+                    .map(|statement| self.build_statement(queue, statement, context))
                     .collect::<Result<_>>()?;
 
                 HirStatement::While { condition, body }
             }
             ASTStatement::Return { value } => {
                 let expr = value
-                    .map(|v| self.build_expression(queue, v, None))
+                    .map(|v| self.build_expression(queue, v, None, context))
                     .transpose()?;
                 HirStatement::Return { expr }
             }
@@ -833,10 +851,11 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder,
         component: &ComponentExpression,
         span: Span,
+        context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirComponentExpression>>> {
         let name = queue.get_plain_type(component.name).identifier;
         let node = queue.get_node(self.file());
-        let (owner, ty) = node.find_type(component.name)?;
+        let (owner, ty) = node.find_type(component.name, context)?;
         if queue
             .hir
             .find_component_by_symbol(HirSymbol::new(owner, name))
@@ -871,11 +890,13 @@ impl ExpressionBuilder {
                         .ok_or_else(|| {
                             HIRError::property_unrecognized(ty, vec![*prop_name], span)
                         })?;
-                    let expr = self.build_expression(queue, *rhs, Some(comp_view.props()[pos]))?;
+                    let expr =
+                        self.build_expression(queue, *rhs, Some(comp_view.props()[pos]), context)?;
                     properties.push(PropertyExpression::new(pos, expr));
                 }
                 ComponentMemberValue::Child(child) => {
-                    let child_expr = self.build_component_expression(queue, child, span)?;
+                    let child_expr =
+                        self.build_component_expression(queue, child, span, context)?;
                     children.push(child_expr);
                 }
             }
