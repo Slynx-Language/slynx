@@ -175,9 +175,15 @@ impl HirNode<'_> {
                 let args = generic
                     .generic
                     .iter()
-                    .map(|arg| self.find_type(arg.span.make_spanned(arg.data), context).map(|v| v.1))
+                    .map(|arg| {
+                        self.find_type(arg.span.make_spanned(arg.data), context)
+                            .map(|v| v.1)
+                    })
                     .collect::<Result<Vec<_>>>()?;
-                Ok((owner, self.hir.create_type(HirType::new_generic_ref(ty, args))))
+                Ok((
+                    owner,
+                    self.hir.create_type(HirType::new_generic_ref(ty, args)),
+                ))
             }
             Type::Array(t, len) => {
                 let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;

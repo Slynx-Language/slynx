@@ -64,16 +64,15 @@ impl Monomorphizer {
             return Ok(*cached);
         }
         if self.in_progress.contains(&key) {
-            return Err(slynx_hir::HIRError::cyclic_monomorphization(name, args, span));
+            return Err(slynx_hir::HIRError::cyclic_monomorphization(
+                name, args, span,
+            ));
         }
         self.in_progress.insert(key.clone());
 
-        let subst = Substitution::new(&generics, &args);
-        let specialized_ty = self.resolve_expression_type(
-            hir,
-            substitute_type(hir, fty, &subst)?,
-            span,
-        )?;
+        let subst = Substitution::new(&args);
+        let specialized_ty =
+            self.resolve_expression_type(hir, substitute_type(hir, fty, &subst)?, span)?;
         let mangled_name = mangle_name(hir, name, &args);
         let mangled_symbol = hir.intern_name(&mangled_name);
 

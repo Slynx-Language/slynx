@@ -64,7 +64,7 @@ impl TypesContext {
         }
     }
 
-        /// Number of distinct types in the type pool.
+    /// Number of distinct types in the type pool.
     pub fn len(&self) -> usize {
         self.types.len()
     }

@@ -57,8 +57,10 @@ impl Monomorphizer {
         else {
             unreachable!("Every generic component type must have a HirComponentDeclaration")
         };
-        let template_any =
-            AnyDeclarationId::new(template_file, AnyLocalDeclarationId::Component(template_local));
+        let template_any = AnyDeclarationId::new(
+            template_file,
+            AnyLocalDeclarationId::Component(template_local),
+        );
 
         let (template_generics, visibility, template_members) = {
             let file = hir.get_file(template_file);
@@ -70,8 +72,11 @@ impl Monomorphizer {
             )
         };
 
-        let args: Vec<DedupPoolId<HirType>> =
-            generics.iter().copied().filter(|slot| !slot.is_null()).collect();
+        let args: Vec<DedupPoolId<HirType>> = generics
+            .iter()
+            .copied()
+            .filter(|slot| !slot.is_null())
+            .collect();
         if template_generics.len() != args.len() {
             return Err(HIRError::generic_arity_mismatch(
                 name,
@@ -86,7 +91,11 @@ impl Monomorphizer {
             let AnyLocalDeclarationId::Component(local_id) = cached.local_id else {
                 unreachable!("A monomorphized component target must be a component")
             };
-            return Ok(hir.get_file(cached.file_id).declarations.declarations.components[local_id]
+            return Ok(hir
+                .get_file(cached.file_id)
+                .declarations
+                .declarations
+                .components[local_id]
                 .ty);
         }
         if self.in_progress.contains(&key) {
@@ -94,7 +103,7 @@ impl Monomorphizer {
         }
         self.in_progress.insert(key.clone());
 
-        let subst = Substitution::new(&template_generics, &args);
+        let subst = Substitution::new(&args);
         let specialized_ty = self.rebuild_component_type(hir, comp_id, &subst, span)?;
 
         let mangled_name = mangle_name(hir, name, &args);
@@ -217,9 +226,12 @@ impl Monomorphizer {
     ) -> Result<()> {
         let template_members = {
             let file = hir.get_file(file_id);
-            file.declarations.declarations.components[local_id].props.clone()
+            file.declarations.declarations.components[local_id]
+                .props
+                .clone()
         };
-        let new_members = self.build_component_members(hir, &template_members, &Substitution::empty())?;
+        let new_members =
+            self.build_component_members(hir, &template_members, &Substitution::empty())?;
         let mut file = hir.get_file_mut(file_id);
         file.declarations
             .declarations

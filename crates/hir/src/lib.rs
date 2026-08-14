@@ -85,7 +85,6 @@ mod queries;
 use std::ops::{Deref, Index};
 
 pub use crate::error::{HIRError, HIRErrorKind};
-pub use helpers::{HirViewer, Visible};
 use crate::{
     builders::HirQueueBuilder,
     context::{LangItems, SymbolRegistry, TypesContext},
@@ -96,6 +95,7 @@ use common::{
     pool::{Pool, PoolId},
 };
 use dashmap::{DashMap, mapref::one::RefMut};
+pub use helpers::{HirViewer, Visible};
 
 pub use id::{ComponentId, DeclarationId, ExpressionId, VariableId};
 pub use model::*;

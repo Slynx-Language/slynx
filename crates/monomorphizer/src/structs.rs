@@ -51,8 +51,7 @@ impl Monomorphizer {
         })?;
         let name = struct_view.name();
 
-        let Some((template_file, template_local)) =
-            self.find_object_declaration_by_name(hir, name)
+        let Some((template_file, template_local)) = self.find_object_declaration_by_name(hir, name)
         else {
             unreachable!("Every generic object type must have a HirObjectDeclaration")
         };
@@ -69,8 +68,11 @@ impl Monomorphizer {
             )
         };
 
-        let args: Vec<DedupPoolId<HirType>> =
-            generics.iter().copied().filter(|slot| !slot.is_null()).collect();
+        let args: Vec<DedupPoolId<HirType>> = generics
+            .iter()
+            .copied()
+            .filter(|slot| !slot.is_null())
+            .collect();
         if template_generics.len() != args.len() {
             return Err(HIRError::generic_arity_mismatch(
                 name,
@@ -85,14 +87,19 @@ impl Monomorphizer {
             let AnyLocalDeclarationId::Object(local_id) = cached.local_id else {
                 unreachable!("A monomorphized object target must be an object")
             };
-            return Ok(hir.get_file(cached.file_id).declarations.declarations.objects[local_id].ty);
+            return Ok(hir
+                .get_file(cached.file_id)
+                .declarations
+                .declarations
+                .objects[local_id]
+                .ty);
         }
         if self.in_progress.contains(&key) {
             return Err(HIRError::cyclic_monomorphization(name, args, span));
         }
         self.in_progress.insert(key.clone());
 
-        let subst = Substitution::new(&template_generics, &args);
+        let subst = Substitution::new(&args);
         let fields = struct_view
             .signature()
             .into_iter()
@@ -102,7 +109,10 @@ impl Monomorphizer {
                     substitute_type(hir, *field_ty, &subst)?,
                     span,
                 )?;
-                Ok(Visible::new(field_name.visibility, (field_name.data, new_ty)))
+                Ok(Visible::new(
+                    field_name.visibility,
+                    (field_name.data, new_ty),
+                ))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -112,17 +122,22 @@ impl Monomorphizer {
 
         let specialized_local = {
             let file = hir.get_file_mut(template_file);
-            file.declarations.declarations.objects.insert(HirObjectDeclaration {
-                name: mangled_symbol,
-                generics: Vec::new(),
-                ty: specialized_ty,
-                visibility,
-                external,
-                attributes: Vec::new(),
-            })
+            file.declarations
+                .declarations
+                .objects
+                .insert(HirObjectDeclaration {
+                    name: mangled_symbol,
+                    generics: Vec::new(),
+                    ty: specialized_ty,
+                    visibility,
+                    external,
+                    attributes: Vec::new(),
+                })
         };
-        let specialized =
-            AnyDeclarationId::new(template_file, AnyLocalDeclarationId::Object(specialized_local));
+        let specialized = AnyDeclarationId::new(
+            template_file,
+            AnyLocalDeclarationId::Object(specialized_local),
+        );
 
         self.cache.insert(key.clone(), specialized);
         self.in_progress.remove(&key);
@@ -169,11 +184,7 @@ impl Monomorphizer {
 
             for local_id in generic_ids {
                 let mut file = hir.get_file_mut(*file_id);
-                file.declarations
-                    .declarations
-                    .objects
-                    .get_mut(local_id)
-                    .ty = void_ty;
+                file.declarations.declarations.objects.get_mut(local_id).ty = void_ty;
                 self.dead_code.insert(AnyDeclarationId::new(
                     *file_id,
                     AnyLocalDeclarationId::Object(local_id),
