@@ -166,6 +166,20 @@ impl SlynxContext {
             HIRErrorKind::CyclicComponentBody { component: _ } => {
                 "cyclic component body resolution".to_string()
             }
+            HIRErrorKind::GenericArityMismatch {
+                func,
+                declared,
+                supplied,
+            } => {
+                let func = hir.get_name(*func);
+                format!(
+                    "Generic function '{func}' expects {declared} type argument(s), got {supplied}"
+                )
+            }
+            HIRErrorKind::CyclicMonomorphization { func, .. } => {
+                let func = hir.get_name(*func);
+                format!("Monomorphization of generic function '{func}' does not terminate")
+            }
         }
     }
 
