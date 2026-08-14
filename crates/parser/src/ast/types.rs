@@ -30,11 +30,14 @@ pub struct TypeContext<'a> {
 }
 
 impl<'a> TypeContext<'a> {
-    pub fn new(generics: &'a [SymbolPointer]) -> Self {
+    pub const fn new(generics: &'a [SymbolPointer]) -> Self {
         Self {
             generic_names: generics,
         }
     }
+}
+impl TypeContext<'static> {
+    pub const EMPTY: Self = TypeContext::new(&[]);
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]

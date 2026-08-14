@@ -107,6 +107,9 @@ impl Parser<'_> {
     ///function, and returns the name of the function, and a vector containing the names of the generics
     pub fn parse_generic_name(&mut self) -> Result<(SymbolPointer, Vec<SymbolPointer>)> {
         let name = self.expect_identifier()?;
+        if self.peek()?.kind != TokenKind::Lt {
+            return Ok((name.data, Vec::new()));
+        }
         self.expect(&TokenKind::Lt)?;
         let mut generics = Vec::new();
         while self.peek()?.kind != TokenKind::Gt {
@@ -116,6 +119,7 @@ impl Parser<'_> {
             }
             generics.push(name.data);
         }
+        self.expect(&TokenKind::Gt)?;
 
         Ok((name.data, generics))
     }
