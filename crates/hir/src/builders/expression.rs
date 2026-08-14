@@ -9,14 +9,18 @@ use common::{
 };
 use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{
-    ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, RangeType, Type,
+    ASTExpression, ASTStatement, ComponentExpression, ComponentMemberValue, GenericIdentifier,
+    RangeType, Type, TypeContext,
 };
 
 use crate::{
     DeclarationId, HIRError, HirComponentExpression, HirExpression, HirExpressionKind,
     HirFunctionDeclaration, HirStatement, HirStaticDeclaration, HirType, PropertyExpression,
-    Result, SymbolPointer, VariableId, builders::HirQueueBuilder, context::HirSymbol,
-    helpers::Visible, id::OwnerId,
+    Result, SymbolPointer, VariableId,
+    builders::HirQueueBuilder,
+    context::HirSymbol,
+    helpers::Visible,
+    id::{self, OwnerId},
 };
 
 /// Result of building a body with the ExpressionBuilder.
@@ -172,9 +176,9 @@ impl ExpressionBuilder {
     fn lookup_function(
         &self,
         queue: &HirQueueBuilder<'_>,
-        name: Spanned<DedupPoolId<Type>>,
+        name: Spanned<SymbolPointer>,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let identifier = queue.type_name(name.data);
+        let identifier = name.data;
 
         if let Some(func) = queue
             .hir
@@ -241,7 +245,7 @@ impl ExpressionBuilder {
                 }
             }
             ASTExpression::FunctionCall { name, args } => {
-                let name_sym = queue.type_name(name.data);
+                let name_sym = queue.type_name(name.data, &TypeContext::EMPTY);
                 let parent_ty = queue.hir[parent.data].ty;
                 let real_ty = queue.hir.view(parent_ty);
                 let deref = real_ty.dereference();
@@ -504,7 +508,9 @@ impl ExpressionBuilder {
                 queue.hir.create_binary_expression(lhs, rhs, *op, ty)
             }
             ASTExpression::FunctionCall { name, args } => {
-                let func = self.lookup_function(queue, *name)?;
+                let identifier = queue.get_plain_type(*name);
+                let func =
+                    self.lookup_function(queue, name.span.make_spanned(identifier.identifier))?;
                 let func_viewer = queue.hir.view(func);
                 let func_ty_view = func_viewer.ty();
                 let func_real_type = func_ty_view
@@ -514,7 +520,7 @@ impl ExpressionBuilder {
                 let expected_args = func_real_type.arguments();
 
                 if expected_args.len() != args.len() {
-                    let func_name = queue.type_name(name.data);
+                    let func_name = identifier.identifier;
                     return Err(HIRError::invalid_funcall_arg_length(
                         func_name,
                         expected_args.len(),
@@ -828,7 +834,7 @@ impl ExpressionBuilder {
         component: &ComponentExpression,
         span: Span,
     ) -> Result<Spanned<PoolId<HirComponentExpression>>> {
-        let name = queue.type_name(component.name.data);
+        let name = queue.get_plain_type(component.name).identifier;
         let node = queue.get_node(self.file());
         let (owner, ty) = node.find_type(component.name)?;
         if queue

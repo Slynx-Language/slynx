@@ -26,14 +26,13 @@ impl<'a> HirQueueBuilder<'a> {
         f: &'a FuncDeclaration,
         node: HirNode<'_>,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let name = self.modules.type_name(f.name.data);
         let signature = node.get_signature_of_function(f)?;
-        let names = f.args.iter().map(|arg| arg.data.name).collect();
+        let names = f.args.iter().map(|arg| arg.data.name.data).collect();
         let id = self.hir.symbols_registry.get_or_insert_function(
-            HirSymbol::new(node.entry, name),
+            HirSymbol::new(node.entry, f.name),
             || {
                 let decl = HirFunctionDeclaration {
-                    name,
+                    name: f.name,
                     args: Default::default(),
                     ty: signature,
                     statements: Vec::new(),

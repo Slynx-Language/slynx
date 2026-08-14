@@ -87,10 +87,7 @@ impl<'a> HirQueueBuilder<'a> {
         }
 
         let entry = self.modules.get_entry(requester);
-        let style_sheet = entry
-            .style()
-            .iter()
-            .find(|s| self.modules.type_name(s.name.data) == name)?;
+        let style_sheet = entry.style().iter().find(|s| s.name == name)?;
 
         self.enqueue_stylesheet(name, style_sheet, requester).ok()
     }

@@ -1,6 +1,6 @@
 use common::Span;
 use module_loader::{ASTTypeKind, FileId};
-use slynx_parser::{ComponentDeclaration, ComponentMemberKind};
+use slynx_parser::{ComponentDeclaration, ComponentMemberKind, TypeContext};
 
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
@@ -94,13 +94,13 @@ impl<'a> HirQueueBuilder<'a> {
         node: FileId,
     ) -> Result<DeclarationId<HirComponentDeclaration>> {
         let node = self.get_node(node);
-        let (owner, ty) = node.find_type(component.name)?;
-        let name = self.modules.type_name(component.name.data);
+        let (owner, ty) = node.find_type_named_as(component.span.make_spanned(component.name))?;
+
         let id = self.hir.symbols_registry.get_or_insert_component(
-            HirSymbol::new(owner, name),
+            HirSymbol::new(owner, component.name),
             || {
                 let decl = HirComponentDeclaration {
-                    name,
+                    name: component.name,
                     props: Vec::new(),
                     ty,
                     visibility: component.visibility,
