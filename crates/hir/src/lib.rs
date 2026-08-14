@@ -85,6 +85,7 @@ mod queries;
 use std::ops::{Deref, Index};
 
 pub use crate::error::{HIRError, HIRErrorKind};
+pub use helpers::{HirViewer, Visible};
 use crate::{
     builders::HirQueueBuilder,
     context::{LangItems, SymbolRegistry, TypesContext},

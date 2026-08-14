@@ -16,4 +16,7 @@ impl HirViewer<'_, DedupPoolId<ComponentType>> {
 
         (&self.hir.types_module[metadata_id].properties) as _
     }
+    pub fn children(&self) -> &[DedupPoolId<ComponentType>] {
+        &self.hir.types_module[self.data].children
+    }
 }

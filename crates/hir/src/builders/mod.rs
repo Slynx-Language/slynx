@@ -104,13 +104,18 @@ impl HirNode<'_> {
                 }
                 ASTTypeKind::Struct(s) => {
                     let struct_name = s.name;
+                    // Fields are typed against the object's own type
+                    // parameters, not the referencing scope's, so a template
+                    // like `object Option<T> { value: T }` keeps its `T`
+                    // regardless of where `Option<int>` appears.
+                    let struct_context = TypeContext::new(&s.type_params);
                     let fields = s
                         .fields
                         .iter()
                         .map(|field| {
                             let field_name = field.name.data.name;
                             let field_ty = field.name.data.kind;
-                            let (_, type_id) = self.find_type(field_ty, &context)?;
+                            let (_, type_id) = self.find_type(field_ty, &struct_context)?;
 
                             Ok(Visible::new(field.visibility, (field_name.data, type_id)))
                         })
@@ -154,7 +159,25 @@ impl HirNode<'_> {
         let real = self.modules.get_type(ty.data);
         match real {
             Type::Plain(generic) => {
-                self.find_type_named_as(ty.span.make_spanned(generic.identifier), context)
+                let (owner, ty) =
+                    self.find_type_named_as(ty.span.make_spanned(generic.identifier), context)?;
+                if generic.generic.is_empty() {
+                    return Ok((owner, ty));
+                }
+                // A generic application like `Option<int>` or `List<int>` is
+                // represented as a Reference carrying the concrete type
+                // arguments, so monomorphization can specialize it later.
+                let ty_view = self.hir.view(ty);
+                let deref = ty_view.dereference();
+                if deref.is_struct().is_none() && deref.is_component().is_none() {
+                    return Ok((owner, ty));
+                }
+                let args = generic
+                    .generic
+                    .iter()
+                    .map(|arg| self.find_type(arg.span.make_spanned(arg.data), context).map(|v| v.1))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok((owner, self.hir.create_type(HirType::new_generic_ref(ty, args))))
             }
             Type::Array(t, len) => {
                 let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
@@ -239,7 +262,8 @@ impl HirNode<'_> {
                     }
                     ComponentMemberKind::Child(c) => {
                         let (_, ty) = self.find_type(c.data.name, &context)?;
-                        let view = self.hir.view(ty);
+                        let ty_view = self.hir.view(ty);
+                        let view = ty_view.dereference();
                         if let Some(view) = view.is_component() {
                             components.push(view.data);
                         } else {

@@ -629,7 +629,8 @@ impl ExpressionBuilder {
             ASTExpression::ObjectExpression { name, fields } => {
                 let (_, ty) = queue.get_node(self.file()).find_type(*name, context)?;
                 let ty_view = queue.hir.view(ty);
-                let obj = ty_view
+                let deref = ty_view.dereference();
+                let obj = deref
                     .is_struct()
                     .expect("Expected name to generate a struct type");
 

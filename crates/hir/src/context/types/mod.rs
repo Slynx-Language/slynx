@@ -64,6 +64,11 @@ impl TypesContext {
         }
     }
 
+        /// Number of distinct types in the type pool.
+    pub fn len(&self) -> usize {
+        self.types.len()
+    }
+
     ///Inserts a new variable on this Context
     pub fn insert_variable(&self, varid: VariableId, ty: DedupPoolId<HirType>) {
         self.variables.insert(varid, ty);

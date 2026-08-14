@@ -118,7 +118,7 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
     ///Makes a dereference for this type. Since a type can be a reference to another, what this function does is to retrieve the concrete type with no references at all
     pub fn dereference(&self) -> HirViewer<'_, DedupPoolId<HirType>> {
         let mut data = self.data;
-        while let HirType::Reference { rf, .. } = self.hir.deref()[self.data] {
+        while let HirType::Reference { rf, .. } = self.hir.deref()[data] {
             data = rf;
         }
         self.new_with(data)
