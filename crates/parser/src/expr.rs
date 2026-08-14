@@ -83,11 +83,11 @@ impl Parser<'_> {
 
             match self.peek_at(1)?.kind {
                 TokenKind::Colon => {
-                    let (ident, _) = self.expect_identifier()?;
+                    let ident = self.expect_identifier()?;
                     self.expect(&TokenKind::Colon)?;
                     let val = self.parse_expression(type_params)?;
                     values.push(ComponentMemberValue::Assign {
-                        prop_name: ident,
+                        prop_name: ident.data,
                         rhs: val,
                     });
                     if self.peek()?.kind == TokenKind::Comma {
@@ -114,11 +114,17 @@ impl Parser<'_> {
     ///From the current token parses a `NamedExpr`. It starts from the current token supposing it's a identifier,
     ///and parses expecting ':' and then another expression
     pub fn parse_named_expr(&mut self, type_params: TypeParamScope) -> Result<Spanned<NamedExpr>> {
-        let (name, start) = self.expect_identifier()?;
+        let name = self.expect_identifier()?;
         self.expect(&TokenKind::Colon)?;
         let expr = self.parse_expression(type_params)?;
-        let span = start.merge_with(expr.span);
-        Ok(Spanned::new(NamedExpr { name, expr }, span))
+        let span = name.span.merge_with(expr.span);
+        Ok(Spanned::new(
+            NamedExpr {
+                name: name.data,
+                expr,
+            },
+            span,
+        ))
     }
     ///Parses a tuple expression, which follows the rule (expr, expr, expr) or ()
     pub fn parse_tuple_with_first(
@@ -292,10 +298,10 @@ impl Parser<'_> {
                 Ok(Spanned::new(id, span))
             }
             TokenKind::Identifier(_) => {
-                let (ident, span) = self.expect_identifier()?;
+                let ident = self.expect_identifier()?;
                 let field = Spanned::new(
-                    self.intern_expression(ASTExpression::Identifier(ident)),
-                    span,
+                    self.intern_expression(ASTExpression::Identifier(ident.data)),
+                    ident.span,
                 );
                 let span = prefix.span.merge_with(field.span);
                 let parent = self.intern_expression(ASTExpression::FieldAccess {

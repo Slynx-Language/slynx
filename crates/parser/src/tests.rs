@@ -36,7 +36,7 @@ fn generic_function_declaration_maps_params_to_indices() {
     assert_eq!(symbols.get_name(param), "T");
 
     let arg = &func.args[0].data;
-    assert_eq!(symbols.get_name(arg.name), "x");
+    assert_eq!(symbols.get_name(arg.name.data), "x");
     assert_eq!(types[arg.kind.data], Type::Generic(0));
 
     assert_eq!(types[func.return_type.data], Type::Generic(0));
@@ -57,17 +57,13 @@ fn generic_function_with_multiple_params() {
 
 #[test]
 fn non_generic_function_has_no_type_params() {
-    let (program, symbols, types, _, _) =
+    let (program, symbols, _, _, _) =
         parse_program("func add(a: int, b: int): int { return a + b; }");
 
     let func = &program.func()[0];
     assert!(func.type_params.is_empty());
 
-    let Type::Plain(name) = &types[func.name.data] else {
-        panic!("the name of a non generic function must stay plain");
-    };
-    assert_eq!(symbols.get_name(name.identifier), "add");
-    assert!(name.generic.is_empty());
+    assert_eq!(symbols.get_name(func.name), "add");
 }
 
 #[test]

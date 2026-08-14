@@ -8,7 +8,7 @@ use crate::{ASTExpression, SymbolPointer};
 #[derive(Debug)]
 ///A name that is typed. This is simply the representation of `name: kind`
 pub struct TypedName {
-    pub name: SymbolPointer,
+    pub name: Spanned<SymbolPointer>,
     pub kind: Spanned<DedupPoolId<Type>>,
 }
 

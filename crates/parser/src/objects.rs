@@ -26,8 +26,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_object(&mut self, start: Span) -> Result<ObjectDeclaration> {
-        let name = self.parse_type(&[])?;
-        let (name, generics) = self.split_type_params(name);
+        let (name, generics) = self.parse_generic_name()?;
         self.expect(&TokenKind::LBrace)?;
         let mut fields = Vec::new();
         let mut methods = Vec::new();

@@ -10,7 +10,7 @@ impl Parser<'_> {
     pub fn parse_style_state(&mut self) -> Result<StyleState, ParseError> {
         let mut states = Vec::new();
         loop {
-            let (state_name, _) = self.expect_identifier()?;
+            let state_name = self.expect_identifier()?.data;
             states.push(state_name);
             if !matches!(self.peek()?.kind, TokenKind::Dot) {
                 break;
@@ -29,8 +29,8 @@ impl Parser<'_> {
             };
             let curve = match self.peek()?.kind {
                 TokenKind::Colon if self.peek_at(1)?.kind != TokenKind::RParen => {
-                    let (ident, _) = self.expect_identifier()?;
-                    Some(ident)
+                    let ident = self.expect_identifier()?;
+                    Some(ident.data)
                 }
                 _ => None,
             };
@@ -87,17 +87,17 @@ impl Parser<'_> {
 
     pub fn parse_styles_statement(&mut self) -> Result<Spanned<StyleSheetStatement>, ParseError> {
         let styles_span = {
-            let (ident, span) = self.expect_identifier()?;
-            if ident != self.intern("styles") {
+            let ident = self.expect_identifier()?;
+            if ident.data != self.intern("styles") {
                 return Err(ParseError::UnexpectedToken(
                     Token {
-                        kind: TokenKind::Identifier(self.symbols.get_name(ident).to_string()),
-                        span,
+                        kind: TokenKind::Identifier(self.symbols.get_name(ident.data).to_string()),
+                        span: ident.span,
                     },
                     ExpectedContent::Raw("Was expecting 'styles'".to_string()),
                 ));
             }
-            span
+            ident.span
         };
         self.expect(&TokenKind::LBrace)?;
         let mut styles = Vec::new();
@@ -168,8 +168,8 @@ impl Parser<'_> {
 
     ///Parses a stylesheet. Thus the syntax `stylesheet Name(p1: T) uses Name2(f), F {...}`. The given `span` is the `stylesheet` keyword span
     pub fn parse_stylesheet(&mut self, span: Span) -> Result<StyleSheet, ParseError> {
-        let name = self.parse_type(&[])?;
-        let (name, generics) = self.split_type_params(name);
+        let (name, generics) = self.parse_generic_name()?;
+
         self.expect(&TokenKind::LParen)?;
         let args = {
             let mut out = Vec::new();

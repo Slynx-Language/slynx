@@ -5,19 +5,19 @@ use crate::{ASTPath, FileImport, ImportUsage, Parser, Result};
 
 impl Parser<'_> {
     fn parse_import_usage(&mut self) -> Result<ImportUsage> {
-        let (name, _) = self.expect_identifier()?;
+        let name = self.expect_identifier()?;
         if let TokenKind::Identifier(ref as_identifier) = self.peek()?.kind
             && as_identifier == "as"
         {
             self.eat()?;
-            let (alias, _) = self.expect_identifier()?;
+            let alias = self.expect_identifier()?;
             Ok(ImportUsage {
-                content_name: name,
-                alias: Some(alias),
+                content_name: name.data,
+                alias: Some(alias.data),
             })
         } else {
             Ok(ImportUsage {
-                content_name: name,
+                content_name: name.data,
                 alias: None,
             })
         }
@@ -32,11 +32,11 @@ impl Parser<'_> {
                     if name == "using" {
                         break;
                     }
-                    let (name, _) = self.expect_identifier()?;
+                    let name = self.expect_identifier()?;
                     if let TokenKind::Dot = self.peek()?.kind {
                         self.eat()?;
                     }
-                    out.push(name);
+                    out.push(name.data);
                 } else {
                     break;
                 }

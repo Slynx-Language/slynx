@@ -21,7 +21,7 @@ impl Parser<'_> {
             false
         };
 
-        let (name, _) = self.expect_identifier()?;
+        let name = self.expect_identifier()?;
 
         let vartype = match self.peek()?.kind {
             TokenKind::Colon => {
@@ -35,13 +35,13 @@ impl Parser<'_> {
         let span = letspan.merge_with(rhs.span);
         let id = self.intern_statment(if mutable {
             ASTStatement::MutableVar {
-                name,
+                name: name.data,
                 ty: vartype,
                 rhs,
             }
         } else {
             ASTStatement::Var {
-                name,
+                name: name.data,
                 ty: vartype,
                 rhs,
             }

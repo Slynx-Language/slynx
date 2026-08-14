@@ -10,7 +10,7 @@ use crate::{
 
 impl<'a> Parser<'a> {
     pub fn parse_static(&mut self, span: Span) -> Result<StaticDeclaration> {
-        let (name, _) = self.expect_identifier()?;
+        let name = self.expect_identifier()?;
         self.expect(&TokenKind::Colon)?;
         let ty = self.parse_type(&[])?;
         let expr = if self.flags.has_flag(ParserFlag::OnlySignatures) {
@@ -24,7 +24,7 @@ impl<'a> Parser<'a> {
             external: false,
             span: span.merge_with(expr.as_ref().map(|expr| expr.span).unwrap_or(ty.span)),
             visibility: VisibilityModifier::Private,
-            name,
+            name: name.data,
             ty,
             value: expr,
         })
@@ -38,7 +38,7 @@ impl<'a> Parser<'a> {
 
         while let TokenKind::At = self.peek()?.kind {
             let start = self.expect(&TokenKind::At)?.span;
-            let (name, _) = self.expect_identifier()?;
+            let name = self.expect_identifier()?;
             self.expect(&TokenKind::LParen)?;
             let args = {
                 let mut args = Vec::new();
@@ -54,9 +54,10 @@ impl<'a> Parser<'a> {
                 }
             };
             let end = self.expect(&TokenKind::RParen)?.span;
-            let attrib = start
-                .merge_with(end)
-                .make_spanned(ASTAttribute { name, args });
+            let attrib = start.merge_with(end).make_spanned(ASTAttribute {
+                name: name.data,
+                args,
+            });
             out.push(attrib);
         }
         Ok(out)

@@ -16,17 +16,17 @@ impl Parser<'_> {
                 self.eat()?;
                 if self.peek()?.kind == TokenKind::LParen {
                     self.eat()?;
-                    let (modifier, span) = self.expect_identifier()?;
+                    let modifier = self.expect_identifier()?;
 
-                    let modifier = if modifier == self.intern("parent") {
+                    let modifier = if modifier.data == self.intern("parent") {
                         VisibilityModifier::ParentPublic
-                    } else if modifier == self.intern("child") {
+                    } else if modifier.data == self.intern("child") {
                         VisibilityModifier::ChildrenPublic
                     } else {
                         return Err(ParseError::UnexpectedToken(
                             Token {
-                                kind: TokenKind::Identifier(self.symbols.get_name(modifier).to_string()),
-                                span,
+                                kind: TokenKind::Identifier(self.symbols.get_name(modifier.data).to_string()),
+                                span: modifier.span,
                             },
                             ExpectedContent::Raw("Instead was expecting child' or 'parent' to determine who will be able to access it"
                                 .to_string()),
@@ -58,13 +58,13 @@ impl Parser<'_> {
             }
             TokenKind::Prop => {
                 self.eat()?;
-                let (ident, _) = self.expect_identifier()?;
+                let ident = self.expect_identifier()?;
                 match self.peek()?.kind {
                     TokenKind::SemiColon => {
                         span.end = self.eat()?.span.end;
                         Ok(ComponentMember {
                             kind: ComponentMemberKind::Property {
-                                name: ident,
+                                name: ident.data,
                                 modifier,
                                 ty: None,
                                 rhs: None,
@@ -98,7 +98,7 @@ impl Parser<'_> {
                         };
                         Ok(ComponentMember {
                             kind: ComponentMemberKind::Property {
-                                name: ident,
+                                name: ident.data,
                                 modifier,
                                 ty: Some(ty),
                                 rhs,
@@ -112,7 +112,7 @@ impl Parser<'_> {
                         span.end = self.expect(&TokenKind::SemiColon)?.span.end;
                         Ok(ComponentMember {
                             kind: ComponentMemberKind::Property {
-                                name: ident,
+                                name: ident.data,
                                 modifier,
                                 ty: None,
                                 rhs: Some(expr),
@@ -136,8 +136,8 @@ impl Parser<'_> {
     }
     ///Parses a component declaration. This initializes on the 'component' keyword
     pub(crate) fn parse_component(&mut self, mut span: Span) -> Result<ComponentDeclaration> {
-        let ty = self.parse_type(&[])?;
-        let (ty, generics) = self.split_type_params(ty);
+        let (name, generics) = self.parse_generic_name()?;
+
         self.expect(&TokenKind::LBrace)?;
         let mut defs = Vec::new();
         while self.peek()?.kind != TokenKind::RBrace {
@@ -150,7 +150,7 @@ impl Parser<'_> {
             type_params: generics,
             attributes: Vec::new(),
             visibility: Default::default(),
-            name: ty,
+            name,
             members: defs,
             span,
         })

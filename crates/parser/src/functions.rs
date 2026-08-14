@@ -27,11 +27,10 @@ impl Parser<'_> {
     ///Parses a function. The provided `span` is the initial span for the 'func' keyword.
     ///Parses both `func main(arg1:T): Q {...}` and `func main(arg1:T): Q -> ...`
     pub fn parse_func(&mut self, span: Span) -> Result<FuncDeclaration> {
-        let name = self.parse_type(&[])?;
-        let (name, type_params) = self.split_type_params(name);
+        let (name, generics) = self.parse_generic_name()?;
         let mut param_types = Vec::new();
-        self.push_type_params(&type_params, &mut param_types);
-        self.parse_func_rest(span, name, type_params, &param_types)
+        self.push_type_params(&generics, &mut param_types);
+        self.parse_func_rest(span, name, generics, &param_types)
     }
 
     ///Parses everything that comes after the function name: the arguments, the
@@ -40,7 +39,7 @@ impl Parser<'_> {
     fn parse_func_rest(
         &mut self,
         span: Span,
-        name: Spanned<DedupPoolId<Type>>,
+        name: SymbolPointer,
         type_params: Vec<SymbolPointer>,
         scope: TypeParamScope,
     ) -> Result<FuncDeclaration> {
