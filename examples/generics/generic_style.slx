@@ -2,13 +2,17 @@ stylesheet A<T>(x:T) {
     styles {}
 }
 
+object WrapperFor<T> {
+    data: T
+}
+
 component Box<T> {
     pub prop item: T;
 }
 
 component Main {
-    Box<int> {
-        item: 42
+    Box<WrapperFor<int>> {
+        item: WrapperFor(data:42)
     }
 }
 
