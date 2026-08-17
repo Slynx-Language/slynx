@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
     }
 
     ///Does the same as `self.expect()` but expecting specifically an identifier
-    pub fn expect_identifier(&mut self) -> Result<(Spanned<SymbolPointer>)> {
+    pub fn expect_identifier(&mut self) -> Result<Spanned<SymbolPointer>> {
         let Token {
             kind: TokenKind::Identifier(name),
             span,

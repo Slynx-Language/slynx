@@ -72,6 +72,10 @@ impl TypesContext {
         self.types.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     ///Inserts a new variable on this Context
     pub fn insert_variable(&self, varid: VariableId, ty: DedupPoolId<HirType>) {
         self.variables.insert(varid, ty);

@@ -52,6 +52,7 @@ impl<'a> HirQueueBuilder<'a> {
     }
     ///Finds a component with the given `name` on-demand, hoisting it if needed.
     ///Mirrors the pattern of `find_function_named`.
+    #[allow(dead_code)]
     pub fn find_component_named(
         &'a self,
         name: SymbolPointer,

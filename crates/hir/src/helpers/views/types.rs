@@ -41,7 +41,7 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                     }
                     out
                 };
-                if generics.len() == 0 {
+                if generics.is_empty() {
                     name
                 } else {
                     format!("{name}<{}>", generics.join(","))
