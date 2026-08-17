@@ -443,28 +443,30 @@ impl Parser<'_> {
         Ok(lhs)
     }
 
+    ///This function simply checks if the current and the next token are '>' which makes a '>>'
+    pub fn is_shiftright(&self) -> Result<bool> {
+        Ok(self.peek()?.kind == TokenKind::Gt && self.peek_at(1)?.kind == TokenKind::Gt)
+    }
+
     ///Parses binary expressions, thus, anything that has a bit operator
     pub fn parse_bitoperation(
         &mut self,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let mut lhs = self.parse_additive(type_params)?;
+
         while let Ok(curr) = self.peek()
-            && matches!(
-                curr.kind,
-                TokenKind::ShiftRight
-                    | TokenKind::ShiftLeft
-                    | TokenKind::BitAnd
-                    | TokenKind::BitOr
-                    | TokenKind::Xor
-            )
+            && (matches!(curr.kind, |TokenKind::ShiftLeft| TokenKind::BitAnd
+                | TokenKind::BitOr
+                | TokenKind::Xor)
+                || self.is_shiftright()?)
         {
             let op = match self.eat()?.kind {
-                TokenKind::ShiftRight => Operator::RightShift,
                 TokenKind::ShiftLeft => Operator::LeftShift,
                 TokenKind::BitAnd => Operator::And,
                 TokenKind::BitOr => Operator::Or,
                 TokenKind::Xor => Operator::Xor,
+                _ if self.is_shiftright()? => Operator::RightShift,
                 _ => unreachable!(),
             };
             let rhs = self.parse_bitoperation(type_params)?;

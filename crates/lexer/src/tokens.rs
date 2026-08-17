@@ -65,8 +65,6 @@ pub enum TokenKind {
     Or,
     #[token("<<")]
     ShiftLeft,
-    #[token(">>")]
-    ShiftRight,
     #[token("<=")]
     LtEq,
     #[token(">=")]
