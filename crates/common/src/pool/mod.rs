@@ -61,6 +61,10 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
         self.inner.count()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
     ///Gets a mutable reference to the data that originated the given `id`.
     ///
     /// Note: mutating a value that was inserted into a dedup pool invalidates
@@ -71,14 +75,6 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
         self.inner
             .get_mut(id.as_raw() as usize)
             .expect("Expected to retrieve data from pool id originated from insert")
-    }
-
-    pub fn len(&self) -> usize {
-        self.inner.count()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
     }
 
     ///Iterates over all values stored on this pool, yielding their `id` and a reference to the data

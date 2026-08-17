@@ -692,7 +692,10 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "common",
+ "dashmap",
+ "module_loader",
  "slynx-hir",
+ "smallvec",
 ]
 
 [[package]]

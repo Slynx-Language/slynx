@@ -54,8 +54,7 @@
 
 use crate::{
     SymbolPointer,
-    context::{ComponentDefinition, StructDefinition},
-    id::AnyDeclarationId,
+    context::{ComponentDefinition, StructDefinition, StyleMetadata},
 };
 
 use common::{VisibilityModifier, pool::DedupPoolId};
@@ -175,6 +174,7 @@ pub struct FunctionType {
 pub struct StyleType {
     ///The arguments the stylesheet receives
     pub(crate) args: SmallVec<[DedupPoolId<HirType>; 2]>,
+    pub(crate) metadata: DedupPoolId<StyleMetadata>,
 }
 
 /// The type system for the HIR.

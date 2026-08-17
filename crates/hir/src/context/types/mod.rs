@@ -1,5 +1,6 @@
 mod components;
 mod structs;
+mod styles;
 use std::{
     collections::{HashSet, VecDeque},
     ops::Index,
@@ -13,11 +14,13 @@ use dashmap::{DashMap, DashSet};
 
 use crate::{
     ComponentType, DeclarationId, FunctionType, HIRError, HirFunctionDeclaration, HirType, Result,
-    StructType, StyleType, SymbolPointer, TupleType, VariableId, helpers::Visible,
+    StructType, StyleType, SymbolPointer, TupleType, VariableId,
+    context::types::styles::StylesPool, helpers::Visible,
 };
 pub use components::ComponentDefinition;
 use components::*;
 pub use structs::StructDefinition;
+pub use styles::StyleMetadata;
 
 use structs::*;
 
@@ -38,8 +41,8 @@ pub struct TypesContext {
     externals: DashSet<DedupPoolId<HirType>>,
     structs: StructsPool,
     components: ComponentsPool,
+    styles: StylesPool,
     functions: DedupPool<FunctionType>,
-    styles: DedupPool<StyleType>,
     types: DedupPool<HirType>,
 }
 impl Default for TypesContext {
@@ -51,7 +54,6 @@ impl TypesContext {
     /// Creates a new [`TypesContext`] with built-in types pre-registered under the given symbol names.
     pub fn new() -> Self {
         Self {
-            styles: DedupPool::new(),
             names: DashMap::new(),
             variables: DashMap::new(),
             methods: DashMap::new(),
@@ -61,6 +63,7 @@ impl TypesContext {
             functions: DedupPool::new(),
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
+            styles: StylesPool::default(),
         }
     }
 
@@ -121,7 +124,11 @@ impl TypesContext {
         name: SymbolPointer,
         args: Vec<DedupPoolId<HirType>>,
     ) -> DedupPoolId<HirType> {
-        let style_id = self.styles.insert(StyleType { args: args.into() });
+        let metadata = self.styles.insert_at_metadata(StyleMetadata { name });
+        let style_id = self.styles.insert_at_styles(StyleType {
+            args: args.into(),
+            metadata,
+        });
         let id = self.create_type(HirType::Style(style_id));
         self.names.insert(name, id);
         id
@@ -229,6 +236,11 @@ impl TypesContext {
         } else {
             Vec::new()
         }
+    }
+
+    pub fn get_style_name(&self, s: DedupPoolId<StyleType>) -> SymbolPointer {
+        let metadata = self.styles[s].metadata;
+        self.styles.index(metadata).name
     }
 
     ///Retrieves the DedupPoolId<HirType> of the provided `name` on the currentContext

@@ -12,7 +12,6 @@ impl<'a> HirQueueBuilder<'a> {
     /// Lazily enqueues a stylesheet for processing. Called when a component or
     /// function body references a style. If the stylesheet hasn't been hoisted
     /// yet, it creates the declaration and registers it.
-    #[allow(dead_code)]
     pub(crate) fn enqueue_stylesheet(
         &self,
         name: SymbolPointer,
@@ -77,7 +76,6 @@ impl<'a> HirQueueBuilder<'a> {
     }
 
     /// Finds a stylesheet by name, hoisting it lazily from the AST if needed.
-    #[allow(dead_code)]
     pub(crate) fn find_style_named(
         &self,
         name: SymbolPointer,
