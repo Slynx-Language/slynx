@@ -346,7 +346,8 @@ impl Parser<'_> {
                     }
                     depth -= 1;
                 }
-                TokenKind::Identifier(_)
+                TokenKind::Question
+                | TokenKind::Identifier(_)
                 | TokenKind::Int(_)
                 | TokenKind::Float(_)
                 | TokenKind::LBracket
