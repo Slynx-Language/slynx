@@ -454,6 +454,7 @@ impl ExpressionBuilder {
                     match &queue.hir.deref()[expr_type] {
                         HirType::Vector(t) => *t,
                         HirType::Array(t, _) => *t,
+                        HirType::GenericParam { .. } => expr_type,
                         _ => return Err(HIRError::invalid_indexing(expr_type, expression.span)),
                     }
                 };
@@ -549,9 +550,16 @@ impl ExpressionBuilder {
                     .resolve_call_generics(identifier, context)?;
                 let args = args
                     .iter()
-                    .enumerate()
-                    .map(|(idx, arg)| {
-                        self.build_expression(queue, *arg, Some(expected_args[idx]), context)
+                    .zip(expected_args)
+                    .map(|(arg, ty)| {
+                        let ty = match queue.hir.view(*ty).raw() {
+                            HirType::GenericParam { index, .. } => {
+                                generics.get(*index as usize).copied().unwrap_or(*ty)
+                            }
+                            _ => *ty,
+                        };
+
+                        self.build_expression(queue, *arg, Some(ty), context)
                     })
                     .collect::<Result<_>>()?;
                 let ty = func_real_type.return_type();

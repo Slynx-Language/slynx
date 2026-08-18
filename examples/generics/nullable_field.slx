@@ -1,0 +1,12 @@
+// A generic struct field with a nullable type works: the field-access
+// retyping added for indexed generic fields (see generics-fix.md §4) reads the
+// field type from the specialized struct, so `data` becomes `int?` instead of a
+// leftover `T?`.
+object Box<T> {
+    data: T?
+}
+
+func main(): int {
+    let b = Box<int>(data: 42);
+    b.data
+}

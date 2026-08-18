@@ -1,0 +1,20 @@
+// xpass: generic component property values are never checked against the
+// property type in the HIR builder (`build_component_expression` passes the
+// property type only as a hint, never calling `unify_types`). Every mismatched
+// value below compiles and is silently reinterpreted by codegen. All of these
+// should eventually be rejected.
+component Pair<T, U> {
+    pub prop first: T;
+    pub prop second: U;
+}
+
+component Main {
+    Pair<int, bool> {
+        first: 30.0, // float literal → T = int
+        second: 1,   // int literal → U = bool
+    }
+}
+
+func main(): Component {
+    Main {}
+}

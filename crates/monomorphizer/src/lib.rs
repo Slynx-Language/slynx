@@ -377,10 +377,19 @@ impl Monomorphizer {
             HirExpressionKind::Vector(items) => {
                 HirExpressionKind::Vector(self.build_expressions(hir, &items, subst)?)
             }
-            HirExpressionKind::ArrayIndex(array, index) => HirExpressionKind::ArrayIndex(
-                self.build_expression(hir, array, subst)?,
-                self.build_expression(hir, index, subst)?,
-            ),
+            HirExpressionKind::ArrayIndex(array, index) => {
+                let array = self.build_expression(hir, array, subst)?;
+                let index = self.build_expression(hir, index, subst)?;
+                let array_ty = hir[array.data].ty;
+                call_ty = hir
+                    .view(array_ty)
+                    .is_vector()
+                    .or_else(|| hir.view(array_ty).is_array().map(|(inner, _)| inner))
+                    .ok_or_else(|| {
+                        slynx_hir::HIRError::invalid_indexing(array_ty, expression.span)
+                    })?;
+                HirExpressionKind::ArrayIndex(array, index)
+            }
             HirExpressionKind::Binary { lhs, op, rhs } => HirExpressionKind::Binary {
                 lhs: self.build_expression(hir, lhs, subst)?,
                 op,
@@ -407,11 +416,23 @@ impl Monomorphizer {
                 expr,
                 field_index,
                 field_name,
-            } => HirExpressionKind::FieldAccess {
-                expr: self.build_expression(hir, expr, subst)?,
-                field_index,
-                field_name,
-            },
+            } => {
+                let expr = self.build_expression(hir, expr, subst)?;
+                let parent_ty = hir[expr.data].ty;
+                call_ty = match hir.view(parent_ty).dereference().is_struct() {
+                    Some(struct_view) => struct_view
+                        .field_types()
+                        .get(field_index)
+                        .copied()
+                        .unwrap_or(node.ty),
+                    None => node.ty,
+                };
+                HirExpressionKind::FieldAccess {
+                    expr,
+                    field_index,
+                    field_name,
+                }
+            }
             HirExpressionKind::Component(component) => {
                 let new_component = self.build_component_expression(hir, component, subst)?;
                 call_ty = hir[new_component.data].name;
