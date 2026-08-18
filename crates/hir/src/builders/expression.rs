@@ -132,6 +132,8 @@ impl ExpressionBuilder {
             {
                 Ok(a.data)
             }
+            (a, b) if let HirType::GenericParam { .. } = a.raw() => Ok(b.data),
+            (b, a) if let HirType::GenericParam { .. } = a.raw() => Ok(b.data),
             (received, expected) => Err(HIRError::unexpected_type(
                 received.data,
                 expected.data,
