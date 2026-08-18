@@ -296,6 +296,10 @@ impl Monomorphizer {
                     generics: new_generics,
                 }))
             }
+            HirType::Nullable(inner) => {
+                let new_inner = self.resolve_expression_type(hir, *inner, span)?;
+                Ok(hir.create_type(HirType::Nullable(new_inner)))
+            }
             other => Ok(hir.create_type(other.clone())),
         }
     }
