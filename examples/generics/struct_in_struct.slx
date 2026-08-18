@@ -1,0 +1,12 @@
+object Inner<T> {
+    v: T
+}
+
+object Outer<T> {
+    inner: Inner<T>
+}
+
+func main(): int {
+    let o = Outer<int>(inner: Inner<int>(v: 42));
+    o.inner.v
+}

@@ -1,0 +1,7 @@
+func identity<T>(x: T): T {
+    x
+}
+
+func main(): bool {
+    identity<bool>(true)
+}

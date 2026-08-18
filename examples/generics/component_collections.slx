@@ -1,0 +1,16 @@
+component Box<T> {
+    pub prop item: T;
+}
+
+component Main {
+    Box<[]int> {
+        item: {1,2,3}
+    }
+    Box<[4]int> {
+        item: [1,2,3,4]
+    }
+}
+
+func main(): Component {
+    Main {}
+}

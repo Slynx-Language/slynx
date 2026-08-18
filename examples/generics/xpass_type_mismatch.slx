@@ -1,0 +1,9 @@
+// xpass: an incompatible type argument currently compiles because call-site
+// type validation is not implemented yet. It should eventually be rejected.
+func identity<T>(x: T): T {
+    x
+}
+
+func main(): int {
+    identity<int>(true)
+}

@@ -1,0 +1,7 @@
+func identity<T>(x: T): T {
+    x
+}
+
+func main(): f64 {
+    identity<f64>(1.5)
+}

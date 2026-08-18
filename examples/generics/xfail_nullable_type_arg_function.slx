@@ -1,0 +1,10 @@
+// xfail: `int?` as a generic type argument of a function call fails to parse
+// ("Unexpected token: 'Question'").
+func identity<T>(x: T): T {
+    x
+}
+
+func main(): int {
+    let v = identity<int?>(42);
+    v
+}

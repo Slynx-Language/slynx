@@ -1,0 +1,9 @@
+// xfail: `T?` generic return types fail with
+// "IR internal error: type 'T' is not recognized by the IR".
+func identity<T>(x: T): T? {
+    x
+}
+
+func main(): int? {
+    identity<int>(42)
+}

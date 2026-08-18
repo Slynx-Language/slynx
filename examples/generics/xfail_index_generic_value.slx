@@ -1,0 +1,9 @@
+// xfail: indexing a generic value substituted with a collection fails with
+// "Expression cannot be indexed. Type is 'T'".
+func identity<T>(x: T): T {
+    x
+}
+
+func main(): int {
+    identity<[]int>({1,2,3})[0]
+}
