@@ -705,15 +705,8 @@ impl ExpressionBuilder {
                         Some(_) | None => Err(HIRError::couldnt_infer(expression.span)),
                     };
                 };
-                let (inner_type, real_type) =
-                    if let Some((ty, size)) = expected.and_then(|e| queue.hir.view(e).is_array()) {
-                        (
-                            Some(ty),
-                            Some(queue.hir.create_type(HirType::Array(ty, size))),
-                        )
-                    } else {
-                        (None, None)
-                    };
+                let (inner_type, size) =
+                    expected.and_then(|e| queue.hir.view(e).is_array()).unzip();
                 let expr = self.build_expression(queue, *first, inner_type, context)?;
                 let ty = queue.hir[expr.data].ty;
                 if let Some(expected) = inner_type {
@@ -724,11 +717,17 @@ impl ExpressionBuilder {
                     let expr = self.build_expression(queue, *expr, Some(ty), context)?;
                     exprs.push(expr);
                 }
-                let final_type = if let Some(ty) = real_type {
-                    ty
-                } else {
-                    queue.hir.create_type(HirType::Array(ty, exprs.len()))
-                };
+                let final_length = size.unwrap_or(exprs.len());
+                if let Some(expected_len) = size
+                    && final_length != expected_len
+                {
+                    return Err(HIRError::array_length_mismatch(
+                        expected_len,
+                        final_length,
+                        expression.span,
+                    ));
+                }
+                let final_type = queue.hir.create_type(HirType::Array(ty, final_length));
                 HirExpression {
                     ty: final_type,
                     kind: HirExpressionKind::Array(exprs),
