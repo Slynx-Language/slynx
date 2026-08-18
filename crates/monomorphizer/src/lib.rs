@@ -356,7 +356,8 @@ impl Monomorphizer {
         let mut call_ty = node.ty;
 
         let kind = match node.kind.clone() {
-            HirExpressionKind::Int(_)
+            HirExpressionKind::Null
+            | HirExpressionKind::Int(_)
             | HirExpressionKind::StringLiteral(_)
             | HirExpressionKind::Float(_)
             | HirExpressionKind::True

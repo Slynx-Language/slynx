@@ -90,6 +90,7 @@ impl Monomorphizer {
                     visibility,
                     external,
                     attributes,
+                    span,
                 })
         };
         let specialized = AnyDeclarationId::new(

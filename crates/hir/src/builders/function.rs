@@ -121,7 +121,6 @@ impl HirFunctionBuilder {
         context: &TypeContext,
     ) -> Result<ExpressionBuildResult> {
         let mut contains_return = false;
-        let len = body.len();
         let statements = {
             let mut statements = Vec::new();
             let len = body.len();

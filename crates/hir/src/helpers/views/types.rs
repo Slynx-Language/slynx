@@ -27,6 +27,7 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                 format!("[{len}]{}", self.new_with(*ty).name())
             }
             HirType::Vector(ty) => format!("[]{}", self.new_with(*ty).name()),
+
             HirType::Str => "str".to_string(),
             HirType::Reference { rf, generics } => {
                 let name = self.new_with(*rf).name();
@@ -77,14 +78,6 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                 format!("({args})")
             }
             HirType::Component(component) => self.new_with(*component).name().to_string(),
-            HirType::Array(inner, len) => {
-                let ty = self.new_with(*inner).name();
-                format!("[{len}]{ty}")
-            }
-            HirType::Vector(inner) => {
-                let ty = self.new_with(*inner).name();
-                format!("[]{ty}")
-            }
         }
     }
 
