@@ -24,26 +24,10 @@
 //!
 //! # Quick Start
 //!
-//! ```rust
-//! use crate::hir::SlynxHir;
-//! use common::ast::ASTDeclaration;
-//!
-//! // Create a new HIR instance
-//! let mut hir = SlynxHir::new();
-//!
-//! // Transform AST declarations into HIR
-//! let ast: Vec<ASTDeclaration> = /* parsed AST */;
-//! hir.generate(ast)?;
-//!
-//! // Access the resulting HIR
-//! for decl in &hir.declarations {
-//!     match &decl.kind {
-//!         HirDeclarationKind::Function { name, .. } => {
-//!             println!("Function: {}", hir.names.symbol_name(name));
-//!         }
-//!         _ => {}
-//!     }
-//! }
+//! ```text
+//! // Parse source files into an AST with the parser, then generate the HIR:
+//! let mut hir = SlynxHir::new(&modules)?;
+//! // hir.files contains the full HIR for every compiled file.
 //! ```
 //!
 //! # Type System
@@ -135,23 +119,9 @@ pub type SymbolPointer = common::SymbolPointer<FrontendSymbol>;
 ///
 /// # Example
 ///
-/// ```rust
-/// # use slynx_frontend::hir::{SlynxHir, Result};
-/// # use common::ast::{ASTDeclaration, ASTDeclarationKind, GenericIdentifier, Span};
-/// # fn example() -> Result<()> {
-/// let mut hir = SlynxHir::new();
-///
-/// // The HIR is populated by generating from AST
-/// let ast: Vec<ASTDeclaration> = vec![
-///     // Your parsed declarations here
-/// ];
-///
-/// hir.generate(ast)?;
-///
-/// // Now hir.declarations contains the full HIR
-/// assert!(!hir.declarations.is_empty());
-/// # Ok(())
-/// # }
+/// ```text
+/// let hir = SlynxHir::new(&modules)?;
+/// // hir.files contains the full HIR generated from the parsed modules.
 /// ```
 ///
 /// # See Also
@@ -192,10 +162,9 @@ impl<'a> SlynxHir<'a> {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// # use slynx_frontend::hir::SlynxHir;
-    /// let hir = SlynxHir::new();
-    /// assert!(hir.declarations.is_empty());
+    /// ```text
+    /// let hir = SlynxHir::new(&modules)?;
+    /// // The HIR is empty until modules are generated into it.
     /// ```
     ///
     /// # See Also

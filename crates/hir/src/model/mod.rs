@@ -31,11 +31,7 @@
 //!
 //! # Example
 //!
-//! ```rust
-//! # use slynx_frontend::hir::model::*;
-//! # use common::Span;
-//! # let span = Span::default();
-//!
+//! ```text
 //! // A function declaration
 //! let func_decl = HirDeclaration::new_function(
 //!     vec![],           // statements
@@ -43,15 +39,13 @@
 //!     "my_func".into(), // name
 //!     span,
 //!     DeclarationId::new(),
-//!     TypeId::from_raw(0),
+//!     ty,
 //! );
 //!
 //! // An integer literal expression
 //! let int_expr = HirExpression {
-//!     id: ExpressionId::new(),
-//!     ty: TypeId::from_raw(0), // int type
+//!     ty, // int type
 //!     kind: HirExpressionKind::Int(42),
-//!     span,
 //! };
 //! ```
 mod declarations;

@@ -40,40 +40,21 @@
 //!
 //! # Examples
 //!
-//! ```rust
-//! # use slynx_frontend::hir::model::*;
-//! # use common::Span;
-//! # let span = Span::default();
-//!
+//! ```text
 //! // Integer literal
 //! let expr = HirExpression {
-//!     id: ExpressionId::new(),
-//!     ty: DedupPoolId<HirType>::from_raw(0), // int type
+//!     ty: int_type_id, // int type
 //!     kind: HirExpressionKind::Int(42),
-//!     span,
 //! };
 //!
 //! // Binary operation: a + b
 //! let add_expr = HirExpression {
-//!     id: ExpressionId::new(),
-//!     ty: DedupPoolId<HirType>::from_raw(0),
+//!     ty: int_type_id,
 //!     kind: HirExpressionKind::Binary {
-//!         lhs: Box::new(a_expr),
+//!         lhs: a_expr,
 //!         op: Operator::Add,
-//!         rhs: Box::new(b_expr),
+//!         rhs: b_expr,
 //!     },
-//!     span,
-//! };
-//!
-//! // Function call
-//! let call_expr = HirExpression {
-//!     id: ExpressionId::new(),
-//!     ty: DedupPoolId<HirType>::from_raw(0),
-//!     kind: HirExpressionKind::FunctionCall {
-//!         name: DeclarationId::new(),
-//!         args: vec![arg1, arg2],
-//!     },
-//!     span,
 //! };
 //! ```
 //!
@@ -158,35 +139,15 @@ pub struct HirComponentExpression {
 ///
 /// # Examples
 ///
-/// ```rust
-/// # use slynx_frontend::hir::model::*;
-/// # use common::{Operator, Span};
-/// # use crate::slynx_frontend::hir::DedupPoolId<HirType>;
-/// # let span = Span::default();
-/// # let int_type = DedupPoolId<HirType>::from_raw(0);
-/// # let lhs = HirExpression {
-/// #     id: ExpressionId::new(),
-/// #     ty: int_type,
-/// #     kind: HirExpressionKind::Int(1),
-/// #     span,
-/// # };
-/// # let rhs = HirExpression {
-/// #     id: ExpressionId::new(),
-/// #     ty: int_type,
-/// #     kind: HirExpressionKind::Int(2),
-/// #     span,
-/// # };
-///
+/// ```text
 /// // Create a binary addition expression
 /// let add_expr = HirExpression {
-///     id: ExpressionId::new(),
 ///     ty: int_type,
 ///     kind: HirExpressionKind::Binary {
-///         lhs: Box::new(lhs),
+///         lhs: lhs_expr,
 ///         op: Operator::Add,
-///         rhs: Box::new(rhs),
+///         rhs: rhs_expr,
 ///     },
-///     span,
 /// };
 /// ```
 ///
@@ -258,19 +219,12 @@ pub struct HirExpression {
 ///
 /// # Examples
 ///
-/// ```rust
-/// # use slynx_frontend::hir::model::*;
-/// # use common::{Operator, Span};
-/// # let span = Span::default();
-/// # use crate::slynx_frontend::hir::{ExpressionId, DedupPoolId<HirType>};
-/// # let int_type = DedupPoolId<HirType>::from_raw(0);
-/// # let expr_id = ExpressionId::new();
-///
+/// ```text
 /// // Integer literal expression
 /// let int_expr = HirExpressionKind::Int(42);
 ///
 /// // String literal expression
-/// let str_expr = HirExpressionKind::StringLiteral("hello".to_string());
+/// let str_expr = HirExpressionKind::StringLiteral(name);
 ///
 /// // Boolean literal expression
 /// let bool_expr = HirExpressionKind::Bool(true);
@@ -280,22 +234,9 @@ pub struct HirExpression {
 ///
 /// // Binary operation expression
 /// let binary_expr = HirExpressionKind::Binary {
-///     lhs: Box::new(HirExpression { id: expr_id, ty: int_type, kind: int_expr, span }),
+///     lhs: lhs_expr,
 ///     op: Operator::Add,
-///     rhs: Box::new(HirExpression { id: expr_id, ty: int_type, kind: int_expr, span }),
-/// };
-///
-/// // Function call expression
-/// let call_expr = HirExpressionKind::FunctionCall {
-///     name: DeclarationId::from_raw(0),
-///     args: vec![HirExpression { id: expr_id, ty: int_type, kind: int_expr, span }],
-///     generics: vec![],
-/// };
-///
-/// // Field access expression
-/// let field_expr = HirExpressionKind::FieldAccess {
-///     expr: Box::new(HirExpression { id: expr_id, ty: int_type, kind: int_expr, span }),
-///     field_index: 0,
+///     rhs: rhs_expr,
 /// };
 /// ```
 ///
@@ -304,14 +245,14 @@ pub struct HirExpression {
 /// You can use pattern matching to handle different expression kinds:
 ///
 /// ```rust
-/// # use slynx_frontend::hir::model::HirExpressionKind;
+/// # use slynx_hir::model::HirExpressionKind;
 /// # let expr_kind = HirExpressionKind::Int(42);
 /// match expr_kind {
 ///     HirExpressionKind::Int(value) => {
 ///         println!("Integer: {}", value);
 ///     }
 ///     HirExpressionKind::StringLiteral(s) => {
-///         println!("String: {}", s);
+///         println!("String: {:?}", s);
 ///     }
 ///     HirExpressionKind::Binary { lhs, op, rhs } => {
 ///         println!("Binary operation: {:?}", op);

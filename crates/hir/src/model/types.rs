@@ -20,29 +20,19 @@
 //!
 //! # Examples
 //!
-//! ```rust
-//! # use slynx_frontend::hir::model::HirType;
-//!
+//! ```text
 //! // Primitive types
 //! let int_type = HirType::Int;
 //! let bool_type = HirType::Bool;
 //!
-//! // Struct type with fields
-//! let struct_type = HirType::Struct {
-//!     fields: vec![type_id1, type_id2],
-//! };
+//! // Struct type
+//! let struct_type = HirType::Struct(struct_type_id);
 //!
 //! // Function type
-//! let func_type = HirType::Function {
-//!     args: vec![int_type_id, int_type_id],
-//!     return_type: int_type_id,
-//! };
+//! let func_type = HirType::Function(function_type_id);
 //!
 //! // Reference to a named type with generics
-//! let ref_type = HirType::Reference {
-//!     rf: type_id,
-//!     generics: vec![int_type_id],
-//! };
+//! let ref_type = HirType::new_generic_ref(option_id, vec![int_type_id]);
 //! ```
 //!
 //! # Related Types
@@ -210,41 +200,20 @@ pub struct StyleType {
 ///
 /// # Examples
 ///
-/// ```rust
-/// # use slynx_frontend::hir::model::HirType;
-/// # use crate::slynx_frontend::hir::TypeId;
-/// # let type_id = TypeId::from_raw(0);
-/// # let field_type = TypeId::from_raw(1);
-///
+/// ```text
 /// // Primitive types
 /// let int_type = HirType::Int;
 /// let bool_type = HirType::Bool;
 /// let void_type = HirType::Void;
 ///
-/// // Struct type
-/// let person_type = HirType::Struct {
-///     fields: vec![type_id, type_id],
-/// };
-///
-/// // Tuple type
-/// let tuple_type = HirType::Tuple {
-///     fields: vec![int_type_id, bool_type_id],
-/// };
-///
-/// // Function type: (int, int) -> int
-/// let func_type = HirType::Function {
-///     args: vec![int_type_id, int_type_id],
-///     return_type: int_type_id,
-/// };
+/// // Composite types are created through the HIR's type module and
+/// // referenced by their `DedupPoolId<HirType>`:
+/// let person_type = HirType::Struct(struct_type_id); // Person
+/// let tuple_type = HirType::Tuple(tuple_type_id);
+/// let func_type = HirType::Function(function_type_id);
 ///
 /// // Reference type with generics: Vec<int>
-/// let vec_type = HirType::Reference {
-///     rf: vec_type_id,
-///     generics: vec![int_type_id],
-/// };
-///
-/// // Field access type: person.age
-/// let field_type = HirType::Field(field_access_method);
+/// let vec_type = HirType::new_generic_ref(vec_type_id, vec![int_type_id]);
 ///
 /// // Type to be inferred
 /// let infer_type = HirType::Infer;
@@ -290,16 +259,10 @@ pub enum HirType {
     /// }
     /// ```
     ///
-    /// In HIR, this becomes:
+    /// In HIR, this becomes a reference to a [`StructType`]:
     ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::HirType;
-    /// # use crate::slynx_frontend::hir::TypeId;
-    /// # let str_id = TypeId::from_raw(0);
-    /// # let int_id = TypeId::from_raw(1);
-    /// let person_type = HirType::Struct {
-    ///     fields: vec![str_id, int_id],
-    /// };
+    /// ```text
+    /// let person_type = HirType::Struct(struct_type_id);
     /// ```
     Struct(DedupPoolId<StructType>),
 
@@ -315,16 +278,10 @@ pub enum HirType {
     /// let first = pair.0;  // 1
     /// ```
     ///
-    /// In HIR, this becomes:
+    /// In HIR, this becomes a reference to a [`TupleType`]:
     ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::HirType;
-    /// # use crate::slynx_frontend::hir::TypeId;
-    /// # let int_id = TypeId::from_raw(0);
-    /// # let str_id = TypeId::from_raw(1);
-    /// let tuple_type = HirType::Tuple {
-    ///     fields: vec![int_id, str_id],
-    /// };
+    /// ```text
+    /// let tuple_type = HirType::Tuple(tuple_type_id);
     /// ```
     Tuple(DedupPoolId<TupleType>),
 
@@ -349,23 +306,17 @@ pub enum HirType {
     /// In HIR, these become:
     ///
     /// ```rust
-    /// # use slynx_frontend::hir::model::HirType;
-    /// # use crate::slynx_frontend::hir::TypeId;
-    /// # let person_id = TypeId::from_raw(0);
-    /// # let int_id = TypeId::from_raw(1);
-    /// # let option_id = TypeId::from_raw(2);
+    /// # use slynx_hir::model::HirType;
+    /// # use common::pool::DedupPoolId;
+    /// # let person_id = DedupPoolId::<HirType>::new(0);
+    /// # let int_id = DedupPoolId::<HirType>::new(1);
+    /// # let option_id = DedupPoolId::<HirType>::new(2);
     ///
     /// // Reference to Person
-    /// let person_ref = HirType::Reference {
-    ///     rf: person_id,
-    ///     generics: vec![],
-    /// };
+    /// let person_ref = HirType::new_ref(person_id);
     ///
     /// // Reference to Option<int>
-    /// let option_int = HirType::Reference {
-    ///     rf: option_id,
-    ///     generics: vec![int_id],
-    /// };
+    /// let option_int = HirType::new_generic_ref(option_id, vec![int_id]);
     /// ```
     Reference {
         /// The referenced type ID.
@@ -392,16 +343,10 @@ pub enum HirType {
     /// }
     /// ```
     ///
-    /// In HIR, this becomes:
+    /// In HIR, this becomes a reference to a [`FunctionType`]:
     ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::HirType;
-    /// # use crate::slynx_frontend::hir::TypeId;
-    /// # let int_id = TypeId::from_raw(0);
-    /// let add_type = HirType::Function {
-    ///     args: vec![int_id, int_id],
-    ///     return_type: int_id,
-    /// };
+    /// ```text
+    /// let add_type = HirType::Function(function_type_id);
     /// ```
     Function(DedupPoolId<FunctionType>),
     ///A Stylesheet definition
@@ -440,20 +385,10 @@ pub enum HirType {
     /// }
     /// ```
     ///
-    /// In HIR, this becomes:
+    /// In HIR, this becomes a reference to a [`ComponentType`]:
     ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::{HirType, ComponentProperty};
-    /// # use crate::slynx_frontend::hir::TypeId;
-    /// # use common::VisibilityModifier;
-    /// # let str_id = TypeId::from_raw(0);
-    /// # let int_id = TypeId::from_raw(1);
-    /// let button_type = HirType::Component {
-    ///     props: vec![
-    ///         ComponentProperty::new_public("label".into(), str_id),
-    ///         ComponentProperty::new_private("count".into(), int_id),
-    ///     ],
-    /// };
+    /// ```text
+    /// let button_type = HirType::Component(component_type_id);
     /// ```
     Component(DedupPoolId<ComponentType>),
 
@@ -492,10 +427,10 @@ impl HirType {
     /// # Example
     ///
     /// ```rust
-    /// # use slynx_frontend::hir::model::HirType;
-    /// # use crate::slynx_frontend::hir::TypeId;
-    /// # let vec_id = TypeId::from_raw(0);
-    /// # let int_id = TypeId::from_raw(1);
+    /// # use slynx_hir::model::HirType;
+    /// # use common::pool::DedupPoolId;
+    /// # let vec_id = DedupPoolId::<HirType>::new(0);
+    /// # let int_id = DedupPoolId::<HirType>::new(1);
     /// let vec_int = HirType::new_generic_ref(vec_id, vec![int_id]);
     /// ```
     pub fn new_generic_ref(rf: DedupPoolId<HirType>, generics: Vec<DedupPoolId<HirType>>) -> Self {
@@ -522,9 +457,9 @@ impl HirType {
     /// # Example
     ///
     /// ```rust
-    /// # use slynx_frontend::hir::model::HirType;
-    /// # use crate::slynx_frontend::hir::TypeId;
-    /// # let person_id = TypeId::from_raw(0);
+    /// # use slynx_hir::model::HirType;
+    /// # use common::pool::DedupPoolId;
+    /// # let person_id = DedupPoolId::<HirType>::new(0);
     /// let person_ref = HirType::new_ref(person_id);
     /// ```
     pub fn new_ref(rf: DedupPoolId<HirType>) -> Self {

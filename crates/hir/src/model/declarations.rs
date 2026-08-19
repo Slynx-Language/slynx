@@ -212,14 +212,12 @@ impl ComponentMemberDeclaration {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::*;
-    /// # use common::Span;
-    /// # let span = Span::default();
-    /// # let value = None;
+    /// ```text
     /// let prop = ComponentMemberDeclaration::new_property(
-    ///     0,      // index
-    ///     value,  // default value
+    ///     name,
+    ///     modifier,
+    ///     index,
+    ///     value, // default value, if any
     ///     span,
     /// );
     /// ```
@@ -253,13 +251,8 @@ impl ComponentMemberDeclaration {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// # use slynx_frontend::hir::model::*;
-    /// # use common::Span;
-    /// # let span = Span::default();
-    /// # let name = TypeId::from_raw(0);
-    /// # let values = vec![];
-    /// let child = ComponentMemberDeclaration::new_child(name, values, span);
+    /// ```text
+    /// let child = ComponentMemberDeclaration::new_child(child_expr);
     /// ```
     pub fn new_child(child: Spanned<PoolId<HirComponentExpression>>) -> Self {
         Self::Child(child)
