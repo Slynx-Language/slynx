@@ -378,14 +378,8 @@ impl Monomorphizer {
                 let original = hir[value.data].ty;
                 let value = self.build_expression(hir, *value, subst)?;
                 let rebuilt = hir[value.data].ty;
-                self.declare_variable(
-                    *name,
-                    TrackedVariable { original, rebuilt },
-                );
-                HirStatement::Variable {
-                    name: *name,
-                    value,
-                }
+                self.declare_variable(*name, TrackedVariable { original, rebuilt });
+                HirStatement::Variable { name: *name, value }
             }
             HirStatement::Expression { expr } => HirStatement::Expression {
                 expr: self.build_expression(hir, *expr, subst)?,
