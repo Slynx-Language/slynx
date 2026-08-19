@@ -1,0 +1,9 @@
+// A nullable generic return type works: `identity<int>` is specialized to
+// `func(...) -> int?`.
+func identity<T>(x: T): T? {
+    x
+}
+
+func main(): int? {
+    identity<int>(42)
+}

@@ -1,0 +1,9 @@
+object Pair<T, U> {
+    first: T,
+    second: U,
+}
+
+func main(): bool {
+    let p = Pair<int, bool>(first: 1, second: true);
+    p.second
+}

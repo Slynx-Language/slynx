@@ -1,0 +1,15 @@
+component Pair<T, U> {
+    pub prop first: T;
+    pub prop second: U;
+}
+
+component Main {
+    Pair<int, bool> {
+        first: 1,
+        second: true,
+    }
+}
+
+func main(): Component {
+    Main {}
+}

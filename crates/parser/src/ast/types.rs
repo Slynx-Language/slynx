@@ -8,7 +8,7 @@ use crate::{ASTExpression, SymbolPointer};
 #[derive(Debug)]
 ///A name that is typed. This is simply the representation of `name: kind`
 pub struct TypedName {
-    pub name: SymbolPointer,
+    pub name: Spanned<SymbolPointer>,
     pub kind: Spanned<DedupPoolId<Type>>,
 }
 
@@ -18,6 +18,26 @@ pub enum Type {
     Array(DedupPoolId<Type>, DedupPoolId<ASTExpression>),
     Vector(DedupPoolId<Type>),
     Nullable(DedupPoolId<Type>),
+    ///A reference to the i-th type parameter of the enclosing generic declaration.
+    ///For example, in `func A<T>(arg: T): T`, both the `arg` type and the return
+    ///type are represented as `Generic(0)`.
+    Generic(u8),
+}
+
+///A context to determine what the type is being related to. This can contain information of generic names, at the moment
+pub struct TypeContext<'a> {
+    pub generic_names: &'a [SymbolPointer],
+}
+
+impl<'a> TypeContext<'a> {
+    pub const fn new(generics: &'a [SymbolPointer]) -> Self {
+        Self {
+            generic_names: generics,
+        }
+    }
+}
+impl TypeContext<'static> {
+    pub const EMPTY: Self = TypeContext::new(&[]);
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]

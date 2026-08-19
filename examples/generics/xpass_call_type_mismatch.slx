@@ -1,0 +1,17 @@
+// xpass: generic function call arguments are never checked against the
+// callee's parameter types in the HIR builder (`build_expression`'s FunctionCall
+// arm passes the parameter type only as a hint, never calling `unify_types`).
+// Every mismatched value below compiles, and codegen silently reinterprets the
+// value with the parameter's IR type (`identity_int_c7ee(30)` for 30.0).
+// All of these should eventually be rejected.
+func identity<T>(x: T): T {
+    x
+}
+
+func main(): void {
+    identity<int>(30.0);   // float literal → T = int
+    identity<int>(true);   // bool literal → T = int
+    identity<bool>(1);     // int literal → T = bool
+    identity<[]int>(30.0); // float literal → T = []int
+    identity<[]f64>(1);    // int literal → T = []f64
+}

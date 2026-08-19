@@ -14,7 +14,11 @@ pub struct ASTAttribute {
 
 #[derive(Debug)]
 pub struct ObjectMethod {
-    pub method_name: Spanned<DedupPoolId<Type>>,
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
+    pub method_name: SymbolPointer,
     pub arguments: Vec<Spanned<TypedName>>,
     pub return_type: Spanned<DedupPoolId<Type>>,
     pub body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
@@ -23,14 +27,22 @@ pub struct ObjectMethod {
 
 #[derive(Debug)]
 pub struct AliasDeclaration {
-    pub name: Spanned<DedupPoolId<Type>>,
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
+    pub name: SymbolPointer,
     pub target: Spanned<DedupPoolId<Type>>,
     pub span: Span,
     pub visibility: VisibilityModifier,
 }
 #[derive(Debug)]
 pub struct ObjectDeclaration {
-    pub name: Spanned<DedupPoolId<Type>>,
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
+    pub name: SymbolPointer,
     pub fields: Vec<ObjectField>,
     pub methods: Vec<ObjectMethod>,
     pub attributes: Vec<Spanned<ASTAttribute>>,
@@ -40,7 +52,11 @@ pub struct ObjectDeclaration {
 }
 #[derive(Debug)]
 pub struct ComponentDeclaration {
-    pub name: Spanned<DedupPoolId<Type>>,
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
+    pub name: SymbolPointer,
     pub members: Vec<ComponentMember>,
     pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,
@@ -48,7 +64,11 @@ pub struct ComponentDeclaration {
 }
 #[derive(Debug)]
 pub struct FuncDeclaration {
-    pub name: Spanned<DedupPoolId<Type>>,
+    pub name: SymbolPointer,
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
     pub args: Vec<Spanned<TypedName>>,
     pub return_type: Spanned<DedupPoolId<Type>>,
     pub body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
@@ -59,7 +79,11 @@ pub struct FuncDeclaration {
 }
 #[derive(Debug)]
 pub struct StyleSheet {
-    pub name: Spanned<DedupPoolId<Type>>,
+    ///The type parameters declared by this generic function. Each parameter is a
+    ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
+    ///type, such as `[4]int`, for it.
+    pub type_params: Vec<SymbolPointer>,
+    pub name: SymbolPointer,
     pub args: Vec<Spanned<TypedName>>,
     pub usages: Vec<Spanned<DedupPoolId<ASTExpression>>>,
     pub body: Vec<Spanned<StyleSheetStatement>>,

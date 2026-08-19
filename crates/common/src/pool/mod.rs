@@ -48,9 +48,21 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
 
     ///Gets the data that originated the given `id`
     pub fn get(&self, id: DedupPoolId<T>) -> &T {
-        self.inner
-            .get(id.as_raw() as usize)
-            .expect("Expected to retrieve data from pool id originated from insert")
+        self.inner.get(id.as_raw() as usize).unwrap_or_else(|| {
+            panic!(
+                "Expected to retrieve data from pool id originated from insert (id={} count={})",
+                id.as_raw(),
+                self.inner.count()
+            )
+        })
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 
     ///Gets a mutable reference to the data that originated the given `id`.
@@ -63,14 +75,6 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
         self.inner
             .get_mut(id.as_raw() as usize)
             .expect("Expected to retrieve data from pool id originated from insert")
-    }
-
-    pub fn len(&self) -> usize {
-        self.inner.count()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
     }
 
     ///Iterates over all values stored on this pool, yielding their `id` and a reference to the data

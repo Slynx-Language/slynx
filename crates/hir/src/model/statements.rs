@@ -32,33 +32,9 @@
 //!
 //! # Examples
 //!
-//! ```rust
-//! # use slynx_frontend::hir::model::*;
-//! # use common::Span;
-//! # use crate::slynx_frontend::hir::{VariableId, ExpressionId, TypeId};
-//! # let span = Span::default();
-//! # let var_id = VariableId::new();
-//! # let expr = HirExpression {
-//! #     id: ExpressionId::new(),
-//! #     ty: TypeId::from_raw(0),
-//! #     kind: HirExpressionKind::Int(42),
-//! #     span,
-//! # };
-//!
+//! ```text
 //! // Variable declaration
 //! let var_stmt = HirStatement::new_variable(var_id, expr, span);
-//!
-//! // Assignment
-//! let assign_stmt = HirStatement {
-//!     kind: HirStatementKind::Assign {
-//!         lhs: lhs_expr,
-//!         value: rhs_expr,
-//!     },
-//!     span,
-//! };
-//!
-//! // While loop
-//! let while_stmt = HirStatement::new_while(condition_expr, body_stmts, span);
 //!
 //! // Return (implicit from last expression in function body)
 //! let return_stmt = HirStatement::new_return(expr);

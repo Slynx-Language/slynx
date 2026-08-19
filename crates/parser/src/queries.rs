@@ -1,4 +1,4 @@
-use common::{Span, pool::DedupPoolId};
+use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{
@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
     }
 
     ///Does the same as `self.expect()` but expecting specifically an identifier
-    pub fn expect_identifier(&mut self) -> Result<(SymbolPointer, Span)> {
+    pub fn expect_identifier(&mut self) -> Result<Spanned<SymbolPointer>> {
         let Token {
             kind: TokenKind::Identifier(name),
             span,
@@ -83,7 +83,7 @@ impl<'a> Parser<'a> {
             unreachable!()
         };
         let name = self.intern(&name);
-        Ok((name, span))
+        Ok(span.make_spanned(name))
     }
     ///Does the same as `self.expect()` but expecting specifically an identifier
     pub fn expect_string(&mut self) -> Result<(SymbolPointer, Span)> {

@@ -1,0 +1,17 @@
+object Option<T> {
+    value: T
+}
+
+component Box<T> {
+    pub prop item: T;
+}
+
+component Main {
+    Box<Option<int>> {
+        item: Option<int>(value: 42)
+    }
+}
+
+func main(): Component {
+    Main {}
+}

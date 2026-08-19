@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 use common::{FrontendSymbol, SymbolPointer, SymbolsModule, pool::DedupPoolId};
 use slynx_parser::{
     ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration,
-    ObjectDeclaration, Type,
+    ObjectDeclaration, Type, TypeContext,
 };
 
 use crate::{FileId, SourceLoader, SourceNode};
@@ -87,11 +87,15 @@ impl<'a> Modules<'a> {
     pub fn get_type(&self, ty: DedupPoolId<Type>) -> &Type {
         self.loader.types.get(ty)
     }
-    pub fn type_name(&self, ty: DedupPoolId<Type>) -> SymbolPointer<FrontendSymbol> {
+    pub fn type_name(
+        &self,
+        ty: DedupPoolId<Type>,
+        context: &TypeContext<'_>,
+    ) -> SymbolPointer<FrontendSymbol> {
         match &self.loader.types[ty] {
             Type::Plain(gi) => gi.identifier,
             Type::Array(arr, len) => {
-                let name = self.loader.symbols.get_name(self.type_name(*arr));
+                let name = self.loader.symbols.get_name(self.type_name(*arr, context));
                 let len = match self.loader.expressions.get(*len) {
                     ASTExpression::IntLiteral(int) => int.to_string(),
                     _ => unimplemented!(
@@ -102,10 +106,15 @@ impl<'a> Modules<'a> {
             }
             Type::Vector(inner) => self.loader.symbols.intern(&format!(
                 "[]{}",
-                self.loader.symbols.get_name(self.type_name(*inner))
+                self.loader
+                    .symbols
+                    .get_name(self.type_name(*inner, context))
             )),
             Type::Nullable(inner) => {
-                let inner_name = self.loader.symbols.get_name(self.type_name(*inner));
+                let inner_name = self
+                    .loader
+                    .symbols
+                    .get_name(self.type_name(*inner, context));
                 match self.loader.types.get(*inner) {
                     Type::Array(_, _) | Type::Vector(_) => {
                         self.loader.symbols.intern(&format!("({inner_name})?"))
@@ -114,6 +123,7 @@ impl<'a> Modules<'a> {
                     _ => self.loader.symbols.intern(&format!("{inner_name}?")),
                 }
             }
+            Type::Generic(index) => context.generic_names[*index as usize],
         }
     }
 
@@ -123,10 +133,7 @@ impl<'a> Modules<'a> {
         module: FileId,
     ) -> Option<(FileId, &slynx_parser::FuncDeclaration)> {
         let module = &self.modules[module.as_raw() as usize];
-        if let Some(v) = module.func().iter().find(|func| {
-            let t = self.type_name(func.name.data);
-            t == name
-        }) {
+        if let Some(v) = module.func().iter().find(|func| func.name == name) {
             return Some((module.id, v));
         }
         for import in module.imports() {
@@ -194,8 +201,7 @@ impl<'a> Modules<'a> {
         let module_ref = &self.modules[raw];
 
         if let Some(strukt) = module_ref.object().iter().find_map(|strukt| {
-            let strukt_name = self.type_name(strukt.name.data);
-            (strukt_name == name).then_some(ASTType {
+            (strukt.name == name).then_some(ASTType {
                 owner: module,
                 content: ASTTypeKind::Struct(strukt),
             })
@@ -203,8 +209,7 @@ impl<'a> Modules<'a> {
             return Some(strukt);
         }
         if let Some(component) = module_ref.component().iter().find_map(|component| {
-            let component_name = self.type_name(component.name.data);
-            (component_name == name).then_some(ASTType {
+            (component.name == name).then_some(ASTType {
                 owner: module,
                 content: ASTTypeKind::Component(component),
             })
@@ -213,8 +218,7 @@ impl<'a> Modules<'a> {
         }
 
         if let Some(alias) = module_ref.alias().iter().find_map(|alias| {
-            let alias_name = self.type_name(alias.name.data);
-            (alias_name == name).then_some(ASTType {
+            (alias.name == name).then_some(ASTType {
                 owner: module,
                 content: ASTTypeKind::Alias(alias),
             })

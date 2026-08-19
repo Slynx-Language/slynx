@@ -267,7 +267,7 @@ impl Codegen {
             ),
             HirExpressionKind::Float(f) => context.emit_const(Operand::Float(f.0 as f64), float_ty),
             HirExpressionKind::Int(i) => context.emit_const(Operand::Int(*i as i64), int_ty),
-            HirExpressionKind::FunctionCall { name, args } => {
+            HirExpressionKind::FunctionCall { name, args, .. } => {
                 self.lower_function_call(*name, args, hir, context)?
             }
             HirExpressionKind::Binary { lhs, op, rhs } => {

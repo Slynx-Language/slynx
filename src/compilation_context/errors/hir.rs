@@ -11,6 +11,12 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::ArrayLengthMismatch { expected, actual } => {
+                format!(
+                    "Array length mismatch: expected {}, got {}",
+                    expected, actual
+                )
+            }
             HIRErrorKind::MissingReturn => {
                 "Function does not contain return, but its return type is NOT void".to_string()
             }
@@ -165,6 +171,20 @@ impl SlynxContext {
             }
             HIRErrorKind::CyclicComponentBody { component: _ } => {
                 "cyclic component body resolution".to_string()
+            }
+            HIRErrorKind::GenericArityMismatch {
+                func,
+                declared,
+                supplied,
+            } => {
+                let func = hir.get_name(*func);
+                format!(
+                    "Generic function '{func}' expects {declared} type argument(s), got {supplied}"
+                )
+            }
+            HIRErrorKind::CyclicMonomorphization { func, .. } => {
+                let func = hir.get_name(*func);
+                format!("Monomorphization of generic function '{func}' does not terminate")
             }
         }
     }

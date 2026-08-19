@@ -1,0 +1,15 @@
+// xpass: generic struct field values are never checked against the field type
+// in the HIR builder (`build_expression`'s ObjectExpression arm passes the
+// field type only as a hint, never calling `unify_types`). Every mismatched
+// value below compiles and is silently reinterpreted by codegen. All of these
+// should eventually be rejected.
+object Box<T> {
+    data: T
+}
+
+func main(): void {
+    let a = Box<int>(data: 30.0);   // float literal → T = int
+    let b = Box<int>(data: true);   // bool literal → T = int
+    let c = Box<[]int>(data: 30.0); // float literal → T = []int
+    let d = Box<bool>(data: 1);     // int literal → T = bool
+}

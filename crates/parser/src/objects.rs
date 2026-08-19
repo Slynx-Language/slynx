@@ -12,9 +12,11 @@ impl<'a> Parser<'a> {
             args,
             return_type,
             body,
+            type_params,
             ..
         } = func;
         Ok(ObjectMethod {
+            type_params,
             method_name: name,
             arguments: args,
             return_type,
@@ -24,10 +26,12 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_object(&mut self, start: Span) -> Result<ObjectDeclaration> {
-        let name = self.parse_type()?;
+        let (name, generics) = self.parse_generic_name()?;
         self.expect(&TokenKind::LBrace)?;
         let mut fields = Vec::new();
         let mut methods = Vec::new();
+        let mut type_params = Vec::new();
+        self.push_type_params(&generics, &mut type_params);
         while self.peek()?.kind != TokenKind::RBrace {
             if self.peek()?.kind == TokenKind::Func {
                 let start = self.eat()?.span;
@@ -37,7 +41,7 @@ impl<'a> Parser<'a> {
                 }
                 continue;
             }
-            let name = self.parse_typedname()?;
+            let name = self.parse_typedname(&type_params)?;
             fields.push(ObjectField {
                 visibility: VisibilityModifier::Public,
                 name,
@@ -51,6 +55,7 @@ impl<'a> Parser<'a> {
         }
         let Token { span, .. } = self.expect(&TokenKind::RBrace)?;
         Ok(ObjectDeclaration {
+            type_params: generics,
             attributes: Vec::new(),
             visibility: Default::default(),
             name,

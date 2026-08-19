@@ -1,0 +1,9 @@
+// xpass: wrong generic arity is correctly rejected with
+// "Generic function 'second' expects 2 type argument(s), got 1", fixed due to inference
+func second<T, U>(first: T, second: U): U {
+    second
+}
+
+func main(): int {
+    second<int>(1, 2)
+}

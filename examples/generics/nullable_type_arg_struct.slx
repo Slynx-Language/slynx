@@ -1,0 +1,10 @@
+// A nullable type as a generic type argument of a struct instantiation works,
+// e.g. `Option<int?>(value: 42)`.
+object Option<T> {
+    value: T
+}
+
+func main(): int {
+    let some = Option<int?>(value: 42);
+    some.value
+}

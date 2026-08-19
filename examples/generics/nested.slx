@@ -1,0 +1,11 @@
+func identity<T>(x: T): T {
+    x
+}
+
+func wrap<T>(x: T): T {
+    identity<T>(x)
+}
+
+func main(): int {
+    wrap<int>(42)
+}

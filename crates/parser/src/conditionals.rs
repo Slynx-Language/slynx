@@ -1,21 +1,26 @@
-use crate::{ASTExpression, ASTStatement, Parser, Result};
+use crate::{ASTExpression, ASTStatement, Parser, Result, TypeParamScope};
 use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::tokens::TokenKind;
 
 impl Parser<'_> {
     /// Parses an if statement. The provided `span` is the initial span for the 'if' keyword.
-    pub fn parse_if(&mut self, span: Span) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+    pub fn parse_if(
+        &mut self,
+        span: Span,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.flags.reset();
 
-        let condition = self.parse_without_component_expr(Self::parse_expression)?;
-        let (body, block_span) = self.parse_block()?;
+        let condition =
+            self.parse_without_component_expr(|parser| parser.parse_expression(type_params))?;
+        let (body, block_span) = self.parse_block(type_params)?;
 
         let (else_body, end) = match self.peek()?.kind {
             TokenKind::Else if self.peek_at(1)?.kind == TokenKind::If => {
                 self.eat()?;
 
                 let if_span = self.eat()?.span;
-                let expr = self.parse_if(if_span)?;
+                let expr = self.parse_if(if_span, type_params)?;
                 let end = expr.span;
 
                 let span = expr.span;
@@ -24,7 +29,7 @@ impl Parser<'_> {
             }
             TokenKind::Else => {
                 self.eat()?;
-                self.parse_block()?
+                self.parse_block(type_params)?
             }
             _ => (vec![], block_span),
         };
@@ -36,13 +41,16 @@ impl Parser<'_> {
         Ok(Spanned::new(id, span.merge_with(end)))
     }
 
-    pub fn parse_block(&mut self) -> Result<(Vec<Spanned<DedupPoolId<ASTStatement>>>, Span)> {
+    pub fn parse_block(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<(Vec<Spanned<DedupPoolId<ASTStatement>>>, Span)> {
         self.flags.reset();
         let lbrace = self.expect(&TokenKind::LBrace)?;
         let start = lbrace.span.start;
         let mut body = Vec::new();
         while !matches!(self.peek()?.kind, TokenKind::RBrace) {
-            let stmt = self.parse_statement()?;
+            let stmt = self.parse_statement(type_params)?;
             body.push(stmt);
             if let Some(ASTStatement::Expression(expr)) =
                 body.last().map(|stmt| self.statements.get(stmt.data))

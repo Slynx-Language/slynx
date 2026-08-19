@@ -27,7 +27,35 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                 format!("[{len}]{}", self.new_with(*ty).name())
             }
             HirType::Vector(ty) => format!("[]{}", self.new_with(*ty).name()),
-            _ if let Some(func) = self.is_function() => {
+
+            HirType::Str => "str".to_string(),
+            HirType::Reference { rf, generics } => {
+                let name = self.new_with(*rf).name();
+                let generics = {
+                    let mut out = Vec::with_capacity(generics.len());
+                    for generic in generics {
+                        if *generic == DedupPoolId::new_null() {
+                            break;
+                        }
+                        let ty = self.new_with(*generic).name();
+                        out.push(ty);
+                    }
+                    out
+                };
+                if generics.is_empty() {
+                    name
+                } else {
+                    format!("{name}<{}>", generics.join(","))
+                }
+            }
+            HirType::GenericParam { name, .. } => self.hir.get_name(*name).to_string(),
+            HirType::Style(s) => self.new_with(*s).name().to_string(),
+            HirType::Struct(strukt) => {
+                let name = self.new_with(*strukt).name();
+                self.hir.get_name(name).to_string()
+            }
+            HirType::Function(func) => {
+                let func = self.new_with(*func);
                 let args = func
                     .arguments()
                     .iter()
@@ -38,7 +66,8 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                 let ret = self.new_with(func.return_type()).name();
                 format!("func({args})->{ret}")
             }
-            _ if let Some(tuple) = self.is_tuple() => {
+            HirType::Tuple(tuple) => {
+                let tuple = self.new_with(*tuple);
                 let args = tuple
                     .fields()
                     .iter()
@@ -48,11 +77,7 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                     .join(",");
                 format!("({args})")
             }
-            _ if let Some(strukt) = self.is_struct() => {
-                self.hir.get_name(strukt.name()).to_string()
-            }
-            _ if let Some(component) = self.is_component() => component.name().to_string(),
-            t => unreachable!("Type {t:?} is not be able to have a name"),
+            HirType::Component(component) => self.new_with(*component).name().to_string(),
         }
     }
 
@@ -117,7 +142,7 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
     ///Makes a dereference for this type. Since a type can be a reference to another, what this function does is to retrieve the concrete type with no references at all
     pub fn dereference(&self) -> HirViewer<'_, DedupPoolId<HirType>> {
         let mut data = self.data;
-        while let HirType::Reference { rf, .. } = self.hir.deref()[self.data] {
+        while let HirType::Reference { rf, .. } = self.hir.deref()[data] {
             data = rf;
         }
         self.new_with(data)

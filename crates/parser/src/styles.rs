@@ -10,7 +10,7 @@ impl Parser<'_> {
     pub fn parse_style_state(&mut self) -> Result<StyleState, ParseError> {
         let mut states = Vec::new();
         loop {
-            let (state_name, _) = self.expect_identifier()?;
+            let state_name = self.expect_identifier()?.data;
             states.push(state_name);
             if !matches!(self.peek()?.kind, TokenKind::Dot) {
                 break;
@@ -23,14 +23,14 @@ impl Parser<'_> {
         {
             self.eat()?;
             let duration = if self.peek()?.kind != TokenKind::RParen {
-                Some(self.parse_expression()?)
+                Some(self.parse_expression(&[])?)
             } else {
                 None
             };
             let curve = match self.peek()?.kind {
                 TokenKind::Colon if self.peek_at(1)?.kind != TokenKind::RParen => {
-                    let (ident, _) = self.expect_identifier()?;
-                    Some(ident)
+                    let ident = self.expect_identifier()?;
+                    Some(ident.data)
                 }
                 _ => None,
             };
@@ -66,7 +66,7 @@ impl Parser<'_> {
                     children_blocks.push(block);
                 }
                 _ => {
-                    let stmt = self.parse_named_expr()?;
+                    let stmt = self.parse_named_expr(&[])?;
                     properties.push(stmt);
                     if let TokenKind::Comma | TokenKind::SemiColon = self.peek()?.kind {
                         self.eat()?;
@@ -87,17 +87,17 @@ impl Parser<'_> {
 
     pub fn parse_styles_statement(&mut self) -> Result<Spanned<StyleSheetStatement>, ParseError> {
         let styles_span = {
-            let (ident, span) = self.expect_identifier()?;
-            if ident != self.intern("styles") {
+            let ident = self.expect_identifier()?;
+            if ident.data != self.intern("styles") {
                 return Err(ParseError::UnexpectedToken(
                     Token {
-                        kind: TokenKind::Identifier(self.symbols.get_name(ident).to_string()),
-                        span,
+                        kind: TokenKind::Identifier(self.symbols.get_name(ident.data).to_string()),
+                        span: ident.span,
                     },
                     ExpectedContent::Raw("Was expecting 'styles'".to_string()),
                 ));
             }
-            span
+            ident.span
         };
         self.expect(&TokenKind::LBrace)?;
         let mut styles = Vec::new();
@@ -113,7 +113,7 @@ impl Parser<'_> {
         match self.peek()?.kind {
             TokenKind::Identifier(ref s) if s == "styles" => self.parse_styles_statement(),
             _ => {
-                let out = self.parse_statement().map(|arg| {
+                let out = self.parse_statement(&[]).map(|arg| {
                     let span = arg.span;
                     Spanned::new(StyleSheetStatement::Statement(arg), span)
                 });
@@ -146,7 +146,7 @@ impl Parser<'_> {
     ) -> Result<Vec<Spanned<DedupPoolId<ASTExpression>>>, ParseError> {
         let mut exprs = vec![];
         loop {
-            let usage = self.parse_funcall()?;
+            let usage = self.parse_funcall(&[])?;
             exprs.push(usage);
             match self.peek()?.kind {
                 TokenKind::Comma => {
@@ -168,7 +168,8 @@ impl Parser<'_> {
 
     ///Parses a stylesheet. Thus the syntax `stylesheet Name(p1: T) uses Name2(f), F {...}`. The given `span` is the `stylesheet` keyword span
     pub fn parse_stylesheet(&mut self, span: Span) -> Result<StyleSheet, ParseError> {
-        let name = self.parse_type()?;
+        let (name, generics) = self.parse_generic_name()?;
+
         self.expect(&TokenKind::LParen)?;
         let args = {
             let mut out = Vec::new();
@@ -176,7 +177,7 @@ impl Parser<'_> {
                 if let TokenKind::RParen = self.peek()?.kind {
                     break out;
                 }
-                let arg = self.parse_typedname()?;
+                let arg = self.parse_typedname(&[])?;
                 out.push(arg);
                 if let TokenKind::Comma = self.peek()?.kind {
                     self.eat()?;
@@ -196,6 +197,7 @@ impl Parser<'_> {
         self.expect(&TokenKind::LBrace)?;
         let body = self.parse_stylesheet_body()?;
         let out = StyleSheet {
+            type_params: generics,
             attributes: Vec::new(),
             visibility: Default::default(),
             name,

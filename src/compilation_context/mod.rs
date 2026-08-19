@@ -1,6 +1,7 @@
 mod errors;
 
 use std::{
+    collections::HashSet,
     ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
@@ -10,7 +11,7 @@ use common::{FrontendSymbol, SymbolsModule, pool::DedupPool};
 use dashmap::DashMap;
 use module_loader::{Modules, SourceLoader, SourceProvider};
 use slynx_codegen::Codegen;
-use slynx_hir::SlynxHir;
+use slynx_hir::{SlynxHir, id::AnyDeclarationId};
 use slynx_ir::SlynxIR;
 use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
@@ -338,24 +339,34 @@ impl SlynxContext {
     }
 
     ///Builds the Slynx HIR from the given `ast`. And type checks the HIR. The result hir is already typed. Also returns the types module to be used if needed to get information about the types on the Hir.
-    pub fn build_hir<'a>(&self, ast: &'a Modules) -> Result<SlynxHir<'a>, SlynxError> {
+    pub fn build_hir<'a>(
+        &self,
+        ast: &'a Modules,
+    ) -> Result<(SlynxHir<'a>, HashSet<AnyDeclarationId>), SlynxError> {
         let mut hir = SlynxHir::new(ast).map_err(|e| self.handle_hir_error(&e.0, &e.1))?;
 
-        self.monomorphize(&mut hir)?;
+        let deadcode = self.monomorphize(&mut hir)?;
 
-        Ok(hir)
+        Ok((hir, deadcode))
     }
 
     ///Monomorphization only changes(by now) the types module.
-    pub fn monomorphize(&self, hir: &mut SlynxHir) -> Result<(), SlynxError> {
+    pub fn monomorphize(
+        &self,
+        hir: &mut SlynxHir,
+    ) -> Result<HashSet<AnyDeclarationId>, SlynxError> {
         Monomorphizer::resolve(hir).map_err(|e| self.handle_hir_error(hir, &e))
     }
 
     ///Builds a new IR from the given `hir`. It's assumed that it is already implemented
-    pub fn build_ir(&self, hir: SlynxHir) -> Result<SlynxIR, SlynxError> {
+    pub fn build_ir(
+        &self,
+        hir: SlynxHir,
+        deadcode: HashSet<AnyDeclarationId>,
+    ) -> Result<SlynxIR, SlynxError> {
         let mut codegen = Codegen::new();
         codegen
-            .generate(&hir)
+            .generate(&hir, deadcode)
             .map_err(|e| self.build_ir_generation_error(&e, &hir))
     }
 
@@ -380,8 +391,8 @@ impl SlynxContext {
             Ok(modules) => modules,
             Err(e) => return Err(self.handle_source_error(&e)),
         };
-        let hir = self.build_hir(&modules)?;
-        let ir = self.build_ir(hir)?;
+        let (hir, deadcode) = self.build_hir(&modules)?;
+        let ir = self.build_ir(hir, deadcode)?;
 
         Ok(CompilationStages::new(self.entry_point.as_ref(), ir))
     }

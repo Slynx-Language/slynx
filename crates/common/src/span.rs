@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 ///The representation of the bounds of something on the code.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
 pub struct Span {
     pub start: u32,
     pub end: u32,

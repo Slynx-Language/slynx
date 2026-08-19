@@ -1,0 +1,11 @@
+// Indexing a generic struct field whose type argument is a vector collection
+// works: the HIR defers the index-check to monomorphization, which specializes
+// the struct and retypes the field access with the concrete `[]int`.
+object Box<T> {
+    data: T
+}
+
+func main(): int {
+    let b = Box<[]int>(data: {1,2,3});
+    b.data[0]
+}

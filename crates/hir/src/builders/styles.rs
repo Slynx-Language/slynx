@@ -1,4 +1,5 @@
 use module_loader::FileId;
+use slynx_parser::TypeContext;
 
 use crate::{
     DeclarationId, HirStylesheetDeclaration, Result, SymbolPointer,
@@ -32,7 +33,10 @@ impl<'a> HirQueueBuilder<'a> {
         let args: Result<Vec<_>> = stylesheet
             .args
             .iter()
-            .map(|arg| node.find_type(arg.data.kind).map(|v| v.1))
+            .map(|arg| {
+                node.find_type(arg.data.kind, &TypeContext::new(&stylesheet.type_params))
+                    .map(|v| v.1)
+            })
             .collect();
         let args = args?;
         let ty = self.hir.types_module.create_style_type(name, args);
@@ -40,6 +44,7 @@ impl<'a> HirQueueBuilder<'a> {
         let id = {
             let decl = HirStylesheetDeclaration {
                 name,
+                generics: stylesheet.type_params.clone(),
                 usages: Vec::new(),
                 args: Default::default(),
                 statements: Vec::new(),
@@ -87,10 +92,7 @@ impl<'a> HirQueueBuilder<'a> {
         }
 
         let entry = self.modules.get_entry(requester);
-        let style_sheet = entry
-            .style()
-            .iter()
-            .find(|s| self.modules.type_name(s.name.data) == name)?;
+        let style_sheet = entry.style().iter().find(|s| s.name == name)?;
 
         self.enqueue_stylesheet(name, style_sheet, requester).ok()
     }

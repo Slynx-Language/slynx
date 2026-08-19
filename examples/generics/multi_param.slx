@@ -1,0 +1,8 @@
+func second<T, U>(first: T, second: U): U {
+    second
+}
+
+func main(): int {
+    let result = second<bool, int>(true, 20);
+    result
+}
