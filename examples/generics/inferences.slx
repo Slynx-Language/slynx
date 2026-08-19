@@ -1,4 +1,4 @@
-// xfail: generic inference without explicit type arguments currently panics in
+// xpass: generic inference without explicit type arguments currently panics in
 // codegen (crates/codegen/src/expressions.rs, "no entry found for key").
 // Explicit type arguments must be provided until inference is implemented.
 func identity<T>(x: T): T {

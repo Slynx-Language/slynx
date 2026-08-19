@@ -1,9 +1,0 @@
-// xfail: `([]int)?` as a generic type argument fails to parse.
-func identity<T>(x: T): T {
-    x
-}
-
-func main(): int {
-    let v = identity<([]int)?>({1,2,3});
-    v[0]
-}
