@@ -16,6 +16,16 @@ impl Parser<'_> {
         type_params: &[(SymbolPointer, u8)],
     ) -> SymbolPointer {
         match &self.types[ty] {
+            Type::Reference(inner) => {
+                let name = self.type_name(*inner, type_params);
+                let name = self.symbols.get_name(name);
+                self.intern(&format!("&{}", name))
+            }
+            Type::MutableReference(inner) => {
+                let name = self.type_name(*inner, type_params);
+                let name = self.symbols.get_name(name);
+                self.intern(&format!("&mut {}", name))
+            }
             Type::Plain(gi) => gi.identifier,
             Type::Array(arr, len) => {
                 let name = self.symbols.get_name(self.type_name(*arr, type_params));
@@ -205,6 +215,22 @@ impl Parser<'_> {
         let start_span = token.span;
 
         let ty = match &token.kind {
+            TokenKind::BitAnd => {
+                let span = self.expect(&TokenKind::BitAnd)?.span;
+                match self.peek()?.kind {
+                    TokenKind::Mut => {
+                        self.expect(&TokenKind::Mut)?;
+                        let ty = self.parse_type(type_params)?;
+                        let id = self.intern_type(Type::MutableReference(ty.data));
+                        span.merge_with(ty.span).make_spanned(id)
+                    }
+                    _ => {
+                        let ty = self.parse_type(type_params)?;
+                        let id = self.intern_type(Type::Reference(ty.data));
+                        span.merge_with(ty.span).make_spanned(id)
+                    }
+                }
+            }
             TokenKind::LParen if self.peek_at(1)?.kind == TokenKind::RParen => {
                 self.expect(&TokenKind::LParen)?;
                 self.expect(&TokenKind::RBrace)?;

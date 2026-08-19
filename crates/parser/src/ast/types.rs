@@ -22,6 +22,8 @@ pub enum Type {
     ///For example, in `func A<T>(arg: T): T`, both the `arg` type and the return
     ///type are represented as `Generic(0)`.
     Generic(u8),
+    Reference(DedupPoolId<Type>),
+    MutableReference(DedupPoolId<Type>),
 }
 
 ///A context to determine what the type is being related to. This can contain information of generic names, at the moment
