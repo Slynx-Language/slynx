@@ -28,7 +28,7 @@ mod functions;
 mod structs;
 mod types;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use common::{
     Span, Spanned,
@@ -39,6 +39,7 @@ use module_loader::FileId;
 use slynx_hir::{
     DeclarationId, HirComponentExpression, HirExpression, HirExpressionKind,
     HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result, SlynxHir,
+    VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 
@@ -53,6 +54,21 @@ type FunctionSnapshot = (
     PoolId<HirFunctionDeclaration>,
     Vec<Spanned<PoolId<HirStatement>>>,
 );
+
+/// The type information tracked for a `let`-bound variable while its scope is
+/// being rewritten.
+///
+/// - `original` is the type the initializer expression had *before*
+///   monomorphization. When the variable has no type annotation this is also
+///   the type every identifier referencing it carries (a `GenericParam` that
+///   the empty substitution cannot replace).
+/// - `rebuilt` is the concrete type of the rebuilt initializer, which is the
+///   variable's real type once the call/object it came from was specialized.
+#[derive(Clone, Copy)]
+struct TrackedVariable {
+    original: DedupPoolId<HirType>,
+    rebuilt: DedupPoolId<HirType>,
+}
 
 /// A struct that handles all the monomorphization on the code.
 ///
@@ -76,6 +92,11 @@ pub struct Monomorphizer {
     in_progress: HashSet<MonomorphizationKey>,
     /// The generic templates that were neutralized and are now dead code.
     dead_code: HashSet<AnyDeclarationId>,
+    /// Stack of lexical scopes currently being rewritten. Each scope maps a
+    /// `let`-bound variable to the type its (rebuilt) initializer produced, so
+    /// later identifiers resolve to the concrete type instead of a leftover
+    /// `GenericParam`.
+    variable_types: Vec<HashMap<VariableId, TrackedVariable>>,
 }
 
 impl Monomorphizer {
@@ -92,6 +113,7 @@ impl Monomorphizer {
             cache: DashMap::new(),
             in_progress: HashSet::new(),
             dead_code: HashSet::new(),
+            variable_types: Vec::new(),
         };
         monomorphizer.run(hir)?;
         Ok(monomorphizer.dead_code)
@@ -304,18 +326,41 @@ impl Monomorphizer {
         }
     }
 
+    ///Records the type of a `let`-bound variable in the innermost active scope.
+    fn declare_variable(&mut self, id: VariableId, tracked: TrackedVariable) {
+        self.variable_types
+            .last_mut()
+            .expect("A variable declaration requires an active scope")
+            .insert(id, tracked);
+    }
+
+    ///Looks up the type of a `let`-bound variable across the active scopes,
+    ///innermost first. Returns `None` for function arguments and statics,
+    ///whose types the substitution already resolves.
+    fn lookup_variable_type(&self, id: VariableId) -> Option<TrackedVariable> {
+        self.variable_types
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(&id).copied())
+    }
+
     ///Rebuilds a list of statements, substituting generic parameters and
-    ///rewriting generic call sites and struct/component usage.
+    ///rewriting generic call sites and struct/component usage. Each call
+    ///enters a fresh lexical scope so `let` bindings tracked inside a block do
+    ///not leak out of it.
     fn build_statements(
         &mut self,
         hir: &SlynxHir,
         statements: &[Spanned<PoolId<HirStatement>>],
         subst: &Substitution,
     ) -> Result<Vec<Spanned<PoolId<HirStatement>>>> {
-        statements
+        self.variable_types.push(HashMap::new());
+        let result = statements
             .iter()
             .map(|statement| self.build_statement(hir, *statement, subst))
-            .collect()
+            .collect();
+        self.variable_types.pop();
+        result
     }
 
     fn build_statement(
@@ -329,10 +374,19 @@ impl Monomorphizer {
                 lhs: self.build_expression(hir, *lhs, subst)?,
                 value: self.build_expression(hir, *value, subst)?,
             },
-            HirStatement::Variable { name, value } => HirStatement::Variable {
-                name: *name,
-                value: self.build_expression(hir, *value, subst)?,
-            },
+            HirStatement::Variable { name, value } => {
+                let original = hir[value.data].ty;
+                let value = self.build_expression(hir, *value, subst)?;
+                let rebuilt = hir[value.data].ty;
+                self.declare_variable(
+                    *name,
+                    TrackedVariable { original, rebuilt },
+                );
+                HirStatement::Variable {
+                    name: *name,
+                    value,
+                }
+            }
             HirStatement::Expression { expr } => HirStatement::Expression {
                 expr: self.build_expression(hir, *expr, subst)?,
             },
@@ -366,8 +420,21 @@ impl Monomorphizer {
             | HirExpressionKind::Float(_)
             | HirExpressionKind::True
             | HirExpressionKind::False
-            | HirExpressionKind::Identifier(_)
             | HirExpressionKind::Static { .. } => node.kind.clone(),
+            HirExpressionKind::Identifier(id) => {
+                if let Some(tracked) = self.lookup_variable_type(id) {
+                    // No annotation: the identifier carries the initializer's
+                    // original type, so use the concrete rebuilt type. With an
+                    // annotation the identifier already carries the declared
+                    // type, which the substitution below resolves.
+                    call_ty = if tracked.original == node.ty {
+                        tracked.rebuilt
+                    } else {
+                        node.ty
+                    };
+                }
+                node.kind.clone()
+            }
             HirExpressionKind::Tuple(items) => {
                 HirExpressionKind::Tuple(self.build_expressions(hir, &items, subst)?)
             }

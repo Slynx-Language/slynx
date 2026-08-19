@@ -545,21 +545,28 @@ impl ExpressionBuilder {
                         name.span,
                     ));
                 }
-                let generics = queue
+                let mut generics = queue
                     .get_node(self.file())
                     .resolve_call_generics(identifier, context)?;
                 let args = args
                     .iter()
                     .zip(expected_args)
                     .map(|(arg, ty)| {
-                        let ty = match queue.hir.view(*ty).raw() {
+                        let expected_ty = match queue.hir.view(*ty).raw() {
                             HirType::GenericParam { index, .. } => {
-                                generics.get(*index as usize).copied().unwrap_or(*ty)
+                                generics.get(*index as usize).cloned()
                             }
-                            _ => *ty,
+                            _ => None,
                         };
 
-                        self.build_expression(queue, *arg, Some(ty), context)
+                        let expr = self.build_expression(queue, *arg, expected_ty, context)?;
+                        if let HirType::GenericParam { index, .. } = queue.hir.view(*ty).raw()
+                            && let None = expected_ty
+                        {
+                            let expr_ty = queue.hir.view(expr.data).ty();
+                            generics.insert(*index as usize, expr_ty);
+                        }
+                        Ok(expr)
                     })
                     .collect::<Result<_>>()?;
                 let ty = func_real_type.return_type();
