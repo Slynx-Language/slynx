@@ -1,0 +1,9 @@
+// A generic function over a vector parameter works: `len<int>` is specialized
+// with `[]int` and the vector literal unifies with it.
+func len<T>(items: []T): int {
+    2
+}
+
+func main(): int {
+    len<int>({1,2,3})
+}

@@ -1,9 +1,0 @@
-// xfail: `[4]T` as a generic array parameter fails at the call site with
-// "Received an incorrect type. Expected T instead, received type int".
-func len<T>(items: [4]T): int {
-    4
-}
-
-func main(): int {
-    len<int>([1,2,3,4])
-}

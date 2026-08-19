@@ -1,9 +1,0 @@
-// xfail: `[]T` as a generic vector parameter fails at the call site with
-// "Received an incorrect type. Expected T instead, received type int".
-func len<T>(items: []T): int {
-    2
-}
-
-func main(): int {
-    len<int>({1,2,3})
-}
