@@ -34,10 +34,6 @@ impl ExpressionBuilder {
                 let parent_view = queue.hir.view(parent_ty);
                 let resolved = parent_view.dereference();
                 match resolved.is_struct() {
-                    None => {
-                        let ty = resolved.data;
-                        return Err(HIRError::not_a_struct(ty, span));
-                    }
                     Some(view) => {
                         let (fields, field_types) = (view.fields(), view.field_types());
                         let position = fields
@@ -66,6 +62,49 @@ impl ExpressionBuilder {
                                 field_name: Some(*field_name),
                             },
                         }
+                    }
+                    None if let Some(refr) = resolved.is_mutable_ref()
+                        && let Some(view) = refr.dereference().is_struct() =>
+                    {
+                        let (fields, field_types) = (view.fields(), view.field_types());
+                        let position = fields
+                            .iter()
+                            .position(|f| f.data == *field_name)
+                            .ok_or_else(|| {
+                                HIRError::property_unrecognized(
+                                    resolved.data,
+                                    vec![*field_name],
+                                    span,
+                                )
+                            })?;
+
+                        let field_ty = field_types[position];
+                        let field_ty = match queue.hir.view(parent_ty).raw() {
+                            HirType::Reference { generics, .. } => {
+                                queue.substitute_generics(generics, field_ty)
+                            }
+                            _ => field_ty,
+                        };
+
+                        let parent =
+                            parent
+                                .span
+                                .make_spanned(queue.hir.insert_expression(HirExpression {
+                                    ty: refr.data,
+                                    kind: HirExpressionKind::Deref(parent),
+                                }));
+                        HirExpression {
+                            ty: field_ty,
+                            kind: HirExpressionKind::FieldAccess {
+                                expr: parent,
+                                field_index: position,
+                                field_name: Some(*field_name),
+                            },
+                        }
+                    }
+                    None => {
+                        let ty = resolved.data;
+                        return Err(HIRError::not_a_struct(ty, span));
                     }
                 }
             }

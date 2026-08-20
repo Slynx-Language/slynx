@@ -149,6 +149,26 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
         }
         self.new_with(data)
     }
+    pub fn is_ref(&self) -> bool {
+        matches!(
+            self.hir.deref()[self.data],
+            HirType::ImutableRef { .. } | HirType::MutableRef { .. }
+        )
+    }
+    pub fn is_imutable_ref(&self) -> Option<HirViewer<'_, DedupPoolId<HirType>>> {
+        if let HirType::ImutableRef(inner) = self.hir.deref()[self.data] {
+            Some(self.new_with(inner))
+        } else {
+            None
+        }
+    }
+    pub fn is_mutable_ref(&self) -> Option<HirViewer<'_, DedupPoolId<HirType>>> {
+        if let HirType::MutableRef(inner) = self.hir.deref()[self.data] {
+            Some(self.new_with(inner))
+        } else {
+            None
+        }
+    }
 }
 
 impl Deref for HirViewer<'_, DedupPoolId<HirType>> {
