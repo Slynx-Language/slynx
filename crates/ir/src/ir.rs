@@ -140,3 +140,9 @@ impl DerefMut for SlynxIR {
         &mut self.types
     }
 }
+
+impl std::fmt::Display for SlynxIR {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.format_sir())
+    }
+}

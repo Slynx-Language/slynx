@@ -12,6 +12,14 @@ use crate::{
 /// IR references directly — no separate lookup table required.
 #[derive(Debug, Clone)]
 pub enum Opcode {
+    /// A reference to a value. The first operand is the value being referenced. It should always be a variable
+    Ref,
+    /// Dereferences a value. The first operand is the value being dereferenced.
+    Deref,
+    /// Dereferences a value and writes to it. The first operand is the value being dereferenced, and the second operand is the value to write.
+    DerefWrite,
+    /// Gets the reference to the field of the value. The first operand is the value being referenced, and the second operand is the field index.
+    FieldRef,
     // ═══════════════════════════════════════════════════════════════════
     //  Values
     // ═══════════════════════════════════════════════════════════════════

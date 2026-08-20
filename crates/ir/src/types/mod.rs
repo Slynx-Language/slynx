@@ -166,6 +166,10 @@ impl IRTypes {
         self.insert_type(IRType::USIZE)
     }
 
+    pub fn pointer_type(&self, ty: IRTypeId) -> IRTypeId {
+        self.insert_type(IRType::Pointer(ty))
+    }
+
     ///Returns the generic component type
     pub fn generic_component_type(&self) -> IRTypeId {
         self.insert_type(IRType::GenericComponent)

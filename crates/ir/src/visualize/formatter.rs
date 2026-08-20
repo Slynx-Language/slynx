@@ -74,6 +74,10 @@ impl<'a> Formatter<'a> {
             IRType::Component(c) => self.fmt_component_type(c),
             IRType::Specialized(IRSpecializedComponentType::Div) => "@div".to_string(),
             IRType::Specialized(IRSpecializedComponentType::Text) => "@text".to_string(),
+            IRType::Pointer(inner) => format!("{}*", {
+                let ty = self.types.get_type(*inner);
+                self.fmt_type(ty)
+            }),
             IRType::Array(t, len) => format!("[{len}]{}", {
                 let ty = self.types.get_type(*t);
                 self.fmt_type(ty)
@@ -427,6 +431,10 @@ impl<'a> Formatter<'a> {
 
     pub fn format_instruction(&self, instr: &Instruction) -> String {
         match &instr.opcode {
+            Opcode::Ref => format!("ref {}", self.fmt_operands(&instr.operands)),
+            Opcode::Deref => format!("deref {}", self.fmt_operands(&instr.operands)),
+            Opcode::DerefWrite => format!("deref_write {}", self.fmt_operands(&instr.operands)),
+            Opcode::FieldRef => format!("field_ref {}", self.fmt_operands(&instr.operands)),
             Opcode::Zeroed => "zeroed".to_string(),
             Opcode::ArrayGet => format!("array_get {}", self.fmt_operands(&instr.operands)),
             Opcode::Array => format!("[{}]", self.fmt_operands(&instr.operands)),

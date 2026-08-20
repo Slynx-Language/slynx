@@ -31,4 +31,5 @@ pub enum IRType {
     Function(IRFunctionId),
     Array(DedupPoolId<IRType>, usize),
     Vector(DedupPoolId<IRType>),
+    Pointer(DedupPoolId<IRType>),
 }
