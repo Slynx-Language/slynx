@@ -95,6 +95,8 @@ impl ExpressionBuilder {
             HirExpressionKind::Identifier(ident) => {
                 if self.is_mutable(ident) {
                     Ok(())
+                } else if let HirType::MutableRef(_) = queue.hir.view(expr.data).ty_viewer().raw() {
+                    Ok(())
                 } else {
                     let ident = self
                         .names
@@ -110,6 +112,12 @@ impl ExpressionBuilder {
             HirExpressionKind::FieldAccess { expr, .. } => {
                 self.is_expression_able_to_write(queue, expr)
             }
+            HirExpressionKind::Deref(inner)
+                if let HirType::MutableRef(_) = queue.hir.view(inner.data).ty_viewer().raw() =>
+            {
+                Ok(())
+            }
+            HirExpressionKind::Deref(_) => Err(HIRError::invalid_ref_write(expr.span)),
             _ => Err(HIRError::invalid_expr_write(expr.span)),
         }
     }
@@ -125,6 +133,7 @@ impl ExpressionBuilder {
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let expr = queue.get_expr(expression.data);
         let expr = match expr {
+            ASTExpression::Deref(expr) => self.build_deref(queue, *expr, expected, context)?,
             ASTExpression::Reference { mutable, expr } => {
                 self.build_reference(queue, *expr, *mutable, expected, context)?
             }

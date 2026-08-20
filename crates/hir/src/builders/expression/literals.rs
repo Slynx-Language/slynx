@@ -11,6 +11,27 @@ use crate::{
 use super::ExpressionBuilder;
 
 impl ExpressionBuilder {
+    pub(super) fn build_deref(
+        &mut self,
+        queue: &HirQueueBuilder,
+        expr: Spanned<DedupPoolId<ASTExpression>>,
+        expected: Option<DedupPoolId<HirType>>,
+        context: &TypeContext,
+    ) -> Result<HirExpression> {
+        let build_expr = self.build_expression(queue, expr, expected, context)?;
+        let expr_ty = queue.hir.view(build_expr.data).ty();
+        let expr_ty = match queue.hir.view(expr_ty).raw() {
+            HirType::ImutableRef(inner) | HirType::MutableRef(inner) => *inner,
+            _ => {
+                return Err(HIRError::invalid_deref(expr.span));
+            }
+        };
+        Ok(HirExpression {
+            ty: expr_ty,
+            kind: HirExpressionKind::Deref(build_expr),
+        })
+    }
+
     pub(super) fn build_reference(
         &mut self,
         queue: &HirQueueBuilder,

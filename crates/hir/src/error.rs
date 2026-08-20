@@ -26,11 +26,13 @@ pub struct HIRError {
 pub enum InvalidWriteReason {
     ImmutableVariable(SymbolPointer),
     ExpressionNotAssignable,
+    ReferenceImmutable,
 }
 
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    InvalidDeref,
     ArrayLengthMismatch {
         expected: usize,
         actual: usize,
@@ -188,6 +190,12 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn invalid_deref(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidDeref,
+            span,
+        }
+    }
     pub fn array_length_mismatch(expected: usize, actual: usize, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::ArrayLengthMismatch { expected, actual },
@@ -236,6 +244,14 @@ impl HIRError {
             span,
         }
     }
+
+    pub fn invalid_ref_write(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidWrite(InvalidWriteReason::ReferenceImmutable),
+            span,
+        }
+    }
+
     pub fn invalid_variable_write(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(name)),
@@ -474,6 +490,7 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::InvalidDeref => write!(f, "Invalid deref"),
             HIRErrorKind::ArrayLengthMismatch { expected, actual } => {
                 write!(
                     f,
@@ -503,7 +520,10 @@ impl std::fmt::Display for HIRError {
                 write!(f, "Atempt to write on a imutable variable")
             }
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable) => {
-                write!(f, "Expression not assignable")
+                write!(f, "The expression is not assignable")
+            }
+            HIRErrorKind::InvalidWrite(InvalidWriteReason::ReferenceImmutable) => {
+                write!(f, "Reference being written is immutable")
             }
             HIRErrorKind::InvalidFieldAccess => write!(f, "Invalid field access"),
             HIRErrorKind::TypeNotRecognized(_) => write!(f, "Type not recognized"),
