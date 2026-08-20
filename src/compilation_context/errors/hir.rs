@@ -80,10 +80,12 @@ impl SlynxContext {
                 format!("Type with name '{name}' was not defined")
             }
             HIRErrorKind::InvalidFieldAccessTarget { ty } => {
-                format!("Type '{ty:?}' does not support field-style access")
+                let ty = hir.view(*ty).name();
+                format!("Type '{ty}' does not support field-style access")
             }
             HIRErrorKind::InvalidTupleAccessTarget { ty } => {
-                format!("Type '{ty:?}' does not support tuple-style access")
+                let ty = hir.view(*ty).name();
+                format!("Type '{ty}' does not support tuple-style access")
             }
             HIRErrorKind::InvalidTupleIndex { index, length } => {
                 format!(

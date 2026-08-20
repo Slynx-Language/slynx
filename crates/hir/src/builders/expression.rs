@@ -217,7 +217,7 @@ impl ExpressionBuilder {
                 let resolved = parent_view.dereference();
                 match resolved.is_struct() {
                     None => {
-                        let ty = (*queue.hir.view(resolved.data)).clone();
+                        let ty = resolved.data;
                         return Err(HIRError::not_a_struct(ty, span));
                     }
                     Some(view) => {
@@ -250,7 +250,7 @@ impl ExpressionBuilder {
                 let real_ty = queue.hir.view(parent_ty);
                 let deref = real_ty.dereference();
                 match deref.is_struct() {
-                    None => return Err(HIRError::not_a_struct(deref.raw().clone(), span)),
+                    None => return Err(HIRError::not_a_struct(deref.data, span)),
                     Some(view) => {
                         let func_id =
                             view.methods()
@@ -393,7 +393,7 @@ impl ExpressionBuilder {
         let resolved = parent_view.dereference();
         let ty = match resolved.is_tuple() {
             None => {
-                let ty = (*resolved).clone();
+                let ty = resolved.data;
                 return Err(HIRError::not_a_tuple(ty, span));
             }
             Some(tuple_view) => {

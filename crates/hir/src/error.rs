@@ -62,12 +62,12 @@ pub enum HIRErrorKind {
     /// A field access was attempted on a type that does not support it.
     InvalidFieldAccessTarget {
         /// The type that was incorrectly accessed.
-        ty: HirType,
+        ty: DedupPoolId<HirType>,
     },
     /// A tuple index access was attempted on a non-tuple type.
     InvalidTupleAccessTarget {
         /// The type that was incorrectly accessed.
-        ty: HirType,
+        ty: DedupPoolId<HirType>,
     },
     /// A tuple was indexed out of bounds.
     InvalidTupleIndex {
@@ -268,7 +268,7 @@ impl HIRError {
     }
     ///Creates a new `InvalidStyleDefinition` error, where the name of the style definition is the given `name` and the given `span` is
     ///the span on the code that generated so
-    pub fn invalid_tuple_target(target: HirType, span: Span) -> Self {
+    pub fn invalid_tuple_target(target: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidTupleAccessTarget { ty: target },
             span,
@@ -319,7 +319,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::InvalidFieldAccessTarget`] for accessing a non-struct type as a struct.
-    pub fn not_a_struct(ty: HirType, span: Span) -> Self {
+    pub fn not_a_struct(ty: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidFieldAccessTarget { ty },
             span,
@@ -333,7 +333,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::InvalidTupleAccessTarget`] for accessing a non-tuple type as a tuple.
-    pub fn not_a_tuple(ty: HirType, span: Span) -> Self {
+    pub fn not_a_tuple(ty: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidTupleAccessTarget { ty },
             span,
