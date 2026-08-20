@@ -1,6 +1,9 @@
 use std::hash::Hash;
 
-use common::{Spanned, VisibilityModifier, pool::DedupPoolId};
+use common::{
+    FrontendSymbol, Spanned, SymbolsModule, VisibilityModifier,
+    pool::{DedupPool, DedupPoolId},
+};
 use smallvec::SmallVec;
 
 use crate::{ASTExpression, SymbolPointer};
@@ -24,6 +27,62 @@ pub enum Type {
     Generic(u8),
     Reference(DedupPoolId<Type>),
     MutableReference(DedupPoolId<Type>),
+}
+
+///Renders a [`Type`] back to a human-readable name using the shared interning
+///pools. `generic_names` maps a [`Type::Generic`] index back to the name of the
+///corresponding type parameter of the enclosing generic declaration.
+///
+///The `types`, `symbols` and `expressions` pools are shared between the parser
+///and the module loader, so this single function is used by both instead of two
+///duplicated implementations. Nullable array/vector types are parenthesized
+///(`([]int)?`) to disambiguate them from `([]int?)`.
+pub fn type_name(
+    types: &DedupPool<Type>,
+    symbols: &SymbolsModule<FrontendSymbol>,
+    expressions: &DedupPool<ASTExpression>,
+    ty: DedupPoolId<Type>,
+    generic_names: &[SymbolPointer],
+) -> SymbolPointer {
+    match &types[ty] {
+        Type::Reference(inner) => {
+            let name =
+                symbols.get_name(type_name(types, symbols, expressions, *inner, generic_names));
+            symbols.intern(&format!("&{}", name))
+        }
+        Type::MutableReference(inner) => {
+            let name =
+                symbols.get_name(type_name(types, symbols, expressions, *inner, generic_names));
+            symbols.intern(&format!("&mut {}", name))
+        }
+        Type::Plain(gi) => gi.identifier,
+        Type::Array(arr, len) => {
+            let name =
+                symbols.get_name(type_name(types, symbols, expressions, *arr, generic_names));
+            let len = match expressions.get(*len) {
+                ASTExpression::IntLiteral(int) => int.to_string(),
+                _ => unimplemented!(
+                    "This is not supported. An array type should contain a number inside it to determine its size. This is an expression due to the possibility of comptime, that is idealized. But at the moment only integer literals are accepted"
+                ),
+            };
+            symbols.intern(&format!("[{len}]{name}"))
+        }
+        Type::Vector(inner) => symbols.intern(&format!(
+            "[]{}",
+            symbols.get_name(type_name(types, symbols, expressions, *inner, generic_names))
+        )),
+        Type::Nullable(inner) => {
+            let inner_name =
+                symbols.get_name(type_name(types, symbols, expressions, *inner, generic_names));
+            match types.get(*inner) {
+                Type::Array(_, _) | Type::Vector(_) => {
+                    symbols.intern(&format!("({inner_name})?"))
+                }
+                _ => symbols.intern(&format!("{inner_name}?")),
+            }
+        }
+        Type::Generic(index) => generic_names[*index as usize],
+    }
 }
 
 ///A context to determine what the type is being related to. This can contain information of generic names, at the moment

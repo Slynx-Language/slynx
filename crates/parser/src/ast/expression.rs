@@ -70,6 +70,10 @@ pub enum ASTExpression {
     Array(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
     Vector(SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]>),
     IndexExpression(Spanned<DedupPoolId<ASTExpression>>, RangeType),
+    Reference {
+        mutable: bool,
+        expr: Spanned<DedupPoolId<ASTExpression>>,
+    },
 }
 
 impl ASTExpression {

@@ -10,47 +10,8 @@ use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::tokens::{Token, TokenKind};
 use smallvec::{SmallVec, smallvec};
 impl Parser<'_> {
-    pub fn type_name(
-        &self,
-        ty: DedupPoolId<Type>,
-        type_params: &[(SymbolPointer, u8)],
-    ) -> SymbolPointer {
-        match &self.types[ty] {
-            Type::Reference(inner) => {
-                let name = self.type_name(*inner, type_params);
-                let name = self.symbols.get_name(name);
-                self.intern(&format!("&{}", name))
-            }
-            Type::MutableReference(inner) => {
-                let name = self.type_name(*inner, type_params);
-                let name = self.symbols.get_name(name);
-                self.intern(&format!("&mut {}", name))
-            }
-            Type::Plain(gi) => gi.identifier,
-            Type::Array(arr, len) => {
-                let name = self.symbols.get_name(self.type_name(*arr, type_params));
-                let len = match self.expressions.get(*len) {
-                    ASTExpression::IntLiteral(int) => int.to_string(),
-                    _ => unimplemented!(
-                        "This is not supported. An array type should contain a number inside it to determine its size. This is an expression due to the possibility of comptime, that is idealized. But at the moment only integer literals are accepted"
-                    ),
-                };
-                self.intern(&format!("[{len}]{name}"))
-            }
-            Type::Vector(inner) => self.intern(&format!(
-                "[]{}",
-                self.symbols.get_name(self.type_name(*inner, type_params))
-            )),
-            Type::Nullable(inner) => self.intern(&format!(
-                "{}?",
-                self.symbols.get_name(self.type_name(*inner, type_params))
-            )),
-            Type::Generic(index) => type_params
-                .iter()
-                .find(|(_, i)| *i == *index)
-                .map(|(name, _)| *name)
-                .unwrap_or_else(|| self.intern(&format!("Generic({index})"))),
-        }
+    pub fn type_name(&self, ty: DedupPoolId<Type>, type_params: &[SymbolPointer]) -> SymbolPointer {
+        crate::type_name(self.types, self.symbols, self.expressions, ty, type_params)
     }
 
     ///Parses a typed name. A typed name is `name: type`, which is a name that contains a type
