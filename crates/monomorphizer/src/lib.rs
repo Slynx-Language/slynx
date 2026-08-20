@@ -276,6 +276,12 @@ impl Monomorphizer {
         }
 
         match hir.view(ty).raw() {
+            HirType::ImutableRef(inner) => Ok(hir.create_type(HirType::ImutableRef(
+                self.resolve_expression_type(hir, *inner, span)?,
+            ))),
+            HirType::MutableRef(inner) => Ok(hir.create_type(HirType::MutableRef(
+                self.resolve_expression_type(hir, *inner, span)?,
+            ))),
             HirType::Array(inner, len) => Ok(hir.create_type(HirType::Array(
                 self.resolve_expression_type(hir, *inner, span)?,
                 *len,
@@ -415,6 +421,9 @@ impl Monomorphizer {
             | HirExpressionKind::True
             | HirExpressionKind::False
             | HirExpressionKind::Static { .. } => node.kind.clone(),
+            HirExpressionKind::Reference(inner) => {
+                HirExpressionKind::Reference(self.build_expression(hir, inner, subst)?)
+            }
             HirExpressionKind::Identifier(id) => {
                 if let Some(tracked) = self.lookup_variable_type(id) {
                     // No annotation: the identifier carries the initializer's
