@@ -680,6 +680,14 @@ impl Parser<'_> {
                 let span = self.eat()?.span;
                 self.parse_vector(span, type_params)
             }
+            TokenKind::Star => {
+                let start = self.eat()?.span;
+                let expr = self.parse_expression(type_params)?;
+
+                Ok(start
+                    .merge_with(expr.span)
+                    .make_spanned(self.intern_expression(ASTExpression::Deref(expr))))
+            }
             TokenKind::BitAnd => {
                 let start = self.eat()?.span;
                 let (id, end) = if self.peek()?.kind == TokenKind::Mut {

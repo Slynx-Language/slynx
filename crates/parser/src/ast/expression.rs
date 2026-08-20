@@ -74,13 +74,16 @@ pub enum ASTExpression {
         mutable: bool,
         expr: Spanned<DedupPoolId<ASTExpression>>,
     },
+    Deref(Spanned<DedupPoolId<ASTExpression>>),
 }
 
 impl ASTExpression {
     pub fn is_assignable(&self) -> bool {
         matches!(
             self,
-            ASTExpression::Identifier(_) | ASTExpression::FieldAccess { .. },
+            ASTExpression::Identifier(_)
+                | ASTExpression::FieldAccess { .. }
+                | ASTExpression::Deref { .. }
         )
     }
 }
