@@ -157,3 +157,9 @@ impl Deref for HirViewer<'_, DedupPoolId<HirType>> {
         &self.hir.deref()[self.data]
     }
 }
+
+impl std::fmt::Display for HirViewer<'_, DedupPoolId<HirType>> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
