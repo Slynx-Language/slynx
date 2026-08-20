@@ -67,6 +67,10 @@ impl Codegen {
                     IRStructFlags::NULLABLE,
                 )
             }
+            HirType::ImutableRef(t) | HirType::MutableRef(t) => {
+                let ty = self.get_or_create_ir_type(t, hir, ir)?;
+                ir.pointer_type(ty)
+            }
 
             _ => return Err(CodegenError::IRTypeNotRecognized(*ty)),
         };

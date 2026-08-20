@@ -204,6 +204,11 @@ impl Codegen {
         let expression = &hir[expr.data];
 
         let value = match &expression.kind {
+            HirExpressionKind::Reference(inner) => {
+                let inner = self.lower_expression(*inner, hir, context)?;
+                let ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
+                context.emit(Opcode::Ref, smallvec![inner], ty)
+            }
             HirExpressionKind::Null => {
                 let HirType::Nullable(inner) = hir.types_module[expression.ty].clone() else {
                     unreachable!("Type of null should be a nullable");
