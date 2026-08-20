@@ -1,3 +1,12 @@
+object Wrapper<T> {
+    data: T
+}
+
+func f(): &int {
+    let a = Wrapper<Wrapper<int>>(data: Wrapper(data: 5));
+    return &a.data.data;
+}
+
 func main(): &int {
     let a = 5;
     return &a;
