@@ -11,6 +11,10 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::InvalidDeref => {
+                "Invalid deref, value being dereferenced is not a reference(mutable or imutable)"
+                    .to_string()
+            }
             HIRErrorKind::ArrayLengthMismatch { expected, actual } => {
                 format!(
                     "Array length mismatch: expected {}, got {}",
@@ -46,12 +50,15 @@ impl SlynxContext {
                 "Component property is missing type definition".to_string()
             }
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable) => {
-                "Expression not assignable".to_string()
+                "Expression is not assignable".to_string()
             }
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(v)) => format!(
                 "Invalid write to '{}' variable, which is immutable.",
                 hir.get_name(*v)
             ),
+            HIRErrorKind::InvalidWrite(InvalidWriteReason::ReferenceImmutable) => {
+                "Reference being written is immutable".to_string()
+            }
             HIRErrorKind::InvalidFieldAccess => "Invalid field access".to_string(),
             HIRErrorKind::InvalidFuncallArgLength {
                 func_name,
