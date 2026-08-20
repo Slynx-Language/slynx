@@ -27,6 +27,8 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                 format!("[{len}]{}", self.new_with(*ty).name())
             }
             HirType::Vector(ty) => format!("[]{}", self.new_with(*ty).name()),
+            HirType::ImutableRef(ty) => format!("&{}", self.new_with(*ty).name()),
+            HirType::MutableRef(ty) => format!("&mut {}", self.new_with(*ty).name()),
 
             HirType::Str => "str".to_string(),
             HirType::Reference { rf, generics } => {

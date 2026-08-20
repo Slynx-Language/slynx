@@ -201,6 +201,17 @@ impl HirNode<'_> {
                 let ty = self.hir.create_type(HirType::Vector(ty));
                 Ok((id, ty))
             }
+            Type::Reference(t) => {
+                let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
+                let ty = self.hir.create_type(HirType::ImutableRef(ty));
+                Ok((id, ty))
+            }
+            Type::MutableReference(t) => {
+                let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
+                let ty = self.hir.create_type(HirType::MutableRef(ty));
+                Ok((id, ty))
+            }
+
             Type::Nullable(nullable) => {
                 let (id, ty) = self.find_type(ty.span.make_spanned(*nullable), context)?;
                 let ty = self.hir.create_type(HirType::Nullable(ty));

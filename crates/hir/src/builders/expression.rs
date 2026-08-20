@@ -428,6 +428,19 @@ impl ExpressionBuilder {
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let expr = queue.get_expr(expression.data);
         let expr = match expr {
+            ASTExpression::Reference { mutable, expr } => {
+                let expr = self.build_expression(queue, *expr, expected, context)?;
+                let expr_ty = queue.hir.view(expr.data).ty();
+                let ty = queue.hir.create_type(if *mutable {
+                    HirType::MutableRef(expr_ty)
+                } else {
+                    HirType::ImutableRef(expr_ty)
+                });
+                HirExpression {
+                    ty,
+                    kind: HirExpressionKind::Reference(expr),
+                }
+            }
             ASTExpression::Null => {
                 let ty = match expected {
                     None => {

@@ -301,6 +301,8 @@ pub enum HirExpressionKind {
     False,
     Null,
 
+    Reference(Spanned<PoolId<HirExpression>>),
+
     /// A tuple expression.
     ///
     /// Tuples group multiple values of potentially different types into a

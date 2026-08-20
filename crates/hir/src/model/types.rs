@@ -285,6 +285,12 @@ pub enum HirType {
     /// ```
     Tuple(DedupPoolId<TupleType>),
 
+    /// An immutable reference to a type. The difference of this to Reference type is that this represents a reference to a value with the given type, equivalent to C's pointer, the reference type is a reference to another type
+    ImutableRef(DedupPoolId<HirType>),
+
+    /// A mutable reference to a type.
+    MutableRef(DedupPoolId<HirType>),
+
     /// A reference to a named type.
     ///
     /// References are used to refer to user-defined types (structs, components,
