@@ -92,39 +92,13 @@ impl<'a> Modules<'a> {
         ty: DedupPoolId<Type>,
         context: &TypeContext<'_>,
     ) -> SymbolPointer<FrontendSymbol> {
-        match &self.loader.types[ty] {
-            Type::Plain(gi) => gi.identifier,
-            Type::Array(arr, len) => {
-                let name = self.loader.symbols.get_name(self.type_name(*arr, context));
-                let len = match self.loader.expressions.get(*len) {
-                    ASTExpression::IntLiteral(int) => int.to_string(),
-                    _ => unimplemented!(
-                        "This is not supported. An array type should contain a number inside it to determine its size. This is an expression due to the possibility of comptime, that is idealized. But at the moment only integer literals are accepted"
-                    ),
-                };
-                self.loader.symbols.intern(&format!("[{len}]{name}"))
-            }
-            Type::Vector(inner) => self.loader.symbols.intern(&format!(
-                "[]{}",
-                self.loader
-                    .symbols
-                    .get_name(self.type_name(*inner, context))
-            )),
-            Type::Nullable(inner) => {
-                let inner_name = self
-                    .loader
-                    .symbols
-                    .get_name(self.type_name(*inner, context));
-                match self.loader.types.get(*inner) {
-                    Type::Array(_, _) | Type::Vector(_) => {
-                        self.loader.symbols.intern(&format!("({inner_name})?"))
-                    }
-
-                    _ => self.loader.symbols.intern(&format!("{inner_name}?")),
-                }
-            }
-            Type::Generic(index) => context.generic_names[*index as usize],
-        }
+        slynx_parser::type_name(
+            self.loader.types,
+            self.loader.symbols,
+            self.loader.expressions,
+            ty,
+            context.generic_names,
+        )
     }
 
     pub fn find_function_declaration(
