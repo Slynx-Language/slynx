@@ -424,6 +424,9 @@ impl Monomorphizer {
             HirExpressionKind::Reference(inner) => {
                 HirExpressionKind::Reference(self.build_expression(hir, inner, subst)?)
             }
+            HirExpressionKind::Deref(inner) => {
+                HirExpressionKind::Deref(self.build_expression(hir, inner, subst)?)
+            }
             HirExpressionKind::Identifier(id) => {
                 if let Some(tracked) = self.lookup_variable_type(id) {
                     // No annotation: the identifier carries the initializer's
