@@ -434,7 +434,9 @@ impl<'a> Formatter<'a> {
             Opcode::Ref => format!("ref {}", self.fmt_operands(&instr.operands)),
             Opcode::Deref => format!("deref {}", self.fmt_operands(&instr.operands)),
             Opcode::DerefWrite => format!("deref_write {}", self.fmt_operands(&instr.operands)),
-            Opcode::FieldRef => format!("field_ref {}", self.fmt_operands(&instr.operands)),
+            Opcode::FieldRef(index) => {
+                format!("field_ref {}, {index}", self.fmt_operands(&instr.operands))
+            }
             Opcode::Zeroed => "zeroed".to_string(),
             Opcode::ArrayGet => format!("array_get {}", self.fmt_operands(&instr.operands)),
             Opcode::Array => format!("[{}]", self.fmt_operands(&instr.operands)),

@@ -18,8 +18,8 @@ pub enum Opcode {
     Deref,
     /// Dereferences a value and writes to it. The first operand is the value being dereferenced, and the second operand is the value to write.
     DerefWrite,
-    /// Gets the reference to the field of the value. The first operand is the value being referenced, and the second operand is the field index.
-    FieldRef,
+    /// Gets the reference to the field of the value. The first operand is the value being referenced, the value inside this variant is the index of the struct field.
+    FieldRef(u16),
     // ═══════════════════════════════════════════════════════════════════
     //  Values
     // ═══════════════════════════════════════════════════════════════════
@@ -184,7 +184,8 @@ impl Opcode {
     pub fn is_impure(&self) -> bool {
         matches!(
             self,
-            Opcode::Allocate
+            Opcode::DerefWrite
+                | Opcode::Allocate
                 | Opcode::Write
                 | Opcode::SetField(_)
                 | Opcode::DynSetField(_)
@@ -200,7 +201,11 @@ impl Opcode {
     pub fn is_inlineable(&self) -> bool {
         matches!(
             self,
-            Opcode::Const(_) | Opcode::Arg(_) | Opcode::BlockParam(_) | Opcode::RawValue
+            Opcode::Const(_)
+                | Opcode::Arg(_)
+                | Opcode::BlockParam(_)
+                | Opcode::RawValue
+                | Opcode::Ref
         )
     }
 }
