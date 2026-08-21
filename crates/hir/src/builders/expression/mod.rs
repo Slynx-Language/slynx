@@ -160,6 +160,16 @@ impl ExpressionBuilder {
                     _ if self.is_mutable(ident) && self.borrowing(ident) == BorrowState::None => {
                         Ok(())
                     }
+                    _ if self.is_mutable(ident)
+                        && self.borrowing(ident) == BorrowState::Mutable =>
+                    {
+                        let name = self.variable_name(ident).expect("Variable contain name");
+                        Err(HIRError::borrowed_value(
+                            name,
+                            self.borrowing(ident),
+                            expr.span,
+                        ))
+                    }
                     _ => {
                         let name = self.variable_name(ident).expect(
                         "name of variable should be visible. Something is creating a variable on function builders, but for some reason not defining them on the builder names",
