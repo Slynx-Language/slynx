@@ -55,10 +55,9 @@ impl ExpressionBuilder {
                 let varid = self.create_variable(
                     *name,
                     matches!(stmt, ASTStatement::MutableVar { .. }),
-                    exprty,
+                    ty,
                 );
 
-                self.variables_types.insert(varid, ty);
                 HirStatement::Variable {
                     name: varid,
                     value: expr,

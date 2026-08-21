@@ -1,8 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use common::pool::{DedupPoolId, PoolId};
 
-use crate::{HirExpression, HirExpressionKind, HirType, VariableId, helpers::HirViewer};
+use crate::{
+    HirExpression, HirExpressionKind, HirType, VariableId, builders::VariableInfo,
+    helpers::HirViewer,
+};
 
 impl HirViewer<'_, PoolId<HirExpression>> {
     pub fn ty(&self) -> DedupPoolId<HirType> {
@@ -11,16 +14,12 @@ impl HirViewer<'_, PoolId<HirExpression>> {
     pub fn ty_viewer(&self) -> HirViewer<'_, DedupPoolId<HirType>> {
         self.new_with(self.ty())
     }
-    pub fn is_able_to_mutability(
-        &self,
-        mutables: &HashSet<VariableId>,
-        variable_types: &HashMap<VariableId, DedupPoolId<HirType>>,
-    ) -> bool {
+    pub fn is_able_to_mutability(&self, vars: &HashMap<VariableId, VariableInfo>) -> bool {
         match &self.hir[self.data].kind {
-            HirExpressionKind::Identifier(ident) => {
-                mutables.contains(ident)
+            HirExpressionKind::Identifier(ident) if let Some(var) = vars.get(ident) => {
+                var.mutable
                     || self
-                        .new_with(variable_types[ident])
+                        .new_with(vars[ident].type_id)
                         .is_mutable_ref()
                         .is_some()
             }

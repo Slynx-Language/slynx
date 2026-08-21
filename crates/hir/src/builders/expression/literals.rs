@@ -5,7 +5,8 @@ use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::HirQueueBuilder, error::NotMutableReason,
+    builders::{HirQueueBuilder, expression::BorrowState},
+    error::NotMutableReason,
 };
 
 use super::ExpressionBuilder;
@@ -42,29 +43,57 @@ impl ExpressionBuilder {
     ) -> Result<HirExpression> {
         let expr = self.build_expression(queue, expr, expected, context)?;
         let view = queue.hir.view(expr.data);
-        if view.is_able_to_mutability(&self.mutable, &self.variables_types) {
-            let expr_ty = view.ty();
-            let ty = queue.hir.create_type(if mutable {
-                HirType::MutableRef(expr_ty)
-            } else {
-                HirType::ImutableRef(expr_ty)
-            });
-            Ok(HirExpression {
-                ty,
-                kind: HirExpressionKind::Reference(expr),
-            })
-        } else if let Some(variable) = view.as_variable()
-            && let Some(variable) = self.variable_name(variable)
-        {
-            Err(HIRError::expression_not_mutable(
-                NotMutableReason::ImmutableVariable(variable),
-                expr.span,
-            ))
+        let ty = queue.hir.create_type(if mutable {
+            HirType::MutableRef(view.ty())
         } else {
-            Err(HIRError::expression_not_mutable(
+            HirType::ImutableRef(view.ty())
+        });
+        let able_to_mutate = view.is_able_to_mutability(&self.variables.variables);
+        let out = HirExpression {
+            ty,
+            kind: HirExpressionKind::Reference(expr),
+        };
+        match (mutable, able_to_mutate) {
+            (true, false) if let Some(var) = view.as_variable() => {
+                let name = self
+                    .variable_name(var)
+                    .expect("Variable should contain a name");
+                Err(HIRError::expression_not_mutable(
+                    NotMutableReason::ImmutableVariable(name),
+                    expr.span,
+                ))
+            }
+            (true, false) => Err(HIRError::expression_not_mutable(
                 NotMutableReason::ExpressionNotAssignable,
                 expr.span,
-            ))
+            )),
+            (false, _) if let Some(var) = view.as_variable() => {
+                let borrow_state = self.borrowing(var);
+
+                if borrow_state == BorrowState::Mutable {
+                    let name = self
+                        .variable_name(var)
+                        .expect("Variable should contain a name");
+                    return Err(HIRError::borrowed_value(name, borrow_state, expr.span));
+                }
+                self.set_borrowing(var, BorrowState::Mutable);
+                Ok(out)
+            }
+
+            (true, true) if let Some(var) = view.as_variable() => {
+                let borrow_state = self.borrowing(var);
+
+                if borrow_state == BorrowState::Mutable {
+                    let name = self
+                        .variable_name(var)
+                        .expect("Variable should contain a name");
+                    return Err(HIRError::borrowed_value(name, borrow_state, expr.span));
+                }
+                self.set_borrowing(var, BorrowState::Mutable);
+
+                Ok(out)
+            }
+            (false, _) | (true, true) => Ok(out),
         }
     }
 

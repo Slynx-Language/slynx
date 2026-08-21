@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::{Deref, DerefMut},
+};
 
 use common::{
     Spanned,
@@ -9,7 +12,7 @@ use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirStatement, HirType, Result, SymbolPointer,
-    VariableId, builders::HirQueueBuilder, id::OwnerId,
+    VariableId, builders::HirQueueBuilder, context::ScopeContext, id::OwnerId,
 };
 
 mod calls;
@@ -29,23 +32,51 @@ pub(crate) struct ExpressionBuildResult {
     pub(crate) statements: Vec<Spanned<PoolId<HirStatement>>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowState {
+    Imutable,
+    Mutable,
+    None,
+}
+
+#[derive(Debug)]
+pub struct VariableInfo {
+    pub name: SymbolPointer,
+    pub state: BorrowState,
+    pub type_id: DedupPoolId<HirType>,
+    pub mutable: bool,
+}
+
+#[derive(Debug, Default)]
+pub struct VariablesManager {
+    pub scope: ScopeContext,
+    pub variables: HashMap<VariableId, VariableInfo>,
+}
+impl Deref for VariablesManager {
+    type Target = HashMap<VariableId, VariableInfo>;
+    fn deref(&self) -> &Self::Target {
+        &self.variables
+    }
+}
+impl DerefMut for VariablesManager {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.variables
+    }
+}
+
 /// A single, reusable expression builder that can be used by both function
 /// builders and component builders. Owns the state required for expression
 /// generation (variables, type mappings, etc.).
 pub(crate) struct ExpressionBuilder {
     pub(crate) target: OwnerId,
-    pub(crate) names: HashMap<SymbolPointer, VariableId>,
-    pub(crate) variables_types: HashMap<VariableId, DedupPoolId<HirType>>,
-    pub(crate) mutable: HashSet<VariableId>,
+    pub(crate) variables: VariablesManager,
 }
 
 impl ExpressionBuilder {
     pub fn new(owner: OwnerId) -> Self {
         Self {
             target: owner,
-            names: HashMap::new(),
-            variables_types: HashMap::new(),
-            mutable: HashSet::new(),
+            variables: VariablesManager::default(),
         }
     }
 
@@ -59,10 +90,10 @@ impl ExpressionBuilder {
     /// Finds the name of the variable with the given id. Note that this is a linear search, so it may be slow for bodies.
     /// This is intended mainly because bodies shouldn't have many variables, and the performance impact is negligible.
     pub fn variable_name(&self, id: VariableId) -> Option<SymbolPointer> {
-        self.names
+        self.variables
+            .scope
             .iter()
-            .find(|(_, variable_id)| **variable_id == id)
-            .map(|(name, _)| *name)
+            .find_map(|scope| scope.contains(id))
     }
 
     pub fn create_mapped_variable(
@@ -72,11 +103,16 @@ impl ExpressionBuilder {
         mutable: bool,
         ty: DedupPoolId<HirType>,
     ) {
-        self.names.insert(name, id);
-        self.variables_types.insert(id, ty);
-        if mutable {
-            self.mutable.insert(id);
-        }
+        self.variables.scope.create_name(name, id, mutable);
+        self.variables.insert(
+            id,
+            VariableInfo {
+                name,
+                state: BorrowState::None,
+                type_id: ty,
+                mutable,
+            },
+        );
     }
 
     pub fn create_variable(
@@ -85,13 +121,30 @@ impl ExpressionBuilder {
         mutable: bool,
         ty: DedupPoolId<HirType>,
     ) -> VariableId {
-        let id = VariableId::new(self.target, self.names.len() as u16);
+        let id = VariableId::new(self.target, self.variables.scope.variable_count() as u16);
         self.create_mapped_variable(name, id, mutable, ty);
         id
     }
 
     fn is_mutable(&self, id: VariableId) -> bool {
-        self.mutable.contains(&id)
+        self.variables
+            .variables
+            .get(&id)
+            .map_or(false, |info| info.mutable)
+    }
+
+    fn borrowing(&self, id: VariableId) -> BorrowState {
+        self.variables
+            .variables
+            .get(&id)
+            .map_or(BorrowState::None, |info| info.state)
+    }
+
+    pub fn set_borrowing(&mut self, id: VariableId, borrow: BorrowState) {
+        self.variables
+            .variables
+            .get_mut(&id)
+            .map(|info| info.state = borrow);
     }
 
     pub(super) fn is_expression_able_to_write(
@@ -102,19 +155,17 @@ impl ExpressionBuilder {
         let expression = &queue.hir[expr.data];
         match expression.kind {
             HirExpressionKind::Identifier(ident) => {
-                if self.is_mutable(ident) {
-                    Ok(())
-                } else if let HirType::MutableRef(_) = queue.hir.view(expr.data).ty_viewer().raw() {
-                    Ok(())
-                } else {
-                    let ident = self
-                        .names
-                        .iter()
-                        .find_map(|entry| (*entry.1 == ident).then_some(*entry.0))
-                        .expect(
-                            "name of variable should be visible. Something is creating a variable on function builders, but for some reason not defining them on the builder names",
-                        );
-                    Err(HIRError::invalid_variable_write(ident, expr.span))
+                match queue.hir.view(expr.data).ty_viewer().raw() {
+                    HirType::MutableRef(_) => Ok(()),
+                    _ if self.is_mutable(ident) && self.borrowing(ident) == BorrowState::None => {
+                        Ok(())
+                    }
+                    _ => {
+                        let name = self.variable_name(ident).expect(
+                        "name of variable should be visible. Something is creating a variable on function builders, but for some reason not defining them on the builder names",
+                    );
+                        Err(HIRError::invalid_variable_write(name, expr.span))
+                    }
                 }
             }
 

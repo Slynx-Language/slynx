@@ -23,7 +23,7 @@ impl ExpressionBuilder {
         ptr: SymbolPointer,
         span: Span,
     ) -> Result<HirName> {
-        if let Some(var) = self.names.get(&ptr).cloned() {
+        if let Some(var) = self.variables.scope.get_name(&ptr) {
             Ok(HirName::Variable(var))
         } else if let Some((file_owner, statik)) = queue.find_static_declaration(ptr, self.file()) {
             let id = queue.enqueue_static(statik, queue.get_node(file_owner))?;
@@ -64,9 +64,10 @@ impl ExpressionBuilder {
     ) -> Result<HirExpression> {
         match self.resolve_name(queue, name, expression_span)? {
             HirName::Variable(v) => {
-                let ty = *self
-                    .variables_types
+                let ty = self
+                    .variables
                     .get(&v)
+                    .map(|var| var.type_id)
                     .expect("Expected variable to have a type defined on this builder");
                 Ok(HirExpression {
                     ty,

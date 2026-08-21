@@ -52,7 +52,7 @@
 //! - [`HIRErrorKind::MissingProperty`] — Missing required object fields
 
 mod builders;
-
+pub use builders::BorrowState;
 /// Scope, symbol, type, and declaration management modules.
 pub mod context;
 
@@ -201,11 +201,13 @@ impl<'a> SlynxHir<'a> {
         let entry = &modules.entries()[0];
         for func in entry.func() {
             let node = builder.get_node(entry.id);
+
             builder.enqueue_function(func, node)?;
         }
         for comp in entry.component() {
             builder.enqueue_component(comp, entry.id)?;
         }
+
         builder.close_bodies();
         builder.process()?;
         Ok(())

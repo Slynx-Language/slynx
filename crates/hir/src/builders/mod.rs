@@ -11,14 +11,6 @@ use common::{
     pool::{DedupPoolId, PoolId},
 };
 
-use crossbeam_channel::select;
-use dashmap::{DashMap, DashSet};
-use module_loader::{ASTType, ASTTypeKind, FileId, Modules};
-use slynx_parser::{
-    ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration,
-    GenericIdentifier, StaticDeclaration, Type, TypeContext,
-};
-
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
     HirFunctionDeclaration, HirObjectDeclaration, HirStatement, HirStaticDeclaration, HirType,
@@ -28,6 +20,14 @@ use crate::{
     },
     context::HirSymbol,
     helpers::Visible,
+};
+use crossbeam_channel::select;
+use dashmap::{DashMap, DashSet};
+pub use expression::*;
+use module_loader::{ASTType, ASTTypeKind, FileId, Modules};
+use slynx_parser::{
+    ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration,
+    GenericIdentifier, StaticDeclaration, Type, TypeContext,
 };
 
 pub struct PendingSignatures<'a> {
