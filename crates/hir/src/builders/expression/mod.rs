@@ -32,17 +32,67 @@ pub(crate) struct ExpressionBuildResult {
     pub(crate) statements: Vec<Spanned<PoolId<HirStatement>>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum BorrowState {
-    Imutable,
     Mutable,
-    None,
+    Immutable,
+}
+
+#[derive(Debug)]
+///This borrow state counts how much references there are to a variable. If 0 on both mutable and immutable, then its not referenced anywhere
+pub struct VariableBorrowing {
+    pub mutable: u8,
+    pub immutable: u8,
+}
+impl VariableBorrowing {
+    pub fn new() -> Self {
+        Self {
+            mutable: 0,
+            immutable: 0,
+        }
+    }
+    ///Checks if the variable is referenced anywhere.
+    pub fn is_referenced(&self) -> bool {
+        self.mutable > 0 || self.immutable > 0
+    }
+    ///Checks if the variable is borrowed mutably.
+    pub fn is_mutable(&self) -> bool {
+        self.mutable > 0
+    }
+    ///Checks if the variable is borrowed immutably.
+    pub fn is_immutable(&self) -> bool {
+        self.immutable > 0
+    }
+    ///Borrows the variable mutably.
+    pub fn borrow_mut(&mut self) {
+        self.mutable += 1;
+    }
+    ///Borrows the variable immutably.
+    pub fn borrow_immut(&mut self) {
+        self.immutable += 1;
+    }
+    ///Releases a mutable borrow on the variable.
+    pub fn release_mut(&mut self) {
+        self.mutable = self.mutable.saturating_sub(1);
+    }
+    ///Releases an immutable borrow on the variable.
+    pub fn release_immut(&mut self) {
+        self.immutable = self.immutable.saturating_sub(1);
+    }
+    ///Checks if the variable can be borrowed mutably.
+    pub fn can_mutable_borrow(&self) -> bool {
+        self.mutable == 0 && self.immutable == 0
+    }
+    ///Checks if the variable can be borrowed immutably.
+    pub fn can_immutable_borrow(&self) -> bool {
+        self.mutable == 0
+    }
 }
 
 #[derive(Debug)]
 pub struct VariableInfo {
     pub name: SymbolPointer,
-    pub state: BorrowState,
+    pub state: VariableBorrowing,
     pub type_id: DedupPoolId<HirType>,
     pub mutable: bool,
 }
@@ -108,7 +158,7 @@ impl ExpressionBuilder {
             id,
             VariableInfo {
                 name,
-                state: BorrowState::None,
+                state: VariableBorrowing::new(),
                 type_id: ty,
                 mutable,
             },
@@ -133,20 +183,20 @@ impl ExpressionBuilder {
             .map_or(false, |info| info.mutable)
     }
 
-    fn borrowing(&self, id: VariableId) -> BorrowState {
+    fn borrowing(&self, id: VariableId) -> &VariableBorrowing {
         self.variables
             .variables
             .get(&id)
-            .map_or(BorrowState::None, |info| info.state)
+            .map(|info| &info.state)
+            .expect("Variable should contains a borrowing state")
     }
-
-    pub fn set_borrowing(&mut self, id: VariableId, borrow: BorrowState) {
+    fn borrowing_mut(&mut self, id: VariableId) -> &mut VariableBorrowing {
         self.variables
             .variables
             .get_mut(&id)
-            .map(|info| info.state = borrow);
+            .map(|info| &mut info.state)
+            .expect("Variable should contains a borrowing state")
     }
-
     pub(super) fn is_expression_able_to_write(
         &self,
         queue: &HirQueueBuilder,
@@ -157,16 +207,14 @@ impl ExpressionBuilder {
             HirExpressionKind::Identifier(ident) => {
                 match queue.hir.view(expr.data).ty_viewer().raw() {
                     HirType::MutableRef(_) => Ok(()),
-                    _ if self.is_mutable(ident) && self.borrowing(ident) == BorrowState::None => {
+                    _ if self.is_mutable(ident) && self.borrowing(ident).can_mutable_borrow() => {
                         Ok(())
                     }
-                    _ if self.is_mutable(ident)
-                        && self.borrowing(ident) == BorrowState::Mutable =>
-                    {
+                    _ if self.is_mutable(ident) && self.borrowing(ident).is_mutable() => {
                         let name = self.variable_name(ident).expect("Variable contain name");
                         Err(HIRError::borrowed_value(
                             name,
-                            self.borrowing(ident),
+                            BorrowState::Mutable,
                             expr.span,
                         ))
                     }

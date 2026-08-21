@@ -11,16 +11,13 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
-            HIRErrorKind::BorrowedValue(name, BorrowState::Imutable) => format!(
+            HIRErrorKind::BorrowedValue(name, BorrowState::Immutable) => format!(
                 "Variable '{}' is imutable borrowed at this point",
                 hir.get_name(*name)
             ),
             HIRErrorKind::BorrowedValue(name, BorrowState::Mutable) => format!(
                 "Variable '{}' is mutable borrowed at this point",
                 hir.get_name(*name)
-            ),
-            HIRErrorKind::BorrowedValue(_, BorrowState::None) => unreachable!(
-                "It should happen. Borrowed error should always have a BorrowState that is not None"
             ),
 
             HIRErrorKind::ExpressionNotMutable(NotMutableReason::ExpressionNotAssignable) => {
