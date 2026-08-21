@@ -1,0 +1,11 @@
+object Person {
+    age: int
+}
+func main(): void{
+    let mut p = Person(age:0);
+    {
+        let pref = &mut p;
+        pref.age = 12;
+    }
+    p.age = 17;
+}

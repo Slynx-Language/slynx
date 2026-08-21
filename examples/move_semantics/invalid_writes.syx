@@ -7,6 +7,6 @@ func main(): void {
     let p = Person(name: "John");
     let aref = &a;
     let pref = &p;
-    *aref = 10;
+    //*aref = 10;
     pref.name = "";
 }
