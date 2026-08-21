@@ -29,9 +29,16 @@ pub enum InvalidWriteReason {
     ReferenceImmutable,
 }
 
+#[derive(Debug)]
+pub enum NotMutableReason {
+    ImmutableVariable(SymbolPointer),
+    ExpressionNotAssignable,
+}
+
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    ExpressionNotMutable(NotMutableReason),
     InvalidDeref,
     ArrayLengthMismatch {
         expected: usize,
@@ -190,6 +197,13 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn expression_not_mutable(reason: NotMutableReason, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::ExpressionNotMutable(reason),
+            span,
+        }
+    }
+
     pub fn invalid_deref(span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidDeref,
@@ -490,6 +504,7 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::ExpressionNotMutable(_) => write!(f, "Expression not mutable"),
             HIRErrorKind::InvalidDeref => write!(f, "Invalid deref"),
             HIRErrorKind::ArrayLengthMismatch { expected, actual } => {
                 write!(

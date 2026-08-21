@@ -5,7 +5,7 @@ use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::HirQueueBuilder,
+    builders::HirQueueBuilder, error::NotMutableReason,
 };
 
 use super::ExpressionBuilder;
@@ -41,16 +41,31 @@ impl ExpressionBuilder {
         context: &TypeContext,
     ) -> Result<HirExpression> {
         let expr = self.build_expression(queue, expr, expected, context)?;
-        let expr_ty = queue.hir.view(expr.data).ty();
-        let ty = queue.hir.create_type(if mutable {
-            HirType::MutableRef(expr_ty)
+        let view = queue.hir.view(expr.data);
+        if view.is_able_to_mutability(&self.mutable, &self.variables_types) {
+            let expr_ty = view.ty();
+            let ty = queue.hir.create_type(if mutable {
+                HirType::MutableRef(expr_ty)
+            } else {
+                HirType::ImutableRef(expr_ty)
+            });
+            Ok(HirExpression {
+                ty,
+                kind: HirExpressionKind::Reference(expr),
+            })
+        } else if let Some(variable) = view.as_variable()
+            && let Some(variable) = self.variable_name(variable)
+        {
+            Err(HIRError::expression_not_mutable(
+                NotMutableReason::ImmutableVariable(variable),
+                expr.span,
+            ))
         } else {
-            HirType::ImutableRef(expr_ty)
-        });
-        Ok(HirExpression {
-            ty,
-            kind: HirExpressionKind::Reference(expr),
-        })
+            Err(HIRError::expression_not_mutable(
+                NotMutableReason::ExpressionNotAssignable,
+                expr.span,
+            ))
+        }
     }
 
     pub(super) fn build_null(

@@ -56,6 +56,15 @@ impl ExpressionBuilder {
         }
     }
 
+    /// Finds the name of the variable with the given id. Note that this is a linear search, so it may be slow for bodies.
+    /// This is intended mainly because bodies shouldn't have many variables, and the performance impact is negligible.
+    pub fn variable_name(&self, id: VariableId) -> Option<SymbolPointer> {
+        self.names
+            .iter()
+            .find(|(_, variable_id)| **variable_id == id)
+            .map(|(name, _)| *name)
+    }
+
     pub fn create_mapped_variable(
         &mut self,
         name: SymbolPointer,
