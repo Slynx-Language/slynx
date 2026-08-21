@@ -1,6 +1,6 @@
 use slynx_hir::{
-    SlynxHir,
-    error::{HIRError, HIRErrorKind, InvalidWriteReason},
+    BorrowState, SlynxHir,
+    error::{HIRError, HIRErrorKind, InvalidWriteReason, NotMutableReason},
 };
 
 use crate::{
@@ -11,6 +11,27 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::BorrowedValue(name, BorrowState::Imutable) => format!(
+                "Variable '{}' is imutable borrowed at this point",
+                hir.get_name(*name)
+            ),
+            HIRErrorKind::BorrowedValue(name, BorrowState::Mutable) => format!(
+                "Variable '{}' is mutable borrowed at this point",
+                hir.get_name(*name)
+            ),
+            HIRErrorKind::BorrowedValue(_, BorrowState::None) => unreachable!(
+                "It should happen. Borrowed error should always have a BorrowState that is not None"
+            ),
+
+            HIRErrorKind::ExpressionNotMutable(NotMutableReason::ExpressionNotAssignable) => {
+                "Expression cannot be mutable".to_string()
+            }
+            HIRErrorKind::ExpressionNotMutable(NotMutableReason::ImmutableVariable(variable)) => {
+                format!(
+                    "Variable '{}' is immutable and cannot be mutated",
+                    hir.get_name(*variable)
+                )
+            }
             HIRErrorKind::InvalidDeref => {
                 "Invalid deref, value being dereferenced is not a reference(mutable or imutable)"
                     .to_string()

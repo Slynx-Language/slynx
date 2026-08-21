@@ -680,6 +680,7 @@ impl Parser<'_> {
                 let span = self.eat()?.span;
                 self.parse_vector(span, type_params)
             }
+
             TokenKind::Star => {
                 let start = self.eat()?.span;
                 let expr = self.parse_expression(type_params)?;

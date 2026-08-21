@@ -1,5 +1,5 @@
 use common::{Spanned, pool::PoolId};
-use slynx_hir::{HirExpression, HirExpressionKind, HirStatement, HirType, SlynxHir};
+use slynx_hir::{HirExpression, HirExpressionKind, HirStatement, SlynxHir};
 use slynx_ir::{Opcode, Value};
 use smallvec::smallvec;
 
