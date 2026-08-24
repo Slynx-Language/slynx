@@ -1,7 +1,7 @@
 use common::{Span, Spanned};
 
 use crate::{
-    DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration,
+    BorrowState, DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration,
     HirStaticDeclaration, Result, SymbolPointer, VariableId, builders::HirQueueBuilder,
     context::HirSymbol,
 };
@@ -64,15 +64,23 @@ impl ExpressionBuilder {
     ) -> Result<HirExpression> {
         match self.resolve_name(queue, name, expression_span)? {
             HirName::Variable(v) => {
-                let ty = self
+                let (ty, moved) = self
                     .variables
                     .get(&v)
-                    .map(|var| var.type_id)
+                    .map(|var| (var.type_id, var.state.moved))
                     .expect("Expected variable to have a type defined on this builder");
-                Ok(HirExpression {
-                    ty,
-                    kind: HirExpressionKind::Identifier(v),
-                })
+                if moved {
+                    Err(HIRError::borrowed_value(
+                        name,
+                        BorrowState::Moved,
+                        expression_span,
+                    ))
+                } else {
+                    Ok(HirExpression {
+                        ty,
+                        kind: HirExpressionKind::Identifier(v),
+                    })
+                }
             }
             HirName::Static(s) => {
                 let ty = queue.hir.get_static(s).ty;

@@ -36,6 +36,7 @@ pub(crate) struct ExpressionBuildResult {
 pub enum BorrowState {
     Mutable,
     Immutable,
+    Moved,
 }
 
 #[derive(Debug)]
@@ -43,14 +44,25 @@ pub enum BorrowState {
 pub struct VariableBorrowing {
     pub mutable: u8,
     pub immutable: u8,
+    pub moved: bool,
 }
 impl VariableBorrowing {
     pub fn new() -> Self {
         Self {
             mutable: 0,
             immutable: 0,
+            moved: false,
         }
     }
+
+    pub fn is_moved(&self) -> bool {
+        self.moved
+    }
+
+    pub fn mark_moved(&mut self) {
+        self.moved = true;
+    }
+
     ///Checks if the variable is referenced anywhere.
     pub fn is_referenced(&self) -> bool {
         self.mutable > 0 || self.immutable > 0
@@ -242,6 +254,21 @@ impl ExpressionBuilder {
 }
 
 impl ExpressionBuilder {
+    fn check_for_move(
+        &self,
+        queue: &HirQueueBuilder<'_>,
+        expr: &HirExpression,
+    ) -> Option<VariableId> {
+        match expr.kind {
+            HirExpressionKind::FieldAccess { expr, .. } => {
+                let expr = &queue.hir[expr.data];
+                self.check_for_move(queue, &expr)
+            }
+            HirExpressionKind::Identifier(id) => Some(id),
+            _ => None,
+        }
+    }
+
     pub(crate) fn build_expression(
         &mut self,
         queue: &HirQueueBuilder<'_>,
@@ -330,6 +357,9 @@ impl ExpressionBuilder {
                 self.build_vector(queue, expressions, expression.span, expected, context)?
             }
         };
+        if let Some(varid) = self.check_for_move(queue, &expr) {
+            self.borrowing_mut(varid).mark_moved();
+        }
         Ok(expression
             .span
             .make_spanned(queue.hir.insert_expression(expr)))
