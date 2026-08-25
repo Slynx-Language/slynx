@@ -47,10 +47,11 @@ impl PlaceState {
 
     /// Whether this place can be borrowed with the given kind.
     pub fn can_borrow(&self, kind: BorrowKind) -> bool {
-        !self.moved && match kind {
-            BorrowKind::Mutable => self.borrowed_mut == 0 && self.borrowed_immut == 0,
-            BorrowKind::Immutable => self.borrowed_mut == 0,
-        }
+        !self.moved
+            && match kind {
+                BorrowKind::Mutable => self.borrowed_mut == 0 && self.borrowed_immut == 0,
+                BorrowKind::Immutable => self.borrowed_mut == 0,
+            }
     }
 
     /// Whether this place has been moved.
@@ -124,7 +125,9 @@ impl FunctionOwnershipState {
         if let Some(state) = self.variable_states.get_mut(&id) {
             match kind {
                 BorrowKind::Mutable => state.borrowed_mut = state.borrowed_mut.saturating_sub(1),
-                BorrowKind::Immutable => state.borrowed_immut = state.borrowed_immut.saturating_sub(1),
+                BorrowKind::Immutable => {
+                    state.borrowed_immut = state.borrowed_immut.saturating_sub(1)
+                }
             }
         }
     }

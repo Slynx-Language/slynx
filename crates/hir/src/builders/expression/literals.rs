@@ -5,8 +5,7 @@ use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::HirQueueBuilder,
-    error::NotMutableReason,
+    builders::HirQueueBuilder, error::NotMutableReason,
 };
 
 use super::ExpressionBuilder;

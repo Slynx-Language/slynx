@@ -87,6 +87,17 @@ impl<'a> Modules<'a> {
     pub fn get_type(&self, ty: DedupPoolId<Type>) -> &Type {
         self.loader.types.get(ty)
     }
+
+    ///Retrieves the name of the inner type of the given `ty`. For example, if this is &Thing, this will return 'Thing' same as &mut Thing, and etc.
+    pub fn referenced_name(&self, ty: DedupPoolId<Type>) -> Option<SymbolPointer<FrontendSymbol>> {
+        match self.get_type(ty) {
+            Type::Plain(generic) => Some(generic.identifier),
+            Type::Reference(ty) => self.referenced_name(*ty),
+            Type::MutableReference(ty) => self.referenced_name(*ty),
+            _ => None,
+        }
+    }
+
     pub fn type_name(
         &self,
         ty: DedupPoolId<Type>,

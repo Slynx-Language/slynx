@@ -2,8 +2,7 @@ use common::{Span, Spanned};
 
 use crate::{
     DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration,
-    HirStaticDeclaration, Result, SymbolPointer, VariableId,
-    builders::HirQueueBuilder,
+    HirStaticDeclaration, Result, SymbolPointer, VariableId, builders::HirQueueBuilder,
     context::HirSymbol,
 };
 

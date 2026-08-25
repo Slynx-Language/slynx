@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use common::pool::DedupPoolId;
 use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{ASTExpression, Type, TypeContext};

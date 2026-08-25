@@ -46,13 +46,23 @@ pub fn type_name(
 ) -> SymbolPointer {
     match &types[ty] {
         Type::Reference(inner) => {
-            let name =
-                symbols.get_name(type_name(types, symbols, expressions, *inner, generic_names));
+            let name = symbols.get_name(type_name(
+                types,
+                symbols,
+                expressions,
+                *inner,
+                generic_names,
+            ));
             symbols.intern(&format!("&{}", name))
         }
         Type::MutableReference(inner) => {
-            let name =
-                symbols.get_name(type_name(types, symbols, expressions, *inner, generic_names));
+            let name = symbols.get_name(type_name(
+                types,
+                symbols,
+                expressions,
+                *inner,
+                generic_names,
+            ));
             symbols.intern(&format!("&mut {}", name))
         }
         Type::Plain(gi) => gi.identifier,
@@ -69,15 +79,24 @@ pub fn type_name(
         }
         Type::Vector(inner) => symbols.intern(&format!(
             "[]{}",
-            symbols.get_name(type_name(types, symbols, expressions, *inner, generic_names))
+            symbols.get_name(type_name(
+                types,
+                symbols,
+                expressions,
+                *inner,
+                generic_names
+            ))
         )),
         Type::Nullable(inner) => {
-            let inner_name =
-                symbols.get_name(type_name(types, symbols, expressions, *inner, generic_names));
+            let inner_name = symbols.get_name(type_name(
+                types,
+                symbols,
+                expressions,
+                *inner,
+                generic_names,
+            ));
             match types.get(*inner) {
-                Type::Array(_, _) | Type::Vector(_) => {
-                    symbols.intern(&format!("({inner_name})?"))
-                }
+                Type::Array(_, _) | Type::Vector(_) => symbols.intern(&format!("({inner_name})?")),
                 _ => symbols.intern(&format!("{inner_name}?")),
             }
         }
