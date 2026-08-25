@@ -158,9 +158,19 @@ impl OwnershipAnalysis {
                 let mutable = hir.view(expr.data).ty_viewer().is_mutable_ref().is_some();
                 self.analyze_reference(hir, inner, mutable, expr.span, state);
             }
-            HirExpressionKind::FunctionCall { args, .. } => {
-                for arg in args {
-                    self.analyze_expression(hir, arg, state);
+            HirExpressionKind::FunctionCall { args, name, .. } => {
+                let ty = hir.get_file(name.file_id)[name.local_id].ty;
+                let viewer = hir.view(ty);
+                let ty_viewer = viewer
+                    .is_function()
+                    .expect("View of the type of a function should be a function type");
+
+                for (arg, param) in args.iter().zip(ty_viewer.arguments()) {
+                    if hir.view(*param).is_ref() {
+                        self.analyze_expression_read(hir, arg, state);
+                    } else {
+                        self.analyze_expression(hir, arg, state);
+                    }
                 }
             }
             HirExpressionKind::If {

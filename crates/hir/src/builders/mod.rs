@@ -2,6 +2,7 @@ pub(crate) mod attributes;
 pub(crate) mod component;
 mod expression;
 mod function;
+mod structs;
 pub(crate) mod styles;
 mod work_channel;
 use std::{cell::RefCell, ops::Deref};
@@ -24,7 +25,7 @@ use crate::{
 use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
 pub use expression::*;
-use module_loader::{ASTType, ASTTypeKind, FileId, Modules};
+use module_loader::{ASTTypeKind, FileId, Modules};
 use slynx_parser::{
     ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration,
     GenericIdentifier, StaticDeclaration, Type, TypeContext,
@@ -444,113 +445,6 @@ impl<'a> HirQueueBuilder<'a> {
             func.props.append(&mut entry);
         }
         Ok(())
-    }
-}
-
-impl<'a> HirQueueBuilder<'a> {
-    /// Lazily resolves a method on a struct type. Looks up the `ObjectDeclaration`
-    /// from the AST, creates the function declaration, registers it as a method
-    /// on the type, and enqueues the body for processing.
-    pub(crate) fn resolve_method(
-        &self,
-        file_id: FileId,
-        struct_ty: DedupPoolId<HirType>,
-        method_name: SymbolPointer,
-    ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
-        let struct_id = match self.hir.types_module[struct_ty] {
-            HirType::Struct(id) => id,
-            _ => return Ok(None),
-        };
-        let struct_name = self.hir.get_struct_name(struct_id);
-
-        let ast_type = self.modules.find_type_inside_module(file_id, struct_name);
-        let (obj_file_id, obj_decl) = match ast_type {
-            Some(ASTType {
-                owner,
-                content: ASTTypeKind::Struct(decl),
-            }) => (owner, decl),
-            _ => return Ok(None),
-        };
-
-        let method = obj_decl
-            .methods
-            .iter()
-            .find(|m| m.method_name == method_name);
-
-        let Some(method) = method else {
-            return Ok(None);
-        };
-
-        let self_sym = self.hir.intern_name("Self");
-
-        let node = self.get_node(file_id);
-
-        let mut args = Vec::with_capacity(method.arguments.len());
-        let context = TypeContext::new(&method.type_params);
-        for arg in &method.arguments {
-            let ty = if self.modules.type_name(arg.data.kind.data, &context) == self_sym {
-                struct_ty
-            } else {
-                let (_, ty) = node.find_type(arg.data.kind, &context)?;
-                ty
-            };
-            args.push(ty);
-        }
-
-        let return_type = if self.modules.type_name(method.return_type.data, &context) == self_sym {
-            struct_ty
-        } else {
-            let (_, ty) = node.find_type(method.return_type, &context)?;
-            ty
-        };
-
-        let func_ty = self.hir.create_function_type(args, return_type);
-
-        let mangled = format!(
-            "{}_{}",
-            self.hir.get_name(method_name),
-            self.hir.get_name(struct_name),
-        );
-        let mangled_symbol = self.hir.intern_name(&mangled);
-
-        let decl_id = self.hir.symbols_registry.get_or_insert_function(
-            HirSymbol::new(obj_file_id, mangled_symbol),
-            || {
-                let decl = HirFunctionDeclaration {
-                    name: method_name,
-                    generics: method.type_params.clone(),
-                    args: Default::default(),
-                    ty: func_ty,
-                    statements: Vec::new(),
-                    visibility: obj_decl.visibility,
-                    external: obj_decl.external,
-                    attributes: Vec::new(),
-                    span: method.span,
-                };
-                let file = self.hir.get_or_create_file(obj_file_id);
-                file.create_function(decl)
-            },
-        );
-
-        self.hir
-            .types_module
-            .create_method(struct_ty, method_name, decl_id);
-
-        if !obj_decl.external {
-            let arg_names: Vec<SymbolPointer> = method
-                .arguments
-                .iter()
-                .map(|arg| arg.data.name.data)
-                .collect();
-            self.bodies.send(PendantFunction {
-                context: TypeContext::new(&method.type_params),
-                func_id: decl_id,
-                body: &method.body,
-                argument_names: arg_names,
-            });
-        }
-
-        Ok(Some(decl_id))
     }
 }
 
