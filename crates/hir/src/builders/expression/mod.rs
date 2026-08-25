@@ -32,93 +32,9 @@ pub(crate) struct ExpressionBuildResult {
     pub(crate) statements: Vec<Spanned<PoolId<HirStatement>>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum MoveState {
-    None,
-    ///Used when a variable is moved by something that's not a variable (e.g. a function call).
-    Moved,
-    ///Used when a variable is moved by a variable (e.g. a let binding).
-    MovedBy(SymbolPointer),
-}
-
-#[derive(Debug)]
-pub enum BorrowState {
-    Mutable,
-    Immutable,
-    Moved(MoveState),
-}
-
-#[derive(Debug)]
-///This borrow state counts how much references there are to a variable. If 0 on both mutable and immutable, then its not referenced anywhere
-pub struct VariableBorrowing {
-    pub mutable: u8,
-    pub immutable: u8,
-    pub moved: MoveState,
-}
-impl VariableBorrowing {
-    pub fn new() -> Self {
-        Self {
-            mutable: 0,
-            immutable: 0,
-            moved: MoveState::None,
-        }
-    }
-
-    pub fn is_moved(&self) -> bool {
-        self.moved != MoveState::None
-    }
-
-    ///Marks this borrowing as moved. If the given `by` is `None`, its moved normally, such as by a function call, but if it's `Some`, its moved by a variable.
-    pub fn mark_moved(&mut self, by: Option<SymbolPointer>) {
-        if let Some(by) = by {
-            self.moved = MoveState::MovedBy(by);
-        } else {
-            self.moved = MoveState::Moved;
-        }
-    }
-
-    ///Checks if the variable is referenced anywhere.
-    pub fn is_referenced(&self) -> bool {
-        self.mutable > 0 || self.immutable > 0
-    }
-    ///Checks if the variable is borrowed mutably.
-    pub fn is_mutable(&self) -> bool {
-        self.mutable > 0
-    }
-    ///Checks if the variable is borrowed immutably.
-    pub fn is_immutable(&self) -> bool {
-        self.immutable > 0
-    }
-    ///Borrows the variable mutably.
-    pub fn borrow_mut(&mut self) {
-        self.mutable += 1;
-    }
-    ///Borrows the variable immutably.
-    pub fn borrow_immut(&mut self) {
-        self.immutable += 1;
-    }
-    ///Releases a mutable borrow on the variable.
-    pub fn release_mut(&mut self) {
-        self.mutable = self.mutable.saturating_sub(1);
-    }
-    ///Releases an immutable borrow on the variable.
-    pub fn release_immut(&mut self) {
-        self.immutable = self.immutable.saturating_sub(1);
-    }
-    ///Checks if the variable can be borrowed mutably.
-    pub fn can_mutable_borrow(&self) -> bool {
-        self.mutable == 0 && self.immutable == 0
-    }
-    ///Checks if the variable can be borrowed immutably.
-    pub fn can_immutable_borrow(&self) -> bool {
-        self.mutable == 0
-    }
-}
-
 #[derive(Debug)]
 pub struct VariableInfo {
     pub name: SymbolPointer,
-    pub state: VariableBorrowing,
     pub type_id: DedupPoolId<HirType>,
     pub mutable: bool,
 }
@@ -184,7 +100,6 @@ impl ExpressionBuilder {
             id,
             VariableInfo {
                 name,
-                state: VariableBorrowing::new(),
                 type_id: ty,
                 mutable,
             },
@@ -202,27 +117,6 @@ impl ExpressionBuilder {
         id
     }
 
-    fn is_mutable(&self, id: VariableId) -> bool {
-        self.variables
-            .variables
-            .get(&id)
-            .map_or(false, |info| info.mutable)
-    }
-
-    fn borrowing(&self, id: VariableId) -> &VariableBorrowing {
-        self.variables
-            .variables
-            .get(&id)
-            .map(|info| &info.state)
-            .expect("Variable should contains a borrowing state")
-    }
-    fn borrowing_mut(&mut self, id: VariableId) -> &mut VariableBorrowing {
-        self.variables
-            .variables
-            .get_mut(&id)
-            .map(|info| &mut info.state)
-            .expect("Variable should contains a borrowing state")
-    }
     pub(super) fn is_expression_able_to_write(
         &self,
         queue: &HirQueueBuilder,
@@ -231,25 +125,21 @@ impl ExpressionBuilder {
         let expression = &queue.hir[expr.data];
         match expression.kind {
             HirExpressionKind::Identifier(ident) => {
-                match queue.hir.view(expr.data).ty_viewer().raw() {
-                    HirType::MutableRef(_) => Ok(()),
-                    _ if self.is_mutable(ident) && self.borrowing(ident).can_mutable_borrow() => {
-                        Ok(())
-                    }
-                    _ if self.is_mutable(ident) && self.borrowing(ident).is_mutable() => {
-                        let name = self.variable_name(ident).expect("Variable contain name");
-                        Err(HIRError::borrowed_value(
-                            name,
-                            BorrowState::Mutable,
-                            expr.span,
-                        ))
-                    }
-                    _ => {
-                        let name = self.variable_name(ident).expect(
+                if let HirType::MutableRef(_) = queue.hir.view(expr.data).ty_viewer().raw() {
+                    return Ok(());
+                }
+                if self
+                    .variables
+                    .variables
+                    .get(&ident)
+                    .map_or(false, |info| info.mutable)
+                {
+                    Ok(())
+                } else {
+                    let name = self.variable_name(ident).expect(
                         "name of variable should be visible. Something is creating a variable on function builders, but for some reason not defining them on the builder names",
                     );
-                        Err(HIRError::invalid_variable_write(name, expr.span))
-                    }
+                    Err(HIRError::invalid_variable_write(name, expr.span))
                 }
             }
 
@@ -357,9 +247,6 @@ impl ExpressionBuilder {
             }
         };
         let exprid = queue.hir.insert_expression(expr);
-        if let Some(id) = queue.hir.view(exprid).can_move() {
-            self.borrowing_mut(id).mark_moved(None);
-        }
         Ok(expression.span.make_spanned(exprid))
     }
 }

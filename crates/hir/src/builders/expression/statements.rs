@@ -44,7 +44,6 @@ impl ExpressionBuilder {
                 };
                 let expr = self.build_expression(queue, *rhs, var_type, context)?;
                 let exprty = queue.hir.view(expr.data).ty();
-                let canmove = queue.hir.view(expr.data).can_move();
                 let expected_type = if let Some(expected_ty) = ty {
                     queue
                         .get_node(self.file())
@@ -60,10 +59,6 @@ impl ExpressionBuilder {
                     ty,
                 );
                 queue.hir.variable_names.insert(varid, *name);
-                if let Some(variable) = canmove {
-                    let varname = self.variable_name(varid);
-                    self.borrowing_mut(variable).mark_moved(varname);
-                }
 
                 HirStatement::Variable {
                     name: varid,

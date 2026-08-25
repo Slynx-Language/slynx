@@ -5,7 +5,7 @@ use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::{HirQueueBuilder, expression::BorrowState},
+    builders::HirQueueBuilder,
     error::NotMutableReason,
 };
 
@@ -67,39 +67,7 @@ impl ExpressionBuilder {
                 NotMutableReason::ExpressionNotAssignable,
                 expr.span,
             )),
-            (false, _) if let Some(var) = view.as_variable() => {
-                if self.borrowing(var).is_mutable() {
-                    let name = self
-                        .variable_name(var)
-                        .expect("Variable should contain a name");
-                    return Err(HIRError::borrowed_value(
-                        name,
-                        BorrowState::Mutable,
-                        expr.span,
-                    ));
-                }
-                self.borrowing_mut(var).borrow_immut();
-                Ok(out)
-            }
-
-            (true, true) if let Some(var) = view.as_variable() => {
-                let borrowing = self.borrowing(var);
-                if self.borrowing(var).is_referenced() {
-                    let name = self
-                        .variable_name(var)
-                        .expect("Variable should contain a name");
-                    let borrow_state = if borrowing.is_mutable() {
-                        BorrowState::Mutable
-                    } else {
-                        BorrowState::Immutable
-                    };
-                    return Err(HIRError::borrowed_value(name, borrow_state, expr.span));
-                }
-                self.borrowing_mut(var).borrow_mut();
-
-                Ok(out)
-            }
-            (false, _) | (true, true) => Ok(out),
+            _ => Ok(out),
         }
     }
 
