@@ -52,7 +52,7 @@
 //! - [`HIRErrorKind::MissingProperty`] — Missing required object fields
 
 mod builders;
-pub use builders::BorrowState;
+pub use builders::*;
 /// Scope, symbol, type, and declaration management modules.
 pub mod context;
 
@@ -70,7 +70,6 @@ use std::ops::{Deref, Index};
 
 pub use crate::error::{HIRError, HIRErrorKind};
 use crate::{
-    builders::HirQueueBuilder,
     context::{LangItems, SymbolRegistry, TypesContext},
     file::HirFile,
 };

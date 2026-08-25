@@ -2,7 +2,8 @@ use common::{Span, Spanned};
 
 use crate::{
     BorrowState, DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration,
-    HirStaticDeclaration, Result, SymbolPointer, VariableId, builders::HirQueueBuilder,
+    HirStaticDeclaration, Result, SymbolPointer, VariableId,
+    builders::{HirQueueBuilder, MoveState},
     context::HirSymbol,
 };
 
@@ -69,10 +70,10 @@ impl ExpressionBuilder {
                     .get(&v)
                     .map(|var| (var.type_id, var.state.moved))
                     .expect("Expected variable to have a type defined on this builder");
-                if moved {
+                if let MoveState::Moved | MoveState::MovedBy(_) = moved {
                     Err(HIRError::borrowed_value(
                         name,
-                        BorrowState::Moved,
+                        BorrowState::Moved(moved),
                         expression_span,
                     ))
                 } else {

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     ops::{Deref, DerefMut},
 };
 
@@ -32,11 +32,20 @@ pub(crate) struct ExpressionBuildResult {
     pub(crate) statements: Vec<Spanned<PoolId<HirStatement>>>,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum MoveState {
+    None,
+    ///Used when a variable is moved by something that's not a variable (e.g. a function call).
+    Moved,
+    ///Used when a variable is moved by a variable (e.g. a let binding).
+    MovedBy(SymbolPointer),
+}
+
 #[derive(Debug)]
 pub enum BorrowState {
     Mutable,
     Immutable,
-    Moved,
+    Moved(MoveState),
 }
 
 #[derive(Debug)]
@@ -44,23 +53,28 @@ pub enum BorrowState {
 pub struct VariableBorrowing {
     pub mutable: u8,
     pub immutable: u8,
-    pub moved: bool,
+    pub moved: MoveState,
 }
 impl VariableBorrowing {
     pub fn new() -> Self {
         Self {
             mutable: 0,
             immutable: 0,
-            moved: false,
+            moved: MoveState::None,
         }
     }
 
     pub fn is_moved(&self) -> bool {
-        self.moved
+        self.moved != MoveState::None
     }
 
-    pub fn mark_moved(&mut self) {
-        self.moved = true;
+    ///Marks this borrowing as moved. If the given `by` is `None`, its moved normally, such as by a function call, but if it's `Some`, its moved by a variable.
+    pub fn mark_moved(&mut self, by: Option<SymbolPointer>) {
+        if let Some(by) = by {
+            self.moved = MoveState::MovedBy(by);
+        } else {
+            self.moved = MoveState::Moved;
+        }
     }
 
     ///Checks if the variable is referenced anywhere.
@@ -254,21 +268,6 @@ impl ExpressionBuilder {
 }
 
 impl ExpressionBuilder {
-    fn check_for_move(
-        &self,
-        queue: &HirQueueBuilder<'_>,
-        expr: &HirExpression,
-    ) -> Option<VariableId> {
-        match expr.kind {
-            HirExpressionKind::FieldAccess { expr, .. } => {
-                let expr = &queue.hir[expr.data];
-                self.check_for_move(queue, &expr)
-            }
-            HirExpressionKind::Identifier(id) => Some(id),
-            _ => None,
-        }
-    }
-
     pub(crate) fn build_expression(
         &mut self,
         queue: &HirQueueBuilder<'_>,
@@ -357,11 +356,10 @@ impl ExpressionBuilder {
                 self.build_vector(queue, expressions, expression.span, expected, context)?
             }
         };
-        if let Some(varid) = self.check_for_move(queue, &expr) {
-            self.borrowing_mut(varid).mark_moved();
+        let exprid = queue.hir.insert_expression(expr);
+        if let Some(id) = queue.hir.view(exprid).can_move() {
+            self.borrowing_mut(id).mark_moved(None);
         }
-        Ok(expression
-            .span
-            .make_spanned(queue.hir.insert_expression(expr)))
+        Ok(expression.span.make_spanned(exprid))
     }
 }
