@@ -4,10 +4,7 @@
 
 use std::collections::HashMap;
 
-use common::{
-    Span, Spanned,
-    pool::PoolId,
-};
+use common::{Span, Spanned, pool::PoolId};
 
 use crate::{
     DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
@@ -71,13 +68,9 @@ impl OwnershipAnalysis {
     ) {
         let mut state = FunctionOwnershipState::new();
 
-        // Function arguments start as non-moved and non-borrowed
-        // (they are owned by the function)
         for arg in &func.args {
             state.get_variable_state(*arg);
         }
-
-        // Walk statements
         for stmt in &func.statements {
             self.analyze_statement(hir, stmt, &mut state);
         }
@@ -85,7 +78,7 @@ impl OwnershipAnalysis {
         self.function_states.insert(func_id, state);
     }
 
-    /// Analyze a statement.
+    /// Analyzes a statement.
     fn analyze_statement(
         &mut self,
         hir: &SlynxHir,
@@ -148,8 +141,7 @@ impl OwnershipAnalysis {
         }
     }
 
-    /// Analyze a consuming expression (assignment RHS, function arg, return value).
-    /// Identifiers referenced here are MOVED.
+    /// Analyze a consuming expression (assignment RHS, function arg, return value), if the value is being used as a place, then its moved. This is not true for expressions whose types are &/&mut
     fn analyze_expression(
         &mut self,
         hir: &SlynxHir,
@@ -159,7 +151,7 @@ impl OwnershipAnalysis {
         let expr_data = &hir[expr.data];
         match &expr_data.kind {
             HirExpressionKind::Identifier(id) => {
-                let use_kind = self.analyze_variable_use(hir, *id, expr.span, state);
+                let use_kind = self.analyze_variable_use(*id, expr.span, state);
                 self.expression_uses.insert(expr.data, use_kind);
             }
             HirExpressionKind::Reference(inner) => {
@@ -211,8 +203,7 @@ impl OwnershipAnalysis {
                         span: expr.span,
                     });
                 }
-                self.expression_uses
-                    .insert(expr.data, ExpressionUse::Read);
+                self.expression_uses.insert(expr.data, ExpressionUse::Read);
             }
             HirExpressionKind::FieldAccess { expr: parent, .. } => {
                 self.analyze_expression_read(hir, parent, state);
@@ -270,7 +261,6 @@ impl OwnershipAnalysis {
     /// Analyze a variable being used as a move.
     fn analyze_variable_use(
         &mut self,
-        _hir: &SlynxHir,
         id: VariableId,
         span: Span,
         state: &mut FunctionOwnershipState,
@@ -280,10 +270,9 @@ impl OwnershipAnalysis {
                 kind: OwnershipErrorKind::UseAfterMove { variable: id },
                 span,
             });
-            return ExpressionUse::Move;
+        } else {
+            state.mark_variable_moved(id);
         }
-
-        state.mark_variable_moved(id);
         ExpressionUse::Move
     }
 
@@ -306,6 +295,13 @@ impl OwnershipAnalysis {
             match &hir.places[place_id] {
                 HirPlace::Variable(id) => {
                     if !state.can_borrow_variable(*id, kind) {
+                        if state.is_variable_moved(*id) {
+                            self.errors.push(OwnershipError {
+                                kind: OwnershipErrorKind::UseAfterMove { variable: *id },
+                                span,
+                            });
+                            return;
+                        }
                         let existing_kind = if state
                             .variable_states
                             .get(id)

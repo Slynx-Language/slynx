@@ -36,18 +36,4 @@ impl HirViewer<'_, PoolId<HirExpression>> {
             _ => None,
         }
     }
-    ///Returns if this expression contains a variable to be moved, if so, returns the variable id.
-    pub fn can_move(&self) -> Option<VariableId> {
-        match &self.raw().kind {
-            HirExpressionKind::FieldAccess { expr, .. } => self.new_with(expr.data).can_move(),
-            HirExpressionKind::Identifier(id) => {
-                if !self.ty_viewer().is_ref() {
-                    Some(*id)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
 }

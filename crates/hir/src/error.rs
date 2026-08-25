@@ -1,6 +1,5 @@
 use crate::{
     ComponentId, SymbolPointer,
-    builders::BorrowState,
     model::{HirExpression, HirType},
 };
 
@@ -39,7 +38,6 @@ pub enum NotMutableReason {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
-    BorrowedValue(SymbolPointer, BorrowState),
     ExpressionNotMutable(NotMutableReason),
     InvalidDeref,
     ArrayLengthMismatch {
@@ -199,13 +197,6 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
-    pub fn borrowed_value(name: SymbolPointer, state: BorrowState, span: Span) -> Self {
-        Self {
-            kind: HIRErrorKind::BorrowedValue(name, state),
-            span,
-        }
-    }
-
     pub fn expression_not_mutable(reason: NotMutableReason, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::ExpressionNotMutable(reason),
@@ -513,7 +504,6 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
-            HIRErrorKind::BorrowedValue(_, _) => write!(f, "Borrowed value"),
             HIRErrorKind::ExpressionNotMutable(_) => write!(f, "Expression not mutable"),
             HIRErrorKind::InvalidDeref => write!(f, "Invalid deref"),
             HIRErrorKind::ArrayLengthMismatch { expected, actual } => {
