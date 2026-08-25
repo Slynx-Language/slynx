@@ -64,6 +64,8 @@ mod helpers;
 /// Unique ID types for HIR elements.
 pub mod id;
 pub mod model;
+/// Ownership analysis: move semantics, borrow checking, and place construction.
+pub mod ownership;
 mod queries;
 
 use std::ops::{Deref, Index};
@@ -139,6 +141,10 @@ pub struct SlynxHir<'a> {
     pub expressions: Pool<HirExpression>,
     pub statements: Pool<HirStatement>,
     pub component_expressions: Pool<HirComponentExpression>,
+    /// Pool of places constructed during ownership analysis.
+    pub places: Pool<HirPlace>,
+    /// Mapping from VariableId to its source name, populated during HIR construction.
+    pub variable_names: DashMap<VariableId, SymbolPointer>,
     /// All top-level declarations generated from the sources.
     ///
     /// This vector contains every function, component, object, and type alias
@@ -177,6 +183,8 @@ impl<'a> SlynxHir<'a> {
             expressions: Pool::new(),
             statements: Pool::new(),
             component_expressions: Pool::new(),
+            places: Pool::new(),
+            variable_names: DashMap::new(),
             symbols_registry: SymbolRegistry::default(),
             symbols_resolver: modules.symbols(),
             types_module: TypesContext::new(),
@@ -238,5 +246,12 @@ impl Index<PoolId<HirComponentExpression>> for SlynxHir<'_> {
     type Output = HirComponentExpression;
     fn index(&self, index: PoolId<HirComponentExpression>) -> &Self::Output {
         &self.component_expressions[index]
+    }
+}
+
+impl Index<PoolId<HirPlace>> for SlynxHir<'_> {
+    type Output = HirPlace;
+    fn index(&self, index: PoolId<HirPlace>) -> &Self::Output {
+        &self.places[index]
     }
 }

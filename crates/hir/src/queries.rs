@@ -9,7 +9,7 @@ use module_loader::FileId;
 
 use crate::{
     DeclarationId, HIRError, HirComponentDeclaration, HirComponentExpression, HirExpression,
-    HirFunctionDeclaration, HirStatement, HirType, Result, SlynxHir, SymbolPointer,
+    HirFunctionDeclaration, HirStatement, HirType, Result, SlynxHir, SymbolPointer, VariableId,
     context::HirSymbol,
     file::HirFile,
     helpers::HirViewer,
@@ -49,6 +49,14 @@ impl SlynxHir<'_> {
 
     pub fn get_name(&self, name: SymbolPointer) -> &str {
         self.symbols_resolver.get_name(name)
+    }
+
+    pub fn get_variable_name(&self, id: VariableId) -> &str {
+        let ptr = self
+            .variable_names
+            .get(&id)
+            .expect("Variable name should be registered during HIR construction");
+        self.symbols_resolver.get_name(*ptr)
     }
 
     pub fn get_file(&self, id: FileId) -> Ref<'_, FileId, HirFile> {

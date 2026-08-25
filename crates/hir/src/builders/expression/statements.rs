@@ -59,6 +59,7 @@ impl ExpressionBuilder {
                     matches!(stmt, ASTStatement::MutableVar { .. }),
                     ty,
                 );
+                queue.hir.variable_names.insert(varid, *name);
                 if let Some(variable) = canmove {
                     let varname = self.variable_name(varid);
                     self.borrowing_mut(variable).mark_moved(varname);
