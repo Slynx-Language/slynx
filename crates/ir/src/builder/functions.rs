@@ -332,6 +332,16 @@ impl FunctionBuilder<'_> {
         let ty = self.value_type(value);
         self.emit(Opcode::Ret, smallvec![value], ty)
     }
+    ///Emits a copy instruction.
+    pub fn copy(&mut self, value: Value) -> Value {
+        let ty = self.value_type(value);
+        self.emit(Opcode::Copy, smallvec![value], ty)
+    }
+    ///Emits a move semantics instruction.
+    pub fn mov(&mut self, value: Value) -> Value {
+        let ty = self.value_type(value);
+        self.emit(Opcode::Move, smallvec![value], ty)
+    }
 
     pub fn allocate(&mut self, ty: IRTypeId) -> Value {
         self.emit(Opcode::Allocate, smallvec![], ty)

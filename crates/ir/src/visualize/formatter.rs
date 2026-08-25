@@ -431,6 +431,8 @@ impl<'a> Formatter<'a> {
 
     pub fn format_instruction(&self, instr: &Instruction) -> String {
         match &instr.opcode {
+            Opcode::Move => format!("move {}", self.fmt_operands(&instr.operands)),
+            Opcode::Copy => format!("copy {}", self.fmt_operands(&instr.operands)),
             Opcode::Ref => format!("ref {}", self.fmt_operands(&instr.operands)),
             Opcode::Deref => format!("deref {}", self.fmt_operands(&instr.operands)),
             Opcode::DerefWrite => format!("deref_write {}", self.fmt_operands(&instr.operands)),
@@ -536,12 +538,9 @@ impl<'a> Formatter<'a> {
                 let ty_str = self.fmt_type(self.types.get_type(instr.value_type));
                 format!("read {ty_str}, {};", self.fmt_value(instr.operands[0]))
             }
-            Opcode::Reinterpret => {
+            Opcode::Cast => {
                 let ty_str = self.fmt_type(self.types.get_type(instr.value_type));
-                format!(
-                    "reinterpret {ty_str}, {};",
-                    self.fmt_value(instr.operands[0])
-                )
+                format!("cast {ty_str}, {};", self.fmt_value(instr.operands[0]))
             }
             Opcode::Const(op) => self.fmt_operand(op),
             Opcode::RawValue => {

@@ -12,6 +12,13 @@ use crate::{
 /// IR references directly — no separate lookup table required.
 #[derive(Debug, Clone)]
 pub enum Opcode {
+    ///Moves the first operand. This instruction is mainly idealized to make it easier to represent move semantics.
+    Move,
+    ///Copies the first operand.
+    Copy,
+    /// Casts the first operand to the second operand.
+    Cast,
+
     /// A reference to a value. The first operand is the value being referenced. It should always be a variable
     Ref,
     /// Dereferences a value. The first operand is the value being dereferenced.
@@ -117,12 +124,6 @@ pub enum Opcode {
 
     /// Call a function.  Operands are the call arguments.
     Call(IRPointer<Function, 1>),
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  Reinterpret / raw
-    // ═══════════════════════════════════════════════════════════════════
-    /// Reinterpret the bits of a value as a different type.
-    Reinterpret,
 
     /// A "raw value" wrapper.  The sole operand is a [`Value`] that
     /// holds the raw bits.
