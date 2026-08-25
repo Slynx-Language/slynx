@@ -3,12 +3,10 @@ object Person {
 }
 
 func main(): void {
-    let a = 5;
-    let p = Person(name: "John");
-    {
-        let aref = &mut a;
-        let pref = &mut p;
-        *aref = 10;
-        pref.name = "";
-    }
+    let mut a = 5;
+    let mut p = Person(name: "John");
+    let aref = &mut a;
+    let pref = &mut p;
+    *aref = 10;
+    pref.name = "";
 }

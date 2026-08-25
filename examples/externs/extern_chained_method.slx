@@ -1,10 +1,10 @@
 extern {
 	object Document {
-		func createElement(self, tag: str): Element;
+		func createElement(&self, tag: str): Element;
 	}
 	object Element {
-		func setAttribute(self, name: str, value: str): void;
-		func appendChild(self, child: Element): void;
+		func setAttribute(&self, name: str, value: str): void;
+		func appendChild(&self, child: Element): void;
 	}
 	static doc: Document;
 }

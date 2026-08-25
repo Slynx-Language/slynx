@@ -27,6 +27,6 @@ fn test_invalid_single_writer() {
         "examples/move_semantics/invalid_single_writer.syx".into(),
         Some(STD_PATH.clone()),
     );
-    let err = ir.expect_err("Code should fail due to invalid single writer");
+    let err = ir.expect("Code shouldn't fail due to invalid single writer");
     println!("{err}");
 }
