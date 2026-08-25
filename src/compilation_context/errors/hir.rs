@@ -1,6 +1,7 @@
 use slynx_hir::{
-    BorrowState, SlynxHir,
+    BorrowState, MoveState, SlynxHir,
     error::{HIRError, HIRErrorKind, InvalidWriteReason, NotMutableReason},
+    ownership::{OwnershipError, OwnershipErrorKind},
 };
 
 use crate::{
@@ -19,6 +20,20 @@ impl SlynxContext {
                 "Variable '{}' is mutable borrowed at this point",
                 hir.get_name(*name)
             ),
+
+            HIRErrorKind::BorrowedValue(name, BorrowState::Moved(MoveState::Moved)) => {
+                format!("Variable '{}' is moved at this point", hir.get_name(*name))
+            }
+            HIRErrorKind::BorrowedValue(_, BorrowState::Moved(MoveState::None)) => {
+                unreachable!("Move state none should not be a problem at this point")
+            }
+            HIRErrorKind::BorrowedValue(name, BorrowState::Moved(MoveState::MovedBy(req))) => {
+                format!(
+                    "Variable '{}' is moved at this point by variable '{}'",
+                    hir.get_name(*name),
+                    hir.get_name(*req)
+                )
+            }
 
             HIRErrorKind::ExpressionNotMutable(NotMutableReason::ExpressionNotAssignable) => {
                 "Expression cannot be mutable".to_string()
@@ -232,6 +247,61 @@ impl SlynxContext {
             self.file_name(),
             src.to_string(),
             suggestion,
+        )
+    }
+
+    pub fn handle_ownership_error(
+        &self,
+        hir: &SlynxHir,
+        error: &OwnershipError,
+    ) -> SlynxError {
+        let message = match &error.kind {
+            OwnershipErrorKind::UseAfterMove { variable } => {
+                format!(
+                    "Variable '{}' is used after it was moved",
+                    hir.get_variable_name(*variable)
+                )
+            }
+            OwnershipErrorKind::ConflictingBorrow {
+                variable,
+                existing_borrow,
+                new_borrow,
+            } => {
+                format!(
+                    "Cannot borrow variable '{}' as {} because it is already {}",
+                    hir.get_variable_name(*variable),
+                    new_borrow,
+                    existing_borrow
+                )
+            }
+            OwnershipErrorKind::MoveWhileBorrowed { variable } => {
+                format!(
+                    "Cannot move variable '{}' because it is currently borrowed",
+                    hir.get_variable_name(*variable)
+                )
+            }
+            OwnershipErrorKind::MutablyBorrowImmutable { variable } => {
+                format!(
+                    "Cannot borrow variable '{}' as mutable because it is immutable",
+                    hir.get_variable_name(*variable)
+                )
+            }
+        };
+
+        let LineInfo {
+            line,
+            column_start,
+            column_end,
+            src,
+        } = self.get_line_info(&self.entry_point, error.span.start as usize);
+        SlynxError::new_hir(
+            line,
+            column_start,
+            column_end,
+            message,
+            self.file_name(),
+            src.to_string(),
+            vec![],
         )
     }
 }

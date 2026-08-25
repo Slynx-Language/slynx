@@ -11,7 +11,7 @@ use common::{FrontendSymbol, SymbolsModule, pool::DedupPool};
 use dashmap::DashMap;
 use module_loader::{Modules, SourceLoader, SourceProvider};
 use slynx_codegen::Codegen;
-use slynx_hir::{SlynxHir, id::AnyDeclarationId};
+use slynx_hir::{SlynxHir, id::AnyDeclarationId, ownership::OwnershipAnalysis};
 use slynx_ir::SlynxIR;
 use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
@@ -342,12 +342,18 @@ impl SlynxContext {
     pub fn build_hir<'a>(
         &self,
         ast: &'a Modules,
-    ) -> Result<(SlynxHir<'a>, HashSet<AnyDeclarationId>), SlynxError> {
+    ) -> Result<(SlynxHir<'a>, HashSet<AnyDeclarationId>, OwnershipAnalysis), SlynxError> {
         let mut hir = SlynxHir::new(ast).map_err(|e| self.handle_hir_error(&e.0, &e.1))?;
 
         let deadcode = self.monomorphize(&mut hir)?;
 
-        Ok((hir, deadcode))
+        // Run ownership analysis (move semantics + borrow checking)
+        let ownership = OwnershipAnalysis::analyze(&hir);
+        if let Some(first_error) = ownership.errors.first() {
+            return Err(self.handle_ownership_error(&hir, first_error));
+        }
+
+        Ok((hir, deadcode, ownership))
     }
 
     ///Monomorphization only changes(by now) the types module.
@@ -363,10 +369,11 @@ impl SlynxContext {
         &self,
         hir: SlynxHir,
         deadcode: HashSet<AnyDeclarationId>,
+        ownership: OwnershipAnalysis,
     ) -> Result<SlynxIR, SlynxError> {
         let mut codegen = Codegen::new();
         codegen
-            .generate(&hir, deadcode)
+            .generate(&hir, deadcode, ownership)
             .map_err(|e| self.build_ir_generation_error(&e, &hir))
     }
 
@@ -391,8 +398,8 @@ impl SlynxContext {
             Ok(modules) => modules,
             Err(e) => return Err(self.handle_source_error(&e)),
         };
-        let (hir, deadcode) = self.build_hir(&modules)?;
-        let ir = self.build_ir(hir, deadcode)?;
+        let (hir, deadcode, ownership) = self.build_hir(&modules)?;
+        let ir = self.build_ir(hir, deadcode, ownership)?;
 
         Ok(CompilationStages::new(self.entry_point.as_ref(), ir))
     }
