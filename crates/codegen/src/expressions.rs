@@ -3,6 +3,7 @@ use slynx_hir::{
     DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType,
     SlynxHir, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    ownership::ExpressionUse,
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
 use smallvec::{SmallVec, smallvec};
@@ -285,7 +286,14 @@ impl Codegen {
             }
             HirExpressionKind::Identifier(id) => {
                 if let Some(value) = context.get_variable(*id) {
-                    value
+                    match self.ownership.expression_use(expr.data) {
+                        Some(ExpressionUse::Move) => context.mov(value),
+                        Some(ExpressionUse::Borrow) | Some(ExpressionUse::BorrowMut) => {
+                            // Reference-taking is handled by the Reference expression kind
+                            value
+                        }
+                        _ => value,
+                    }
                 } else {
                     return Err(CodegenError::UnrecognizedVariable(*id));
                 }

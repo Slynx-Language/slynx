@@ -21,6 +21,7 @@ use slynx_hir::{
     DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
     HirStylesheetDeclaration, HirType, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    ownership::OwnershipAnalysis,
 };
 use slynx_ir::{
     Component, Function, GlobalValue, IRPointer, IRStorage, IRTypeId, InitValue, SlynxIR,
@@ -57,6 +58,8 @@ pub struct Codegen {
     /// Child-init work items queued by `initialize_component` and
     /// executed by `get_component_expression`.
     pub(crate) component_child_inits: HashMap<TypeId, Vec<ChildInitWork>>,
+    /// Ownership analysis results for move/copy/borrow tracking.
+    pub(crate) ownership: OwnershipAnalysis,
 }
 
 impl Default for Codegen {
@@ -76,6 +79,7 @@ impl Codegen {
             components: HashMap::new(),
             styles: HashMap::new(),
             component_child_inits: HashMap::new(),
+            ownership: OwnershipAnalysis::new(),
         }
     }
 
@@ -96,7 +100,9 @@ impl Codegen {
         &mut self,
         hir: &SlynxHir,
         deadcode: HashSet<AnyDeclarationId>,
+        ownership: OwnershipAnalysis,
     ) -> Result<SlynxIR, CodegenError> {
+        self.ownership = ownership;
         let mut ir = SlynxIR::new();
         self.hoist_declarations(hir, &mut ir, &deadcode);
         self.stylesheet_pre_pass(hir, &mut ir, &deadcode);
