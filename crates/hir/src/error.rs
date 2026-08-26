@@ -38,6 +38,8 @@ pub enum NotMutableReason {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    StaticMethodNotFound(SymbolPointer),
+    InvalidTypeAccess,
     ExpressionNotMutable(NotMutableReason),
     InvalidDeref,
     ArrayLengthMismatch {
@@ -197,6 +199,20 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn static_method_not_found(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::StaticMethodNotFound(name),
+            span,
+        }
+    }
+
+    pub fn invalid_type_access(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidTypeAccess,
+            span,
+        }
+    }
+
     pub fn expression_not_mutable(reason: NotMutableReason, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::ExpressionNotMutable(reason),
@@ -504,6 +520,10 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::StaticMethodNotFound(_) => {
+                write!(f, "Static method not found")
+            }
+            HIRErrorKind::InvalidTypeAccess => write!(f, "Invalid type access"),
             HIRErrorKind::ExpressionNotMutable(_) => write!(f, "Expression not mutable"),
             HIRErrorKind::InvalidDeref => write!(f, "Invalid deref"),
             HIRErrorKind::ArrayLengthMismatch { expected, actual } => {

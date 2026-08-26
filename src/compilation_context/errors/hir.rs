@@ -12,6 +12,10 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::StaticMethodNotFound(name) => {
+                format!("Static method not found: {}", hir.get_name(*name))
+            }
+            HIRErrorKind::InvalidTypeAccess => "Invalid type access".to_string(),
             HIRErrorKind::ExpressionNotMutable(NotMutableReason::ExpressionNotAssignable) => {
                 "Expression cannot be mutable".to_string()
             }
