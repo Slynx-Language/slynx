@@ -1,4 +1,10 @@
+func k(): void {
+    g();
+}
+func g(): void {}
+func f(): void {}
 func main(): void {
+    k();
     let v = Counter.new();
     v.increment(5);
     let v2 = Counter(value: 10);
