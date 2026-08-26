@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::VariableId;
+use crate::{DeclarationId, HirStaticDeclaration, VariableId};
 
 /// Whether a borrow is mutable or immutable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -73,12 +73,14 @@ impl PlaceState {
 pub struct FunctionOwnershipState {
     /// State for each variable (by VariableId).
     pub variable_states: HashMap<VariableId, PlaceState>,
+    pub static_states: HashMap<DeclarationId<HirStaticDeclaration>, PlaceState>,
 }
 
 impl FunctionOwnershipState {
     pub fn new() -> Self {
         Self {
             variable_states: HashMap::new(),
+            static_states: HashMap::new(),
         }
     }
 
@@ -87,6 +89,19 @@ impl FunctionOwnershipState {
         self.variable_states
             .entry(id)
             .or_insert_with(PlaceState::new)
+    }
+
+    pub fn mark_static_moved(&mut self, id: DeclarationId<HirStaticDeclaration>) {
+        self.static_states
+            .entry(id)
+            .or_insert_with(PlaceState::new)
+            .moved = true;
+    }
+    pub fn is_static_moved(&self, id: DeclarationId<HirStaticDeclaration>) -> bool {
+        self.static_states
+            .get(&id)
+            .map(|s| s.moved)
+            .unwrap_or(false)
     }
 
     /// Check if a variable has been moved.

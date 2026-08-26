@@ -8,7 +8,7 @@ use common::{Span, Spanned, pool::PoolId};
 
 use crate::{
     DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
-    SlynxHir, VariableId, model::HirPlace,
+    HirStaticDeclaration, SlynxHir, VariableId, model::HirPlace,
 };
 
 use super::{
@@ -154,6 +154,7 @@ impl OwnershipAnalysis {
                 let use_kind = self.analyze_variable_use(*id, expr.span, state);
                 self.expression_uses.insert(expr.data, use_kind);
             }
+            //HirExpressionKind::Static { id } => {}
             HirExpressionKind::Reference(inner) => {
                 let mutable = hir.view(expr.data).ty_viewer().is_mutable_ref().is_some();
                 self.analyze_reference(hir, inner, mutable, expr.span, state);
