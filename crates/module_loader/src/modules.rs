@@ -116,9 +116,9 @@ impl<'a> Modules<'a> {
         &self,
         name: SymbolPointer<FrontendSymbol>,
         module: FileId,
-    ) -> Option<(FileId, &slynx_parser::FuncDeclaration)> {
+    ) -> Option<(FileId, usize)> {
         let module = &self.modules[module.as_raw() as usize];
-        if let Some(v) = module.func().iter().find(|func| func.name == name) {
+        if let Some(v) = module.func().iter().position(|func| func.name == name) {
             return Some((module.id, v));
         }
         for import in module.imports() {
