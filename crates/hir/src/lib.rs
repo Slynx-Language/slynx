@@ -210,8 +210,8 @@ impl<'a> SlynxHir<'a> {
             let main_symbol = self.intern_name("main");
             if let Some(mainfunc) = entry.func().iter().find(|func| func.name == main_symbol) {
                 builder.enqueue_function(mainfunc, entry.id)?;
+                builder.process()?;
             }
-            builder.process()?;
         }
         builder.close_bodies();
         Ok(())

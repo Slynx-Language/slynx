@@ -87,10 +87,6 @@ pub struct HirQueueBuilder<'a> {
     /// Single-threaded for now; see component-generation.md §8.
     // TODO(threading): replace with thread-local or DashMap<ThreadId, Vec<...>> when Rayon lands.
     pub signature_stack: RefCell<Vec<(FileId, SymbolPointer)>>,
-    /// Buffer for method bodies discovered during body processing, after the
-    /// main bodies channel has been closed.  `resolve_method` pushes here when
-    /// `bodies.try_send` fails, and `process` drains the buffer in a loop.
-    pub(crate) pending_bodies: RefCell<VecDeque<PendantFunction<'a>>>,
 }
 
 impl HirNode<'_> {
@@ -344,7 +340,6 @@ impl<'a> HirQueueBuilder<'a> {
             bodies_in_progress: DashSet::new(),
             signature_stack: RefCell::new(Vec::new()),
             signatures_in_progress: DashSet::new(),
-            pending_bodies: RefCell::new(VecDeque::new()),
         }
     }
     pub fn get_plain_type(&self, ty: Spanned<DedupPoolId<Type>>) -> &GenericIdentifier {
@@ -414,30 +409,6 @@ impl<'a> HirQueueBuilder<'a> {
 
     pub(crate) fn process(&self) -> Result<()> {
         loop {
-            // Drain bodies that were buffered during body processing (after the
-            // main channel sender was closed).  Processing one body may enqueue
-            // more via resolve_method, so we handle one at a time and re-enter.
-            {
-                let mut pending = self.pending_bodies.borrow_mut();
-                if let Some(body) = pending.pop_front() {
-                    drop(pending);
-                    let PendantFunction {
-                        func_id,
-                        body,
-                        argument_names,
-                        context,
-                    } = body;
-                    let mut builder = HirFunctionBuilder::new(func_id);
-                    for (idx, name) in argument_names.into_iter().enumerate() {
-                        builder.create_argument(&self, name, idx as u8);
-                    }
-                    let ExpressionBuildResult { statements, args } =
-                        builder.build_body(&self, body, &context)?;
-                    self.resolved_bodies.insert(func_id, (statements, args));
-                    continue;
-                }
-            }
-
             select! {
                 recv(self.bodies.receiver()) -> body => {
                     if let Ok(PendantFunction { func_id, body, argument_names, context }) = body {
@@ -447,6 +418,10 @@ impl<'a> HirQueueBuilder<'a> {
                         }
                         let ExpressionBuildResult { statements, args } = builder.build_body(&self, body, &context)?;
                         self.resolved_bodies.insert(func_id, (statements, args));
+
+                        if self.bodies.receiver().is_empty() {
+                            break;
+                        }
                     }else {
                         break;
                     }
