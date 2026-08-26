@@ -1,17 +1,76 @@
 use common::{
-    Span, Spanned, VisibilityModifier,
     pool::{DedupPoolId, PoolId},
+    Span, Spanned, VisibilityModifier,
 };
+use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirType, Result, builders::HirQueueBuilder,
-    helpers::Visible,
+    builders::HirQueueBuilder, helpers::Visible, HIRError, HirExpression, HirExpressionKind,
+    HirType, Result,
 };
 
 use super::ExpressionBuilder;
 
 impl ExpressionBuilder {
+    pub(super) fn build_access(
+        &mut self,
+        queue: &HirQueueBuilder,
+        parent: Spanned<DedupPoolId<ASTExpression>>,
+        field_ast: Spanned<DedupPoolId<ASTExpression>>,
+        expected: Option<DedupPoolId<HirType>>,
+        span: Span,
+        context: &TypeContext,
+    ) -> Result<Spanned<PoolId<HirExpression>>> {
+        match queue.get_expr(parent.data) {
+            ASTExpression::Identifier(ident)
+                if let Ok((file, ty)) = queue
+                    .get_node(self.file())
+                    .find_type_named_as(parent.span.make_spanned(*ident), context) =>
+            {
+                self.build_type_access(queue, file, ty, field_ast, span, context)
+            }
+            _ => {
+                let parent = self.build_expression(queue, parent, expected, context)?;
+                self.build_field_access(queue, parent, field_ast, span, context)
+            }
+        }
+    }
+
+    fn build_type_access(
+        &mut self,
+        queue: &HirQueueBuilder,
+        file_owner: FileId,
+        ty: DedupPoolId<HirType>,
+        child: Spanned<DedupPoolId<ASTExpression>>,
+        span: Span,
+        context: &TypeContext,
+    ) -> Result<Spanned<PoolId<HirExpression>>> {
+        match queue.get_expr(child.data) {
+            ASTExpression::FieldAccess {
+                parent: inner_parent,
+                field: inner_field,
+            } => {
+                let parent =
+                    self.build_type_access(queue, file_owner, ty, *inner_parent, span, context)?;
+                self.build_field_access(queue, parent, *inner_field, span, context)
+            }
+            ASTExpression::Identifier(ident) => {
+                unimplemented!("Constant values bound to types are not supported yet")
+            }
+            ASTExpression::FunctionCall { name, args } => {
+                let type_name = queue.type_name(name.data, &TypeContext::EMPTY);
+                if let Some(method) = queue.resolve_method(file_owner, ty, type_name)? {
+                    let call = self.build_function_call(queue, *name, args, context)?;
+                    Ok(span.make_spanned(queue.hir.insert_expression(call)))
+                } else {
+                    Err(HIRError::static_method_not_found(type_name, span))
+                }
+            }
+            _ => Err(HIRError::invalid_type_access(span)),
+        }
+    }
+
     pub(super) fn build_field_access(
         &mut self,
         queue: &HirQueueBuilder,
