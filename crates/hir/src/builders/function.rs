@@ -6,7 +6,7 @@ use crate::{
     DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, HirType, Result, SymbolPointer,
     VariableId,
     builders::{
-        HirNode, HirQueueBuilder, PendantFunction,
+        HirQueueBuilder, PendantFunction,
         expression::{ExpressionBuildResult, ExpressionBuilder},
     },
     context::HirSymbol,
@@ -24,28 +24,28 @@ impl<'a> HirQueueBuilder<'a> {
     pub(crate) fn enqueue_function(
         &self,
         f: &'a FuncDeclaration,
-        node: HirNode<'_>,
+        owner: FileId,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let signature = node.get_signature_of_function(f)?;
+        let signature = self.get_node(owner).get_signature_of_function(f)?;
         let names = f.args.iter().map(|arg| arg.data.name.data).collect();
-        let id = self.hir.symbols_registry.get_or_insert_function(
-            HirSymbol::new(node.entry, f.name),
-            || {
-                let decl = HirFunctionDeclaration {
-                    name: f.name,
-                    generics: f.type_params.clone(),
-                    args: Default::default(),
-                    ty: signature,
-                    statements: Vec::new(),
-                    visibility: f.visibility,
-                    external: f.external,
-                    attributes: Vec::new(),
-                    span: f.span,
-                };
-                let file = self.hir.get_or_create_file(node.entry);
-                file.create_function(decl)
-            },
-        );
+        let id =
+            self.hir
+                .symbols_registry
+                .get_or_insert_function(HirSymbol::new(owner, f.name), || {
+                    let decl = HirFunctionDeclaration {
+                        name: f.name,
+                        generics: f.type_params.clone(),
+                        args: Default::default(),
+                        ty: signature,
+                        statements: Vec::new(),
+                        visibility: f.visibility,
+                        external: f.external,
+                        attributes: Vec::new(),
+                        span: f.span,
+                    };
+                    let file = self.hir.get_or_create_file(owner);
+                    file.create_function(decl)
+                });
 
         // Process attributes after the declaration is registered so we have the decl_id
         let decl_id =
@@ -70,9 +70,8 @@ impl<'a> HirQueueBuilder<'a> {
     }
 
     ///Finds a function with the given `name` and returns it's id. If not found on the `requester` it tries to find on other files the requester imports. If not recognized by any, then hoists it properly
-    #[allow(dead_code)]
     pub fn find_function_named(
-        &'a self,
+        &self,
         name: SymbolPointer,
         requester: FileId,
         span: Span,
@@ -84,8 +83,9 @@ impl<'a> HirQueueBuilder<'a> {
             Ok(func)
         } else if let Some(func) = self.hir.get_file(requester).find_function_with_name(name) {
             Ok(func)
-        } else if let Some((id, func)) = self.find_function_declaration(name, requester) {
-            self.enqueue_function(func, self.get_node(id))
+        } else if let Some((id, index)) = self.find_function_declaration(name, requester) {
+            let func = &self.modules.get_entry(id).func()[index];
+            self.enqueue_function(func, id)
         } else {
             Err(HIRError::name_unrecognized(name, span))
         }

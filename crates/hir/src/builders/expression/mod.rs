@@ -188,8 +188,14 @@ impl ExpressionBuilder {
             }
 
             ASTExpression::FieldAccess { parent, field } => {
-                let parent = self.build_expression(queue, *parent, expected, context)?;
-                return self.build_field_access(queue, parent, *field, expression.span, context);
+                return self.build_access(
+                    queue,
+                    *parent,
+                    *field,
+                    expected,
+                    expression.span,
+                    context,
+                );
             }
             ASTExpression::TupleAccess { tuple, index } => self.build_tuple_access(
                 queue,

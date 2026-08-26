@@ -5,7 +5,7 @@ mod function;
 mod structs;
 pub(crate) mod styles;
 mod work_channel;
-use std::{cell::RefCell, ops::Deref};
+use std::{cell::RefCell, collections::VecDeque, ops::Deref};
 
 use common::{
     Spanned,
@@ -350,7 +350,7 @@ impl<'a> HirQueueBuilder<'a> {
             ),
         }
     }
-    pub(crate) fn close_bodies(&mut self) {
+    pub(crate) fn close_bodies(mut self) {
         self.bodies.close_sender();
     }
 
@@ -407,7 +407,7 @@ impl<'a> HirQueueBuilder<'a> {
         Ok(id)
     }
 
-    pub(crate) fn process(self) -> Result<()> {
+    pub(crate) fn process(&self) -> Result<()> {
         loop {
             select! {
                 recv(self.bodies.receiver()) -> body => {
@@ -418,6 +418,10 @@ impl<'a> HirQueueBuilder<'a> {
                         }
                         let ExpressionBuildResult { statements, args } = builder.build_body(&self, body, &context)?;
                         self.resolved_bodies.insert(func_id, (statements, args));
+
+                        if self.bodies.receiver().is_empty() {
+                            break;
+                        }
                     }else {
                         break;
                     }

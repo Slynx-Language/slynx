@@ -1,4 +1,5 @@
 use common::{Span, Spanned};
+use module_loader::FileId;
 
 use crate::{
     DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration,
@@ -33,10 +34,12 @@ impl ExpressionBuilder {
         }
     }
 
+    /// Tries to find a function by the given `name`, if not found on the HIR, tries to insert a function with the given name, if not able, then it returns an error.
     pub(super) fn lookup_function(
         &self,
-        queue: &HirQueueBuilder<'_>,
+        queue: &HirQueueBuilder,
         name: Spanned<SymbolPointer>,
+        requester: FileId,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
         let identifier = name.data;
 
@@ -52,7 +55,7 @@ impl ExpressionBuilder {
         {
             Ok(func)
         } else {
-            Err(HIRError::name_unrecognized(identifier, name.span))
+            queue.find_function_named(name.data, requester, name.span)
         }
     }
 
