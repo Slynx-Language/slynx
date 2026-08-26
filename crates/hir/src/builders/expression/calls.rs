@@ -16,7 +16,11 @@ impl ExpressionBuilder {
         context: &TypeContext,
     ) -> Result<HirExpression> {
         let identifier = queue.get_plain_type(name);
-        let func = self.lookup_function(queue, name.span.make_spanned(identifier.identifier))?;
+        let func = self.lookup_function(
+            queue,
+            name.span.make_spanned(identifier.identifier),
+            self.file(),
+        )?;
         let func_viewer = queue.hir.view(func);
         let func_ty_view = func_viewer.ty();
         let func_real_type = func_ty_view

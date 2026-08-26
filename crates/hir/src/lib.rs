@@ -203,20 +203,17 @@ impl<'a> SlynxHir<'a> {
         self.files.entry(id).or_insert_with(|| HirFile::new(id))
     }
 
-    fn generate(&'a self, modules: &'a Modules<'a>) -> Result<()> {
-        let mut builder = HirQueueBuilder::new(self, modules);
-        let entry = &modules.entries()[0];
-        for func in entry.func() {
-            let node = builder.get_node(entry.id);
-
-            builder.enqueue_function(func, node)?;
+    fn generate(&'a self, modules: &Modules) -> Result<()> {
+        let builder = HirQueueBuilder::new(self, modules);
+        {
+            let entry = &modules.entries()[0];
+            let main_symbol = self.intern_name("main");
+            if let Some(mainfunc) = entry.func().iter().find(|func| func.name == main_symbol) {
+                builder.enqueue_function(mainfunc, entry.id)?;
+            }
+            builder.process()?;
         }
-        for comp in entry.component() {
-            builder.enqueue_component(comp, entry.id)?;
-        }
-
         builder.close_bodies();
-        builder.process()?;
         Ok(())
     }
 }
