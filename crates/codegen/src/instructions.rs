@@ -73,7 +73,6 @@ impl Codegen {
                     smallvec![parent],
                     field_type,
                 );
-                println!("gay {:?}", context.ir().get_instruction(parent));
                 context.deref_write(parent, value);
             }
             HirExpressionKind::FieldAccess {
