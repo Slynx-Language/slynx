@@ -110,15 +110,34 @@ impl Codegen {
     ) -> Result<Value, CodegenError> {
         let value = self.lower_expression(expr, hir, ctx)?;
         let ty = hir[expr.data].ty;
-        if hir.types_module.is_external(&ty) {
-            let name = self.intern_to_ir(
-                hir,
-                ctx.ir(),
-                field_name.expect("External field access must have a field name"),
-            );
-            Ok(ctx.dyn_get_field(value, name))
-        } else {
-            Ok(ctx.get_field(value, field_index))
+
+        match () {
+            _ if hir.types_module.is_external(&ty) => {
+                let name = self.intern_to_ir(
+                    hir,
+                    ctx.ir(),
+                    field_name.expect("External field access must have a field name"),
+                );
+                Ok(ctx.dyn_get_field(value, name))
+            }
+            _ if let HirExpressionKind::Deref(inner) = hir.expressions[expr.data].kind => {
+                let viewer = hir.view(inner.data);
+                let type_viewer = viewer.ty_viewer();
+                let concrete_type = type_viewer.concrete_type();
+                let concrete_type = concrete_type
+                    .is_struct()
+                    .expect("Field access should be made on a struct type");
+                let field_type = {
+                    let tmp = concrete_type.field_types()[field_index as usize];
+                    let field_type = self.get_or_create_ir_type(&tmp, hir, ctx.ir())?;
+                    ctx.ir().pointer_type(field_type)
+                };
+                let base = self.lower_expression(inner, hir, ctx)?;
+
+                let fp = ctx.field_ref(base, field_index);
+                Ok(ctx.emit(Opcode::Deref, smallvec![fp], field_type))
+            }
+            _ => Ok(ctx.get_field(value, field_index)),
         }
     }
 
