@@ -12,6 +12,12 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::MethodNotFound(name) => {
+                format!(
+                    "Method '{}' could not be found on the given struct",
+                    hir.get_name(*name)
+                )
+            }
             HIRErrorKind::StaticMethodNotFound(name) => {
                 format!("Static method not found: {}", hir.get_name(*name))
             }
