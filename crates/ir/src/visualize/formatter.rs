@@ -495,7 +495,7 @@ impl<'a> Formatter<'a> {
             Opcode::SetField(index) => {
                 let target = self.fmt_value(instr.operands[0]);
                 let value = self.fmt_value(instr.operands[1]);
-                format!("propset {target}, {index}, {value};")
+                format!("setfield {target}, {index}, {value};")
             }
             Opcode::DynGetField(name) => {
                 let target = self.fmt_value(instr.operands[0]);
