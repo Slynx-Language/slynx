@@ -140,7 +140,7 @@ impl ComponentBuilder {
     pub fn new(target: DeclarationId<HirComponentDeclaration>) -> Self {
         Self {
             target,
-            builder: ExpressionBuilder::new(OwnerId::Component(target)),
+            builder: ExpressionBuilder::new(OwnerId::Component(target), None),
         }
     }
 

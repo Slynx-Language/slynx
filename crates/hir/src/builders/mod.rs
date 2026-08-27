@@ -58,6 +58,7 @@ pub(crate) struct PendantFunction<'a> {
     context: TypeContext<'a>,
     body: &'a [Spanned<DedupPoolId<ASTStatement>>],
     argument_names: Vec<SymbolPointer>,
+    self_type: Option<DedupPoolId<HirType>>
 }
 
 pub(crate) struct PendantComponent<'a> {
@@ -411,8 +412,8 @@ impl<'a> HirQueueBuilder<'a> {
         loop {
             select! {
                 recv(self.bodies.receiver()) -> body => {
-                    if let Ok(PendantFunction { func_id, body, argument_names, context }) = body {
-                        let mut builder = HirFunctionBuilder::new(func_id);
+                    if let Ok(PendantFunction { func_id, body, argument_names, context, self_type }) = body {
+                        let mut builder = HirFunctionBuilder::new(func_id, self_type);
                         for (idx, name) in argument_names.into_iter().enumerate() {
                             builder.create_argument(&self, name, idx as u8);
                         }

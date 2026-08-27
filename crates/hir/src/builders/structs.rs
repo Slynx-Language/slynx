@@ -150,6 +150,7 @@ impl<'a> HirQueueBuilder<'a> {
                 func_id: decl_id,
                 body: &method.body,
                 argument_names: arg_names,
+                self_type: Some(struct_ty),
             });
         }
 

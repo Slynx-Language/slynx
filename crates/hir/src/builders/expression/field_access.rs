@@ -1,13 +1,13 @@
 use common::{
-    pool::{DedupPoolId, PoolId},
     Span, Spanned, VisibilityModifier,
+    pool::{DedupPoolId, PoolId},
 };
 use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    builders::HirQueueBuilder, helpers::Visible, HIRError, HirExpression, HirExpressionKind,
-    HirType, Result,
+    HIRError, HirExpression, HirExpressionKind, HirType, Result, builders::HirQueueBuilder,
+    helpers::Visible,
 };
 
 use super::ExpressionBuilder;
@@ -91,7 +91,7 @@ impl ExpressionBuilder {
             ASTExpression::Identifier(field_name) => {
                 let parent_ty = queue.hir[parent.data].ty;
                 let parent_view = queue.hir.view(parent_ty);
-                let resolved = parent_view.dereference();
+                let resolved = parent_view.concrete_type();
                 match resolved.is_struct() {
                     Some(view) => {
                         let (fields, field_types) = (view.fields(), view.field_types());

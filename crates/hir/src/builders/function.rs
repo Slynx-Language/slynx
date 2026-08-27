@@ -65,6 +65,7 @@ impl<'a> HirQueueBuilder<'a> {
             func_id: id,
             body: &f.body,
             argument_names: names,
+            self_type: None
         });
         Ok(id)
     }
@@ -84,7 +85,7 @@ impl<'a> HirQueueBuilder<'a> {
         } else if let Some(func) = self.hir.get_file(requester).find_function_with_name(name) {
             Ok(func)
         } else if let Some((id, index)) = self.find_function_declaration(name, requester) {
-            let func = &self.modules.get_entry(id).func()[index];
+                let func = &self.modules.get_entry(id).func()[index];
             self.enqueue_function(func, id)
         } else {
             Err(HIRError::name_unrecognized(name, span))
@@ -93,10 +94,10 @@ impl<'a> HirQueueBuilder<'a> {
 }
 
 impl HirFunctionBuilder {
-    pub fn new(target: DeclarationId<HirFunctionDeclaration>) -> Self {
+    pub fn new(target: DeclarationId<HirFunctionDeclaration>, self_type: Option<DedupPoolId<HirType>>) -> Self {
         Self {
             target,
-            builder: ExpressionBuilder::new(OwnerId::Function(target)),
+            builder: ExpressionBuilder::new(OwnerId::Function(target), self_type),
             args: Vec::new(),
         }
     }

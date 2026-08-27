@@ -62,13 +62,15 @@ impl DerefMut for VariablesManager {
 pub(crate) struct ExpressionBuilder {
     pub(crate) target: OwnerId,
     pub(crate) variables: VariablesManager,
+    pub(crate) self_type: Option<DedupPoolId<HirType>>,
 }
 
 impl ExpressionBuilder {
-    pub fn new(owner: OwnerId) -> Self {
+    pub fn new(owner: OwnerId, self_type: Option<DedupPoolId<HirType>>) -> Self {
         Self {
             target: owner,
             variables: VariablesManager::default(),
+            self_type,
         }
     }
 
@@ -147,7 +149,12 @@ impl ExpressionBuilder {
                 self.is_expression_able_to_write(queue, expr)
             }
             HirExpressionKind::Deref(inner)
-                if let HirType::MutableRef(_) = queue.hir.view(inner.data).ty_viewer().raw() =>
+                if queue
+                    .hir
+                    .view(inner.data)
+                    .ty_viewer()
+                    .is_mutable_ref()
+                    .is_some() =>
             {
                 Ok(())
             }
