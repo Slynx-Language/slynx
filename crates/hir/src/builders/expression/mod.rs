@@ -226,7 +226,7 @@ impl ExpressionBuilder {
                 queue.hir.create_binary_expression(lhs, rhs, *op, ty)
             }
             ASTExpression::FunctionCall { name, args } => {
-                self.build_function_call(queue, *name, args, context)?
+                self.build_function_call(queue, *name, args, context, expression.span)?
             }
             ASTExpression::If {
                 condition,

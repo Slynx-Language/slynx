@@ -58,7 +58,7 @@ pub(crate) struct PendantFunction<'a> {
     context: TypeContext<'a>,
     body: &'a [Spanned<DedupPoolId<ASTStatement>>],
     argument_names: Vec<SymbolPointer>,
-    self_type: Option<DedupPoolId<HirType>>
+    self_type: Option<DedupPoolId<HirType>>,
 }
 
 pub(crate) struct PendantComponent<'a> {
@@ -250,11 +250,10 @@ impl HirNode<'_> {
     ///substitutes with concrete types.
     pub fn resolve_call_generics(
         &self,
-        identifier: &GenericIdentifier,
+        generics: &[Spanned<DedupPoolId<Type>>],
         context: &TypeContext,
     ) -> Result<Vec<DedupPoolId<HirType>>> {
-        identifier
-            .generic
+        generics
             .iter()
             .map(|ty| self.find_type(*ty, context).map(|(_, ty)| ty))
             .collect()
