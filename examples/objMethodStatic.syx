@@ -8,11 +8,11 @@ pub object MyObj {
     value: int,
     name: str,
 
-    func instanceMethod(self, x: int): void {
+    func instanceMethod(&mut self, x: int): void {
         self.value = self.value + x;
     }
 
-    func getValue(self): int {
+    func getValue(&self): int {
         self.value
     }
 

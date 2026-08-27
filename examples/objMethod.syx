@@ -10,7 +10,7 @@ pub object Counter {
         Self(value: 0)
     }
 
-    func increment(self, amount: int): void {
+    func increment(&mut self, amount: int): void {
         self.value = self.value + amount;
     }
 }
