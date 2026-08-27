@@ -1,4 +1,7 @@
-use common::{Span, Spanned, pool::DedupPoolId};
+use common::{
+    Span, Spanned,
+    pool::{DedupPoolId, PoolId},
+};
 use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
@@ -14,10 +17,19 @@ pub struct FunctionCallDescriptor<'a> {
     pub target: DeclarationId<HirFunctionDeclaration>,
     ///The arguments passed to this function call
     pub received_args: &'a [Spanned<DedupPoolId<ASTExpression>>],
+    ///The arguments that are prepended to the call. This is useful method calls for example where the function call is such as 'a.call(5)', but the desugaring would transform it into 'call(a,5)'
+    pub prepend_arg: &'a [Spanned<PoolId<HirExpression>>],
     ///The generic arguments passed to this function call
     pub received_generics: &'a [Spanned<DedupPoolId<Type>>],
     ///The type context for this function call
     pub context: &'a TypeContext<'a>,
+}
+
+impl FunctionCallDescriptor<'_> {
+    ///Returns the total number of arguments passed to this function call, including prepended arguments.
+    pub fn total_argument_length(&self) -> usize {
+        self.received_args.len() + self.prepend_arg.len()
+    }
 }
 
 impl ExpressionBuilder {
@@ -31,12 +43,12 @@ impl ExpressionBuilder {
 
         let expected_args = type_viewer.arguments();
 
-        if expected_args.len() != descriptor.received_args.len() {
+        if expected_args.len() != descriptor.total_argument_length() {
             let name = func_viewer.name();
             return Err(HIRError::invalid_funcall_arg_length(
                 name,
                 expected_args.len(),
-                descriptor.received_args.len(),
+                descriptor.total_argument_length(),
                 descriptor.span,
             ));
         }
@@ -44,7 +56,7 @@ impl ExpressionBuilder {
             .get_node(self.file())
             .resolve_call_generics(descriptor.received_generics, descriptor.context)?;
         let args = {
-            descriptor
+            let transformed_arguments = descriptor
                 .received_args
                 .iter()
                 .zip(expected_args)
@@ -66,7 +78,13 @@ impl ExpressionBuilder {
                     }
                     Ok(expr)
                 })
-                .collect::<Result<_>>()?
+                .collect::<Result<Vec<_>>>()?;
+            descriptor
+                .prepend_arg
+                .iter()
+                .cloned()
+                .chain(transformed_arguments.into_iter())
+                .collect()
         };
         let ty = type_viewer.return_type();
         Ok(HirExpression {
@@ -98,6 +116,7 @@ impl ExpressionBuilder {
             target: func,
             received_args: args,
             received_generics: &identifier.generic,
+            prepend_arg: &[],
             context,
         };
         self.build_call_for(queue, span.make_spanned(descriptor))

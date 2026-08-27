@@ -7,12 +7,19 @@ use common::{
     Spanned,
     pool::{DedupPoolId, PoolId},
 };
+use either::Either;
 use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirStatement, HirType, Result, SymbolPointer,
-    VariableId, builders::HirQueueBuilder, context::ScopeContext, id::OwnerId,
+    VariableId,
+    builders::{
+        HirQueueBuilder,
+        expression::literals::{DereferenceExpressionDescriptor, ReferenceExpressionDescriptor},
+    },
+    context::ScopeContext,
+    id::OwnerId,
 };
 
 mod calls;
@@ -174,9 +181,23 @@ impl ExpressionBuilder {
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let expr = queue.get_expr(expression.data);
         let expr = match expr {
-            ASTExpression::Deref(expr) => self.build_deref(queue, *expr, expected, context)?,
+            ASTExpression::Deref(expr) => self.build_deref(
+                queue,
+                DereferenceExpressionDescriptor {
+                    target: *expr,
+                    context,
+                    expected,
+                },
+            )?,
             ASTExpression::Reference { mutable, expr } => {
-                self.build_reference(queue, *expr, *mutable, expected, context)?
+                return self.build_reference_expression(
+                    queue,
+                    ReferenceExpressionDescriptor {
+                        target: Either::Left(*expr),
+                        mutable: *mutable,
+                        context,
+                    },
+                );
             }
             ASTExpression::Null => self.build_null(queue, expression.span, expected)?,
             ASTExpression::IndexExpression(expr, range) => {

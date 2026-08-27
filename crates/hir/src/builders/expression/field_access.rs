@@ -2,12 +2,16 @@ use common::{
     Span, Spanned, VisibilityModifier,
     pool::{DedupPoolId, PoolId},
 };
+use either::Either;
 use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result,
-    builders::{HirQueueBuilder, expression::calls::FunctionCallDescriptor},
+    builders::{
+        HirQueueBuilder,
+        expression::{calls::FunctionCallDescriptor, literals::ReferenceExpressionDescriptor},
+    },
     helpers::Visible,
 };
 
@@ -71,6 +75,7 @@ impl ExpressionBuilder {
                         child.span.make_spanned(FunctionCallDescriptor {
                             target: method,
                             received_args: args,
+                            prepend_arg: &[],
                             received_generics: generics,
                             context,
                         }),
@@ -183,36 +188,28 @@ impl ExpressionBuilder {
             }
             ASTExpression::FunctionCall { name, args } => {
                 let name_sym = queue.type_name(name.data, &TypeContext::EMPTY);
-                let parent_ty = queue.hir[parent.data].ty;
-                let real_ty = queue.hir.view(parent_ty);
-                let deref = real_ty.concrete_type();
-                match deref.is_struct() {
-                    None => return Err(HIRError::not_a_struct(deref.data, span)),
+                let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
+                let parent_ty = parent_type_view.concrete_type();
+                match parent_ty.is_struct() {
+                    None => return Err(HIRError::not_a_struct(parent_ty.data, span)),
                     Some(view) => {
-                        let func_id =
-                            view.methods()
-                                .iter()
-                                .find_map(
-                                    |Visible {
-                                         data: (method, func),
-                                         visibility,
-                                     }| {
-                                        (*method == name_sym
-                                            && *visibility == VisibilityModifier::Public)
-                                            .then_some(*func)
-                                    },
-                                )
-                                .or_else(|| {
-                                    queue.hir.methods.get(&deref.data).and_then(|methods| {
-                                        methods.get(&name_sym).map(|v| *v.value())
-                                    })
-                                });
+                        let func_id = if let Some(method) =
+                            view.method_named_as(name_sym, VisibilityModifier::Public)
+                        {
+                            Some(method)
+                        } else {
+                            queue
+                                .hir
+                                .methods
+                                .get(&parent_ty.data)
+                                .and_then(|methods| methods.get(&name_sym).map(|v| *v.value()))
+                        };
 
                         let func_id = match func_id {
                             Some(id) => id,
                             None if let Some(id) = queue.resolve_method(
                                 self.file(),
-                                deref.data,
+                                parent_ty.data,
                                 name_sym,
                                 span,
                             )? =>
@@ -224,39 +221,40 @@ impl ExpressionBuilder {
                             }
                         };
 
-                        let func_view = queue.hir.view(func_id);
-                        let expected = func_view
-                            .ty()
-                            .is_function()
-                            .expect("Method should be a function")
-                            .arguments()
-                            .to_vec();
-                        if expected.len() != args.len() + 1 {
-                            //+1 due to being a method call, so self is implicit
-                            return Err(HIRError::invalid_funcall_arg_length(
-                                name_sym,
-                                expected.len(),
-                                args.len(),
-                                name.span,
-                            ));
-                        }
-                        let built_args = args
-                            .iter()
-                            .enumerate()
-                            .map(|(idx, arg)| {
-                                self.build_expression(queue, *arg, Some(expected[idx]), context)
-                            })
-                            .collect::<Result<Vec<_>>>()?;
-                        let mut method_args = vec![parent];
-                        method_args.extend(built_args);
-                        HirExpression {
-                            ty: func_view.return_type(),
-                            kind: HirExpressionKind::FunctionCall {
-                                name: func_id,
-                                args: method_args,
-                                generics: Vec::new(),
-                            },
-                        }
+                        let prepend_args = {
+                            let func_view = queue.hir.view(func_id);
+                            let first_arg = match func_view.get_argument_type(0) {
+                                Some(ty)
+                                    if let HirType::ImutableRef(_) | HirType::MutableRef(_) =
+                                        queue.hir.view(ty).raw() =>
+                                {
+                                    let mutable =
+                                        matches!(queue.hir.view(ty).raw(), HirType::MutableRef(_));
+                                    let reference = self.build_reference_expression(
+                                        queue,
+                                        ReferenceExpressionDescriptor {
+                                            target: Either::Right(parent),
+                                            mutable: mutable,
+                                            context,
+                                        },
+                                    )?;
+                                    reference
+                                }
+                                _ => parent,
+                            };
+                            [first_arg]
+                        };
+                        let call = self.build_call_for(
+                            queue,
+                            span.make_spanned(FunctionCallDescriptor {
+                                target: func_id,
+                                received_args: args,
+                                prepend_arg: &prepend_args,
+                                received_generics: &queue.get_plain_type(*name).generic,
+                                context,
+                            }),
+                        )?;
+                        call
                     }
                 }
             }
