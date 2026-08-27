@@ -110,8 +110,9 @@ impl ExpressionBuilder {
             ASTExpression::Identifier(field_name) => {
                 let parent_ty = queue.hir[parent.data].ty;
                 let parent_view = queue.hir.view(parent_ty);
-                let resolved = parent_view.concrete_type();
-                match resolved.is_struct() {
+                let concrete_type = parent_view.concrete_type();
+                let dereferenced_type = parent_view.dereference();
+                match dereferenced_type.is_struct() {
                     Some(view) => {
                         let (fields, field_types) = (view.fields(), view.field_types());
                         let position = fields
@@ -119,7 +120,7 @@ impl ExpressionBuilder {
                             .position(|f| f.data == *field_name)
                             .ok_or_else(|| {
                                 HIRError::property_unrecognized(
-                                    resolved.data,
+                                    dereferenced_type.data,
                                     vec![*field_name],
                                     span,
                                 )
@@ -141,8 +142,8 @@ impl ExpressionBuilder {
                             },
                         }
                     }
-                    None if let Some(refr) = resolved.is_mutable_ref()
-                        && let Some(view) = refr.dereference().is_struct() =>
+                    None if parent_view.dereference().is_ref()
+                        && let Some(view) = parent_view.concrete_type().is_struct() =>
                     {
                         let (fields, field_types) = (view.fields(), view.field_types());
                         let position = fields
@@ -150,7 +151,7 @@ impl ExpressionBuilder {
                             .position(|f| f.data == *field_name)
                             .ok_or_else(|| {
                                 HIRError::property_unrecognized(
-                                    resolved.data,
+                                    concrete_type.data,
                                     vec![*field_name],
                                     span,
                                 )
@@ -168,7 +169,7 @@ impl ExpressionBuilder {
                             parent
                                 .span
                                 .make_spanned(queue.hir.insert_expression(HirExpression {
-                                    ty: refr.data,
+                                    ty: concrete_type.data,
                                     kind: HirExpressionKind::Deref(parent),
                                 }));
                         HirExpression {
@@ -181,7 +182,7 @@ impl ExpressionBuilder {
                         }
                     }
                     None => {
-                        let ty = resolved.data;
+                        let ty = dereferenced_type.data;
                         return Err(HIRError::not_a_struct(ty, span));
                     }
                 }
@@ -189,7 +190,7 @@ impl ExpressionBuilder {
             ASTExpression::FunctionCall { name, args } => {
                 let name_sym = queue.type_name(name.data, &TypeContext::EMPTY);
                 let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
-                let parent_ty = parent_type_view.concrete_type();
+                let parent_ty = parent_type_view.dereference();
                 match parent_ty.is_struct() {
                     None => return Err(HIRError::not_a_struct(parent_ty.data, span)),
                     Some(view) => {
