@@ -1,10 +1,10 @@
-use common::pool::DedupPoolId;
+use common::{Span, Spanned, pool::DedupPoolId};
 use module_loader::{ASTType, ASTTypeKind, FileId};
-use slynx_parser::{ASTExpression, Type, TypeContext};
+use slynx_parser::{ASTExpression, ObjectMethod, Type, TypeContext};
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirQueueBuilder, HirType, PendantFunction, Result,
-    SymbolPointer, context::HirSymbol,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirQueueBuilder, HirType, PendantFunction,
+    Result, SymbolPointer, context::HirSymbol,
 };
 
 impl<'a> HirQueueBuilder<'a> {
@@ -51,15 +51,17 @@ impl<'a> HirQueueBuilder<'a> {
     /// Lazily resolves a method on a struct type. Looks up the `ObjectDeclaration`
     /// from the AST, creates the function declaration, registers it as a method
     /// on the type, and enqueues the body for processing.
+    /// Returns the `DeclarationId` of the function declaration, if one was created, otherwise returns Ok(None).
     pub(crate) fn resolve_method(
         &self,
         file_id: FileId,
         struct_ty: DedupPoolId<HirType>,
         method_name: SymbolPointer,
+        span: Span,
     ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
         let struct_id = match self.hir.types_module[struct_ty] {
             HirType::Struct(id) => id,
-            _ => return Ok(None),
+            _ => return Err(HIRError::not_a_struct(struct_ty, span)),
         };
         let struct_name = self.hir.get_struct_name(struct_id);
 
@@ -69,43 +71,35 @@ impl<'a> HirQueueBuilder<'a> {
                 owner,
                 content: ASTTypeKind::Struct(decl),
             }) => (owner, decl),
-            _ => return Ok(None),
+            _ => return Err(HIRError::not_a_struct(struct_ty, span)),
         };
 
         let method = obj_decl
             .methods
             .iter()
-            .find(|m| m.method_name == method_name);
-
-        let Some(method) = method else {
-            return Ok(None);
-        };
+            .find(|m| m.method_name == method_name)
+            .ok_or(HIRError::method_not_found(method_name, span))?;
 
         let self_sym = self.hir.intern_name("Self");
         let node = self.get_node(file_id);
 
-        let mut args = Vec::with_capacity(method.arguments.len());
         let context = TypeContext::new(&method.type_params);
-        for arg in &method.arguments {
-            let ty = if let Some(name) = self.modules.referenced_name(arg.data.kind.data)
+
+        let find_self_type = |ty: Spanned<DedupPoolId<Type>>| {
+            if let Some(name) = self.modules.referenced_name(ty.data)
                 && name == self_sym
             {
-                self.find_self_type(arg.data.kind.data, struct_ty)
+                Ok(self.find_self_type(ty.data, struct_ty))
             } else {
-                let (_, ty) = node.find_type(arg.data.kind, &context)?;
-                ty
-            };
-            args.push(ty);
-        }
-
-        let return_type = if let Some(name) = self.modules.referenced_name(method.return_type.data)
-            && name == self_sym
-        {
-            self.find_self_type(method.return_type.data, struct_ty)
-        } else {
-            let (_, ty) = node.find_type(method.return_type, &context)?;
-            ty
+                node.find_type(ty, &context).map(|v| v.1)
+            }
         };
+        let args = method
+            .arguments
+            .iter()
+            .map(|arg| find_self_type(arg.data.kind))
+            .collect::<Result<Vec<_>>>()?;
+        let return_type = find_self_type(method.return_type)?;
 
         let func_ty = self.hir.create_function_type(args, return_type);
 
@@ -114,13 +108,14 @@ impl<'a> HirQueueBuilder<'a> {
             self.hir.get_name(method_name),
             self.hir.get_name(struct_name),
         );
+
         let mangled_symbol = self.hir.intern_name(&mangled);
 
         let decl_id = self.hir.symbols_registry.get_or_insert_function(
             HirSymbol::new(obj_file_id, mangled_symbol),
             || {
                 let decl = HirFunctionDeclaration {
-                    name: method_name,
+                    name: mangled_symbol,
                     generics: method.type_params.clone(),
                     args: Default::default(),
                     ty: func_ty,
@@ -150,6 +145,7 @@ impl<'a> HirQueueBuilder<'a> {
                 func_id: decl_id,
                 body: &method.body,
                 argument_names: arg_names,
+                self_type: Some(struct_ty),
             });
         }
 

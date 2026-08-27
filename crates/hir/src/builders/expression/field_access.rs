@@ -1,13 +1,14 @@
 use common::{
-    pool::{DedupPoolId, PoolId},
     Span, Spanned, VisibilityModifier,
+    pool::{DedupPoolId, PoolId},
 };
 use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    builders::HirQueueBuilder, helpers::Visible, HIRError, HirExpression, HirExpressionKind,
-    HirType, Result,
+    HIRError, HirExpression, HirExpressionKind, HirType, Result,
+    builders::{HirQueueBuilder, expression::calls::FunctionCallDescriptor},
+    helpers::Visible,
 };
 
 use super::ExpressionBuilder;
@@ -59,12 +60,25 @@ impl ExpressionBuilder {
                 unimplemented!("Constant values bound to types are not supported yet")
             }
             ASTExpression::FunctionCall { name, args } => {
-                let type_name = queue.type_name(name.data, &TypeContext::EMPTY);
-                if let Some(method) = queue.resolve_method(file_owner, ty, type_name)? {
-                    let call = self.build_function_call(queue, *name, args, context)?;
+                let method_name = queue.type_name(name.data, &TypeContext::EMPTY);
+                if let Some(method) = queue.resolve_method(file_owner, ty, method_name, span)? {
+                    let generics = {
+                        let plain = queue.get_plain_type(*name);
+                        &plain.generic
+                    };
+                    let call = self.build_call_for(
+                        queue,
+                        child.span.make_spanned(FunctionCallDescriptor {
+                            target: method,
+                            received_args: args,
+                            received_generics: generics,
+                            context,
+                        }),
+                    )?;
+
                     Ok(span.make_spanned(queue.hir.insert_expression(call)))
                 } else {
-                    Err(HIRError::static_method_not_found(type_name, span))
+                    Err(HIRError::static_method_not_found(method_name, span))
                 }
             }
             _ => Err(HIRError::invalid_type_access(span)),
@@ -91,7 +105,7 @@ impl ExpressionBuilder {
             ASTExpression::Identifier(field_name) => {
                 let parent_ty = queue.hir[parent.data].ty;
                 let parent_view = queue.hir.view(parent_ty);
-                let resolved = parent_view.dereference();
+                let resolved = parent_view.concrete_type();
                 match resolved.is_struct() {
                     Some(view) => {
                         let (fields, field_types) = (view.fields(), view.field_types());
@@ -171,7 +185,7 @@ impl ExpressionBuilder {
                 let name_sym = queue.type_name(name.data, &TypeContext::EMPTY);
                 let parent_ty = queue.hir[parent.data].ty;
                 let real_ty = queue.hir.view(parent_ty);
-                let deref = real_ty.dereference();
+                let deref = real_ty.concrete_type();
                 match deref.is_struct() {
                     None => return Err(HIRError::not_a_struct(deref.data, span)),
                     Some(view) => {
@@ -196,8 +210,12 @@ impl ExpressionBuilder {
 
                         let func_id = match func_id {
                             Some(id) => id,
-                            None if let Some(id) =
-                                queue.resolve_method(self.file(), deref.data, name_sym)? =>
+                            None if let Some(id) = queue.resolve_method(
+                                self.file(),
+                                deref.data,
+                                name_sym,
+                                span,
+                            )? =>
                             {
                                 id
                             }

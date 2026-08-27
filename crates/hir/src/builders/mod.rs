@@ -58,6 +58,7 @@ pub(crate) struct PendantFunction<'a> {
     context: TypeContext<'a>,
     body: &'a [Spanned<DedupPoolId<ASTStatement>>],
     argument_names: Vec<SymbolPointer>,
+    self_type: Option<DedupPoolId<HirType>>,
 }
 
 pub(crate) struct PendantComponent<'a> {
@@ -249,11 +250,10 @@ impl HirNode<'_> {
     ///substitutes with concrete types.
     pub fn resolve_call_generics(
         &self,
-        identifier: &GenericIdentifier,
+        generics: &[Spanned<DedupPoolId<Type>>],
         context: &TypeContext,
     ) -> Result<Vec<DedupPoolId<HirType>>> {
-        identifier
-            .generic
+        generics
             .iter()
             .map(|ty| self.find_type(*ty, context).map(|(_, ty)| ty))
             .collect()
@@ -411,8 +411,8 @@ impl<'a> HirQueueBuilder<'a> {
         loop {
             select! {
                 recv(self.bodies.receiver()) -> body => {
-                    if let Ok(PendantFunction { func_id, body, argument_names, context }) = body {
-                        let mut builder = HirFunctionBuilder::new(func_id);
+                    if let Ok(PendantFunction { func_id, body, argument_names, context, self_type }) = body {
+                        let mut builder = HirFunctionBuilder::new(func_id, self_type);
                         for (idx, name) in argument_names.into_iter().enumerate() {
                             builder.create_argument(&self, name, idx as u8);
                         }

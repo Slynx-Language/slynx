@@ -101,10 +101,11 @@ impl IRTypes {
     ///Returns the IRTypeId of the `field_index`th field of the given struct/component type.
     ///Panics if `ty` is not a Struct or Component, or if `field_index` is out of bounds.
     pub fn get_field_type(&self, ty: IRTypeId, field_index: u16) -> IRTypeId {
-        let field_index = field_index as usize;
+        let index = field_index as usize;
         match self.types.get(ty) {
-            IRType::Struct(sid) => self.structs[*sid].get_fields()[field_index],
-            IRType::Component(cid) => self.components[*cid].fields[field_index],
+            IRType::Struct(sid) => self.structs[*sid].get_fields()[index],
+            IRType::Component(cid) => self.components[*cid].fields[index],
+            IRType::Pointer(ptr) => self.get_field_type(*ptr, field_index),
             ref other => panic!(
                 "Expected struct or component type for field access, got {:?}",
                 other

@@ -10,6 +10,7 @@ use crate::{
 use super::ExpressionBuilder;
 
 impl ExpressionBuilder {
+
     pub(super) fn build_object(
         &mut self,
         queue: &HirQueueBuilder,
@@ -19,7 +20,12 @@ impl ExpressionBuilder {
         expected: Option<DedupPoolId<HirType>>,
         context: &TypeContext,
     ) -> Result<HirExpression> {
-        let (_, ty) = queue.get_node(self.file()).find_type(name, context)?;
+
+        let ty = if let Some(self_type) = &self.self_type {
+            queue.find_self_type(name.data, *self_type)
+        }else {
+            queue.get_node(self.file()).find_type(name, context)?.1
+        };
         let ty_view = queue.hir.view(ty);
         let deref = ty_view.dereference();
         let obj = deref
