@@ -65,13 +65,7 @@ impl Parser<'_> {
         let (name, generics) = self.parse_generic_name()?;
 
         self.expect(&TokenKind::Eq)?;
-        let target = self.parse_type(
-            &generics
-                .iter()
-                .enumerate()
-                .map(|(idx, name)| (*name, idx as u8))
-                .collect::<Vec<_>>(),
-        )?;
+        let target = self.parse_type(&generics)?;
 
         self.expect(&TokenKind::SemiColon)?;
         Ok(AliasDeclaration {
@@ -88,14 +82,10 @@ impl Parser<'_> {
     ///`func A<T>(arg: T)` maps to `Generic(0)`.
     fn generic_param_index(
         &self,
-        type_params: &[(SymbolPointer, u8)],
+        type_params: &[SymbolPointer],
         ident: SymbolPointer,
-    ) -> Option<u8> {
-        type_params
-            .iter()
-            .rev()
-            .find(|(name, _)| *name == ident)
-            .map(|(_, index)| *index)
+    ) -> Option<usize> {
+        type_params.iter().position(|name| *name == ident)
     }
 
     ///Parsing a generic name means that it will parse a name which contains after it generics, such as func F<T,K,Q>(){}, this function will then be called to parse F<T,K,Q> which is the name of the
@@ -149,19 +139,6 @@ impl Parser<'_> {
             identifier: gi.identifier,
         }));
         (name.span.make_spanned(plain), params)
-    }
-
-    ///Pushes the given type parameters into scope so that references to them
-    ///inside the declaration parse as [`Type::Generic`]. Must be paired with a
-    ///`type_params.truncate(...)` once the declaration is fully parsed.
-    pub fn push_type_params(
-        &mut self,
-        type_params: &[SymbolPointer],
-        out: &mut Vec<(SymbolPointer, u8)>,
-    ) {
-        for (index, param) in type_params.iter().enumerate() {
-            out.push((*param, index as u8));
-        }
     }
 
     ///Looking from where this function initializes, check is this is a generic one.
@@ -310,7 +287,7 @@ impl Parser<'_> {
                     }));
                     span.make_spanned(id)
                 } else if let Some(index) = self.generic_param_index(type_params, ident.data) {
-                    span.make_spanned(self.intern_type(Type::Generic(index)))
+                    span.make_spanned(self.intern_type(Type::Generic(index as u8)))
                 } else {
                     let id = self.intern_type(Type::Plain(GenericIdentifier {
                         generic: smallvec![],

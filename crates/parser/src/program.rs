@@ -1,6 +1,6 @@
 use crate::{
-    AliasDeclaration, ComponentDeclaration, FileImport, FuncDeclaration, ObjectDeclaration,
-    StaticDeclaration, StyleSheet,
+    AliasDeclaration, ComponentDeclaration, EnumDeclaration, FileImport, FuncDeclaration,
+    ObjectDeclaration, StaticDeclaration, StyleSheet,
 };
 use paste::paste;
 
@@ -41,5 +41,6 @@ program! {
     component: ComponentDeclaration,
     func: FuncDeclaration,
     style: StyleSheet,
-    statics: StaticDeclaration
+    statics: StaticDeclaration,
+    enums: EnumDeclaration
 }

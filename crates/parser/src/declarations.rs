@@ -30,6 +30,7 @@ impl<'a> Parser<'a> {
         })
     }
 
+    ///Parses a list of attributes. This makes the parsing of @name(arg0,arg1,arg2,arg3, ...). If the current token is not an `At` token(in code, '@'), an empty list is returned.
     pub fn parse_attributes(&mut self) -> Result<Vec<Spanned<ASTAttribute>>> {
         let mut out = Vec::new();
         if self.peek()?.kind != TokenKind::At {
@@ -87,41 +88,42 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Object => {
                 let Token { span, .. } = self.eat()?;
-                let mut object = self.parse_object(span)?;
-                object.attributes.append(&mut attributes);
+                let mut object = self.parse_object(span, attributes)?;
                 object.external = external;
                 object.visibility = visibility;
                 program.append_object(object)
             }
             TokenKind::Component => {
                 let Token { span, .. } = self.eat()?;
-                let mut component = self.parse_component(span)?;
-                component.attributes.append(&mut attributes);
+                let mut component = self.parse_component(span, attributes)?;
                 component.visibility = visibility;
                 program.append_component(component);
             }
             TokenKind::Func => {
                 let Token { span, .. } = self.eat()?;
-                let mut func = self.parse_func(span)?;
-                func.attributes.append(&mut attributes);
+                let mut func = self.parse_func(span, attributes)?;
                 func.external = external;
                 func.visibility = visibility;
                 program.append_func(func);
             }
             TokenKind::StyleSheet => {
                 let Token { span, .. } = self.eat()?;
-                let mut style = self.parse_stylesheet(span)?;
-                style.attributes.append(&mut attributes);
+                let mut style = self.parse_stylesheet(span, attributes)?;
                 style.visibility = visibility;
                 program.append_style(style);
             }
             TokenKind::Static => {
                 let Token { span, .. } = self.eat()?;
                 let mut static_decl = self.parse_static(span)?;
-                static_decl.attributes.append(&mut attributes);
                 static_decl.external = external;
                 static_decl.visibility = visibility;
                 program.append_statics(static_decl);
+            }
+            TokenKind::Enum => {
+                let span = self.eat()?.span;
+                let mut enum_decl = self.parse_enum(span, attributes)?;
+                enum_decl.visibility = visibility;
+                program.append_enums(enum_decl);
             }
             _ => {
                 return Err(ParseError::UnexpectedToken(

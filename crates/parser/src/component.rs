@@ -1,8 +1,8 @@
 use crate::{
-    ComponentDeclaration, ExpectedContent, Result, TypeParamScope,
+    ASTAttribute, ComponentDeclaration, ExpectedContent, Result, TypeParamScope,
     ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
 };
-use common::Span;
+use common::{Span, Spanned};
 
 use crate::error::ParseError;
 use slynx_lexer::tokens::{Token, TokenKind};
@@ -135,26 +135,28 @@ impl Parser<'_> {
         }
     }
     ///Parses a component declaration. This initializes on the 'component' keyword
-    pub(crate) fn parse_component(&mut self, mut span: Span) -> Result<ComponentDeclaration> {
+    pub(crate) fn parse_component(
+        &mut self,
+        span: Span,
+        attributes: Vec<Spanned<ASTAttribute>>,
+    ) -> Result<ComponentDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
 
         self.expect(&TokenKind::LBrace)?;
         let mut defs = Vec::new();
-        let mut type_params = Vec::new();
-        self.push_type_params(&generics, &mut type_params);
+
         while self.peek()?.kind != TokenKind::RBrace {
-            defs.push(self.parse_component_member(&type_params)?);
+            defs.push(self.parse_component_member(&generics)?);
         }
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
-        span.end = end.end;
 
         Ok(ComponentDeclaration {
             type_params: generics,
-            attributes: Vec::new(),
+            attributes,
             visibility: Default::default(),
             name,
             members: defs,
-            span,
+            span: span.merge_with(end),
         })
     }
 }

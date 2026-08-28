@@ -1,12 +1,16 @@
-use crate::{FuncDeclaration, ObjectDeclaration, ObjectMethod, Parser, Result};
+use crate::{ASTAttribute, FuncDeclaration, ObjectDeclaration, ObjectMethod, Parser, Result};
 use slynx_lexer::tokens::{Token, TokenKind};
 
 use crate::ast::{ObjectField, VisibilityModifier};
-use common::Span;
+use common::{Span, Spanned};
 
 impl<'a> Parser<'a> {
-    pub fn parse_method(&mut self, start: Span) -> Result<ObjectMethod> {
-        let func = self.parse_func(start)?;
+    pub fn parse_method(
+        &mut self,
+        start: Span,
+        attributes: Vec<Spanned<ASTAttribute>>,
+    ) -> Result<ObjectMethod> {
+        let func = self.parse_func(start, attributes)?;
         let FuncDeclaration {
             name,
             args,
@@ -25,23 +29,27 @@ impl<'a> Parser<'a> {
         })
     }
 
-    pub fn parse_object(&mut self, start: Span) -> Result<ObjectDeclaration> {
+    pub fn parse_object(
+        &mut self,
+        start: Span,
+        attributes: Vec<Spanned<ASTAttribute>>,
+    ) -> Result<ObjectDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
         self.expect(&TokenKind::LBrace)?;
         let mut fields = Vec::new();
         let mut methods = Vec::new();
-        let mut type_params = Vec::new();
-        self.push_type_params(&generics, &mut type_params);
+
         while self.peek()?.kind != TokenKind::RBrace {
+            let attributes = self.parse_attributes()?;
             if self.peek()?.kind == TokenKind::Func {
                 let start = self.eat()?.span;
-                methods.push(self.parse_method(start)?);
+                methods.push(self.parse_method(start, attributes)?);
                 if let TokenKind::Comma = self.peek()?.kind {
                     self.eat()?;
                 }
                 continue;
             }
-            let name = self.parse_typedname(&type_params)?;
+            let name = self.parse_typedname(&generics)?;
             fields.push(ObjectField {
                 visibility: VisibilityModifier::Public,
                 name,
@@ -56,7 +64,7 @@ impl<'a> Parser<'a> {
         let Token { span, .. } = self.expect(&TokenKind::RBrace)?;
         Ok(ObjectDeclaration {
             type_params: generics,
-            attributes: Vec::new(),
+            attributes: attributes,
             visibility: Default::default(),
             name,
             fields,

@@ -1,4 +1,4 @@
-use crate::SymbolPointer;
+use crate::{ASTAttribute, SymbolPointer};
 use crate::{
     ExpectedContent, FuncDeclaration, Parser, Result, TypeParamScope, error::ParseError,
     flags::ParserFlag,
@@ -25,11 +25,13 @@ impl Parser<'_> {
 
     ///Parses a function. The provided `span` is the initial span for the 'func' keyword.
     ///Parses both `func main(arg1:T): Q {...}` and `func main(arg1:T): Q -> ...`
-    pub fn parse_func(&mut self, span: Span) -> Result<FuncDeclaration> {
+    pub fn parse_func(
+        &mut self,
+        span: Span,
+        attributes: Vec<Spanned<ASTAttribute>>,
+    ) -> Result<FuncDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
-        let mut param_types = Vec::new();
-        self.push_type_params(&generics, &mut param_types);
-        self.parse_func_rest(span, name, generics, &param_types)
+        self.parse_func_rest(span, name, generics, attributes)
     }
 
     ///Parses everything that comes after the function name: the arguments, the
@@ -40,13 +42,13 @@ impl Parser<'_> {
         span: Span,
         name: SymbolPointer,
         type_params: Vec<SymbolPointer>,
-        scope: TypeParamScope,
+        attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<FuncDeclaration> {
         self.expect(&TokenKind::LParen)?;
-        let args = self.parse_args(scope)?;
+        let args = self.parse_args(&type_params)?;
         self.expect(&TokenKind::RParen)?;
         self.expect(&TokenKind::Colon)?;
-        let return_type = self.parse_type(scope)?;
+        let return_type = self.parse_type(&type_params)?;
         if self.flags.has_flag(ParserFlag::OnlySignatures) {
             self.expect(&TokenKind::SemiColon).map_err(|e| {
                 let ParseError::UnexpectedToken(tk, _) = e else {
@@ -58,7 +60,7 @@ impl Parser<'_> {
                 )
             })?;
             return Ok(FuncDeclaration {
-                attributes: vec![],
+                attributes: attributes,
                 visibility: Default::default(),
                 span: span.merge_with(return_type.span),
                 external: false,
@@ -74,7 +76,7 @@ impl Parser<'_> {
         //func main(arg:T):Q ->/{}
         match current.kind {
             TokenKind::Arrow => {
-                let expr = self.parse_expression(scope)?;
+                let expr = self.parse_expression(&type_params)?;
                 let end = expr
                     .span
                     .merge_with(self.expect(&TokenKind::SemiColon)?.span);
@@ -98,7 +100,7 @@ impl Parser<'_> {
                 self.reset_flags();
                 let mut body = vec![];
                 while !matches!(self.peek()?.kind, TokenKind::RBrace) {
-                    let stmt = self.parse_statement(scope)?;
+                    let stmt = self.parse_statement(&type_params)?;
                     body.push(stmt);
 
                     if self.peek()?.kind == TokenKind::RBrace {
@@ -108,7 +110,7 @@ impl Parser<'_> {
                 }
                 let end = self.expect(&TokenKind::RBrace)?.span;
                 Ok(FuncDeclaration {
-                    attributes: vec![],
+                    attributes: attributes,
                     visibility: Default::default(),
                     external: false,
                     span: span.merge_with(end),
