@@ -15,7 +15,6 @@ pub enum TokenKind {
     #[regex(r"//[^\n]*", logos::skip, allow_greedy = true)]
     #[regex(r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/", logos::skip)]
     CommonComent,
-
     #[token("@")]
     At,
     // Keywords
@@ -25,6 +24,8 @@ pub enum TokenKind {
     If,
     #[token("else")]
     Else,
+    #[token("enum")]
+    Enum,
     #[token("static")]
     Static,
     #[token("component")]
