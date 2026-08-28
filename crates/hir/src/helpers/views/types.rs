@@ -164,14 +164,12 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
     ///
     pub fn concrete_type(&self) -> HirViewer<'_, DedupPoolId<HirType>> {
         let mut data = self.data;
-        loop {
-            match self.hir.deref()[data] {
-                HirType::Nullable(rf)
-                | HirType::ImutableRef(rf)
-                | HirType::MutableRef(rf)
-                | HirType::Reference { rf, .. } => data = rf,
-                _ => break,
-            }
+        while let HirType::Nullable(rf)
+        | HirType::ImutableRef(rf)
+        | HirType::MutableRef(rf)
+        | HirType::Reference { rf, .. } = self.hir.deref()[data]
+        {
+            data = rf
         }
         self.new_with(data)
     }

@@ -157,7 +157,7 @@ impl ExpressionBuilder {
                     .variables
                     .variables
                     .get(&ident)
-                    .map_or(false, |info| info.mutable)
+                    .is_some_and(|info| info.mutable)
                 {
                     Ok(())
                 } else {

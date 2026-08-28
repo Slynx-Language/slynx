@@ -136,7 +136,7 @@ impl ExpressionBuilder {
             prepended_arguments
                 .iter()
                 .cloned()
-                .chain(transformed_arguments.into_iter())
+                .chain(transformed_arguments)
                 .collect()
         };
         let ty = type_viewer.return_type();

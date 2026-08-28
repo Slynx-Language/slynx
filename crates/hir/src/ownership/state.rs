@@ -21,7 +21,7 @@ impl std::fmt::Display for BorrowKind {
 }
 
 /// The state of a single place in the ownership system.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PlaceState {
     /// Number of active mutable borrows.
     pub borrowed_mut: u8,
@@ -69,7 +69,7 @@ impl PlaceState {
 ///
 /// Tracks the state of all places used in a function, including
 /// variables, temporaries, and projections.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct FunctionOwnershipState {
     /// State for each variable (by VariableId).
     pub variable_states: HashMap<VariableId, PlaceState>,
@@ -86,16 +86,11 @@ impl FunctionOwnershipState {
 
     /// Get the state for a variable, creating a default state if not present.
     pub fn get_variable_state(&mut self, id: VariableId) -> &mut PlaceState {
-        self.variable_states
-            .entry(id)
-            .or_insert_with(PlaceState::new)
+        self.variable_states.entry(id).or_default()
     }
 
     pub fn mark_static_moved(&mut self, id: DeclarationId<HirStaticDeclaration>) {
-        self.static_states
-            .entry(id)
-            .or_insert_with(PlaceState::new)
-            .moved = true;
+        self.static_states.entry(id).or_default().moved = true;
     }
     pub fn is_static_moved(&self, id: DeclarationId<HirStaticDeclaration>) -> bool {
         self.static_states

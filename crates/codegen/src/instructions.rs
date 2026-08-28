@@ -57,7 +57,7 @@ impl Codegen {
                         if let Some(ty) = hir.view(inner.data).ty_viewer().is_mutable_ref()
                             && let Some(s) = ty.is_struct()
                         {
-                            s.field_types()[*field_index as usize]
+                            s.field_types()[*field_index]
                         } else {
                             panic!(
                                 "This shit should be a reference type, and since its inside a field access, a reference to a struct"
@@ -67,7 +67,7 @@ impl Codegen {
                     let ty = self.get_or_create_ir_type(&field_type, hir, context.ir())?;
                     context.ir().pointer_type(ty)
                 };
-                let parent = self.lower_expression(*&inner, hir, context)?;
+                let parent = self.lower_expression(inner, hir, context)?;
                 let parent = context.emit(
                     Opcode::FieldRef(*field_index as u16),
                     smallvec![parent],

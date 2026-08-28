@@ -5,7 +5,7 @@ mod function;
 mod structs;
 pub(crate) mod styles;
 mod work_channel;
-use std::{cell::RefCell, collections::VecDeque, ops::Deref};
+use std::{cell::RefCell, ops::Deref};
 
 use common::{
     Spanned,
@@ -414,9 +414,9 @@ impl<'a> HirQueueBuilder<'a> {
                     if let Ok(PendantFunction { func_id, body, argument_names, context, self_type }) = body {
                         let mut builder = HirFunctionBuilder::new(func_id, self_type);
                         for (idx, name) in argument_names.into_iter().enumerate() {
-                            builder.create_argument(&self, name, idx as u8);
+                            builder.create_argument(self, name, idx as u8);
                         }
-                        let ExpressionBuildResult { statements, args } = builder.build_body(&self, body, &context)?;
+                        let ExpressionBuildResult { statements, args } = builder.build_body(self, body, &context)?;
                         self.resolved_bodies.insert(func_id, (statements, args));
 
                         if self.bodies.receiver().is_empty() {
@@ -428,7 +428,7 @@ impl<'a> HirQueueBuilder<'a> {
                 }
                 recv(self.components.receiver()) -> component => {
                     if let Ok(PendantComponent { owner, component }) = component {
-                        let decls = self.component_body(owner, &self, component)?;
+                        let decls = self.component_body(owner, self, component)?;
                         self.resolved_components.insert(owner, decls);
                     }
                 }

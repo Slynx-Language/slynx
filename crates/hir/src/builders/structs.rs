@@ -1,6 +1,6 @@
 use common::{Span, Spanned, pool::DedupPoolId};
 use module_loader::{ASTType, ASTTypeKind, FileId};
-use slynx_parser::{ASTExpression, ObjectMethod, Type, TypeContext};
+use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
     DeclarationId, HIRError, HirFunctionDeclaration, HirQueueBuilder, HirType, PendantFunction,

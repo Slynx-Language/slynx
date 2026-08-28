@@ -8,7 +8,7 @@ use common::{Span, Spanned, pool::PoolId};
 
 use crate::{
     DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
-    HirStaticDeclaration, SlynxHir, VariableId, model::HirPlace,
+    SlynxHir, VariableId, model::HirPlace,
 };
 
 use super::{
@@ -16,7 +16,7 @@ use super::{
 };
 
 /// The result of ownership analysis on the entire HIR.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct OwnershipAnalysis {
     /// For each function, its ownership state at the end of analysis.
     pub function_states: HashMap<DeclarationId<HirFunctionDeclaration>, FunctionOwnershipState>,
@@ -302,41 +302,39 @@ impl OwnershipAnalysis {
             BorrowKind::Immutable
         };
 
-        if let Some(place_id) = self.build_place_from_expr(hir, inner.data) {
-            match &hir.places[place_id] {
-                HirPlace::Variable(id) => {
-                    if !state.can_borrow_variable(*id, kind) {
-                        if state.is_variable_moved(*id) {
-                            self.errors.push(OwnershipError {
-                                kind: OwnershipErrorKind::UseAfterMove { variable: *id },
-                                span,
-                            });
-                            return;
-                        }
-                        let existing_kind = if state
-                            .variable_states
-                            .get(id)
-                            .map(|s| s.borrowed_mut > 0)
-                            .unwrap_or(false)
-                        {
-                            BorrowKind::Mutable
-                        } else {
-                            BorrowKind::Immutable
-                        };
-                        self.errors.push(OwnershipError {
-                            kind: OwnershipErrorKind::ConflictingBorrow {
-                                variable: *id,
-                                existing_borrow: existing_kind,
-                                new_borrow: kind,
-                            },
-                            span,
-                        });
-                        return;
-                    }
-
-                    state.borrow_variable(*id, kind);
+        if let Some(place_id) = self.build_place_from_expr(hir, inner.data)
+            && let HirPlace::Variable(id) = &hir.places[place_id]
+        {
+            match () {
+                _ if state.can_borrow_variable(*id, kind) => state.borrow_variable(*id, kind),
+                _ if state.is_variable_moved(*id) => {
+                    self.errors.push(OwnershipError {
+                        kind: OwnershipErrorKind::UseAfterMove { variable: *id },
+                        span,
+                    });
+                    return;
                 }
-                _ => {}
+                _ => {
+                    let existing_kind = if state
+                        .variable_states
+                        .get(id)
+                        .map(|s| s.borrowed_mut > 0)
+                        .unwrap_or(false)
+                    {
+                        BorrowKind::Mutable
+                    } else {
+                        BorrowKind::Immutable
+                    };
+                    self.errors.push(OwnershipError {
+                        kind: OwnershipErrorKind::ConflictingBorrow {
+                            variable: *id,
+                            existing_borrow: existing_kind,
+                            new_borrow: kind,
+                        },
+                        span,
+                    });
+                    return;
+                }
             }
         }
 
