@@ -24,7 +24,6 @@ pub struct ObjectDescriptor<'a> {
 }
 
 impl ExpressionBuilder {
-
     pub(super) fn build_object(
         &mut self,
         queue: &HirQueueBuilder,
@@ -40,7 +39,7 @@ impl ExpressionBuilder {
 
         let ty = if let Some(self_type) = &self.self_type {
             queue.find_self_type(name.data, *self_type)
-        }else {
+        } else {
             queue.get_node(self.file()).find_type(name, context)?.1
         };
         let ty_view = queue.hir.view(ty);

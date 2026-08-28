@@ -224,9 +224,7 @@ impl ExpressionBuilder {
             }
             ASTExpression::False => self.build_bool(queue, false),
             ASTExpression::True => self.build_bool(queue, true),
-            ASTExpression::Identifier(name) => {
-                self.build_identifier(queue, *name, target.span)?
-            }
+            ASTExpression::Identifier(name) => self.build_identifier(queue, *name, target.span)?,
             ASTExpression::IntLiteral(i) => self.build_int_literal(queue, *i),
             ASTExpression::FloatLiteral(f) => self.build_float_literal(queue, f.into_inner()),
             ASTExpression::StringLiteral(s) => self.build_str_literal(queue, *s),
