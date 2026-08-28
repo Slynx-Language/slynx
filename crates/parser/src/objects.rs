@@ -64,7 +64,7 @@ impl<'a> Parser<'a> {
         let Token { span, .. } = self.expect(&TokenKind::RBrace)?;
         Ok(ObjectDeclaration {
             type_params: generics,
-            attributes: attributes,
+            attributes,
             visibility: Default::default(),
             name,
             fields,

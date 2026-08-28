@@ -59,7 +59,7 @@ impl Parser<'_> {
             TokenKind::LBrace => {
                 self.eat()?;
                 let mut types = SmallVec::new();
-                while self.peek()?.kind != TokenKind::RParen {
+                while self.peek()?.kind != TokenKind::RBrace {
                     let inner = self.parse_typedname(generics)?;
                     types.push(inner);
                     if self.peek()?.kind == TokenKind::Comma {

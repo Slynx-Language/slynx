@@ -66,7 +66,7 @@ impl<'a> Parser<'a> {
 
     ///Parses a single declaration
     fn parse_declaration(&mut self, program: &mut Program, external: bool) -> Result<()> {
-        let mut attributes = self.parse_attributes()?;
+        let attributes = self.parse_attributes()?;
         let token = self.peek()?;
         let visibility = if matches!(token.kind, TokenKind::Pub) {
             self.eat()?;

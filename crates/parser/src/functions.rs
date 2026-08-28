@@ -60,7 +60,7 @@ impl Parser<'_> {
                 )
             })?;
             return Ok(FuncDeclaration {
-                attributes: attributes,
+                attributes,
                 visibility: Default::default(),
                 span: span.merge_with(return_type.span),
                 external: false,
@@ -110,7 +110,7 @@ impl Parser<'_> {
                 }
                 let end = self.expect(&TokenKind::RBrace)?.span;
                 Ok(FuncDeclaration {
-                    attributes: attributes,
+                    attributes,
                     visibility: Default::default(),
                     external: false,
                     span: span.merge_with(end),
