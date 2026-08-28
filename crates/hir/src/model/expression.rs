@@ -114,6 +114,50 @@ pub struct HirComponentExpression {
     pub children: Vec<Spanned<PoolId<HirComponentExpression>>>,
 }
 
+/// A place represents a memory location that can be read from, written to,
+/// moved from, or borrowed. Places are the foundation for ownership and
+/// borrow checking.
+///
+/// # Examples
+///
+/// ```text
+/// a          → Variable(a)
+/// a.x        → Field { place: Variable(a), index: 0, name: "x" }
+/// a.x.y      → Field { place: Field { place: Variable(a), ... }, ... }
+/// a[i]       → Index { place: Variable(a), index: i }
+/// *a         → Deref { place: Variable(a) }
+/// f()        → Temporary(call_expr)
+/// f().x      → Field { place: Temporary(call_expr), ... }
+/// ```
+#[derive(Debug)]
+pub enum HirPlace {
+    /// A named local variable.
+    Variable(VariableId),
+    /// A temporary value produced by an expression (e.g., function call result).
+    Temporary(PoolId<HirExpression>),
+    /// A field projection from a parent place.
+    Field {
+        /// The parent place being projected from.
+        place: PoolId<HirPlace>,
+        /// The index of the field within the containing type.
+        index: usize,
+        /// The field name (for diagnostics and externals).
+        name: Option<SymbolPointer>,
+    },
+    /// An index projection from a parent place (arrays, vectors).
+    Index {
+        /// The parent place being indexed.
+        place: PoolId<HirPlace>,
+        /// The index expression.
+        index: PoolId<HirExpression>,
+    },
+    /// A dereference projection from a parent place.
+    Deref {
+        /// The parent place being dereferenced.
+        place: PoolId<HirPlace>,
+    },
+}
+
 /// An expression node in the HIR.
 ///
 /// Every expression in the HIR is represented by this structure, which
@@ -515,4 +559,6 @@ pub enum HirExpressionKind {
         Spanned<PoolId<HirExpression>>,
         Spanned<PoolId<HirExpression>>,
     ),
+    Deref(Spanned<PoolId<HirExpression>>),
+    Reference(Spanned<PoolId<HirExpression>>),
 }

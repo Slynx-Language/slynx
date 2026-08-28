@@ -9,57 +9,52 @@ use common::pool::DedupPoolId;
 use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::tokens::{Token, TokenKind};
 use smallvec::{SmallVec, smallvec};
+
+enum TypeMutability {
+    MutableRef,
+    ImmutableRef,
+    ImmutableValue,
+}
+
 impl Parser<'_> {
-    pub fn type_name(
-        &self,
-        ty: DedupPoolId<Type>,
-        type_params: &[(SymbolPointer, u8)],
-    ) -> SymbolPointer {
-        match &self.types[ty] {
-            Type::Plain(gi) => gi.identifier,
-            Type::Array(arr, len) => {
-                let name = self.symbols.get_name(self.type_name(*arr, type_params));
-                let len = match self.expressions.get(*len) {
-                    ASTExpression::IntLiteral(int) => int.to_string(),
-                    _ => unimplemented!(
-                        "This is not supported. An array type should contain a number inside it to determine its size. This is an expression due to the possibility of comptime, that is idealized. But at the moment only integer literals are accepted"
-                    ),
-                };
-                self.intern(&format!("[{len}]{name}"))
-            }
-            Type::Vector(inner) => self.intern(&format!(
-                "[]{}",
-                self.symbols.get_name(self.type_name(*inner, type_params))
-            )),
-            Type::Nullable(inner) => self.intern(&format!(
-                "{}?",
-                self.symbols.get_name(self.type_name(*inner, type_params))
-            )),
-            Type::Generic(index) => type_params
-                .iter()
-                .find(|(_, i)| *i == *index)
-                .map(|(name, _)| *name)
-                .unwrap_or_else(|| self.intern(&format!("Generic({index})"))),
-        }
+    pub fn type_name(&self, ty: DedupPoolId<Type>, type_params: &[SymbolPointer]) -> SymbolPointer {
+        crate::type_name(self.types, self.symbols, self.expressions, ty, type_params)
+    }
+
+    ///Represents the type of 'Self' on a method call
+    pub fn self_type(&self) -> DedupPoolId<Type> {
+        self.intern_type(Type::Plain(GenericIdentifier {
+            generic: SmallVec::new(),
+            identifier: self.intern("Self"),
+        }))
     }
 
     ///Parses a typed name. A typed name is `name: type`, which is a name that contains a type
     pub fn parse_typedname(&mut self, type_params: TypeParamScope) -> Result<Spanned<TypedName>> {
+        let ty = match self.peek()?.kind {
+            TokenKind::BitAnd => {
+                self.eat()?;
+                if self.peek()?.kind == TokenKind::Mut {
+                    self.eat()?;
+                    TypeMutability::MutableRef
+                } else {
+                    TypeMutability::ImmutableRef
+                }
+            }
+            _ => TypeMutability::ImmutableValue,
+        };
         let name = self.expect_identifier()?;
         if name.data == self.intern("self") {
-            return Ok(Spanned::new(
-                TypedName {
-                    name,
-                    kind: Spanned::new(
-                        self.intern_type(Type::Plain(GenericIdentifier {
-                            generic: SmallVec::new(),
-                            identifier: self.intern("Self"),
-                        })),
-                        name.span,
-                    ),
-                },
-                name.span,
-            ));
+            let selftype = self.self_type();
+            let out_type = match ty {
+                TypeMutability::ImmutableValue => selftype,
+                TypeMutability::MutableRef => self.intern_type(Type::MutableReference(selftype)),
+                TypeMutability::ImmutableRef => self.intern_type(Type::Reference(selftype)),
+            };
+            return Ok(name.span.make_spanned(TypedName {
+                name,
+                kind: name.span.make_spanned(out_type),
+            }));
         }
         self.expect(&TokenKind::Colon)?;
         let ty = self.parse_type(type_params)?;
@@ -205,6 +200,22 @@ impl Parser<'_> {
         let start_span = token.span;
 
         let ty = match &token.kind {
+            TokenKind::BitAnd => {
+                let span = self.expect(&TokenKind::BitAnd)?.span;
+                match self.peek()?.kind {
+                    TokenKind::Mut => {
+                        self.expect(&TokenKind::Mut)?;
+                        let ty = self.parse_type(type_params)?;
+                        let id = self.intern_type(Type::MutableReference(ty.data));
+                        span.merge_with(ty.span).make_spanned(id)
+                    }
+                    _ => {
+                        let ty = self.parse_type(type_params)?;
+                        let id = self.intern_type(Type::Reference(ty.data));
+                        span.merge_with(ty.span).make_spanned(id)
+                    }
+                }
+            }
             TokenKind::LParen if self.peek_at(1)?.kind == TokenKind::RParen => {
                 self.expect(&TokenKind::LParen)?;
                 self.expect(&TokenKind::RBrace)?;

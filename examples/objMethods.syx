@@ -1,4 +1,10 @@
+func k(): void {
+    g();
+}
+func g(): void {}
+func f(): void {}
 func main(): void {
+    k();
     let v = Counter.new();
     v.increment(5);
     let v2 = Counter(value: 10);
@@ -12,15 +18,15 @@ pub object Counter {
         Self(value: 0)
     }
 
-    func increment(self, amount: int): void {
+    func increment(&mut self, amount: int): void {
         self.value = self.value + amount;
     }
 
-    func add(self, other: Self): void {
+    func add(&mut self, other: Self): void {
         self.value = self.value + other.value;
     }
 
-    func getValue(self): int {
+    func getValue(&self): int {
         self.value
     }
 }

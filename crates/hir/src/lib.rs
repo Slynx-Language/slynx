@@ -52,7 +52,7 @@
 //! - [`HIRErrorKind::MissingProperty`] — Missing required object fields
 
 mod builders;
-
+pub use builders::*;
 /// Scope, symbol, type, and declaration management modules.
 pub mod context;
 
@@ -64,13 +64,14 @@ mod helpers;
 /// Unique ID types for HIR elements.
 pub mod id;
 pub mod model;
+/// Ownership analysis: move semantics, borrow checking, and place construction.
+pub mod ownership;
 mod queries;
 
 use std::ops::{Deref, Index};
 
 pub use crate::error::{HIRError, HIRErrorKind};
 use crate::{
-    builders::HirQueueBuilder,
     context::{LangItems, SymbolRegistry, TypesContext},
     file::HirFile,
 };
@@ -140,6 +141,10 @@ pub struct SlynxHir<'a> {
     pub expressions: Pool<HirExpression>,
     pub statements: Pool<HirStatement>,
     pub component_expressions: Pool<HirComponentExpression>,
+    /// Pool of places constructed during ownership analysis.
+    pub places: Pool<HirPlace>,
+    /// Mapping from VariableId to its source name, populated during HIR construction.
+    pub variable_names: DashMap<VariableId, SymbolPointer>,
     /// All top-level declarations generated from the sources.
     ///
     /// This vector contains every function, component, object, and type alias
@@ -178,6 +183,8 @@ impl<'a> SlynxHir<'a> {
             expressions: Pool::new(),
             statements: Pool::new(),
             component_expressions: Pool::new(),
+            places: Pool::new(),
+            variable_names: DashMap::new(),
             symbols_registry: SymbolRegistry::default(),
             symbols_resolver: modules.symbols(),
             types_module: TypesContext::new(),
@@ -196,18 +203,17 @@ impl<'a> SlynxHir<'a> {
         self.files.entry(id).or_insert_with(|| HirFile::new(id))
     }
 
-    fn generate(&'a self, modules: &'a Modules<'a>) -> Result<()> {
-        let mut builder = HirQueueBuilder::new(self, modules);
-        let entry = &modules.entries()[0];
-        for func in entry.func() {
-            let node = builder.get_node(entry.id);
-            builder.enqueue_function(func, node)?;
-        }
-        for comp in entry.component() {
-            builder.enqueue_component(comp, entry.id)?;
+    fn generate(&'a self, modules: &Modules) -> Result<()> {
+        let builder = HirQueueBuilder::new(self, modules);
+        {
+            let entry = &modules.entries()[0];
+            let main_symbol = self.intern_name("main");
+            if let Some(mainfunc) = entry.func().iter().find(|func| func.name == main_symbol) {
+                builder.enqueue_function(mainfunc, entry.id)?;
+                builder.process()?;
+            }
         }
         builder.close_bodies();
-        builder.process()?;
         Ok(())
     }
 }
@@ -237,5 +243,12 @@ impl Index<PoolId<HirComponentExpression>> for SlynxHir<'_> {
     type Output = HirComponentExpression;
     fn index(&self, index: PoolId<HirComponentExpression>) -> &Self::Output {
         &self.component_expressions[index]
+    }
+}
+
+impl Index<PoolId<HirPlace>> for SlynxHir<'_> {
+    type Output = HirPlace;
+    fn index(&self, index: PoolId<HirPlace>) -> &Self::Output {
+        &self.places[index]
     }
 }

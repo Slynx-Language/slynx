@@ -26,11 +26,23 @@ pub struct HIRError {
 pub enum InvalidWriteReason {
     ImmutableVariable(SymbolPointer),
     ExpressionNotAssignable,
+    ReferenceImmutable,
+}
+
+#[derive(Debug)]
+pub enum NotMutableReason {
+    ImmutableVariable(SymbolPointer),
+    ExpressionNotAssignable,
 }
 
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    MethodNotFound(SymbolPointer),
+    StaticMethodNotFound(SymbolPointer),
+    InvalidTypeAccess,
+    ExpressionNotMutable(NotMutableReason),
+    InvalidDeref,
     ArrayLengthMismatch {
         expected: usize,
         actual: usize,
@@ -62,12 +74,12 @@ pub enum HIRErrorKind {
     /// A field access was attempted on a type that does not support it.
     InvalidFieldAccessTarget {
         /// The type that was incorrectly accessed.
-        ty: HirType,
+        ty: DedupPoolId<HirType>,
     },
     /// A tuple index access was attempted on a non-tuple type.
     InvalidTupleAccessTarget {
         /// The type that was incorrectly accessed.
-        ty: HirType,
+        ty: DedupPoolId<HirType>,
     },
     /// A tuple was indexed out of bounds.
     InvalidTupleIndex {
@@ -188,6 +200,40 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn method_not_found(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::MethodNotFound(name),
+            span,
+        }
+    }
+
+    pub fn static_method_not_found(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::StaticMethodNotFound(name),
+            span,
+        }
+    }
+
+    pub fn invalid_type_access(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidTypeAccess,
+            span,
+        }
+    }
+
+    pub fn expression_not_mutable(reason: NotMutableReason, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::ExpressionNotMutable(reason),
+            span,
+        }
+    }
+
+    pub fn invalid_deref(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidDeref,
+            span,
+        }
+    }
     pub fn array_length_mismatch(expected: usize, actual: usize, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::ArrayLengthMismatch { expected, actual },
@@ -236,6 +282,14 @@ impl HIRError {
             span,
         }
     }
+
+    pub fn invalid_ref_write(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidWrite(InvalidWriteReason::ReferenceImmutable),
+            span,
+        }
+    }
+
     pub fn invalid_variable_write(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(name)),
@@ -268,7 +322,7 @@ impl HIRError {
     }
     ///Creates a new `InvalidStyleDefinition` error, where the name of the style definition is the given `name` and the given `span` is
     ///the span on the code that generated so
-    pub fn invalid_tuple_target(target: HirType, span: Span) -> Self {
+    pub fn invalid_tuple_target(target: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidTupleAccessTarget { ty: target },
             span,
@@ -319,7 +373,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::InvalidFieldAccessTarget`] for accessing a non-struct type as a struct.
-    pub fn not_a_struct(ty: HirType, span: Span) -> Self {
+    pub fn not_a_struct(ty: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidFieldAccessTarget { ty },
             span,
@@ -333,7 +387,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::InvalidTupleAccessTarget`] for accessing a non-tuple type as a tuple.
-    pub fn not_a_tuple(ty: HirType, span: Span) -> Self {
+    pub fn not_a_tuple(ty: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidTupleAccessTarget { ty },
             span,
@@ -474,6 +528,15 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::MethodNotFound(_) => {
+                write!(f, "Method not found")
+            }
+            HIRErrorKind::StaticMethodNotFound(_) => {
+                write!(f, "Static method not found")
+            }
+            HIRErrorKind::InvalidTypeAccess => write!(f, "Invalid type access"),
+            HIRErrorKind::ExpressionNotMutable(_) => write!(f, "Expression not mutable"),
+            HIRErrorKind::InvalidDeref => write!(f, "Invalid deref"),
             HIRErrorKind::ArrayLengthMismatch { expected, actual } => {
                 write!(
                     f,
@@ -503,7 +566,10 @@ impl std::fmt::Display for HIRError {
                 write!(f, "Atempt to write on a imutable variable")
             }
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable) => {
-                write!(f, "Expression not assignable")
+                write!(f, "The expression is not assignable")
+            }
+            HIRErrorKind::InvalidWrite(InvalidWriteReason::ReferenceImmutable) => {
+                write!(f, "Reference being written is immutable")
             }
             HIRErrorKind::InvalidFieldAccess => write!(f, "Invalid field access"),
             HIRErrorKind::TypeNotRecognized(_) => write!(f, "Type not recognized"),

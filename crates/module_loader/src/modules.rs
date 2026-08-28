@@ -87,53 +87,38 @@ impl<'a> Modules<'a> {
     pub fn get_type(&self, ty: DedupPoolId<Type>) -> &Type {
         self.loader.types.get(ty)
     }
+
+    ///Retrieves the name of the inner type of the given `ty`. For example, if this is &Thing, this will return 'Thing' same as &mut Thing, and etc.
+    pub fn referenced_name(&self, ty: DedupPoolId<Type>) -> Option<SymbolPointer<FrontendSymbol>> {
+        match self.get_type(ty) {
+            Type::Plain(generic) => Some(generic.identifier),
+            Type::Reference(ty) => self.referenced_name(*ty),
+            Type::MutableReference(ty) => self.referenced_name(*ty),
+            _ => None,
+        }
+    }
+
     pub fn type_name(
         &self,
         ty: DedupPoolId<Type>,
         context: &TypeContext<'_>,
     ) -> SymbolPointer<FrontendSymbol> {
-        match &self.loader.types[ty] {
-            Type::Plain(gi) => gi.identifier,
-            Type::Array(arr, len) => {
-                let name = self.loader.symbols.get_name(self.type_name(*arr, context));
-                let len = match self.loader.expressions.get(*len) {
-                    ASTExpression::IntLiteral(int) => int.to_string(),
-                    _ => unimplemented!(
-                        "This is not supported. An array type should contain a number inside it to determine its size. This is an expression due to the possibility of comptime, that is idealized. But at the moment only integer literals are accepted"
-                    ),
-                };
-                self.loader.symbols.intern(&format!("[{len}]{name}"))
-            }
-            Type::Vector(inner) => self.loader.symbols.intern(&format!(
-                "[]{}",
-                self.loader
-                    .symbols
-                    .get_name(self.type_name(*inner, context))
-            )),
-            Type::Nullable(inner) => {
-                let inner_name = self
-                    .loader
-                    .symbols
-                    .get_name(self.type_name(*inner, context));
-                match self.loader.types.get(*inner) {
-                    Type::Array(_, _) | Type::Vector(_) => {
-                        self.loader.symbols.intern(&format!("({inner_name})?"))
-                    }
-
-                    _ => self.loader.symbols.intern(&format!("{inner_name}?")),
-                }
-            }
-            Type::Generic(index) => context.generic_names[*index as usize],
-        }
+        slynx_parser::type_name(
+            self.loader.types,
+            self.loader.symbols,
+            self.loader.expressions,
+            ty,
+            context.generic_names,
+        )
     }
 
     pub fn find_function_declaration(
         &self,
         name: SymbolPointer<FrontendSymbol>,
         module: FileId,
-    ) -> Option<(FileId, &slynx_parser::FuncDeclaration)> {
+    ) -> Option<(FileId, usize)> {
         let module = &self.modules[module.as_raw() as usize];
-        if let Some(v) = module.func().iter().find(|func| func.name == name) {
+        if let Some(v) = module.func().iter().position(|func| func.name == name) {
             return Some((module.id, v));
         }
         for import in module.imports() {

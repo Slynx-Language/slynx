@@ -1,0 +1,12 @@
+object Person {
+    name: str
+}
+
+func main(): void {
+    let mut a = 5;
+    let mut p = Person(name: "John");
+    let aref = &mut a;
+    let pref = &mut p;
+    *aref = 10;
+    pref.name = "";
+}

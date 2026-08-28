@@ -74,6 +74,10 @@ impl<'a> Formatter<'a> {
             IRType::Component(c) => self.fmt_component_type(c),
             IRType::Specialized(IRSpecializedComponentType::Div) => "@div".to_string(),
             IRType::Specialized(IRSpecializedComponentType::Text) => "@text".to_string(),
+            IRType::Pointer(inner) => format!("{}*", {
+                let ty = self.types.get_type(*inner);
+                self.fmt_type(ty)
+            }),
             IRType::Array(t, len) => format!("[{len}]{}", {
                 let ty = self.types.get_type(*t);
                 self.fmt_type(ty)
@@ -427,6 +431,14 @@ impl<'a> Formatter<'a> {
 
     pub fn format_instruction(&self, instr: &Instruction) -> String {
         match &instr.opcode {
+            Opcode::Move => format!("move {}", self.fmt_operands(&instr.operands)),
+            Opcode::Copy => format!("copy {}", self.fmt_operands(&instr.operands)),
+            Opcode::Ref => format!("ref {}", self.fmt_operands(&instr.operands)),
+            Opcode::Deref => format!("deref {}", self.fmt_operands(&instr.operands)),
+            Opcode::DerefWrite => format!("deref_write {}", self.fmt_operands(&instr.operands)),
+            Opcode::FieldRef(index) => {
+                format!("field_ref {}, {index}", self.fmt_operands(&instr.operands))
+            }
             Opcode::Zeroed => "zeroed".to_string(),
             Opcode::ArrayGet => format!("array_get {}", self.fmt_operands(&instr.operands)),
             Opcode::Array => format!("[{}]", self.fmt_operands(&instr.operands)),
@@ -483,7 +495,7 @@ impl<'a> Formatter<'a> {
             Opcode::SetField(index) => {
                 let target = self.fmt_value(instr.operands[0]);
                 let value = self.fmt_value(instr.operands[1]);
-                format!("propset {target}, {index}, {value};")
+                format!("setfield {target}, {index}, {value};")
             }
             Opcode::DynGetField(name) => {
                 let target = self.fmt_value(instr.operands[0]);
@@ -526,12 +538,9 @@ impl<'a> Formatter<'a> {
                 let ty_str = self.fmt_type(self.types.get_type(instr.value_type));
                 format!("read {ty_str}, {};", self.fmt_value(instr.operands[0]))
             }
-            Opcode::Reinterpret => {
+            Opcode::Cast => {
                 let ty_str = self.fmt_type(self.types.get_type(instr.value_type));
-                format!(
-                    "reinterpret {ty_str}, {};",
-                    self.fmt_value(instr.operands[0])
-                )
+                format!("cast {ty_str}, {};", self.fmt_value(instr.operands[0]))
             }
             Opcode::Const(op) => self.fmt_operand(op),
             Opcode::RawValue => {

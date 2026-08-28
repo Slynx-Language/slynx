@@ -39,21 +39,33 @@ impl HIRScope {
     pub fn get_name(&self, name: &SymbolPointer) -> Option<VariableId> {
         self.names.get(name).map(|name| *name.value())
     }
+
+    /// Returns whether the provided `id` is mutable on this scope.
+    pub fn contains(&self, id: VariableId) -> Option<SymbolPointer> {
+        self.names
+            .iter()
+            .find_map(|entry| (*entry.value() == id).then_some(*entry.key()))
+    }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 ///A Context made with the intent of managing data inside scopes. Note that everything on this scope will have affect on the last defined scope.
 ///So when entering a new scope, it means all functions will have effect on this new scope. This struct always derefs to the last active scope
 pub struct ScopeContext {
     scopes: Vec<HIRScope>,
 }
 
+impl Default for ScopeContext {
+    fn default() -> Self {
+        Self {
+            scopes: vec![HIRScope::new()],
+        }
+    }
+}
+
 impl ScopeContext {
-    /// Creates a new [`ScopeContext`] with an initial global scope already pushed.
-    pub fn new() -> Self {
-        let mut out = Self::default();
-        out.enter_scope();
-        out
+    pub fn variable_count(&self) -> usize {
+        self.scopes.iter().map(|scope| scope.names.len()).sum()
     }
 
     ///Retrieves how many scopes there are

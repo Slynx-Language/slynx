@@ -8,7 +8,7 @@ use module_loader::FileId;
 
 use crate::{
     DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
-    HirStaticDeclaration, HirStylesheetDeclaration, SymbolPointer, context::ScopeContext,
+    HirStaticDeclaration, HirStylesheetDeclaration, SymbolPointer,
     file::declarations::FileDeclarations,
 };
 
@@ -16,7 +16,6 @@ use crate::{
 pub struct HirFile {
     pub file: FileId,
     pub declarations: FileDeclarations,
-    pub scopes: ScopeContext,
 }
 
 macro_rules! create_methods {
@@ -36,7 +35,6 @@ impl HirFile {
         HirFile {
             file,
             declarations: FileDeclarations::new(),
-            scopes: ScopeContext::new(),
         }
     }
 

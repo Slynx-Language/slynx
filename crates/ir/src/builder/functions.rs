@@ -181,7 +181,8 @@ impl<'a> FunctionBuilder<'a> {
     /// Emit an instruction and return its resulting [`Value`].
     ///
     /// The returned `Value` numerically equals the instruction's index
-    /// in `SlynxIR.instructions`. Appends a new value on the current label if its an impure instruction
+    /// in `SlynxIR.instructions`. Appends a new value on the current label if its an impure instruction. Note that IF THE INSTRUCTION IS PURE, IT WILL NOT BE APPENDED TO THE LABEL, it will be appended into the IR, and might be
+    /// appended into the label IF AND ONLY IF, some impure instruction depends on this instruction.
     #[inline]
     pub fn emit(
         &mut self,
@@ -331,6 +332,16 @@ impl FunctionBuilder<'_> {
         let ty = self.value_type(value);
         self.emit(Opcode::Ret, smallvec![value], ty)
     }
+    ///Emits a copy instruction.
+    pub fn copy(&mut self, value: Value) -> Value {
+        let ty = self.value_type(value);
+        self.emit(Opcode::Copy, smallvec![value], ty)
+    }
+    ///Emits a move semantics instruction.
+    pub fn mov(&mut self, value: Value) -> Value {
+        let ty = self.value_type(value);
+        self.emit(Opcode::Move, smallvec![value], ty)
+    }
 
     pub fn allocate(&mut self, ty: IRTypeId) -> Value {
         self.emit(Opcode::Allocate, smallvec![], ty)
@@ -355,7 +366,17 @@ impl FunctionBuilder<'_> {
     pub fn set_field(&mut self, object: Value, index: u16, value: Value) -> Value {
         self.emit_void(Opcode::SetField(index), smallvec![object, value])
     }
-
+    pub fn deref_write(&mut self, target: Value, value: Value) -> Value {
+        self.emit_void(Opcode::DerefWrite, smallvec![target, value])
+    }
+    pub fn field_ref(&mut self, value: Value, field_index: u16) -> Value {
+        let ty = self.value_type(value);
+        self.emit(
+            Opcode::FieldRef(field_index),
+            smallvec![value],
+            self.ir.insert_type(IRType::Pointer(ty)),
+        )
+    }
     /// Dynamically get a field by name from an external object.
     pub fn dyn_get_field(&mut self, object: Value, name: SymbolPointer) -> Value {
         let ty = self.value_type(object);

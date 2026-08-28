@@ -3,6 +3,7 @@ use slynx_hir::{
     DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType,
     SlynxHir, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    ownership::ExpressionUse,
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
 use smallvec::{SmallVec, smallvec};
@@ -109,15 +110,34 @@ impl Codegen {
     ) -> Result<Value, CodegenError> {
         let value = self.lower_expression(expr, hir, ctx)?;
         let ty = hir[expr.data].ty;
-        if hir.types_module.is_external(&ty) {
-            let name = self.intern_to_ir(
-                hir,
-                ctx.ir(),
-                field_name.expect("External field access must have a field name"),
-            );
-            Ok(ctx.dyn_get_field(value, name))
-        } else {
-            Ok(ctx.get_field(value, field_index))
+
+        match () {
+            _ if hir.types_module.is_external(&ty) => {
+                let name = self.intern_to_ir(
+                    hir,
+                    ctx.ir(),
+                    field_name.expect("External field access must have a field name"),
+                );
+                Ok(ctx.dyn_get_field(value, name))
+            }
+            _ if let HirExpressionKind::Deref(inner) = hir.expressions[expr.data].kind => {
+                let viewer = hir.view(inner.data);
+                let type_viewer = viewer.ty_viewer();
+                let concrete_type = type_viewer.concrete_type();
+                let concrete_type = concrete_type
+                    .is_struct()
+                    .expect("Field access should be made on a struct type");
+                let field_type = {
+                    let tmp = concrete_type.field_types()[field_index as usize];
+                    let field_type = self.get_or_create_ir_type(&tmp, hir, ctx.ir())?;
+                    ctx.ir().pointer_type(field_type)
+                };
+                let base = self.lower_expression(inner, hir, ctx)?;
+
+                let fp = ctx.field_ref(base, field_index);
+                Ok(ctx.emit(Opcode::Deref, smallvec![fp], field_type))
+            }
+            _ => Ok(ctx.get_field(value, field_index)),
         }
     }
 
@@ -204,6 +224,16 @@ impl Codegen {
         let expression = &hir[expr.data];
 
         let value = match &expression.kind {
+            HirExpressionKind::Deref(inner) => {
+                let inner = self.lower_expression(*inner, hir, context)?;
+                let ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
+                context.emit(Opcode::Deref, smallvec![inner], ty)
+            }
+            HirExpressionKind::Reference(inner) => {
+                let inner = self.lower_expression(*inner, hir, context)?;
+                let ty = self.get_or_create_ir_type(&expression.ty, hir, context.ir())?;
+                context.emit(Opcode::Ref, smallvec![inner], ty)
+            }
             HirExpressionKind::Null => {
                 let HirType::Nullable(inner) = hir.types_module[expression.ty].clone() else {
                     unreachable!("Type of null should be a nullable");
@@ -275,7 +305,14 @@ impl Codegen {
             }
             HirExpressionKind::Identifier(id) => {
                 if let Some(value) = context.get_variable(*id) {
-                    value
+                    match self.ownership.expression_use(expr.data) {
+                        Some(ExpressionUse::Move) => context.mov(value),
+                        Some(ExpressionUse::Borrow) | Some(ExpressionUse::BorrowMut) => {
+                            // Reference-taking is handled by the Reference expression kind
+                            value
+                        }
+                        _ => value,
+                    }
                 } else {
                     return Err(CodegenError::UnrecognizedVariable(*id));
                 }

@@ -388,8 +388,9 @@ The `@emit p0, %count` on the function, tells that `p0` should execute its `%cou
 
 * allocate: Allocates a variable with a given type. Follows `allocate ty`. This does not mean that the value must be allocated anywhere by the backend, just that this is what in the language is the so called 'variable'. This returns a handle 
 * write: Writes on the provided value. Follow `write ty, handle, value`, the type of the `handle` must be the same as the `ty` and `value`. The handle can be casted, and so written in a different manner
-* read: Reads the provided value as the provided `ty`. Follows `read ty, handle`..
-* reinterpret: Creates a new slot based on the provided one, reinterpreted with the given ty. Follows `reinterpret, ty, slot`. 
+* cast: Casts the provided value as the provided `ty`. Follows `read ty, handle`.. This instruction does copy the value from `handle` but reinterprets it as the new type `ty`. For cases such as reinterpreting u8* as i8*.  
+* copy: Copies the provided value. Follows `copy handle`. The resultant type is the type of the `handle`.
+* move: Moves the provided value. Follows `move handle`. The resultant type is the type of the `handle`. NOTE: This will NOT check if the moved value stopped being used. The IR is idealized to be dumb, so this is a thing frontend must do.
 
 #### Termination Operations
 

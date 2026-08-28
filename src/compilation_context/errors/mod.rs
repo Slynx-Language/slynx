@@ -74,7 +74,7 @@ impl std::fmt::Display for SlynxError {
         let type_error = self.ty.to_string();
         let source = self.metadata.source().replace("\t", " ");
         let before_error = format!("{} |", self.line);
-        let error_with_data = format!("{before_error}{source}");
+        let error_with_data = format!("{before_error}{}", source.trim());
 
         let error_points = {
             let points = "^".repeat(self.metadata.source().trim().len());

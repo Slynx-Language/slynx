@@ -27,6 +27,8 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
                 format!("[{len}]{}", self.new_with(*ty).name())
             }
             HirType::Vector(ty) => format!("[]{}", self.new_with(*ty).name()),
+            HirType::ImutableRef(ty) => format!("&{}", self.new_with(*ty).name()),
+            HirType::MutableRef(ty) => format!("&mut {}", self.new_with(*ty).name()),
 
             HirType::Str => "str".to_string(),
             HirType::Reference { rf, generics } => {
@@ -147,11 +149,62 @@ impl HirViewer<'_, DedupPoolId<HirType>> {
         }
         self.new_with(data)
     }
+
+    ///Returns the concrete type of this type. If this type is a reference type(a type that maps to another type), this function will find the concrete type, and if the concrete type is a reference(&T/&mut T), this function will retrieve T
+    ///Its then different from [`dereference`] which will return the type by remapping it, but yet making &T/&mut T a possible return case, where this one gets the concrete T type being used. This is mainly useful for checks where
+    ///you do wanna see the concrete type that is being dealed, even though its abstracted by something, such, as said above, &T.
+    ///Same thing to track nullable types.
+    ///
+    ///```
+    ///let strukt_type = hir.create_struct_type();
+    ///let ty = hir.create_type(HirType::Nullable(strukt_type));
+    ///let type_view = type_view.concrete_type();
+    ///assert_eq!(type_view.data, strukt_type);
+    ///```
+    ///
+    pub fn concrete_type(&self) -> HirViewer<'_, DedupPoolId<HirType>> {
+        let mut data = self.data;
+        while let HirType::Nullable(rf)
+        | HirType::ImutableRef(rf)
+        | HirType::MutableRef(rf)
+        | HirType::Reference { rf, .. } = self.hir.deref()[data]
+        {
+            data = rf
+        }
+        self.new_with(data)
+    }
+
+    pub fn is_ref(&self) -> bool {
+        matches!(
+            self.hir.deref()[self.data],
+            HirType::ImutableRef { .. } | HirType::MutableRef { .. }
+        )
+    }
+    pub fn is_imutable_ref(&self) -> Option<HirViewer<'_, DedupPoolId<HirType>>> {
+        if let HirType::ImutableRef(inner) = self.hir.deref()[self.data] {
+            Some(self.new_with(inner))
+        } else {
+            None
+        }
+    }
+    pub fn is_mutable_ref(&self) -> Option<HirViewer<'_, DedupPoolId<HirType>>> {
+        if let HirType::MutableRef(inner) = self.hir.deref()[self.data] {
+            Some(self.new_with(inner))
+        } else {
+            None
+        }
+    }
 }
 
 impl Deref for HirViewer<'_, DedupPoolId<HirType>> {
     type Target = HirType;
     fn deref(&self) -> &Self::Target {
         &self.hir.deref()[self.data]
+    }
+}
+
+impl std::fmt::Display for HirViewer<'_, DedupPoolId<HirType>> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
     }
 }

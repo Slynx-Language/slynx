@@ -1,4 +1,4 @@
-use common::pool::DedupPoolId;
+use common::{VisibilityModifier, pool::DedupPoolId};
 
 use crate::{
     DeclarationId, HirFunctionDeclaration, HirType, StructType, SymbolPointer, TupleType,
@@ -23,8 +23,25 @@ impl HirViewer<'_, DedupPoolId<StructType>> {
     }
     pub fn methods(&self) -> &[Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>] {
         let metadata = self.hir.types_module[self.data].metadata;
-
         &self.hir.types_module[metadata].methods
+    }
+    pub fn public_methods(
+        &self,
+    ) -> impl Iterator<Item = &Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>
+    {
+        self.methods()
+            .iter()
+            .filter(|m| m.visibility == VisibilityModifier::Public)
+    }
+
+    pub fn method_named_as(
+        &self,
+        name: SymbolPointer,
+        visibility: VisibilityModifier,
+    ) -> Option<DeclarationId<HirFunctionDeclaration>> {
+        self.methods()
+            .iter()
+            .find_map(|m| (m.data.0 == name && m.visibility == visibility).then_some(m.data.1))
     }
 }
 

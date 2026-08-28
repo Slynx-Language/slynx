@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use std::{hash::Hash, ops::Deref};
 
 ///The representation of the bounds of something on the code.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
@@ -50,3 +50,11 @@ where
     }
 }
 impl<T> Eq for Spanned<T> where T: PartialEq {}
+
+impl<T> Deref for Spanned<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}

@@ -1,6 +1,7 @@
 use slynx_hir::{
     SlynxHir,
-    error::{HIRError, HIRErrorKind, InvalidWriteReason},
+    error::{HIRError, HIRErrorKind, InvalidWriteReason, NotMutableReason},
+    ownership::{OwnershipError, OwnershipErrorKind},
 };
 
 use crate::{
@@ -11,6 +12,29 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::MethodNotFound(name) => {
+                format!(
+                    "Method '{}' could not be found on the given struct",
+                    hir.get_name(*name)
+                )
+            }
+            HIRErrorKind::StaticMethodNotFound(name) => {
+                format!("Static method not found: {}", hir.get_name(*name))
+            }
+            HIRErrorKind::InvalidTypeAccess => "Invalid type access".to_string(),
+            HIRErrorKind::ExpressionNotMutable(NotMutableReason::ExpressionNotAssignable) => {
+                "Expression cannot be mutable".to_string()
+            }
+            HIRErrorKind::ExpressionNotMutable(NotMutableReason::ImmutableVariable(variable)) => {
+                format!(
+                    "Variable '{}' is immutable and cannot be mutated",
+                    hir.get_name(*variable)
+                )
+            }
+            HIRErrorKind::InvalidDeref => {
+                "Invalid deref, value being dereferenced is not a reference(mutable or imutable)"
+                    .to_string()
+            }
             HIRErrorKind::ArrayLengthMismatch { expected, actual } => {
                 format!(
                     "Array length mismatch: expected {}, got {}",
@@ -46,12 +70,15 @@ impl SlynxContext {
                 "Component property is missing type definition".to_string()
             }
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable) => {
-                "Expression not assignable".to_string()
+                "Expression is not assignable".to_string()
             }
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(v)) => format!(
                 "Invalid write to '{}' variable, which is immutable.",
                 hir.get_name(*v)
             ),
+            HIRErrorKind::InvalidWrite(InvalidWriteReason::ReferenceImmutable) => {
+                "Reference being written is immutable".to_string()
+            }
             HIRErrorKind::InvalidFieldAccess => "Invalid field access".to_string(),
             HIRErrorKind::InvalidFuncallArgLength {
                 func_name,
@@ -80,10 +107,12 @@ impl SlynxContext {
                 format!("Type with name '{name}' was not defined")
             }
             HIRErrorKind::InvalidFieldAccessTarget { ty } => {
-                format!("Type '{ty:?}' does not support field-style access")
+                let ty = hir.view(*ty).name();
+                format!("Type '{ty}' does not support field-style access")
             }
             HIRErrorKind::InvalidTupleAccessTarget { ty } => {
-                format!("Type '{ty:?}' does not support tuple-style access")
+                let ty = hir.view(*ty).name();
+                format!("Type '{ty}' does not support tuple-style access")
             }
             HIRErrorKind::InvalidTupleIndex { index, length } => {
                 format!(
@@ -205,6 +234,57 @@ impl SlynxContext {
             self.file_name(),
             src.to_string(),
             suggestion,
+        )
+    }
+
+    pub fn handle_ownership_error(&self, hir: &SlynxHir, error: &OwnershipError) -> SlynxError {
+        let message = match &error.kind {
+            OwnershipErrorKind::UseAfterMove { variable } => {
+                format!(
+                    "Variable '{}' is used after it was moved",
+                    hir.get_variable_name(*variable)
+                )
+            }
+            OwnershipErrorKind::ConflictingBorrow {
+                variable,
+                existing_borrow,
+                new_borrow,
+            } => {
+                format!(
+                    "Cannot borrow variable '{}' as {} because it is already {}",
+                    hir.get_variable_name(*variable),
+                    new_borrow,
+                    existing_borrow
+                )
+            }
+            OwnershipErrorKind::MoveWhileBorrowed { variable } => {
+                format!(
+                    "Cannot move variable '{}' because it is currently borrowed",
+                    hir.get_variable_name(*variable)
+                )
+            }
+            OwnershipErrorKind::MutablyBorrowImmutable { variable } => {
+                format!(
+                    "Cannot borrow variable '{}' as mutable because it is immutable",
+                    hir.get_variable_name(*variable)
+                )
+            }
+        };
+
+        let LineInfo {
+            line,
+            column_start,
+            column_end,
+            src,
+        } = self.get_line_info(&self.entry_point, error.span.start as usize);
+        SlynxError::new_hir(
+            line,
+            column_start,
+            column_end,
+            message,
+            self.file_name(),
+            src.to_string(),
+            vec![],
         )
     }
 }

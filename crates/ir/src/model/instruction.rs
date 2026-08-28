@@ -12,6 +12,21 @@ use crate::{
 /// IR references directly — no separate lookup table required.
 #[derive(Debug, Clone)]
 pub enum Opcode {
+    ///Moves the first operand. This instruction is mainly idealized to make it easier to represent move semantics.
+    Move,
+    ///Copies the first operand.
+    Copy,
+    /// Casts the first operand to the second operand.
+    Cast,
+
+    /// A reference to a value. The first operand is the value being referenced. It should always be a variable
+    Ref,
+    /// Dereferences a value. The first operand is the value being dereferenced.
+    Deref,
+    /// Dereferences a value and writes to it. The first operand is the value being dereferenced, and the second operand is the value to write.
+    DerefWrite,
+    /// Gets the reference to the field of the value. The first operand is the value being referenced, the value inside this variant is the index of the struct field.
+    FieldRef(u16),
     // ═══════════════════════════════════════════════════════════════════
     //  Values
     // ═══════════════════════════════════════════════════════════════════
@@ -110,12 +125,6 @@ pub enum Opcode {
     /// Call a function.  Operands are the call arguments.
     Call(IRPointer<Function, 1>),
 
-    // ═══════════════════════════════════════════════════════════════════
-    //  Reinterpret / raw
-    // ═══════════════════════════════════════════════════════════════════
-    /// Reinterpret the bits of a value as a different type.
-    Reinterpret,
-
     /// A "raw value" wrapper.  The sole operand is a [`Value`] that
     /// holds the raw bits.
     RawValue,
@@ -176,7 +185,8 @@ impl Opcode {
     pub fn is_impure(&self) -> bool {
         matches!(
             self,
-            Opcode::Allocate
+            Opcode::DerefWrite
+                | Opcode::Allocate
                 | Opcode::Write
                 | Opcode::SetField(_)
                 | Opcode::DynSetField(_)
@@ -192,7 +202,11 @@ impl Opcode {
     pub fn is_inlineable(&self) -> bool {
         matches!(
             self,
-            Opcode::Const(_) | Opcode::Arg(_) | Opcode::BlockParam(_) | Opcode::RawValue
+            Opcode::Const(_)
+                | Opcode::Arg(_)
+                | Opcode::BlockParam(_)
+                | Opcode::RawValue
+                | Opcode::Ref
         )
     }
 }
