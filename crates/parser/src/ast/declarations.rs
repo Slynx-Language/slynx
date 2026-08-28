@@ -1,4 +1,5 @@
 use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
+use smallvec::SmallVec;
 
 use crate::{
     ASTExpression, ASTStatement, ComponentMember, ObjectField, StyleSheetStatement, SymbolPointer,
@@ -100,6 +101,43 @@ pub struct StaticDeclaration {
     pub visibility: VisibilityModifier,
     pub span: Span,
     pub external: bool,
+}
+
+#[derive(Debug)]
+pub enum EnumVariantKind {
+    ///represents a raw variant, such as 'Name' in `enum N {Name}`
+    Raw,
+    ///represents a raw valued variant, such as 'Name' in `enum N {Name = 5}`
+    RawValued(Spanned<DedupPoolId<ASTExpression>>),
+    ///represents an associated variant, such as 'Name' in `enum N {Name(int)}`
+    Associated(SmallVec<[Spanned<DedupPoolId<Type>>; 2]>),
+    ///represents a struct variant, such as 'Name' in `enum N {Name { <fields> }}`
+    Struct(SmallVec<[Spanned<TypedName>; 2]>),
+}
+
+#[derive(Debug)]
+pub struct EnumVariant {
+    ///Name of the variant
+    pub name: Spanned<SymbolPointer>,
+    ///The kind of the variant
+    pub kind: EnumVariantKind,
+    ///The attributes of the variant
+    pub attributes: Vec<Spanned<ASTAttribute>>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct EnumDeclaration {
+    ///The name of the enum
+    pub name: SymbolPointer,
+    ///The generic parameters given to this enum
+    pub type_params: Vec<SymbolPointer>,
+    ///What representation to use for this enum. Only valid with all variants being Raw or RawValued
+    pub representation: Option<Spanned<DedupPoolId<Type>>>,
+    pub variants: Vec<EnumVariant>,
+    pub attributes: Vec<Spanned<ASTAttribute>>,
+    pub visibility: VisibilityModifier,
+    pub span: Span,
 }
 
 #[derive(Debug)]
