@@ -10,34 +10,71 @@ use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result,
     builders::{
         HirQueueBuilder,
-        expression::{calls::FunctionCallDescriptor, literals::ReferenceExpressionDescriptor},
+        expression::{
+            calls::{FunctionCallDescriptor, FunctionTarget},
+            literals::ReferenceExpressionDescriptor,
+        },
     },
     helpers::Visible,
 };
 
-use super::ExpressionBuilder;
+use super::{ExpressionBuilder, ExpressionDescriptor};
+
+///A descriptor for a field (or type member) access expression.
+pub struct FieldAccessDescriptor<'a> {
+    ///The parent we are accessing a member from. It can either be a raw AST
+    ///expression that still needs to be built, or an already-built HIR
+    ///expression (used when chaining accesses).
+    pub parent: Either<Spanned<DedupPoolId<ASTExpression>>, Spanned<PoolId<HirExpression>>>,
+    ///The field (or method) being accessed
+    pub field: Spanned<DedupPoolId<ASTExpression>>,
+    ///The span of the access expression, used for error reporting
+    pub span: Span,
+    ///The expected type of the access, if known
+    pub expected: Option<DedupPoolId<HirType>>,
+    ///The type context used to resolve types
+    pub context: &'a TypeContext<'a>,
+}
 
 impl ExpressionBuilder {
-    pub(super) fn build_access(
+    ///Builds a member access on a parent expression. When the parent names a
+    ///type, this resolves a static member access (such as a static method);
+    ///otherwise it builds a value field access.
+    pub(super) fn build_field_access(
         &mut self,
         queue: &HirQueueBuilder,
-        parent: Spanned<DedupPoolId<ASTExpression>>,
-        field_ast: Spanned<DedupPoolId<ASTExpression>>,
-        expected: Option<DedupPoolId<HirType>>,
-        span: Span,
-        context: &TypeContext,
+        descriptor: FieldAccessDescriptor<'_>,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
-        match queue.get_expr(parent.data) {
-            ASTExpression::Identifier(ident)
-                if let Ok((file, ty)) = queue
-                    .get_node(self.file())
-                    .find_type_named_as(parent.span.make_spanned(*ident), context) =>
-            {
-                self.build_type_access(queue, file, ty, field_ast, span, context)
-            }
-            _ => {
-                let parent = self.build_expression(queue, parent, expected, context)?;
-                self.build_field_access(queue, parent, field_ast, span, context)
+        let FieldAccessDescriptor {
+            parent,
+            field,
+            span,
+            expected,
+            context,
+        } = descriptor;
+        match parent {
+            Either::Left(parent) => match queue.get_expr(parent.data) {
+                ASTExpression::Identifier(ident)
+                    if let Ok((file, ty)) = queue
+                        .get_node(self.file())
+                        .find_type_named_as(parent.span.make_spanned(*ident), context) =>
+                {
+                    self.build_type_access(queue, file, ty, field, span, context)
+                }
+                _ => {
+                    let parent = self.build_expression(
+                        queue,
+                        ExpressionDescriptor {
+                            target: parent,
+                            expected,
+                            context,
+                        },
+                    )?;
+                    self.build_field_access_impl(queue, parent, field, span, context)
+                }
+            },
+            Either::Right(parent) => {
+                self.build_field_access_impl(queue, parent, field, span, context)
             }
         }
     }
@@ -58,7 +95,7 @@ impl ExpressionBuilder {
             } => {
                 let parent =
                     self.build_type_access(queue, file_owner, ty, *inner_parent, span, context)?;
-                self.build_field_access(queue, parent, *inner_field, span, context)
+                self.build_field_access_impl(queue, parent, *inner_field, span, context)
             }
             ASTExpression::Identifier(ident) => {
                 unimplemented!("Constant values bound to types are not supported yet")
@@ -70,15 +107,18 @@ impl ExpressionBuilder {
                         let plain = queue.get_plain_type(*name);
                         &plain.generic
                     };
-                    let call = self.build_call_for(
+                    let call = self.build_function_call(
                         queue,
-                        child.span.make_spanned(FunctionCallDescriptor {
-                            target: method,
-                            received_args: args,
-                            prepend_arg: &[],
-                            received_generics: generics,
+                        FunctionCallDescriptor {
+                            target: FunctionTarget::Resolved {
+                                target: method,
+                                type_arguments: generics,
+                            },
+                            arguments: args,
+                            prepended_arguments: &[],
+                            span,
                             context,
-                        }),
+                        },
                     )?;
 
                     Ok(span.make_spanned(queue.hir.insert_expression(call)))
@@ -90,7 +130,8 @@ impl ExpressionBuilder {
         }
     }
 
-    pub(super) fn build_field_access(
+    ///Builds a member access against an already-built parent expression.
+    fn build_field_access_impl(
         &mut self,
         queue: &HirQueueBuilder,
         parent: Spanned<PoolId<HirExpression>>,
@@ -104,8 +145,14 @@ impl ExpressionBuilder {
                 field: inner_field,
             } => {
                 let intermediate =
-                    self.build_field_access(queue, parent, *inner_parent, span, context)?;
-                return self.build_field_access(queue, intermediate, *inner_field, span, context);
+                    self.build_field_access_impl(queue, parent, *inner_parent, span, context)?;
+                return self.build_field_access_impl(
+                    queue,
+                    intermediate,
+                    *inner_field,
+                    span,
+                    context,
+                );
             }
             ASTExpression::Identifier(field_name) => {
                 let parent_ty = queue.hir[parent.data].ty;
@@ -245,15 +292,18 @@ impl ExpressionBuilder {
                             };
                             [first_arg]
                         };
-                        let call = self.build_call_for(
+                        let call = self.build_function_call(
                             queue,
-                            span.make_spanned(FunctionCallDescriptor {
-                                target: func_id,
-                                received_args: args,
-                                prepend_arg: &prepend_args,
-                                received_generics: &queue.get_plain_type(*name).generic,
+                            FunctionCallDescriptor {
+                                target: FunctionTarget::Resolved {
+                                    target: func_id,
+                                    type_arguments: &queue.get_plain_type(*name).generic,
+                                },
+                                arguments: args,
+                                prepended_arguments: &prepend_args,
+                                span,
                                 context,
-                            }),
+                            },
                         )?;
                         call
                     }

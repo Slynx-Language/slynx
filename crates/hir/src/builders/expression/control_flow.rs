@@ -5,21 +5,46 @@ use crate::{
     HirExpression, HirExpressionKind, HirStatement, HirType, Result, builders::HirQueueBuilder,
 };
 
-use super::ExpressionBuilder;
+use super::{ExpressionBuilder, ExpressionDescriptor};
+
+///A descriptor for an if expression.
+pub struct IfExpressionDescriptor<'a> {
+    ///The condition of the if expression
+    pub condition: Spanned<DedupPoolId<ASTExpression>>,
+    ///The statements of the then branch
+    pub body: &'a [Spanned<DedupPoolId<ASTStatement>>],
+    ///The statements of the else branch, if any
+    pub else_body: &'a [Spanned<DedupPoolId<ASTStatement>>],
+    ///The span of the if expression, used for error reporting
+    pub span: Span,
+    ///The expected type of the if expression, if known
+    pub expected: Option<DedupPoolId<HirType>>,
+    ///The type context used to resolve types
+    pub context: &'a TypeContext<'a>,
+}
 
 impl ExpressionBuilder {
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn build_if(
         &mut self,
         queue: &HirQueueBuilder,
-        condition: Spanned<DedupPoolId<ASTExpression>>,
-        body: &[Spanned<DedupPoolId<ASTStatement>>],
-        else_body: &[Spanned<DedupPoolId<ASTStatement>>],
-        span: Span,
-        expected: Option<DedupPoolId<HirType>>,
-        context: &TypeContext,
+        descriptor: IfExpressionDescriptor<'_>,
     ) -> Result<HirExpression> {
-        let condition = self.build_expression(queue, condition, expected, context)?;
+        let IfExpressionDescriptor {
+            condition,
+            body,
+            else_body,
+            span,
+            expected,
+            context,
+        } = descriptor;
+        let condition = self.build_expression(
+            queue,
+            ExpressionDescriptor {
+                target: condition,
+                expected,
+                context,
+            },
+        )?;
         let bool_ty = queue.hir.create_type(HirType::Bool);
         self.unify_types(queue, queue.hir[condition.data].ty, bool_ty, span)?;
 
