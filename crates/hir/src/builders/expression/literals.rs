@@ -12,7 +12,7 @@ use crate::{
     builders::HirQueueBuilder, error::NotMutableReason,
 };
 
-use super::ExpressionBuilder;
+use super::{ExpressionBuilder, ExpressionDescriptor};
 
 pub struct ReferenceExpressionDescriptor<'a> {
     ///The target we will build the reference for.
@@ -40,9 +40,11 @@ impl ExpressionBuilder {
     ) -> Result<HirExpression> {
         let build_expr = self.build_expression(
             queue,
-            descriptor.target,
-            descriptor.expected,
-            descriptor.context,
+            ExpressionDescriptor {
+                target: descriptor.target,
+                expected: descriptor.expected,
+                context: descriptor.context,
+            },
         )?;
         let expr_ty = queue.hir.view(build_expr.data).ty();
         let expr_ty = match queue.hir.view(expr_ty).raw() {
@@ -63,9 +65,14 @@ impl ExpressionBuilder {
         descriptor: ReferenceExpressionDescriptor,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let hir_expression = match descriptor.target {
-            Either::Left(ast_expression) => {
-                self.build_expression(queue, ast_expression, None, descriptor.context)?
-            }
+            Either::Left(ast_expression) => self.build_expression(
+                queue,
+                ExpressionDescriptor {
+                    target: ast_expression,
+                    expected: None,
+                    context: descriptor.context,
+                },
+            )?,
             Either::Right(hir_expression) => hir_expression,
         };
         let expression_viewer = queue.hir.view(hir_expression.data);

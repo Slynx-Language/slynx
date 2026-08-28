@@ -7,7 +7,7 @@ use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, builders::HirQueueBuilder,
 };
 
-use super::ExpressionBuilder;
+use super::{ExpressionBuilder, ExpressionDescriptor};
 
 impl ExpressionBuilder {
     pub(super) fn build_tuple_expression(
@@ -28,7 +28,14 @@ impl ExpressionBuilder {
             } else {
                 None
             };
-            let expr = self.build_expression(queue, *field, field_type, context)?;
+            let expr = self.build_expression(
+                queue,
+                ExpressionDescriptor {
+                    target: *field,
+                    expected: field_type,
+                    context,
+                },
+            )?;
             types.push(queue.hir[expr.data].ty);
             expressions.push(expr);
         }
@@ -47,7 +54,14 @@ impl ExpressionBuilder {
         index: usize,
         context: &TypeContext,
     ) -> Result<HirExpression> {
-        let expr = self.build_expression(queue, tuple, expected, context)?;
+        let expr = self.build_expression(
+            queue,
+            ExpressionDescriptor {
+                target: tuple,
+                expected,
+                context,
+            },
+        )?;
         let raw_expr = &queue.hir[expr.data];
         let parent_view = queue.hir.view(raw_expr.ty);
         let resolved = parent_view.dereference();
@@ -88,7 +102,14 @@ impl ExpressionBuilder {
         span: Span,
         context: &TypeContext,
     ) -> Result<HirExpression> {
-        let expr = self.build_expression(queue, expr, expected, context)?;
+        let expr = self.build_expression(
+            queue,
+            ExpressionDescriptor {
+                target: expr,
+                expected,
+                context,
+            },
+        )?;
         let after_index_type = {
             let expr_type = queue.hir[expr.data].ty;
             match &queue.hir.deref()[expr_type] {
@@ -100,7 +121,14 @@ impl ExpressionBuilder {
         };
         match range {
             RangeType::NoRange(index) => {
-                let index = self.build_expression(queue, *index, expected, context)?;
+                let index = self.build_expression(
+                    queue,
+                    ExpressionDescriptor {
+                        target: *index,
+                        expected,
+                        context,
+                    },
+                )?;
                 let viewer = queue.hir.view(index.data);
                 let ty_viewer = viewer.ty_viewer();
                 match ty_viewer.raw() {
@@ -141,14 +169,28 @@ impl ExpressionBuilder {
             };
         };
         let (inner_type, size) = expected.and_then(|e| queue.hir.view(e).is_array()).unzip();
-        let expr = self.build_expression(queue, *first, inner_type, context)?;
+        let expr = self.build_expression(
+            queue,
+            ExpressionDescriptor {
+                target: *first,
+                expected: inner_type,
+                context,
+            },
+        )?;
         let ty = queue.hir[expr.data].ty;
         if let Some(expected) = inner_type {
             self.unify_types(queue, ty, expected, span)?;
         }
         exprs.push(expr);
         for expr in &expressions[1..] {
-            let expr = self.build_expression(queue, *expr, Some(ty), context)?;
+            let expr = self.build_expression(
+                queue,
+                ExpressionDescriptor {
+                    target: *expr,
+                    expected: Some(ty),
+                    context,
+                },
+            )?;
             exprs.push(expr);
         }
         let final_length = size.unwrap_or(exprs.len());
@@ -187,14 +229,28 @@ impl ExpressionBuilder {
             };
         };
         let inner_type = expected.and_then(|e| queue.hir.view(e).is_vector());
-        let expr = self.build_expression(queue, *first, inner_type, context)?;
+        let expr = self.build_expression(
+            queue,
+            ExpressionDescriptor {
+                target: *first,
+                expected: inner_type,
+                context,
+            },
+        )?;
         let ty = queue.hir[expr.data].ty;
         if let Some(expected) = inner_type {
             self.unify_types(queue, ty, expected, span)?;
         }
         exprs.push(expr);
         for expr in &expressions[1..] {
-            let expr = self.build_expression(queue, *expr, Some(ty), context)?;
+            let expr = self.build_expression(
+                queue,
+                ExpressionDescriptor {
+                    target: *expr,
+                    expected: Some(ty),
+                    context,
+                },
+            )?;
             exprs.push(expr);
         }
         let final_type = queue.hir.create_type(HirType::Vector(ty));

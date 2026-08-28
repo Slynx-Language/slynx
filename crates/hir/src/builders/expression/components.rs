@@ -7,7 +7,7 @@ use crate::{
     context::HirSymbol,
 };
 
-use super::ExpressionBuilder;
+use super::{ExpressionBuilder, ExpressionDescriptor};
 
 impl ExpressionBuilder {
     pub(crate) fn build_component_expression(
@@ -54,8 +54,14 @@ impl ExpressionBuilder {
                         .ok_or_else(|| {
                             HIRError::property_unrecognized(ty, vec![*prop_name], span)
                         })?;
-                    let expr =
-                        self.build_expression(queue, *rhs, Some(comp_view.props()[pos]), context)?;
+                    let expr = self.build_expression(
+                        queue,
+                        ExpressionDescriptor {
+                            target: *rhs,
+                            expected: Some(comp_view.props()[pos]),
+                            context,
+                        },
+                    )?;
                     properties.push(PropertyExpression::new(pos, expr));
                 }
                 ComponentMemberValue::Child(child) => {
