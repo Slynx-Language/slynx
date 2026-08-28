@@ -17,6 +17,7 @@ paste = "1.0.15"
 crossbeam-channel = "0.5.15"
 ordered-float = "5.3.0"
 bitflags = "2.13.1"
+either = "1.18.0"
 
 [dependencies]
 clap={ version = "4.5.52", features = ["derive"] }
