@@ -5,7 +5,10 @@ use slynx_parser::{ComponentDeclaration, ComponentMemberKind, TypeContext};
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
     Result, SymbolPointer,
-    builders::{HirQueueBuilder, PendantComponent, expression::ExpressionBuilder},
+    builders::{
+        HirQueueBuilder, PendantComponent,
+        expression::{ExpressionBuilder, ExpressionDescriptor},
+    },
     context::HirSymbol,
     id::{AnyDeclarationId, AnyLocalDeclarationId, OwnerId},
 };
@@ -170,9 +173,11 @@ impl ComponentBuilder {
                     let rhs = if let Some(rhs) = rhs {
                         Some(self.builder.build_expression(
                             queue,
-                            *rhs,
-                            component_type.props().get(prop_index).cloned(),
-                            &context,
+                            ExpressionDescriptor {
+                                target: *rhs,
+                                expected: component_type.props().get(prop_index).cloned(),
+                                context: &context,
+                            },
                         )?)
                     } else {
                         None

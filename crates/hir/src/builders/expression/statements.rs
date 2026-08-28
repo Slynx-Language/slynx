@@ -6,7 +6,7 @@ use slynx_parser::{ASTStatement, TypeContext};
 
 use crate::{HirStatement, HirType, Result, builders::HirQueueBuilder};
 
-use super::ExpressionBuilder;
+use super::{ExpressionBuilder, ExpressionDescriptor};
 
 impl ExpressionBuilder {
     pub(crate) fn build_statement(
@@ -32,7 +32,14 @@ impl ExpressionBuilder {
         let stmt = queue.get_statement(statement.data);
         let data = match stmt {
             ASTStatement::Expression(e) => {
-                let expr = self.build_expression(queue, *e, None, context)?;
+                let expr = self.build_expression(
+                    queue,
+                    ExpressionDescriptor {
+                        target: *e,
+                        expected: None,
+                        context,
+                    },
+                )?;
 
                 HirStatement::Expression { expr }
             }
@@ -42,7 +49,14 @@ impl ExpressionBuilder {
                 } else {
                     None
                 };
-                let expr = self.build_expression(queue, *rhs, var_type, context)?;
+                let expr = self.build_expression(
+                    queue,
+                    ExpressionDescriptor {
+                        target: *rhs,
+                        expected: var_type,
+                        context,
+                    },
+                )?;
                 let exprty = queue.hir.view(expr.data).ty();
                 let expected_type = if let Some(expected_ty) = ty {
                     queue
@@ -66,9 +80,23 @@ impl ExpressionBuilder {
                 }
             }
             ASTStatement::Assign { lhs, rhs } => {
-                let lhs = self.build_expression(queue, *lhs, None, context)?;
+                let lhs = self.build_expression(
+                    queue,
+                    ExpressionDescriptor {
+                        target: *lhs,
+                        expected: None,
+                        context,
+                    },
+                )?;
                 self.is_expression_able_to_write(queue, lhs)?;
-                let rhs = self.build_expression(queue, *rhs, None, context)?;
+                let rhs = self.build_expression(
+                    queue,
+                    ExpressionDescriptor {
+                        target: *rhs,
+                        expected: None,
+                        context,
+                    },
+                )?;
                 self.unify_types(
                     queue,
                     queue.hir.view(rhs.data).ty(),
@@ -80,9 +108,11 @@ impl ExpressionBuilder {
             ASTStatement::While { condition, body } => {
                 let condition = self.build_expression(
                     queue,
-                    *condition,
-                    Some(queue.hir.create_type(HirType::Bool)),
-                    context,
+                    ExpressionDescriptor {
+                        target: *condition,
+                        expected: Some(queue.hir.create_type(HirType::Bool)),
+                        context,
+                    },
                 )?;
                 let body = body
                     .iter()
@@ -93,7 +123,16 @@ impl ExpressionBuilder {
             }
             ASTStatement::Return { value } => {
                 let expr = value
-                    .map(|v| self.build_expression(queue, v, None, context))
+                    .map(|v| {
+                        self.build_expression(
+                            queue,
+                            ExpressionDescriptor {
+                                target: v,
+                                expected: None,
+                                context,
+                            },
+                        )
+                    })
                     .transpose()?;
                 HirStatement::Return { expr }
             }

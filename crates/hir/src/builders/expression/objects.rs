@@ -7,19 +7,36 @@ use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, builders::HirQueueBuilder,
 };
 
-use super::ExpressionBuilder;
+use super::{ExpressionBuilder, ExpressionDescriptor};
+
+///A descriptor for an object literal expression.
+pub struct ObjectDescriptor<'a> {
+    ///The type of the object being constructed
+    pub name: Spanned<DedupPoolId<Type>>,
+    ///The named fields of the object literal
+    pub fields: &'a [Spanned<NamedExpr>],
+    ///The span of the object literal, used for error reporting
+    pub span: Span,
+    ///The expected type of the object, if known
+    pub expected: Option<DedupPoolId<HirType>>,
+    ///The type context used to resolve types
+    pub context: &'a TypeContext<'a>,
+}
 
 impl ExpressionBuilder {
 
     pub(super) fn build_object(
         &mut self,
         queue: &HirQueueBuilder,
-        name: Spanned<DedupPoolId<Type>>,
-        fields: &[Spanned<NamedExpr>],
-        span: Span,
-        expected: Option<DedupPoolId<HirType>>,
-        context: &TypeContext,
+        descriptor: ObjectDescriptor<'_>,
     ) -> Result<HirExpression> {
+        let ObjectDescriptor {
+            name,
+            fields,
+            span,
+            expected,
+            context,
+        } = descriptor;
 
         let ty = if let Some(self_type) = &self.self_type {
             queue.find_self_type(name.data, *self_type)
@@ -98,7 +115,14 @@ impl ExpressionBuilder {
                             .expect("Field name should've been added into type names");
 
                         let field_ty = queue.substitute_generics(generics, obj.field_types()[*idx]);
-                        self.build_expression(queue, field.data.expr, Some(field_ty), context)?
+                        self.build_expression(
+                            queue,
+                            ExpressionDescriptor {
+                                target: field.data.expr,
+                                expected: Some(field_ty),
+                                context,
+                            },
+                        )?
                     }),
                     None => missing.push(obj.fields()[i].data),
                 }
