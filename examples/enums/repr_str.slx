@@ -1,0 +1,10 @@
+enum Names: str {
+    Foo,
+    Bar,
+    Baz
+}
+
+func main(): bool {
+    let a = Names.Bar;
+    a matches Bar
+}

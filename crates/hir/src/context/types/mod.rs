@@ -1,4 +1,5 @@
 mod components;
+mod enums;
 mod structs;
 mod styles;
 use std::{
@@ -13,12 +14,13 @@ use common::{
 use dashmap::{DashMap, DashSet};
 
 use crate::{
-    ComponentType, DeclarationId, FunctionType, HIRError, HirFunctionDeclaration, HirType, Result,
-    StructType, StyleType, SymbolPointer, TupleType, VariableId,
-    context::types::styles::StylesPool, helpers::Visible,
+    ComponentType, DeclarationId, EnumType, EnumVariantType, FunctionType, HIRError,
+    HirFunctionDeclaration, HirType, Result, StructType, StyleType, SymbolPointer, TupleType,
+    VariableId, context::types::styles::StylesPool, helpers::Visible,
 };
 pub use components::ComponentDefinition;
 use components::*;
+use enums::*;
 pub use structs::StructDefinition;
 pub use styles::StyleMetadata;
 
@@ -42,6 +44,7 @@ pub struct TypesContext {
     structs: StructsPool,
     components: ComponentsPool,
     styles: StylesPool,
+    enums: EnumsPool,
     functions: DedupPool<FunctionType>,
     types: DedupPool<HirType>,
 }
@@ -64,6 +67,7 @@ impl TypesContext {
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
             styles: StylesPool::default(),
+            enums: EnumsPool::default(),
         }
     }
 
@@ -109,6 +113,41 @@ impl TypesContext {
         let id = self.create_type(HirType::Struct(id));
         self.names.insert(name, id);
         id
+    }
+
+    ///Creates a new enum type with the given `name` and `variants`, registering
+    ///its name on the type namespace, and returns its type id.
+    pub fn create_enum_type(
+        &self,
+        name: SymbolPointer,
+        variants: Vec<EnumVariantType>,
+    ) -> DedupPoolId<HirType> {
+        let id = self.enums.insert(name, variants);
+        let id = self.create_type(HirType::Enum(id));
+        self.names.insert(name, id);
+        id
+    }
+
+    ///Returns the name of the enum associated with the given `id`.
+    pub fn get_enum_name(&self, id: DedupPoolId<EnumType>) -> SymbolPointer {
+        self.enums[id].name
+    }
+
+    ///Returns the variants of the enum associated with the given `id`, in
+    ///declaration order.
+    pub fn get_enum_variants(&self, id: DedupPoolId<EnumType>) -> &[EnumVariantType] {
+        &self.enums[id].variants
+    }
+
+    ///Finds the variant with the given `name` on the enum associated with `id`.
+    pub fn find_enum_variant(
+        &self,
+        id: DedupPoolId<EnumType>,
+        name: SymbolPointer,
+    ) -> Option<usize> {
+        self.get_enum_variants(id)
+            .iter()
+            .position(|variant| variant.name == name)
     }
 
     pub fn create_component_type(
@@ -323,6 +362,13 @@ impl TypesContext {
                         queue.push_back(*field);
                     }
                 }
+                HirType::Enum(id) => {
+                    for variant in &self[id].variants {
+                        for field in &variant.payload {
+                            queue.push_back(*field);
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -387,6 +433,8 @@ impl_index!(
     idx | &this.structs[idx],
     TupleType => | this,
     idx | &this.structs[idx],
+    EnumType => | this,
+    idx | &this.enums[idx],
     ComponentType => | this,
     idx | &this.components[idx],
     ComponentDefinition => |this,

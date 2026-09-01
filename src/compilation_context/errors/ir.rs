@@ -20,6 +20,7 @@ pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> Strin
                 AnyLocalDeclarationId::Object(o) => file[o].ty,
                 AnyLocalDeclarationId::Static(s) => file[s].ty,
                 AnyLocalDeclarationId::Style(s) => file[s].ty,
+                AnyLocalDeclarationId::Enum(e) => file[e].ty,
             };
 
             hir.view(ty).name()

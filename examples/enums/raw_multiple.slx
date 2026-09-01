@@ -1,0 +1,15 @@
+enum Name {
+    Foo,
+    Bar,
+    Baz
+}
+
+func main(): int {
+    let a = Name.Foo;
+    let b = Name.Bar;
+    if (a matches Foo) && (b matches Bar) {
+        1
+    } else {
+        0
+    }
+}

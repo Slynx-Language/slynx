@@ -1,0 +1,16 @@
+enum Name {
+    A(int),
+    B(str),
+    C(int, str, f64)
+}
+
+func main(): int {
+    let a = Name.A(1);
+    let b = Name.B("s");
+    let c = Name.C(1, "s", 2.5);
+    if (a matches A(1)) && (b matches B("s")) && (c matches C(1, "s", 2.5)) {
+        1
+    } else {
+        0
+    }
+}

@@ -65,12 +65,15 @@ impl<'a> HirQueueBuilder<'a> {
         };
         let struct_name = self.hir.get_struct_name(struct_id);
 
-        let ast_type = self.modules.find_type_inside_module(file_id, struct_name);
+        let ast_type = self.modules.find_type(file_id, struct_name);
         let (obj_file_id, obj_decl) = match ast_type {
             Some(ASTType {
                 owner,
                 content: ASTTypeKind::Struct(decl),
-            }) => (owner, decl),
+            }) => {
+                let obj_decl = self.modules.get_entry(owner).object().get(decl);
+                (owner, obj_decl)
+            }
             _ => return Err(HIRError::not_a_struct(struct_ty, span)),
         };
 

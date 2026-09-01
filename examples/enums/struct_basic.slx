@@ -1,0 +1,10 @@
+enum Name {
+    Struct {
+        name: str
+    }
+}
+
+func main(): bool {
+    let a = Name.Struct("hello");
+    a matches Struct("hello")
+}

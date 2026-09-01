@@ -47,6 +47,20 @@ impl ChildInitWork {
 
 pub type TypeId = DedupPoolId<HirType>;
 
+///The IR layout of an enum type.
+///
+///Every enum is lowered to a flat struct whose `field[0]` holds the variant
+///discriminant as an `int` tag. The payload fields of every variant are then
+///appended in declaration order, so a construction only fills the tag plus its
+///own variant's payload slice (the remaining fields are zeroed).
+#[derive(Clone)]
+pub(crate) struct EnumLayout {
+    ///The IR struct type of the enum.
+    pub type_id: IRTypeId,
+    ///For each variant, `(payload_field_start, payload_field_count)`.
+    pub variant_payload: Vec<(usize, usize)>,
+}
+
 pub struct Codegen {
     external_statics: HashMap<DeclarationId<HirStaticDeclaration>, IRTypeId>,
     globals: HashMap<DeclarationId<HirStaticDeclaration>, IRPointer<GlobalValue, 1>>,
@@ -60,6 +74,8 @@ pub struct Codegen {
     pub(crate) component_child_inits: HashMap<TypeId, Vec<ChildInitWork>>,
     /// Ownership analysis results for move/copy/borrow tracking.
     pub(crate) ownership: OwnershipAnalysis,
+    /// IR layouts for enum types.
+    enum_layouts: HashMap<TypeId, EnumLayout>,
 }
 
 impl Default for Codegen {
@@ -80,6 +96,7 @@ impl Codegen {
             styles: HashMap::new(),
             component_child_inits: HashMap::new(),
             ownership: OwnershipAnalysis::new(),
+            enum_layouts: HashMap::new(),
         }
     }
 
@@ -147,6 +164,33 @@ impl Codegen {
                 self.types.insert(declaration.ty, ty);
                 self.functions
                     .insert(DeclarationId::new(file.file, id), ptr);
+            }
+            for (_, declaration) in file.declarations.enums.iter().with_ids() {
+                let name = hir.get_name(declaration.name);
+                let enum_struct = ir.create_struct(name);
+                self.types.insert(declaration.ty, enum_struct);
+                let ty_view = hir.view(declaration.ty);
+                let deref = ty_view.dereference();
+                let enum_view = deref
+                    .is_enum()
+                    .expect("An enum declaration must map to an enum type");
+                let mut field_start = 1;
+                let variant_payload = enum_view
+                    .variants()
+                    .iter()
+                    .map(|variant| {
+                        let payload = (field_start, variant.payload.len());
+                        field_start += variant.payload.len();
+                        payload
+                    })
+                    .collect();
+                self.enum_layouts.insert(
+                    declaration.ty,
+                    EnumLayout {
+                        type_id: enum_struct,
+                        variant_payload,
+                    },
+                );
             }
             for (id, declaration) in file.declarations.components.iter().with_ids() {
                 if deadcode.contains(&AnyDeclarationId::new(
@@ -222,6 +266,13 @@ impl Codegen {
         ir: &mut SlynxIR,
         deadcode: &HashSet<AnyDeclarationId>,
     ) -> Result<(), CodegenError> {
+        // Fill enum struct fields across all files before any function body is
+        // lowered, so payload references to enums in other files resolve.
+        for file in &hir.files {
+            for (_, declaration) in file.declarations.enums.iter().with_ids() {
+                self.insert_enum_fields_for(declaration.ty, hir, ir)?;
+            }
+        }
         for file in &hir.files {
             for (id, obj) in file.declarations.objects.iter().with_ids() {
                 if deadcode.contains(&AnyDeclarationId::new(

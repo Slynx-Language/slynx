@@ -75,10 +75,14 @@ impl<'a> HirQueueBuilder<'a> {
             return Ok(id);
         }
 
-        // 3. Search AST through imports and hoist on-demand
-        if let Some(ast_type) = self.modules.find_type_inside_module(requester, name) {
+        if let Some(ast_type) = self.modules.find_type(requester, name) {
             match ast_type.content {
                 ASTTypeKind::Component(component) => {
+                    let component = self
+                        .modules
+                        .get_entry(ast_type.owner)
+                        .component()
+                        .get(component);
                     let out = self.enqueue_component(component, ast_type.owner)?;
                     return Ok(out);
                 }

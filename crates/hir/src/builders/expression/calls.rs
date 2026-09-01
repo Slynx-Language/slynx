@@ -6,7 +6,7 @@ use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
     DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirType,
-    Result, builders::HirQueueBuilder,
+    Result, builders::HirQueueBuilder, generics::GenericTypeArguments,
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -101,18 +101,18 @@ impl ExpressionBuilder {
                 span,
             ));
         }
-        let mut generics = queue
-            .get_node(self.file())
-            .resolve_call_generics(type_arguments, context)?;
+        let mut generics = GenericTypeArguments::from_explicit(
+            queue
+                .get_node(self.file())
+                .resolve_call_generics(type_arguments, context)?,
+        );
         let args = {
             let transformed_arguments = arguments
                 .iter()
                 .zip(expected_args)
                 .map(|(arg, ty)| {
                     let expected_ty = match queue.hir.view(*ty).raw() {
-                        HirType::GenericParam { index, .. } => {
-                            generics.get(*index as usize).cloned()
-                        }
+                        HirType::GenericParam { index, .. } => generics.get(*index as usize),
                         _ => None,
                     };
 
@@ -124,11 +124,8 @@ impl ExpressionBuilder {
                             context,
                         },
                     )?;
-                    if let HirType::GenericParam { index, .. } = queue.hir.view(*ty).raw()
-                        && let None = expected_ty
-                    {
-                        let expr_ty = queue.hir.view(expr.data).ty();
-                        generics.insert(*index as usize, expr_ty);
+                    if let HirType::GenericParam { index, .. } = queue.hir.view(*ty).raw() {
+                        generics.try_set(*index as usize, queue.hir.view(expr.data).ty());
                     }
                     Ok(expr)
                 })
@@ -144,7 +141,7 @@ impl ExpressionBuilder {
             kind: HirExpressionKind::FunctionCall {
                 name: target,
                 args,
-                generics,
+                generics: generics.into_vec(),
             },
             ty,
         })

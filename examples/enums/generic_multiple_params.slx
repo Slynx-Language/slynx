@@ -1,0 +1,14 @@
+enum Thing<T, U> {
+    First(T),
+    Second(U),
+    Both(T, U)
+}
+
+func main(): int {
+    let suamae = Thing.Both(1,4);
+    if suamae matches Both(1, 4) {
+        0
+    }else {
+        1
+    }
+}

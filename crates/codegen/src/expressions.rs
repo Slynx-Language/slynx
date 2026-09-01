@@ -11,6 +11,39 @@ use smallvec::{SmallVec, smallvec};
 use crate::{Codegen, CodegenError, TypeId, functions::FunctionContext};
 
 impl Codegen {
+    fn lower_enum(
+        &mut self,
+        context: &mut FunctionContext,
+        hir: &SlynxHir,
+        ty: TypeId,
+        variant: usize,
+        args: &[Spanned<PoolId<HirExpression>>],
+    ) -> Result<Value, CodegenError> {
+        let ty = self.get_or_create_ir_type(&ty, hir, context.ir())?;
+        match context.ir().get_type(ty).clone() {
+            IRType::Struct(s) => {
+                let strukt = context.ir().get_object_type(s);
+                let union_ty = strukt.get_fields()[variant];
+                let fields = args
+                    .iter()
+                    .map(|arg| self.lower_expression(*arg, hir, context))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let union_value = context.struct_literal(union_ty, &fields);
+                let tag = context.emit_const(Operand::Int(variant as i64), ty);
+                let final_value = context.struct_literal(ty, &[tag, union_value]);
+                Ok(final_value)
+            }
+            IRType::I32 => {
+                let tag = context.emit_const(Operand::Int(variant as i64), ty);
+                Ok(tag)
+            }
+            _ => panic!(
+                "Lower uniong should get for the type of the enum, int32 or struct type, instead got {:?}",
+                ty
+            ),
+        }
+    }
+
     fn lower_if_branch(
         &mut self,
         branch: &[Spanned<PoolId<HirStatement>>],
@@ -331,6 +364,14 @@ impl Codegen {
                 then_branch,
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
+            HirExpressionKind::Enum { ty, variant, args } => {
+                self.lower_enum(context, hir, *ty, *variant, args)?
+            }
+            HirExpressionKind::Matches {
+                value,
+                variant,
+                args,
+            } => self.lower_matches(value, *variant, args, hir, context)?,
         };
         if let HirType::Nullable(_) = &hir.types_module[expression.ty] {
             let bool_ty = context.ir().bool_type();
@@ -343,6 +384,17 @@ impl Codegen {
         } else {
             Ok(value)
         }
+    }
+
+    fn lower_matches(
+        &mut self,
+        value: &Spanned<PoolId<HirExpression>>,
+        variant: usize,
+        args: &[Spanned<PoolId<HirExpression>>],
+        hir: &SlynxHir,
+        ctx: &mut FunctionContext,
+    ) -> Result<Value, CodegenError> {
+        unimplemented!("Deprecated. This will stop existing, i just need to add unions");
     }
 
     fn lower_if_expression(

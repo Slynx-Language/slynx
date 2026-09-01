@@ -12,6 +12,9 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::InvalidEnumUsage(ty) => {
+                format!("Type '{}' is being used as an enum, even though it isnt", hir.view(*ty).name())
+            }
             HIRErrorKind::MethodNotFound(name) => {
                 format!(
                     "Method '{}' could not be found on the given struct",
@@ -43,6 +46,25 @@ impl SlynxContext {
             }
             HIRErrorKind::MissingReturn => {
                 "Function does not contain return, but its return type is NOT void".to_string()
+            }
+            HIRErrorKind::EnumVariantNotAnInt(name) => {
+                format!(
+                    "Valued enum variant '{}' must have an integer literal value",
+                    hir.get_name(*name)
+                )
+            }
+            HIRErrorKind::MatchesOnNonEnum(ty) => {
+                format!(
+                    "Cannot match on '{}': the `matches` operator requires an enum value on its left-hand side",
+                    hir.view(*ty).name()
+                )
+            }
+            HIRErrorKind::InvalidPattern => "Invalid `matches` pattern. Expected a variant name (`Foo`) or a variant call (`Foo(...)`)".to_string(),
+            HIRErrorKind::VariantNotRecognized(name) => {
+                format!(
+                    "Variant '{}' not recognized: no reachable enum declares a variant with this name",
+                    hir.get_name(*name)
+                )
             }
             HIRErrorKind::UnexpectedType { expected, received } => {
                 let expected_name = hir.view(*expected).name();

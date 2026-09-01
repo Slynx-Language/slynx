@@ -1,0 +1,10 @@
+enum Numbers: int {
+    One,
+    Two,
+    Three
+}
+
+func main(): bool {
+    let a = Numbers.Two;
+    a matches Two
+}

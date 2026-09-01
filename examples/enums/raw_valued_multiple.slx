@@ -1,0 +1,16 @@
+enum Name {
+    Zero = 0,
+    One = 1,
+    Two = 2
+}
+
+func main(): int {
+    let a = Name.Zero;
+    let b = Name.Two;
+    let c = Name.One;
+    if (a matches Zero) && (b matches Two) && (c matches One) {
+        1
+    } else {
+        0
+    }
+}

@@ -60,6 +60,8 @@ pub mod context;
 pub mod error;
 /// Name resolution utilities.
 mod file;
+/// Shared generic-related infrastructure.
+pub mod generics;
 mod helpers;
 /// Unique ID types for HIR elements.
 pub mod id;

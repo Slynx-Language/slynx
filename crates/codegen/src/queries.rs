@@ -71,6 +71,38 @@ impl Codegen {
                 let ty = self.get_or_create_ir_type(t, hir, ir)?;
                 ir.pointer_type(ty)
             }
+            HirType::Enum(e) => {
+                let enum_view = hir.view(*e);
+                let enum_name = hir.get_name(enum_view.name());
+                let mut variants = {
+                    let mut out = Vec::with_capacity(enum_view.variants().len());
+                    for (i, variant) in enum_view.variants().iter().enumerate() {
+                        if !variant.payload.is_empty() {
+                            let strukt_name =
+                                format!("{}_variant_{}", enum_name, hir.get_name(variant.name));
+                            let fields = variant
+                                .payload
+                                .iter()
+                                .map(|t| self.get_or_create_ir_type(t, hir, ir))
+                                .collect::<Result<Vec<_>, _>>()?;
+                            let struckt = ir.create_struct_full(
+                                &strukt_name,
+                                fields,
+                                IRStructFlags::default(),
+                            );
+                            out.push(struckt)
+                        }
+                    }
+                    out
+                };
+                if variants.is_empty() {
+                    ir.int_type()
+                } else {
+                    let tag_type = ir.int_type();
+                    variants.insert(0, tag_type);
+                    ir.create_struct_full(enum_name, variants, IRStructFlags::default())
+                }
+            }
 
             _ => return Err(CodegenError::IRTypeNotRecognized(*ty)),
         };

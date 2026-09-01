@@ -1,0 +1,15 @@
+enum Thing<T> {
+    Some(T),
+    None
+}
+
+func println(msg: str): void {
+
+}
+
+func main(): void {
+    let thing = Thing.Some(12);
+    if thing matches Some(12) {
+        println("thing is some");
+    }
+}

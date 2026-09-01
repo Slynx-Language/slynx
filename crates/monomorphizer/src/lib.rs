@@ -24,6 +24,7 @@
 //! declaration-agnostic tree builders that every kind reuses.
 
 mod components;
+mod enums;
 mod functions;
 mod structs;
 mod types;
@@ -233,6 +234,7 @@ impl Monomorphizer {
         self.neutralize_generic_functions(hir, &files, void_ty);
         self.neutralize_generic_objects(hir, &files, void_ty);
         self.neutralize_generic_components(hir, &files, void_ty);
+        self.neutralize_generic_enums(hir, &files, void_ty);
 
         Ok(())
     }
@@ -521,6 +523,20 @@ impl Monomorphizer {
                 else_branch: else_branch
                     .map(|branch| self.build_statements(hir, &branch, subst))
                     .transpose()?,
+            },
+            HirExpressionKind::Enum { ty, variant, args } => HirExpressionKind::Enum {
+                ty: substitute_type(hir, ty, subst)?,
+                variant,
+                args: self.build_expressions(hir, &args, subst)?,
+            },
+            HirExpressionKind::Matches {
+                value,
+                variant,
+                args,
+            } => HirExpressionKind::Matches {
+                value: self.build_expression(hir, value, subst)?,
+                variant,
+                args: self.build_expressions(hir, &args, subst)?,
             },
             HirExpressionKind::FunctionCall {
                 name,

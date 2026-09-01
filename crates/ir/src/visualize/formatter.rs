@@ -4,7 +4,8 @@ use common::SymbolsModule;
 
 use crate::{
     Component, Function, GlobalValue, IRComponentId, IRPointer, IRSpecializedComponentType,
-    IRStorage, IRType, IRTypes, IRViewer, Instruction, Label, Opcode, Operand, SlynxIR, Value,
+    IRStorage, IRType, IRTypes, IRUnionId, IRViewer, Instruction, Label, Opcode, Operand, SlynxIR,
+    Value,
 };
 
 pub struct Formatter<'a> {
@@ -72,6 +73,7 @@ impl<'a> Formatter<'a> {
             IRType::GenericComponent => "anycomponent".to_string(),
             IRType::Struct(t) => self.fmt_struct_type(t),
             IRType::Component(c) => self.fmt_component_type(c),
+            IRType::Union(u) => self.fmt_union_type(u),
             IRType::Specialized(IRSpecializedComponentType::Div) => "@div".to_string(),
             IRType::Specialized(IRSpecializedComponentType::Text) => "@text".to_string(),
             IRType::Pointer(inner) => format!("{}*", {
@@ -109,6 +111,21 @@ impl<'a> Formatter<'a> {
         format!("%{}", self.symbols.get_name(component.name()))
     }
 
+    fn fmt_union_type(&self, id: &IRUnionId) -> String {
+        let union = self.types.get_union_type(*id);
+        if let Some(name) = union.name() {
+            format!("%{}", self.symbols.get_name(name))
+        } else {
+            let variants = union
+                .get_variants()
+                .iter()
+                .map(|v| self.fmt_type(self.types.get_type(*v)))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("{{{variants}}}")
+        }
+    }
+
     // ── top-level ──
 
     pub fn format_types(&self) -> String {
@@ -125,6 +142,21 @@ impl<'a> Formatter<'a> {
                 .join(",");
             out.push_str(&format!(
                 "struct %{}{{{fields}}};\n",
+                self.symbols.get_name(name),
+            ));
+        }
+        for union in self.types.unions() {
+            let Some(name) = union.name() else {
+                continue;
+            };
+            let variants = union
+                .get_variants()
+                .iter()
+                .map(|v| self.fmt_type(self.types.get_type(*v)))
+                .collect::<Vec<_>>()
+                .join(",");
+            out.push_str(&format!(
+                "union %{}{{{variants}}};\n",
                 self.symbols.get_name(name),
             ));
         }

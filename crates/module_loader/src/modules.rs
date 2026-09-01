@@ -1,9 +1,12 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use common::{FrontendSymbol, SymbolPointer, SymbolsModule, pool::DedupPoolId};
+use common::{
+    FrontendSymbol, SymbolPointer, SymbolsModule,
+    pool::{DedupPoolId, PoolId},
+};
 use slynx_parser::{
-    ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration,
-    ObjectDeclaration, Type, TypeContext,
+    ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration, EnumDeclaration,
+    ObjectDeclaration, StaticDeclaration, Type, TypeContext,
 };
 
 use crate::{FileId, SourceLoader, SourceNode};
@@ -26,17 +29,18 @@ pub enum ASTBuiltin {
     AnyComponent,
 }
 
-pub enum ASTTypeKind<'a> {
-    Struct(&'a ObjectDeclaration),
-    Component(&'a ComponentDeclaration),
-    Alias(&'a AliasDeclaration),
+pub enum ASTTypeKind {
+    Struct(PoolId<ObjectDeclaration>),
+    Component(PoolId<ComponentDeclaration>),
+    Alias(PoolId<AliasDeclaration>),
+    Enum(PoolId<EnumDeclaration>),
     Builtin(ASTBuiltin),
 }
 
 ///Represents something that can be interpreted as a type on the AST
-pub struct ASTType<'a> {
+pub struct ASTType {
     pub owner: FileId,
-    pub content: ASTTypeKind<'a>,
+    pub content: ASTTypeKind,
 }
 
 impl<'a> Modules<'a> {
@@ -112,16 +116,17 @@ impl<'a> Modules<'a> {
         )
     }
 
-    pub fn find_function_declaration(
+    pub fn find_in_modules<T>(
         &self,
         name: SymbolPointer<FrontendSymbol>,
         module: FileId,
-    ) -> Option<(FileId, usize)> {
+        finder: &dyn Fn(&SourceNode, SymbolPointer<FrontendSymbol>) -> Option<T>,
+    ) -> Option<(FileId, T)> {
         let module = &self.modules[module.as_raw() as usize];
-        if let Some(v) = module.func().iter().position(|func| func.name == name) {
+        if let Some(v) = finder(module, name) {
             return Some((module.id, v));
         }
-        for import in module.imports() {
+        for import in module.imports().iter() {
             for usage in &import.usages {
                 let target = if let Some(name) = usage.alias {
                     name
@@ -133,7 +138,7 @@ impl<'a> Modules<'a> {
                     .paths
                     .get(&original)
                     .expect("Expected original path to properly map to some file");
-                if let Some(func) = self.find_function_declaration(target, *file) {
+                if let Some(func) = self.find_in_modules(target, *file, finder) {
                     return Some(func);
                 };
             }
@@ -141,16 +146,28 @@ impl<'a> Modules<'a> {
         None
     }
 
+    ///Finds a function with the given name available in the given module. Returns the file that owns the function and the index of the function in the module.
+    pub fn find_function_declaration(
+        &self,
+        name: SymbolPointer<FrontendSymbol>,
+        module: FileId,
+    ) -> Option<(FileId, usize)> {
+        self.find_in_modules(name, module, &|module, name| {
+            module.func().iter().position(|func| func.name == name)
+        })
+    }
+
+    ///Finds a static variable with the given name available in the given module. Returns the file that owns the static variable and a reference to it.
     pub fn find_static_declaration(
         &self,
         name: SymbolPointer<FrontendSymbol>,
         module: FileId,
-    ) -> Option<(FileId, &slynx_parser::StaticDeclaration)> {
+    ) -> Option<(FileId, &StaticDeclaration)> {
         let module = &self.modules[module.as_raw() as usize];
-        if let Some(v) = module.statics().iter().find(|statik| statik.name == name) {
-            return Some((module.id, v));
+        if let Some(statik) = module.statics().iter().find(|statik| statik.name == name) {
+            return Some((module.id, statik));
         }
-        for import in module.imports() {
+        for import in module.imports().iter() {
             for usage in &import.usages {
                 let target = if let Some(name) = usage.alias {
                     name
@@ -164,73 +181,81 @@ impl<'a> Modules<'a> {
                     .expect("Expected original path to properly map to some file");
                 if let Some(statik) = self.find_static_declaration(target, *file) {
                     return Some(statik);
-                };
+                }
             }
         }
         None
     }
 
-    pub fn find_type_inside_module(
-        &'a self,
+    ///Finds a type (struct, component, alias, enum or builtin) with the given name available in the given module or in the modules it imports.
+    pub fn find_type(
+        &self,
         module: FileId,
         name: SymbolPointer<FrontendSymbol>,
-    ) -> Option<ASTType<'a>> {
+    ) -> Option<ASTType> {
         if let Some(kind) = Self::builtin_type(self.symbols().get_name(name)) {
             return Some(ASTType {
                 owner: module,
                 content: ASTTypeKind::Builtin(kind),
             });
         };
-
-        let raw = module.as_raw() as usize;
-        let module_ref = &self.modules[raw];
-
-        if let Some(strukt) = module_ref.object().iter().find_map(|strukt| {
-            (strukt.name == name).then_some(ASTType {
-                owner: module,
-                content: ASTTypeKind::Struct(strukt),
-            })
-        }) {
-            return Some(strukt);
-        }
-        if let Some(component) = module_ref.component().iter().find_map(|component| {
-            (component.name == name).then_some(ASTType {
-                owner: module,
-                content: ASTTypeKind::Component(component),
-            })
-        }) {
-            return Some(component);
-        }
-
-        if let Some(alias) = module_ref.alias().iter().find_map(|alias| {
-            (alias.name == name).then_some(ASTType {
-                owner: module,
-                content: ASTTypeKind::Alias(alias),
-            })
-        }) {
-            return Some(alias);
-        }
-
-        for import in module_ref.imports() {
-            for usage in &import.usages {
-                let target = match () {
-                    _ if let Some(name) = usage.alias => name,
-                    _ => usage.content_name,
-                };
-
-                let original = self.recreate_pathbuf(module, &import.path);
-
-                let file = self
-                    .paths
-                    .get(&original)
-                    .expect("Expected original path to map properly to some file");
-                let t = self.find_type_inside_module(*file, target);
-                if t.is_some() {
-                    return t;
-                }
+        self.find_in_modules(name, module, &|module, name| {
+            if let Some((id, _)) = module
+                .object()
+                .iter()
+                .with_ids()
+                .find(|(_, strukt)| strukt.name == name)
+            {
+                return Some(ASTTypeKind::Struct(id));
             }
-        }
-        None
+            if let Some((id, _)) = module
+                .component()
+                .iter()
+                .with_ids()
+                .find(|(_, component)| component.name == name)
+            {
+                return Some(ASTTypeKind::Component(id));
+            }
+            if let Some((id, _)) = module
+                .alias()
+                .iter()
+                .with_ids()
+                .find(|(_, alias)| alias.name == name)
+            {
+                return Some(ASTTypeKind::Alias(id));
+            }
+            if let Some((id, _)) = module
+                .enums()
+                .iter()
+                .with_ids()
+                .find(|(_, enumer)| enumer.name == name)
+            {
+                return Some(ASTTypeKind::Enum(id));
+            }
+            None
+        })
+        .map(|(owner, content)| ASTType { owner, content })
+    }
+
+    ///Finds an enum that declares a variant with the given `name`, available in
+    ///the given module or in the modules it imports. Returns the file that owns
+    ///the enum, the id of the enum within that file, and the index of the
+    ///variant within the enum.
+    pub fn find_enum_variant(
+        &self,
+        name: SymbolPointer<FrontendSymbol>,
+        module: FileId,
+    ) -> Option<(FileId, PoolId<EnumDeclaration>, usize)> {
+        self.find_in_modules(name, module, &|module, name| {
+            module.enums().iter().with_ids().find_map(|(id, enumer)| {
+                enumer
+                    .variants
+                    .iter()
+                    .position(|variant| variant.name.data == name)
+                    .map(|index| (id, index))
+            })
+        })
+        .map(|(owner, (id, index))| (owner, id, index))
     }
 
     fn recreate_pathbuf(&self, entry: FileId, path: &ASTPath) -> PathBuf {

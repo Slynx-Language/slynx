@@ -39,11 +39,11 @@ impl Monomorphizer {
             unreachable!("resolve_object_target requires a Reference type")
         };
 
-        let ty_view = hir.view(*rf);
-        let deref = ty_view.dereference();
+        let rf_view = hir.view(*rf);
+        let deref = rf_view.dereference();
         let struct_view = deref.is_struct().ok_or_else(|| {
             HIRError::generic_arity_mismatch(
-                hir.intern_name("<non-struct>"),
+                hir.intern_name(&deref.name()),
                 0,
                 generics.iter().filter(|slot| !slot.is_null()).count(),
                 span,

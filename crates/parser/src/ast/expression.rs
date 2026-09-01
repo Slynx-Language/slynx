@@ -58,6 +58,15 @@ pub enum ASTExpression {
         parent: Spanned<DedupPoolId<ASTExpression>>,
         field: Spanned<DedupPoolId<ASTExpression>>,
     },
+    /// A pattern-matching expression, e.g. `a matches Some(4)`.
+    ///
+    /// The left-hand side is any expression, and the right-hand side is a
+    /// pattern: a variant reference (bare identifier), an associated variant
+    /// reference (`Some(4)`), or a struct variant reference (`Foo { x: 1 }`).
+    Matches {
+        lhs: Spanned<DedupPoolId<ASTExpression>>,
+        pattern: Spanned<DedupPoolId<ASTExpression>>,
+    },
     FunctionCall {
         name: Spanned<DedupPoolId<Type>>,
         args: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 7]>,

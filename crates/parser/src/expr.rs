@@ -515,12 +515,41 @@ impl Parser<'_> {
         Ok(lhs)
     }
 
+    ///Parses `matches` expressions, i.e. `lhs matches Pattern`.
+    ///
+    /// `matches` binds more tightly than `&&`/`||` but looser than comparisons,
+    /// so `a == b matches C && d` groups as `((a == b) matches C) && d`. The
+    /// pattern on the right is parsed as a primary expression: a bare variant
+    /// name, an associated variant reference `Some(4)`, or a struct variant
+    /// reference `Foo { x: 1 }`.
+    pub fn parse_match(
+        &mut self,
+        type_params: TypeParamScope,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut lhs = self.parse_comparison(type_params)?;
+        while let Ok(curr) = self.peek()
+            && curr.kind == TokenKind::Matches
+        {
+            self.eat()?;
+            let pattern = self.parse_primary(type_params)?;
+            let span = Span {
+                start: lhs.span.start,
+                end: pattern.span.end,
+            };
+            lhs = Spanned::new(
+                self.intern_expression(ASTExpression::Matches { lhs, pattern }),
+                span,
+            );
+        }
+        Ok(lhs)
+    }
+
     ///Parses logical expressions, thus, anything whose value returned is a boolean
     pub fn parse_logical(
         &mut self,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_comparison(type_params)?;
+        let mut lhs = self.parse_match(type_params)?;
         while let Ok(curr) = self.peek()
             && matches!(curr.kind, TokenKind::And | TokenKind::Or)
         {
@@ -529,7 +558,7 @@ impl Parser<'_> {
                 TokenKind::Or => Operator::LogicOr,
                 _ => unreachable!(),
             };
-            let rhs = self.parse_comparison(type_params)?;
+            let rhs = self.parse_match(type_params)?;
             let span = Span {
                 start: lhs.span.start,
                 end: rhs.span.end,

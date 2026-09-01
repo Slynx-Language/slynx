@@ -1,4 +1,7 @@
-use common::{Span, Spanned, pool::DedupPoolId};
+use common::{
+    Span, Spanned,
+    pool::{DedupPoolId, PoolId},
+};
 use module_loader::FileId;
 use slynx_parser::{ASTStatement, FuncDeclaration, TypeContext};
 
@@ -85,7 +88,11 @@ impl<'a> HirQueueBuilder<'a> {
         } else if let Some(func) = self.hir.get_file(requester).find_function_with_name(name) {
             Ok(func)
         } else if let Some((id, index)) = self.find_function_declaration(name, requester) {
-            let func = &self.modules.get_entry(id).func()[index];
+            let func = self
+                .modules
+                .get_entry(id)
+                .func()
+                .get(PoolId::new(index as u32));
             self.enqueue_function(func, id)
         } else {
             Err(HIRError::name_unrecognized(name, span))

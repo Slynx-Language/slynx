@@ -58,6 +58,8 @@ pub enum TokenKind {
     Return,
     #[token("null")]
     Null,
+    #[token("matches")]
+    Matches,
 
     // Multi-char operators (must come before single-char)
     #[token("&&")]

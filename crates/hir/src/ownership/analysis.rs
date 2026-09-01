@@ -244,6 +244,17 @@ impl OwnershipAnalysis {
                     self.analyze_expression_read(hir, field, state);
                 }
             }
+            HirExpressionKind::Enum { args, .. } => {
+                for arg in args {
+                    self.analyze_expression_read(hir, arg, state);
+                }
+            }
+            HirExpressionKind::Matches { value, args, .. } => {
+                self.analyze_expression_read(hir, value, state);
+                for arg in args {
+                    self.analyze_expression_read(hir, arg, state);
+                }
+            }
             HirExpressionKind::Array(elements) | HirExpressionKind::Vector(elements) => {
                 for elem in elements {
                     self.analyze_expression_read(hir, elem, state);

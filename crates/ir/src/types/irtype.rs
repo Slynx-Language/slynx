@@ -1,7 +1,8 @@
 use common::pool::DedupPoolId;
 
 use crate::{
-    IRComponentId, IRSpecializedComponentType, IRStructId, types::functions::IRFunctionId,
+    IRComponentId, IRSpecializedComponentType, IRStructId, IRUnionId,
+    types::functions::IRFunctionId,
 };
 
 /// Logical identifier for a type inside IR type storage.
@@ -28,6 +29,7 @@ pub enum IRType {
     Specialized(IRSpecializedComponentType),
     Component(IRComponentId),
     Struct(IRStructId),
+    Union(IRUnionId),
     Function(IRFunctionId),
     Array(DedupPoolId<IRType>, usize),
     Vector(DedupPoolId<IRType>),

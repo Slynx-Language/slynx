@@ -126,6 +126,29 @@ pub struct HirStylesheetDeclaration {
     pub attributes: Vec<HirAttribute>,
 }
 
+#[derive(Debug, Clone)]
+pub enum HirEnumVariantKind {
+    Raw,
+    Valued(Spanned<DedupPoolId<HirExpression>>),
+    Associated(SmallVec<[DedupPoolId<HirType>; 2]>), //Struct is associated but the names get turned into numeric fields, so it becomes ordered, an enum with variant A {thing: int, b: float} is the same as A(int,float)
+}
+
+#[derive(Debug, Clone)]
+pub struct HirEnumVariant {
+    pub attributes: Vec<HirAttribute>,
+    pub name: SymbolPointer,
+}
+
+#[derive(Debug)]
+pub struct HirEnumDeclaration {
+    pub name: SymbolPointer,
+    pub generics: Vec<SymbolPointer>,
+    pub variants: Vec<Spanned<HirEnumVariant>>,
+    pub visibility: VisibilityModifier,
+    pub attributes: Vec<HirAttribute>,
+    pub ty: DedupPoolId<HirType>,
+}
+
 /// A member of a component declaration.
 ///
 /// Component members can be either properties (with optional default values)

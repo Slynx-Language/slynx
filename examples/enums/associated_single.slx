@@ -1,0 +1,8 @@
+enum Name {
+    Associated(str)
+}
+
+func main(): bool {
+    let a = Name.Associated("hello");
+    a matches Associated("hello")
+}

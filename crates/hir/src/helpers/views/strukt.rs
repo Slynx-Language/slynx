@@ -1,7 +1,8 @@
 use common::{VisibilityModifier, pool::DedupPoolId};
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirType, StructType, SymbolPointer, TupleType,
+    DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, HirType, StructType,
+    SymbolPointer, TupleType,
     helpers::{HirViewer, Visible},
 };
 
@@ -48,5 +49,20 @@ impl HirViewer<'_, DedupPoolId<StructType>> {
 impl HirViewer<'_, DedupPoolId<TupleType>> {
     pub fn fields(&self) -> &[DedupPoolId<HirType>] {
         &self.hir.types_module[self.data].fields
+    }
+}
+
+impl HirViewer<'_, DedupPoolId<EnumType>> {
+    pub fn name(&self) -> SymbolPointer {
+        self.hir.types_module.get_enum_name(self.data)
+    }
+
+    pub fn variants(&self) -> &[EnumVariantType] {
+        self.hir.types_module.get_enum_variants(self.data)
+    }
+
+    ///Finds the variant with the given `name` on this enum.
+    pub fn find_variant(&self, name: SymbolPointer) -> Option<usize> {
+        self.hir.types_module.find_enum_variant(self.data, name)
     }
 }

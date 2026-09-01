@@ -13,9 +13,9 @@ use common::{
 };
 
 use crate::{
-    ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
-    HirFunctionDeclaration, HirObjectDeclaration, HirStatement, HirStaticDeclaration, HirType,
-    Result, SlynxHir, SymbolPointer, VariableId,
+    ComponentId, ComponentMemberDeclaration, DeclarationId, EnumVariantType, HIRError,
+    HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
+    HirStatement, HirStaticDeclaration, HirType, Result, SlynxHir, SymbolPointer, VariableId,
     builders::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, work_channel::WorkChannel,
     },
@@ -27,8 +27,8 @@ use dashmap::{DashMap, DashSet};
 pub use expression::*;
 use module_loader::{ASTTypeKind, FileId, Modules};
 use slynx_parser::{
-    ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind, FuncDeclaration,
-    GenericIdentifier, StaticDeclaration, Type, TypeContext,
+    ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind, EnumVariantKind,
+    FuncDeclaration, GenericIdentifier, StaticDeclaration, Type, TypeContext,
 };
 
 pub struct PendingSignatures<'a> {
@@ -98,13 +98,15 @@ impl HirNode<'_> {
         name: Spanned<SymbolPointer>,
         context: &TypeContext,
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
-        if let Some(data) = self.modules.find_type_inside_module(self.entry, name.data) {
+        if let Some(data) = self.modules.find_type(self.entry, name.data) {
             let id = match data.content {
                 ASTTypeKind::Builtin(builtin) => self.hir.create_type(builtin.into()),
                 ASTTypeKind::Alias(alias) => {
-                    return self.find_type(alias.target, context);
+                    let target = self.modules.get_entry(data.owner).alias().get(alias).target;
+                    return self.find_type(target, context);
                 }
                 ASTTypeKind::Struct(s) => {
+                    let s = self.modules.get_entry(data.owner).object().get(s);
                     let struct_name = s.name;
                     // Fields are typed against the object's own type
                     // parameters, not the referencing scope's, so a template
@@ -144,7 +146,80 @@ impl HirNode<'_> {
                     }
                     struct_ty
                 }
-                ASTTypeKind::Component(component) => self.resolve_component_signature(component)?,
+                ASTTypeKind::Component(component) => {
+                    let component = self
+                        .modules
+                        .get_entry(data.owner)
+                        .component()
+                        .get(component);
+                    self.resolve_component_signature(component)?
+                }
+                ASTTypeKind::Enum(e) => {
+                    let e = self.modules.get_entry(data.owner).enums().get(e);
+                    let enum_name = e.name;
+                    let enum_context = TypeContext::new(&e.type_params);
+                    // Discriminants walk the variants in declaration order.
+                    // Raw variants take the next sequential value; raw-valued
+                    // variants set their explicit value and bump the counter
+                    // past it, so later raw variants stay unique.
+                    let mut counter: i32 = 0;
+                    let mut variants = Vec::with_capacity(e.variants.len());
+                    for variant in &e.variants {
+                        let (discriminant, payload) = match &variant.kind {
+                            EnumVariantKind::Raw => (counter, Vec::new()),
+                            EnumVariantKind::RawValued(rhs) => {
+                                let value = match self.modules.get_expr(rhs.data) {
+                                    ASTExpression::IntLiteral(i) => *i,
+                                    _ => {
+                                        return Err(HIRError::enum_variant_must_be_an_int(
+                                            variant.name.data,
+                                            variant.span,
+                                        ));
+                                    }
+                                };
+                                (value, Vec::new())
+                            }
+                            EnumVariantKind::Associated(types) => {
+                                let payload = types
+                                    .iter()
+                                    .map(|ty| self.find_type(*ty, &enum_context).map(|v| v.1))
+                                    .collect::<Result<Vec<_>>>()?;
+                                (counter, payload)
+                            }
+                            EnumVariantKind::Struct(fields) => {
+                                let payload = fields
+                                    .iter()
+                                    .map(|field| {
+                                        self.find_type(field.data.kind, &enum_context).map(|v| v.1)
+                                    })
+                                    .collect::<Result<Vec<_>>>()?;
+                                (counter, payload)
+                            }
+                        };
+                        counter = counter.max(discriminant.saturating_add(1));
+                        variants.push(EnumVariantType {
+                            name: variant.name.data,
+                            payload,
+                            discriminant,
+                        });
+                    }
+                    let enum_ty = self.hir.create_enum_type(enum_name, variants);
+                    // Register a HirEnumDeclaration so the codegen's
+                    // hoist_declarations can create an IR type for this enum.
+                    let file = self.hir.get_or_create_file(data.owner);
+                    let already = file.declarations.enums.iter().any(|d| d.name == enum_name);
+                    if !already {
+                        file.create_enum(HirEnumDeclaration {
+                            name: enum_name,
+                            generics: e.type_params.clone(),
+                            variants: Vec::new(),
+                            visibility: e.visibility,
+                            attributes: Vec::new(),
+                            ty: enum_ty,
+                        });
+                    }
+                    enum_ty
+                }
             };
             Ok((data.owner, id))
         } else {
@@ -241,22 +316,6 @@ impl HirNode<'_> {
             })
             .collect::<Result<_>>()?;
         Ok(self.hir.create_function_type(args, ret))
-    }
-
-    ///Resolves the explicit generic type arguments of a call like
-    ///`compare<int>(a, b)` into their HIR type ids. Types that are generic
-    ///parameters of the enclosing declaration (e.g. `identity<T>(x)`) resolve
-    ///to [`HirType::GenericParam`] ids, which monomorphization later
-    ///substitutes with concrete types.
-    pub fn resolve_call_generics(
-        &self,
-        generics: &[Spanned<DedupPoolId<Type>>],
-        context: &TypeContext,
-    ) -> Result<Vec<DedupPoolId<HirType>>> {
-        generics
-            .iter()
-            .map(|ty| self.find_type(*ty, context).map(|(_, ty)| ty))
-            .collect()
     }
 
     /// Pure computation of a component's signature type (no cycle detection).
