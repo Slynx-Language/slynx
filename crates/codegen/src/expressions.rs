@@ -19,29 +19,60 @@ impl Codegen {
         variant: usize,
         args: &[Spanned<PoolId<HirExpression>>],
     ) -> Result<Value, CodegenError> {
-        let ty = self.get_or_create_ir_type(&ty, hir, context.ir())?;
-        match context.ir().get_type(ty).clone() {
-            IRType::Struct(s) => {
-                let strukt = context.ir().get_object_type(s);
-                let union_ty = strukt.get_fields()[variant];
-                let fields = args
-                    .iter()
-                    .map(|arg| self.lower_expression(*arg, hir, context))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let union_value = context.struct_literal(union_ty, &fields);
-                let tag = context.emit_const(Operand::Int(variant as i64), ty);
-                let final_value = context.struct_literal(ty, &[tag, union_value]);
-                Ok(final_value)
-            }
-            IRType::I32 => {
-                let tag = context.emit_const(Operand::Int(variant as i64), ty);
-                Ok(tag)
-            }
-            _ => panic!(
-                "Lower uniong should get for the type of the enum, int32 or struct type, instead got {:?}",
-                ty
-            ),
+        let ir_ty = self.get_or_create_ir_type(&ty, hir, context.ir())?;
+        // Read the (post-monomorphization) enum type to find the variant's
+        // compile-time discriminant. Enums lower to a struct whose field[0]
+        // holds the discriminant tag and whose field[1] is a union of the
+        // per-variant payload structs. Construction fills the tag plus the
+        // selected variant's payload struct inside that union.
+        let view = hir.view(ty);
+        let deref = view.dereference();
+        let enum_view = deref.is_enum().ok_or_else(|| {
+            CodegenError::InternalError("enum expression must resolve to an enum type".into())
+        })?;
+        let variant_info = enum_view.variants().get(variant).ok_or_else(|| {
+            CodegenError::InternalError("enum variant index out of bounds".into())
+        })?;
+
+        let int_type = context.ir().int_type();
+        let tag = context.emit_const(Operand::Int(variant_info.discriminant as i64), int_type);
+
+        let mut operands = Vec::with_capacity(2);
+        operands.push(tag);
+
+        // If any variant carries a payload, field[1] is the payload union; its
+        // member at `variant` is this variant's payload struct.
+        let IRType::Struct(enum_struct_id) = *context.ir().get_type(ir_ty) else {
+            return Err(CodegenError::InternalError(
+                "enum type must lower to an IR struct".into(),
+            ));
+        };
+        let fields = context.ir().get_object_type(enum_struct_id).get_fields();
+        if fields.len() >= 2 {
+            let union_ty = fields[1];
+            let IRType::Union(union_id) = *context.ir().get_type(union_ty) else {
+                return Err(CodegenError::InternalError(
+                    "enum payload must lower to an IR union".into(),
+                ));
+            };
+            let payload_struct = *context
+                .ir()
+                .get_union_type(union_id)
+                .get_variants()
+                .get(variant)
+                .ok_or_else(|| {
+                    CodegenError::InternalError("enum variant index out of bounds".into())
+                })?;
+            let args = args
+                .iter()
+                .map(|arg| self.lower_expression(*arg, hir, context))
+                .collect::<Result<Vec<_>, _>>()?;
+            let payload = context.struct_literal(payload_struct, &args);
+            let union_value = context.struct_literal(union_ty, std::slice::from_ref(&payload));
+            operands.push(union_value);
         }
+
+        Ok(context.struct_literal(ir_ty, &operands))
     }
 
     fn lower_if_branch(
@@ -364,8 +395,8 @@ impl Codegen {
                 then_branch,
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, hir, context)?,
-            HirExpressionKind::Enum { ty, variant, args } => {
-                self.lower_enum(context, hir, *ty, *variant, args)?
+            HirExpressionKind::Enum { variant, args, .. } => {
+                self.lower_enum(context, hir, expression.ty, *variant, args)?
             }
             HirExpressionKind::Matches {
                 value,
@@ -388,13 +419,91 @@ impl Codegen {
 
     fn lower_matches(
         &mut self,
-        value: &Spanned<PoolId<HirExpression>>,
+        hir_value: &Spanned<PoolId<HirExpression>>,
         variant: usize,
         args: &[Spanned<PoolId<HirExpression>>],
         hir: &SlynxHir,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
-        unimplemented!("Deprecated. This will stop existing, i just need to add unions");
+        let value = self.lower_expression(*hir_value, hir, ctx)?;
+
+        let then_label = ctx.create_label("matches_then");
+        let end_label = ctx.create_label("matches_end");
+        let int_type = ctx.ir().int_type();
+        let bool_type = ctx.ir().bool_type();
+        let false_value = ctx.emit_const(Operand::Bool(false), bool_type);
+        let discriminant = hir
+            .view(hir_value.data)
+            .ty_viewer()
+            .dereference()
+            .is_enum()
+            .expect("Expected type of value on matches expression to be an enum")
+            .variants()[variant]
+            .discriminant;
+
+        let cond = {
+            let tag_value = ctx.get_field(value, 0);
+            let variant_int = ctx.emit_const(Operand::Int(discriminant as i64), int_type);
+            ctx.cmp(tag_value, variant_int)
+        };
+
+        if args.is_empty() {
+            return Ok(cond);
+        } else {
+            ctx.branch_conditional(cond, then_label, end_label, &[], &[false_value]);
+        }
+        let union_value = ctx.get_field(value, 1);
+
+        {
+            //then label
+            //pretty simple idea. this is the same as tag && payload.field0 == arg0 && payload.field1 == arg1 && ...
+            //this can be implemented as
+            //main:
+            // cmpbranch tag == payload.field0, then, end(false)
+            // then:
+            //  cmpbranch payload.field1 == arg1, then2, end(false)
+            //then2:
+            //  cmpbranch payload.field2 == arg2, then3, end(false)
+            //then3: in case, the last one, whatever
+            //  br else(payload.field3 == arg3)
+            //
+            //This might be able to optimize by
+            //then2:
+            // cmp branch payload.field2 == arg2, end(payload.field3 == arg3), end(false).
+            //But this will not be a thing yet
+            ctx.switch_to_block(then_label).unwrap();
+            let mut args = args
+                .into_iter()
+                .map(|arg| self.lower_expression(*arg, hir, ctx))
+                .collect::<Result<Vec<_>, _>>()?;
+            let (fields, last_field, last_arg): (Vec<_>, _, _) = {
+                let payload = ctx.get_field(union_value, variant as u16);
+                let mut fields: Vec<Value> = args
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| ctx.get_field(payload, i as u16))
+                    .collect();
+                let last_field = fields
+                    .pop()
+                    .expect("previous check found fields not empty but it is?");
+                let last_arg = args
+                    .pop()
+                    .expect("previous check found args not empty but it is?");
+                (fields, last_field, last_arg)
+            };
+            let mut current_label: IRPointer<Label, 1>;
+            for (field, arg) in fields.into_iter().zip(args) {
+                let field_check = ctx.cmp(arg, field);
+                let then_next = ctx.create_label("then_next_field");
+                ctx.branch_conditional(field_check, then_next, end_label, &[], &[false_value]);
+                current_label = then_next;
+                ctx.switch_to_block(current_label).unwrap();
+            }
+            let last_cmp = ctx.cmp(last_arg, last_field);
+            ctx.branch(end_label, &[last_cmp]);
+        };
+
+        Ok(ctx.block_param(end_label, 0))
     }
 
     fn lower_if_expression(
