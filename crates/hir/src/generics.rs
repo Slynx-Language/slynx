@@ -66,10 +66,7 @@ impl GenericTypeArguments {
 
     /// The resolved argument for parameter `index`, if any.
     pub fn get(&self, index: usize) -> Option<DedupPoolId<HirType>> {
-        self.slots
-            .get(index)
-            .copied()
-            .filter(|ty| !ty.is_null())
+        self.slots.get(index).copied().filter(|ty| !ty.is_null())
     }
 
     /// Whether the parameter at `index` has been resolved.
@@ -145,9 +142,7 @@ pub fn substitute_types(
     ty: DedupPoolId<HirType>,
 ) -> DedupPoolId<HirType> {
     match hir.view(ty).raw() {
-        HirType::GenericParam { index, .. } => {
-            generics.get(*index as usize).copied().unwrap_or(ty)
-        }
+        HirType::GenericParam { index, .. } => generics.get(*index as usize).copied().unwrap_or(ty),
         HirType::Array(inner, len) => {
             let inner = substitute_types(hir, generics, *inner);
             hir.create_type(HirType::Array(inner, *len))

@@ -1,7 +1,4 @@
-use common::{
-    Span, Spanned,
-    pool::DedupPoolId,
-};
+use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
@@ -88,10 +85,7 @@ impl ExpressionBuilder {
             let (expected_type, generic_index) = match queue.hir.view(*arg_type).raw() {
                 HirType::GenericParam { index, .. } => {
                     let index = *index as usize;
-                    let expected = explicit
-                        .get(index)
-                        .copied()
-                        .or_else(|| generics.get(index));
+                    let expected = explicit.get(index).copied().or_else(|| generics.get(index));
                     (expected, Some(index))
                 }
                 _ => (Some(*arg_type), None),
@@ -168,9 +162,7 @@ impl ExpressionBuilder {
             .zip(&variant.payload)
             .map(|(arg, ty)| {
                 let expected = match queue.hir.view(*ty).raw() {
-                    HirType::GenericParam { index, .. } => {
-                        generics.get(*index as usize)
-                    }
+                    HirType::GenericParam { index, .. } => generics.get(*index as usize),
                     _ => Some(*ty),
                 };
                 let expr = self.build_expression(

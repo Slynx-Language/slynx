@@ -39,9 +39,7 @@ impl Codegen {
         let layout = self
             .enum_layouts
             .get(&key)
-            .ok_or_else(|| {
-                CodegenError::InternalError("enum layout is not registered".into())
-            })?
+            .ok_or_else(|| CodegenError::InternalError("enum layout is not registered".into()))?
             .clone();
 
         let int_type = context.ir().int_type();
@@ -57,9 +55,7 @@ impl Codegen {
                 .copied()
                 .flatten()
                 .ok_or_else(|| {
-                    CodegenError::InternalError(
-                        "variant payload struct is not registered".into(),
-                    )
+                    CodegenError::InternalError("variant payload struct is not registered".into())
                 })?;
             let args = args
                 .iter()

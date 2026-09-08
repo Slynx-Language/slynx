@@ -67,15 +67,11 @@ impl Codegen {
         let enum_struct = match self.get_mapped_type(&key) {
             Some(ty) => ty,
             None => {
-                let enum_view = hir
-                    .view(key)
-                    .dereference()
-                    .is_enum()
-                    .ok_or_else(|| {
-                        CodegenError::InternalError(format!(
-                            "{decl:?} should map to an Enum, but it doesn't"
-                        ))
-                    })?;
+                let enum_view = hir.view(key).dereference().is_enum().ok_or_else(|| {
+                    CodegenError::InternalError(format!(
+                        "{decl:?} should map to an Enum, but it doesn't"
+                    ))
+                })?;
                 let name = hir.get_name(enum_view.name());
                 let ty = ir.create_struct(name);
                 self.types.insert(key, ty);
@@ -90,15 +86,9 @@ impl Codegen {
         if !ir.get_object_type(enum_struct_id).get_fields().is_empty() {
             return Ok(());
         }
-        let enum_view = hir
-            .view(decl)
-            .dereference()
-            .is_enum()
-            .ok_or_else(|| {
-                CodegenError::InternalError(format!(
-                    "{decl:?} should map to an Enum, but it doesn't"
-                ))
-            })?;
+        let enum_view = hir.view(decl).dereference().is_enum().ok_or_else(|| {
+            CodegenError::InternalError(format!("{decl:?} should map to an Enum, but it doesn't"))
+        })?;
         let enum_name = hir.get_name(enum_view.name());
         let int_type = ir.int_type();
 
@@ -128,7 +118,8 @@ impl Codegen {
                 };
                 for payload_ty in &variant.payload {
                     let field_ty = self.get_or_create_ir_type(payload_ty, hir, ir)?;
-                    ir.get_object_type_mut(payload_struct_id).insert_field(field_ty);
+                    ir.get_object_type_mut(payload_struct_id)
+                        .insert_field(field_ty);
                 }
                 members.push(payload_struct);
                 variant_payload.push(Some(payload_struct));
@@ -146,7 +137,8 @@ impl Codegen {
             struct_ir.insert_field(union_ty);
         } else {
             variant_payload = enum_view.variants().iter().map(|_| None).collect();
-            ir.get_object_type_mut(enum_struct_id).insert_field(int_type);
+            ir.get_object_type_mut(enum_struct_id)
+                .insert_field(int_type);
         }
 
         self.enum_layouts.insert(

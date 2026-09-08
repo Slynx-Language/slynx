@@ -12,9 +12,7 @@ use std::{
 };
 
 use common::pool::DedupPoolId;
-use slynx_hir::{
-    EnumVariantType, HirType, Result, SlynxHir, SymbolPointer, id::AnyDeclarationId,
-};
+use slynx_hir::{EnumVariantType, HirType, Result, SlynxHir, SymbolPointer, id::AnyDeclarationId};
 use smallvec::SmallVec;
 
 /// Maps a generic parameter index to the concrete type it should be
@@ -195,16 +193,12 @@ pub(crate) fn contains_generic_param(hir: &SlynxHir, ty: DedupPoolId<HirType>) -
                     .iter()
                     .any(|slot| !slot.is_null() && contains_generic_param(hir, *slot))
         }
-        HirType::Enum(e) => hir
-            .view(*e)
-            .variants()
-            .iter()
-            .any(|variant| {
-                variant
-                    .payload
-                    .iter()
-                    .any(|payload_ty| contains_generic_param(hir, *payload_ty))
-            }),
+        HirType::Enum(e) => hir.view(*e).variants().iter().any(|variant| {
+            variant
+                .payload
+                .iter()
+                .any(|payload_ty| contains_generic_param(hir, *payload_ty))
+        }),
         _ => false,
     }
 }

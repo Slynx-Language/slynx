@@ -165,10 +165,7 @@ impl HirNode<'_> {
                             representation.span.make_spanned(representation.data),
                             &TypeContext::new(&[]),
                         )?;
-                        if !matches!(
-                            self.hir.view(repr_ty).dereference().raw(),
-                            HirType::Int
-                        ) {
+                        if !matches!(self.hir.view(repr_ty).dereference().raw(), HirType::Int) {
                             return Err(HIRError::invalid_enum_representation(
                                 enum_name,
                                 representation.span,

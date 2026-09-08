@@ -64,12 +64,7 @@ impl Monomorphizer {
             let AnyLocalDeclarationId::Enum(local_id) = cached.local_id else {
                 unreachable!("A monomorphized enum target must be an enum")
             };
-            return Ok(hir
-                .get_file(cached.file_id)
-                .declarations
-                .declarations
-                .enums[local_id]
-                .ty);
+            return Ok(hir.get_file(cached.file_id).declarations.declarations.enums[local_id].ty);
         }
         if self.in_progress.contains(&key) {
             return Err(HIRError::cyclic_monomorphization(name, args, span));

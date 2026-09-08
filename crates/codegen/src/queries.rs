@@ -79,12 +79,11 @@ impl Codegen {
                 // so this on-demand branch and the hoist pass agree on the
                 // same shape every time.
                 self.insert_enum_fields_for(key, hir, ir)?;
-                self.get_mapped_type(&key)
-                    .ok_or_else(|| {
-                        CodegenError::InternalError(
-                            "enum layout was materialized but its struct is not mapped".into(),
-                        )
-                    })?
+                self.get_mapped_type(&key).ok_or_else(|| {
+                    CodegenError::InternalError(
+                        "enum layout was materialized but its struct is not mapped".into(),
+                    )
+                })?
             }
 
             _ => return Err(CodegenError::IRTypeNotRecognized(*ty)),
