@@ -66,6 +66,12 @@ impl SlynxContext {
                     hir.get_name(*name)
                 )
             }
+            HIRErrorKind::InvalidEnumRepresentation(name) => {
+                format!(
+                    "Enum '{}' uses an unsupported representation: only `int` is supported",
+                    hir.get_name(*name)
+                )
+            }
             HIRErrorKind::UnexpectedType { expected, received } => {
                 let expected_name = hir.view(*expected).name();
                 let received_name = hir.view(*received).name();
