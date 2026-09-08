@@ -1,0 +1,11 @@
+// xfail: a `matches` pattern must be a variant name or a variant call; a
+// binary-operator RHS is not a valid pattern and must be rejected.
+enum Result {
+    Ok(int),
+    Err(str)
+}
+
+func main(): bool {
+    let a = Result.Ok(1);
+    a matches (1 + 2)
+}

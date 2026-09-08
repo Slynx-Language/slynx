@@ -1,0 +1,12 @@
+// xpass: constructing a variant with a payload argument of the wrong type is
+// currently NOT rejected (the literal builders ignore the expected payload
+// type). This documents a missing validation that should eventually error.
+enum Result {
+    Ok(int),
+    Err(str)
+}
+
+func main(): bool {
+    let a = Result.Ok("not an int");
+    true
+}

@@ -1,0 +1,7 @@
+// An empty enum that is never used must not crash codegen: HIR generation is
+// lazy, so the empty enum is dead and must be skipped by the hoist pass.
+enum Empty {}
+
+func main(): bool {
+    true
+}

@@ -1,0 +1,17 @@
+// An enum whose payload references another enum must resolve the nested enum's
+// flat layout through the on-demand branch of `get_or_create_ir_type`.
+enum Inner {
+    Value(int),
+    Empty
+}
+
+enum Outer {
+    Box(Inner),
+    None
+}
+
+func main(): bool {
+    let a = Outer.Box(Inner.Value(3));
+    let b = Outer.None;
+    true
+}

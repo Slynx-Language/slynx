@@ -1,0 +1,13 @@
+// Functions with a signature that references a generic enum must have that
+// signature reference specialized during Step 3 of monomorphization, even when
+// the function body never constructs the enum. This exercises the
+// signature-resolution wiring (contains_resolvable_reference/enum arm in
+// resolve_expression_type).
+enum Boxed<T> {
+    Value(T),
+    Empty
+}
+
+func identity(x: Boxed<int>): Boxed<int> {
+    x
+}
