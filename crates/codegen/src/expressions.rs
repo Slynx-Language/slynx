@@ -481,7 +481,7 @@ impl Codegen {
             //But this will not be a thing yet
             ctx.switch_to_block(then_label).unwrap();
             let mut args = args
-                .into_iter()
+                .iter()
                 .map(|arg| self.lower_expression(*arg, hir, ctx))
                 .collect::<Result<Vec<_>, _>>()?;
             let (fields, last_field, last_arg): (Vec<_>, _, _) = {

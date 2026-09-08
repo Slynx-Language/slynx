@@ -75,7 +75,7 @@ impl Monomorphizer {
         let type_variants = {
             enum_view
                 .variants()
-                .into_iter()
+                .iter()
                 .map(|variant| {
                     let payload = variant
                         .payload

@@ -7,7 +7,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    EnumVariantType, HIRError, HirExpression, HirExpressionKind, HirType, Result,
+    HIRError, HirExpression, HirExpressionKind, HirType, Result,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -114,7 +114,7 @@ impl ExpressionBuilder {
                         EnumExpressionDescriptor {
                             enum_type: ty,
                             variant: EnumVariantDescriptor {
-                                variant_id: variant_id,
+                                variant_id,
                                 arguments: &[],
                             },
                             generics: &[],
@@ -131,21 +131,26 @@ impl ExpressionBuilder {
                     ));
                 }
             }
-            (ASTExpression::Identifier(name), _) => {
+            (ASTExpression::Identifier(_), _) => {
                 unimplemented!("Constant values bound to types are not supported yet")
             }
 
-            (ASTExpression::FunctionCall { name, args }, HirType::Enum(e))
-                if let Some((id, _)) =
-                    queue
-                        .hir
-                        .view(*e)
-                        .variants()
-                        .iter()
-                        .enumerate()
-                        .find(|(_, variant)| {
-                            variant.name == queue.type_name(name.data, &TypeContext::EMPTY)
-                        }) =>
+            (
+                ASTExpression::FunctionCall {
+                    name,
+                    args: arguments,
+                },
+                HirType::Enum(e),
+            ) if let Some((id, _)) =
+                queue
+                    .hir
+                    .view(*e)
+                    .variants()
+                    .iter()
+                    .enumerate()
+                    .find(|(_, variant)| {
+                        variant.name == queue.type_name(name.data, &TypeContext::EMPTY)
+                    }) =>
             {
                 let generics = {
                     let plain = queue.get_plain_type(*name);
@@ -157,11 +162,11 @@ impl ExpressionBuilder {
                         enum_type: ty,
                         variant: EnumVariantDescriptor {
                             variant_id: id,
-                            arguments: &args,
+                            arguments,
                         },
-                        generics: &generics,
+                        generics,
                         span,
-                        context: &context,
+                        context,
                     },
                 )
             }
@@ -177,7 +182,7 @@ impl ExpressionBuilder {
                     let plain = queue.get_plain_type(*name);
                     &plain.generic
                 };
-                let call = self.build_function_call(
+                self.build_function_call(
                     queue,
                     FunctionCallDescriptor {
                         target: FunctionTarget::Resolved {
@@ -186,11 +191,10 @@ impl ExpressionBuilder {
                         },
                         arguments: args,
                         span,
-                        context: &context,
+                        context,
                         prepended_arguments: &[],
                     },
-                );
-                call
+                )
             }
 
             _ => Err(HIRError::invalid_type_access(span)),

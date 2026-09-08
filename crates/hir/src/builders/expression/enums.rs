@@ -68,7 +68,7 @@ impl ExpressionBuilder {
         //concrete type arguments the enum reference should carry.
         let explicit = queue
             .get_node(self.file())
-            .resolve_call_generics(descriptor.generics, &descriptor.context)?;
+            .resolve_call_generics(descriptor.generics, descriptor.context)?;
 
         //The number of generic parameters this enum declares, derived from the
         //highest generic-parameter index referenced by the variant's payload.
@@ -95,7 +95,7 @@ impl ExpressionBuilder {
                 ExpressionDescriptor {
                     target: descriptor.variant.arguments[arg_index],
                     expected: expected_type,
-                    context: &descriptor.context,
+                    context: descriptor.context,
                 },
             )?;
             arguments.push(expr);
