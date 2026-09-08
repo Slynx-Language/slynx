@@ -49,16 +49,28 @@ pub type TypeId = DedupPoolId<HirType>;
 
 ///The IR layout of an enum type.
 ///
-///Every enum is lowered to a flat struct whose `field[0]` holds the variant
-///discriminant as an `int` tag. The payload fields of every variant are then
-///appended in declaration order, so a construction only fills the tag plus its
-///own variant's payload slice (the remaining fields are zeroed).
+///An enum whose variants carry payloads is lowered to a struct whose `field[0]`
+///holds the variant discriminant as an `int` tag and whose `field[1]` is a
+///union: `struct {int tag, %{name}_payload}`. The union holds one member per
+///variant (member index == variant index), where each member is that variant's
+///payload struct (`%{name}_variant_{Variant}`). Enums whose variants carry no
+///payload at all lower to a bare `struct {int tag}`.
+///
+///This is the single source of truth for the enum layout: `insert_enum_fields_for`
+///materializes the struct fields and registers the layout, while both enum
+///construction (`lower_enum`) and pattern matching (`lower_matches`) consume it
+///instead of re-deriving the shape from the IR.
 #[derive(Clone)]
 pub(crate) struct EnumLayout {
     ///The IR struct type of the enum.
     pub type_id: IRTypeId,
-    ///For each variant, `(payload_field_start, payload_field_count)`.
-    pub variant_payload: Vec<(usize, usize)>,
+    ///The payload struct id for each variant (member index == variant index).
+    ///`None` only when a variant has no payload, although an empty payload
+    ///struct is still emitted and stored so indices stay aligned.
+    pub variant_payload: Vec<Option<IRTypeId>>,
+    ///The union type holding every variant's payload struct. `Some` only when
+    ///at least one variant carries a payload.
+    pub union_type: Option<IRTypeId>,
 }
 
 pub struct Codegen {
@@ -121,7 +133,7 @@ impl Codegen {
     ) -> Result<SlynxIR, CodegenError> {
         self.ownership = ownership;
         let mut ir = SlynxIR::new();
-        self.hoist_declarations(hir, &mut ir, &deadcode);
+        self.hoist_declarations(hir, &mut ir, &deadcode)?;
         self.stylesheet_pre_pass(hir, &mut ir, &deadcode);
         self.lower_non_stylesheets(hir, &mut ir, &deadcode)?;
         self.lower_stylesheets(hir, &mut ir, &deadcode)?;
@@ -133,7 +145,7 @@ impl Codegen {
         hir: &SlynxHir,
         ir: &mut SlynxIR,
         deadcode: &HashSet<AnyDeclarationId>,
-    ) {
+    ) -> Result<(), CodegenError> {
         for file in &hir.files {
             for (id, declaration) in file.declarations.objects.iter().with_ids() {
                 if deadcode.contains(&AnyDeclarationId::new(
@@ -165,32 +177,16 @@ impl Codegen {
                 self.functions
                     .insert(DeclarationId::new(file.file, id), ptr);
             }
-            for (_, declaration) in file.declarations.enums.iter().with_ids() {
+            for (id, declaration) in file.declarations.enums.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Enum(id),
+                )) {
+                    continue;
+                }
                 let name = hir.get_name(declaration.name);
                 let enum_struct = ir.create_struct(name);
                 self.types.insert(declaration.ty, enum_struct);
-                let ty_view = hir.view(declaration.ty);
-                let deref = ty_view.dereference();
-                let enum_view = deref
-                    .is_enum()
-                    .expect("An enum declaration must map to an enum type");
-                let mut field_start = 1;
-                let variant_payload = enum_view
-                    .variants()
-                    .iter()
-                    .map(|variant| {
-                        let payload = (field_start, variant.payload.len());
-                        field_start += variant.payload.len();
-                        payload
-                    })
-                    .collect();
-                self.enum_layouts.insert(
-                    declaration.ty,
-                    EnumLayout {
-                        type_id: enum_struct,
-                        variant_payload,
-                    },
-                );
             }
             for (id, declaration) in file.declarations.components.iter().with_ids() {
                 if deadcode.contains(&AnyDeclarationId::new(
@@ -229,6 +225,7 @@ impl Codegen {
                 );
             }
         }
+        Ok(())
     }
 
     /// Pre-pass: compute property codes for all stylesheets.
@@ -269,7 +266,13 @@ impl Codegen {
         // Fill enum struct fields across all files before any function body is
         // lowered, so payload references to enums in other files resolve.
         for file in &hir.files {
-            for (_, declaration) in file.declarations.enums.iter().with_ids() {
+            for (id, declaration) in file.declarations.enums.iter().with_ids() {
+                if deadcode.contains(&AnyDeclarationId::new(
+                    file.file,
+                    AnyLocalDeclarationId::Enum(id),
+                )) {
+                    continue;
+                }
                 self.insert_enum_fields_for(declaration.ty, hir, ir)?;
             }
         }

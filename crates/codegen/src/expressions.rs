@@ -19,14 +19,16 @@ impl Codegen {
         variant: usize,
         args: &[Spanned<PoolId<HirExpression>>],
     ) -> Result<Value, CodegenError> {
-        let ir_ty = self.get_or_create_ir_type(&ty, hir, context.ir())?;
         // Read the (post-monomorphization) enum type to find the variant's
         // compile-time discriminant. Enums lower to a struct whose field[0]
         // holds the discriminant tag and whose field[1] is a union of the
         // per-variant payload structs. Construction fills the tag plus the
-        // selected variant's payload struct inside that union.
+        // selected variant's payload struct inside that union, using the
+        // centralized `EnumLayout` so construction and matching agree on the
+        // exact shape registered at materialization time.
         let view = hir.view(ty);
         let deref = view.dereference();
+        let key = deref.data();
         let enum_view = deref.is_enum().ok_or_else(|| {
             CodegenError::InternalError("enum expression must resolve to an enum type".into())
         })?;
@@ -34,34 +36,30 @@ impl Codegen {
             CodegenError::InternalError("enum variant index out of bounds".into())
         })?;
 
+        let layout = self
+            .enum_layouts
+            .get(&key)
+            .ok_or_else(|| {
+                CodegenError::InternalError("enum layout is not registered".into())
+            })?
+            .clone();
+
         let int_type = context.ir().int_type();
         let tag = context.emit_const(Operand::Int(variant_info.discriminant as i64), int_type);
 
         let mut operands = Vec::with_capacity(2);
         operands.push(tag);
 
-        // If any variant carries a payload, field[1] is the payload union; its
-        // member at `variant` is this variant's payload struct.
-        let IRType::Struct(enum_struct_id) = *context.ir().get_type(ir_ty) else {
-            return Err(CodegenError::InternalError(
-                "enum type must lower to an IR struct".into(),
-            ));
-        };
-        let fields = context.ir().get_object_type(enum_struct_id).get_fields();
-        if fields.len() >= 2 {
-            let union_ty = fields[1];
-            let IRType::Union(union_id) = *context.ir().get_type(union_ty) else {
-                return Err(CodegenError::InternalError(
-                    "enum payload must lower to an IR union".into(),
-                ));
-            };
-            let payload_struct = *context
-                .ir()
-                .get_union_type(union_id)
-                .get_variants()
+        if let Some(union_ty) = layout.union_type {
+            let payload_struct = layout
+                .variant_payload
                 .get(variant)
+                .copied()
+                .flatten()
                 .ok_or_else(|| {
-                    CodegenError::InternalError("enum variant index out of bounds".into())
+                    CodegenError::InternalError(
+                        "variant payload struct is not registered".into(),
+                    )
                 })?;
             let args = args
                 .iter()
@@ -72,7 +70,7 @@ impl Codegen {
             operands.push(union_value);
         }
 
-        Ok(context.struct_literal(ir_ty, &operands))
+        Ok(context.struct_literal(layout.type_id, &operands))
     }
 
     fn lower_if_branch(
@@ -432,10 +430,18 @@ impl Codegen {
         let int_type = ctx.ir().int_type();
         let bool_type = ctx.ir().bool_type();
         let false_value = ctx.emit_const(Operand::Bool(false), bool_type);
-        let discriminant = hir
-            .view(hir_value.data)
-            .ty_viewer()
-            .dereference()
+        let expr_view = hir.view(hir_value.data);
+        let enum_type = expr_view.ty_viewer().dereference();
+        let layout = self
+            .enum_layouts
+            .get(&enum_type.data())
+            .ok_or_else(|| {
+                CodegenError::InternalError(
+                    "enum layout for matches target is not registered".into(),
+                )
+            })?
+            .clone();
+        let discriminant = enum_type
             .is_enum()
             .expect("Expected type of value on matches expression to be an enum")
             .variants()[variant]
@@ -449,9 +455,15 @@ impl Codegen {
 
         if args.is_empty() {
             return Ok(cond);
-        } else {
-            ctx.branch_conditional(cond, then_label, end_label, &[], &[false_value]);
         }
+        // A non-empty pattern implies the matched variant carries a payload, so
+        // the enum must have the payload union registered in its layout.
+        layout.union_type.ok_or_else(|| {
+            CodegenError::InternalError(
+                "matched variant carries a payload but the enum has no payload union".into(),
+            )
+        })?;
+        ctx.branch_conditional(cond, then_label, end_label, &[], &[false_value]);
         let union_value = ctx.get_field(value, 1);
 
         {

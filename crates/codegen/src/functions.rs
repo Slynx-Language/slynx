@@ -54,7 +54,7 @@ impl<'a> DerefMut for FunctionContext<'a> {
 
 impl Codegen {
     fn map_function_type(
-        &self,
+        &mut self,
         func_ty: TypeId,
         hir: &SlynxHir,
         ir: &mut SlynxIR,
