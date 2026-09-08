@@ -1,0 +1,10 @@
+// Constructs and returns an enum carrying a payload, exercising the flat
+// struct layout (tag + payload slice) without relying on `matches`.
+enum Result {
+    Ok(int),
+    Err(str)
+}
+
+func main(): Result {
+    Result.Ok(42)
+}

@@ -147,6 +147,32 @@ pub struct StructType {
     pub(crate) metadata: DedupPoolId<StructDefinition>,
 }
 
+/// A single variant of an enum type.
+///
+/// Raw and raw-valued variants carry no payload; associated and struct
+/// variants carry an ordered list of payload types (struct field names are
+/// irrelevant to the runtime representation, so they are stored in
+/// declaration order). The `discriminant` is the compile-time tag used to
+/// distinguish variants at runtime.
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub struct EnumVariantType {
+    /// The name of the variant.
+    pub name: SymbolPointer,
+    /// The ordered payload types, empty for raw/raw-valued variants.
+    pub payload: Vec<DedupPoolId<HirType>>,
+    /// The compile-time discriminant (tag) of this variant.
+    pub discriminant: i32,
+}
+
+/// A user-defined enum type.
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub struct EnumType {
+    /// The name of the enum.
+    pub name: SymbolPointer,
+    /// The variants of this enum, in declaration order.
+    pub variants: Vec<EnumVariantType>,
+}
+
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct ComponentType {
     pub(crate) properties: Vec<DedupPoolId<HirType>>,
@@ -284,6 +310,13 @@ pub enum HirType {
     /// let tuple_type = HirType::Tuple(tuple_type_id);
     /// ```
     Tuple(DedupPoolId<TupleType>),
+
+    /// A user-defined enum type.
+    ///
+    /// Enums are a set of named variants, each of which may carry an ordered
+    /// payload (like `Option`'s `Some(int)`). The discriminant of the active
+    /// variant is stored alongside the payload so it can be matched and read.
+    Enum(DedupPoolId<EnumType>),
 
     /// An immutable reference to a type. The difference of this to Reference type is that this represents a reference to a value with the given type, equivalent to C's pointer, the reference type is a reference to another type
     ImutableRef(DedupPoolId<HirType>),

@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    HirAliasDeclaration, HirComponentDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
-    HirStaticDeclaration, HirStylesheetDeclaration, HirType, SymbolPointer,
+    HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration,
+    HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration, HirType, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 use common::{
@@ -21,7 +21,8 @@ pooled!(pub DeclarationsPool {
     pub components: HirComponentDeclaration,
     pub styles: HirStylesheetDeclaration,
     pub alias: HirAliasDeclaration,
-    pub statik: HirStaticDeclaration
+    pub statik: HirStaticDeclaration,
+    pub enums: HirEnumDeclaration,
 });
 
 impl Debug for DeclarationsPool {

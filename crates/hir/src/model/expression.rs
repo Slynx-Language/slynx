@@ -516,6 +516,71 @@ pub enum HirExpressionKind {
         generics: Vec<DedupPoolId<HirType>>,
     },
 
+    /// An enum variant construction expression.
+    ///
+    /// Creates a value of the given enum variant. Raw and raw-valued variants
+    /// carry no payload; associated and struct variants carry one value per
+    /// payload field, in declaration order.
+    ///
+    /// # Example
+    ///
+    /// ```slynx
+    /// enum Option {
+    ///     None,
+    ///     Some(int),
+    /// }
+    ///
+    /// let some_value = Some(4);  // Enum construction
+    /// let none_value = None;     // Raw variant construction
+    /// ```
+    ///
+    /// # Fields
+    ///
+    /// - `ty` — The enum's type id (`HirType::Enum`)
+    /// - `variant` — The index of the variant being constructed
+    /// - `args` — Payload value expressions, in payload order
+    Enum {
+        /// The enum's type id.
+        ty: DedupPoolId<HirType>,
+        /// The index of the variant being constructed.
+        variant: usize,
+        /// Payload value expressions, in payload order.
+        args: Vec<Spanned<PoolId<HirExpression>>>,
+    },
+
+    /// A pattern-matching expression (`lhs matches Pattern`).
+    ///
+    /// Evaluates to `true` when the left-hand side value belongs to the given
+    /// enum variant and (for payload variants) its payload equals the pattern's
+    /// payload values.
+    ///
+    /// # Example
+    ///
+    /// ```slynx
+    /// enum Option {
+    ///     None,
+    ///     Some(int),
+    /// }
+    ///
+    /// let a = Some(4);
+    /// let b = a matches Some(4);   // true
+    /// let c = a matches None;      // false
+    /// ```
+    ///
+    /// # Fields
+    ///
+    /// - `value` — The left-hand side expression
+    /// - `variant` — The index of the variant being matched
+    /// - `args` — Pattern payload value expressions, in payload order
+    Matches {
+        /// The left-hand side expression being matched.
+        value: Spanned<PoolId<HirExpression>>,
+        /// The index of the variant being matched.
+        variant: usize,
+        /// Pattern payload value expressions, in payload order.
+        args: Vec<Spanned<PoolId<HirExpression>>>,
+    },
+
     /// A conditional (if) expression.
     ///
     /// Evaluates a condition and executes one of two branches.

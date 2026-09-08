@@ -1,0 +1,5 @@
+// xfail: the left-hand side of `matches` must be an enum value; applying it to
+// a plain integer must be rejected.
+func main(): bool {
+    5 matches Some(1)
+}

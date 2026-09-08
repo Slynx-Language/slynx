@@ -1,0 +1,16 @@
+enum Status {
+    Idle,
+    Busy = 3,
+    Done
+}
+
+func main(): int {
+    let idle = Status.Idle;
+    let busy = Status.Busy;
+    let done = Status.Done;
+    if (idle matches Idle) && (busy matches Busy) && (done matches Done) {
+        1
+    } else {
+        0
+    }
+}

@@ -9,6 +9,7 @@ mod program;
 mod queries;
 use common::{FrontendSymbol, SymbolsModule, pool::DedupPool};
 pub use error::*;
+mod enums;
 mod expr;
 mod functions;
 pub mod objects;
@@ -30,7 +31,7 @@ pub type SymbolPointer = common::SymbolPointer<common::FrontendSymbol>;
 ///The type parameters of the generic function currently being parsed. Each
 ///entry maps a parameter's name to its index, so that `T` inside
 ///`func identity<T>(x: T): T` resolves to `Type::Generic(0)`.
-pub type TypeParamScope<'a> = &'a [(SymbolPointer, u8)];
+pub type TypeParamScope<'a> = &'a [SymbolPointer];
 pub struct Parser<'a> {
     symbols: &'a SymbolsModule<FrontendSymbol>,
     expressions: &'a DedupPool<ASTExpression>,

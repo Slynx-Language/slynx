@@ -113,7 +113,11 @@ impl ExpressionBuilder {
                             .get(&fieldname)
                             .expect("Field name should've been added into type names");
 
-                        let field_ty = queue.substitute_generics(generics, obj.field_types()[*idx]);
+                        let field_ty = crate::generics::substitute_types(
+                            queue.hir,
+                            generics,
+                            obj.field_types()[*idx],
+                        );
                         self.build_expression(
                             queue,
                             ExpressionDescriptor {

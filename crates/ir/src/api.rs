@@ -1,6 +1,6 @@
 use crate::{
     Component, ComponentBuilder, ControlFlowGraph, Function, IRPointer, IRStructFlags, IRType,
-    IRTypeId, SlynxIR, builder::FunctionBuilder,
+    IRTypeId, IRUnionFlags, SlynxIR, builder::FunctionBuilder,
 };
 
 impl SlynxIR {
@@ -29,6 +29,26 @@ impl SlynxIR {
     ) -> IRTypeId {
         let name = self.strings.intern(name);
         self.types.create_named_struct(name, fields, flags)
+    }
+
+    /// Creates a new empty union with the given `name` and returns its type ID.
+    pub fn create_union(&mut self, name: &str) -> IRTypeId {
+        let name = self.strings.intern(name);
+        self.create_empty_union(name).0
+    }
+
+    /// Creates a named union with the given `variants` and `flags`.
+    ///
+    /// Unions are dedup'd by name, so calling this multiple times with the same
+    /// `name` returns the same union type regardless of `variants`.
+    pub fn create_union_full(
+        &mut self,
+        name: &str,
+        variants: Vec<IRTypeId>,
+        flags: IRUnionFlags,
+    ) -> IRTypeId {
+        let name = self.strings.intern(name);
+        self.types.create_named_union(name, variants, flags)
     }
 
     /// Create a new empty function with the given name and return its pointer.

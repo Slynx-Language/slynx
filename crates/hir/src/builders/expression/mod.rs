@@ -30,6 +30,7 @@ mod calls;
 mod collections;
 mod components;
 mod control_flow;
+mod enums;
 mod field_access;
 mod literals;
 mod names;
@@ -279,16 +280,35 @@ impl ExpressionBuilder {
                 };
                 queue.hir.create_binary_expression(lhs, rhs, *op, ty)
             }
-            ASTExpression::FunctionCall { name, args } => self.build_function_call(
-                queue,
-                FunctionCallDescriptor {
-                    target: FunctionTarget::Free { name: *name },
-                    arguments: args,
-                    prepended_arguments: &[],
-                    span: target.span,
-                    context,
-                },
-            )?,
+            ASTExpression::FunctionCall { name, args } => {
+                let identifier = queue.get_plain_type(*name);
+                if self
+                    .resolve_enum_variant(queue, identifier.identifier)
+                    .is_some()
+                {
+                    self.build_enum_variant_expression(
+                        queue,
+                        identifier.identifier,
+                        args,
+                        target.span,
+                        context,
+                    )?
+                } else {
+                    self.build_function_call(
+                        queue,
+                        FunctionCallDescriptor {
+                            target: FunctionTarget::Free { name: *name },
+                            arguments: args,
+                            prepended_arguments: &[],
+                            span: target.span,
+                            context,
+                        },
+                    )?
+                }
+            }
+            ASTExpression::Matches { lhs, pattern } => {
+                self.build_matches_expression(queue, *lhs, *pattern, target.span, context)?
+            }
             ASTExpression::If {
                 condition,
                 body,

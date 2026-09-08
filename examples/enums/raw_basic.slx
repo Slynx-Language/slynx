@@ -1,0 +1,8 @@
+enum Name {
+    Raw
+}
+
+func main(): bool {
+    let a = Name.Raw;
+    a matches Raw
+}

@@ -24,6 +24,7 @@
 //! declaration-agnostic tree builders that every kind reuses.
 
 mod components;
+mod enums;
 mod functions;
 mod structs;
 mod types;
@@ -233,6 +234,7 @@ impl Monomorphizer {
         self.neutralize_generic_functions(hir, &files, void_ty);
         self.neutralize_generic_objects(hir, &files, void_ty);
         self.neutralize_generic_components(hir, &files, void_ty);
+        self.neutralize_generic_enums(hir, &files, void_ty);
 
         Ok(())
     }
@@ -270,8 +272,10 @@ impl Monomorphizer {
                 self.resolve_object_target(hir, ty, span)
             } else if deref.is_component().is_some() {
                 self.resolve_component_target(hir, ty, span)
+            } else if deref.is_enum().is_some() {
+                self.resolve_enum_target(hir, ty, span)
             } else {
-                unreachable!("Resolvable references only target structs or components")
+                unreachable!("Resolvable references only target structs, components, or enums")
             };
         }
 
@@ -521,6 +525,20 @@ impl Monomorphizer {
                 else_branch: else_branch
                     .map(|branch| self.build_statements(hir, &branch, subst))
                     .transpose()?,
+            },
+            HirExpressionKind::Enum { ty, variant, args } => HirExpressionKind::Enum {
+                ty: substitute_type(hir, ty, subst)?,
+                variant,
+                args: self.build_expressions(hir, &args, subst)?,
+            },
+            HirExpressionKind::Matches {
+                value,
+                variant,
+                args,
+            } => HirExpressionKind::Matches {
+                value: self.build_expression(hir, value, subst)?,
+                variant,
+                args: self.build_expressions(hir, &args, subst)?,
             },
             HirExpressionKind::FunctionCall {
                 name,

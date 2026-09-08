@@ -1,0 +1,6 @@
+// xfail: referencing an enum variant that no reachable enum declares must be
+// rejected.
+func main(): bool {
+    let a = MissingVariant(1);
+    true
+}

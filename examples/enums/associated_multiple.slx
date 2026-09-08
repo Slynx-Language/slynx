@@ -1,0 +1,8 @@
+enum Name {
+    Associated2(str, int, f64)
+}
+
+func main(): bool {
+    let a = Name.Associated2("text", 5, 3.14);
+    a matches Associated2("text", 5, 3.14)
+}

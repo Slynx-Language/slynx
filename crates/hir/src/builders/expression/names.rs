@@ -59,6 +59,7 @@ impl ExpressionBuilder {
         }
     }
 
+    ///Builds an expression based on the given `name`. If its a static, builds a static expression. Otherwise, builds an identifier expression.
     pub(super) fn build_identifier(
         &self,
         queue: &HirQueueBuilder,

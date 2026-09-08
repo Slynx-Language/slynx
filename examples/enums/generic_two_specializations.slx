@@ -1,0 +1,13 @@
+// Specializes the same generic enum at two different type arguments within a
+// single non-generic function. Ensures enum monomorphization wiring resolves
+// each construction to its own concrete specialize struct.
+enum Thing<T> {
+    Some(T),
+    None
+}
+
+func main(): bool {
+    let a = Thing.Some(12);
+    let b = Thing.Some("hi");
+    true
+}

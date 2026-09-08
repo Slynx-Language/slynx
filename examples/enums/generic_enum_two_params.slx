@@ -1,0 +1,11 @@
+// A generic enum with two type parameters, constructed with both concrete and
+// mixed-type payloads. Exercises substitution of every parameter slot.
+enum Pair<A, B> {
+    Both(A, B),
+    OnlyA(A)
+}
+
+func main(): bool {
+    let p = Pair.Both(3, 1.5);
+    true
+}

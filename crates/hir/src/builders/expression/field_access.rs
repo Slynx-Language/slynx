@@ -12,6 +12,7 @@ use crate::{
         HirQueueBuilder,
         expression::{
             calls::{FunctionCallDescriptor, FunctionTarget},
+            enums::{EnumExpressionDescriptor, EnumVariantDescriptor},
             literals::ReferenceExpressionDescriptor,
         },
     },
@@ -87,46 +88,118 @@ impl ExpressionBuilder {
         span: Span,
         context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
-        match queue.get_expr(child.data) {
-            ASTExpression::FieldAccess {
-                parent: inner_parent,
-                field: inner_field,
-            } => {
+        let ty_view = queue.hir.view(ty);
+        let ty_deref = ty_view.dereference();
+        let raw_ty = ty_deref.raw();
+        let expr = match (queue.get_expr(child.data), raw_ty) {
+            (
+                ASTExpression::FieldAccess {
+                    parent: inner_parent,
+                    field: inner_field,
+                },
+                _,
+            ) => {
                 let parent =
                     self.build_type_access(queue, file_owner, ty, *inner_parent, span, context)?;
-                self.build_field_access_impl(queue, parent, *inner_field, span, context)
+                return self.build_field_access_impl(queue, parent, *inner_field, span, context);
             }
-            ASTExpression::Identifier(_) => {
-                unimplemented!("Constant values bound to types are not supported yet")
-            }
-            ASTExpression::FunctionCall { name, args } => {
-                let method_name = queue.type_name(name.data, &TypeContext::EMPTY);
-                if let Some(method) = queue.resolve_method(file_owner, ty, method_name, span)? {
-                    let generics = {
-                        let plain = queue.get_plain_type(*name);
-                        &plain.generic
-                    };
-                    let call = self.build_function_call(
+            (ASTExpression::Identifier(name), HirType::Enum(e))
+                if let Some(variant_id) = queue.hir.view(*e).find_variant(*name) =>
+            {
+                let enum_viewer = queue.hir.view(*e);
+                let raw_variant = &enum_viewer.variants()[variant_id];
+                if raw_variant.payload.is_empty() {
+                    self.build_enum_expression(
                         queue,
-                        FunctionCallDescriptor {
-                            target: FunctionTarget::Resolved {
-                                target: method,
-                                type_arguments: generics,
+                        EnumExpressionDescriptor {
+                            enum_type: ty,
+                            variant: EnumVariantDescriptor {
+                                variant_id,
+                                arguments: &[],
                             },
-                            arguments: args,
-                            prepended_arguments: &[],
+                            generics: &[],
                             span,
                             context,
                         },
-                    )?;
-
-                    Ok(span.make_spanned(queue.hir.insert_expression(call)))
+                    )
                 } else {
-                    Err(HIRError::static_method_not_found(method_name, span))
+                    return Err(HIRError::invalid_funcall_arg_length(
+                        *name,
+                        raw_variant.payload.len(),
+                        0,
+                        span,
+                    ));
                 }
             }
+            (ASTExpression::Identifier(_), _) => {
+                unimplemented!("Constant values bound to types are not supported yet")
+            }
+
+            (
+                ASTExpression::FunctionCall {
+                    name,
+                    args: arguments,
+                },
+                HirType::Enum(e),
+            ) if let Some((id, _)) =
+                queue
+                    .hir
+                    .view(*e)
+                    .variants()
+                    .iter()
+                    .enumerate()
+                    .find(|(_, variant)| {
+                        variant.name == queue.type_name(name.data, &TypeContext::EMPTY)
+                    }) =>
+            {
+                let generics = {
+                    let plain = queue.get_plain_type(*name);
+                    &plain.generic
+                };
+                self.build_enum_expression(
+                    queue,
+                    EnumExpressionDescriptor {
+                        enum_type: ty,
+                        variant: EnumVariantDescriptor {
+                            variant_id: id,
+                            arguments,
+                        },
+                        generics,
+                        span,
+                        context,
+                    },
+                )
+            }
+            (ASTExpression::FunctionCall { name, args }, _)
+                if let Some(method) = queue.resolve_method(
+                    file_owner,
+                    ty,
+                    queue.type_name(**name, &TypeContext::EMPTY),
+                    span,
+                )? =>
+            {
+                let generics = {
+                    let plain = queue.get_plain_type(*name);
+                    &plain.generic
+                };
+                self.build_function_call(
+                    queue,
+                    FunctionCallDescriptor {
+                        target: FunctionTarget::Resolved {
+                            target: method,
+                            type_arguments: generics,
+                        },
+                        arguments: args,
+                        span,
+                        context,
+                        prepended_arguments: &[],
+                    },
+                )
+            }
+
             _ => Err(HIRError::invalid_type_access(span)),
-        }
+        }?;
+        Ok(span.make_spanned(queue.hir.insert_expression(expr)))
     }
 
     ///Builds a member access against an already-built parent expression.
@@ -176,7 +249,7 @@ impl ExpressionBuilder {
                             let field_ty = field_types[position];
                             let field_ty = match queue.hir.view(parent_ty).raw() {
                                 HirType::Reference { generics, .. } => {
-                                    queue.substitute_generics(generics, field_ty)
+                                    crate::generics::substitute_types(queue.hir, generics, field_ty)
                                 }
                                 _ => field_ty,
                             };
@@ -207,7 +280,7 @@ impl ExpressionBuilder {
                             let field_ty = field_types[position];
                             let field_ty = match queue.hir.view(parent_ty).raw() {
                                 HirType::Reference { generics, .. } => {
-                                    queue.substitute_generics(generics, field_ty)
+                                    crate::generics::substitute_types(queue.hir, generics, field_ty)
                                 }
                                 _ => field_ty,
                             };

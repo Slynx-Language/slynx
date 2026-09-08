@@ -3,6 +3,7 @@ mod functions;
 mod irtype;
 mod structs;
 mod tuple;
+mod unions;
 
 use common::pool::{DedupPool, DedupPoolId};
 pub use components::*;
@@ -10,6 +11,7 @@ pub use functions::*;
 pub use irtype::*;
 pub use structs::*;
 pub use tuple::*;
+pub use unions::*;
 
 use crate::SymbolPointer;
 
@@ -40,6 +42,7 @@ pub struct IRTypes {
     structs: DedupPool<IRStruct>,
     functions: Vec<IRFunction>,
     components: DedupPool<IRComponent>,
+    unions: DedupPool<IRUnion>,
 }
 
 impl std::default::Default for IRTypes {
@@ -59,6 +62,7 @@ impl IRTypes {
             structs: DedupPool::new(),
             functions: Vec::new(),
             components: DedupPool::new(),
+            unions: DedupPool::new(),
         }
     }
 
@@ -67,6 +71,9 @@ impl IRTypes {
     }
     pub fn components(&self) -> impl Iterator<Item = &IRComponent> {
         self.components.iter().map(|(_, c)| c)
+    }
+    pub fn unions(&self) -> impl Iterator<Item = &IRUnion> {
+        self.unions.iter().map(|(_, u)| u)
     }
 
     ///Checks if the provided `ty` is some variant of unsigned int
@@ -97,6 +104,14 @@ impl IRTypes {
     pub fn get_component_type(&self, id: IRComponentId) -> &IRComponent {
         self.components.get(id)
     }
+    ///Gets a referente to the union type with the provided `id`
+    pub fn get_union_type(&self, id: IRUnionId) -> &IRUnion {
+        self.unions.get(id)
+    }
+    ///Gets a mutable referente to the union type with the provided `id`
+    pub fn get_union_type_mut(&mut self, id: IRUnionId) -> &mut IRUnion {
+        self.unions.get_mut(id)
+    }
 
     ///Returns the IRTypeId of the `field_index`th field of the given struct/component type.
     ///Panics if `ty` is not a Struct or Component, or if `field_index` is out of bounds.
@@ -106,6 +121,7 @@ impl IRTypes {
             IRType::Struct(sid) => self.structs[*sid].get_fields()[index],
             IRType::Component(cid) => self.components[*cid].fields[index],
             IRType::Pointer(ptr) => self.get_field_type(*ptr, field_index),
+            IRType::Union(uid) => self.unions[*uid].get_variants()[index],
             ref other => panic!(
                 "Expected struct or component type for field access, got {:?}",
                 other
@@ -205,6 +221,48 @@ impl IRTypes {
                 .with_fields(fields),
         );
         self.insert_type(IRType::Struct(struct_id))
+    }
+    ///Byte size of a type, used to compute a union's size as the largest of its
+    ///variants. Unknown/aggregate types conservatively report pointer size.
+    pub(crate) fn type_size(&self, ty: IRTypeId) -> usize {
+        match self.types.get(ty) {
+            IRType::I8 | IRType::U8 | IRType::BOOL => 1,
+            IRType::I16 | IRType::U16 => 2,
+            IRType::I32 | IRType::U32 | IRType::F32 => 4,
+            IRType::I64 | IRType::U64 | IRType::ISIZE | IRType::USIZE | IRType::F64 => 8,
+            IRType::Pointer(_) => 8,
+            IRType::Array(inner, len) => self.type_size(*inner) * len,
+            //Aggregate/unknown types conservatively report pointer size.
+            IRType::Vector(_) | IRType::Struct(_) | IRType::Component(_) | IRType::Union(_) => 8,
+            _ => 8,
+        }
+    }
+    ///Creates a new empty union and returns its type ID
+    pub(crate) fn create_empty_union(&mut self, name: SymbolPointer) -> (IRTypeId, IRUnionId) {
+        let union_id = self.unions.insert(IRUnion::new(Some(name)));
+        let out = self.insert_type(IRType::Union(union_id));
+        (out, union_id)
+    }
+    ///Creates a new union fully formed with the given `variants` and `flags`,
+    ///dedup'd on its `name`, and returns its type ID
+    pub(crate) fn create_named_union(
+        &mut self,
+        name: SymbolPointer,
+        variants: Vec<IRTypeId>,
+        flags: IRUnionFlags,
+    ) -> IRTypeId {
+        let size = variants
+            .iter()
+            .map(|v| self.type_size(*v))
+            .max()
+            .unwrap_or(0);
+        let union_id = self.unions.insert(
+            IRUnion::new(Some(name))
+                .with_flags(flags)
+                .with_variants(variants)
+                .with_size(size),
+        );
+        self.insert_type(IRType::Union(union_id))
     }
     ///Creates a new empty struct and returns its type ID
     pub(crate) fn create_empty_component(

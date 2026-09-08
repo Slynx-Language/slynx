@@ -1,0 +1,12 @@
+// xfail: only `repr: int` is supported for raw enums; `repr: str` must be
+// rejected with an HIR error.
+enum Names: str {
+    Foo,
+    Bar,
+    Baz
+}
+
+func main(): bool {
+    let a = Names.Bar;
+    a matches Bar
+}

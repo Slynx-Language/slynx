@@ -1,0 +1,12 @@
+enum Name {
+    Struct {
+        name: str,
+        otherName: int,
+        ratio: f64
+    }
+}
+
+func main(): bool {
+    let a = Name.Struct("a", 5, 2.0);
+    a matches Struct("a", 5, 2.0)
+}

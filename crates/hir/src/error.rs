@@ -38,6 +38,9 @@ pub enum NotMutableReason {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    ///Error that occurs when a type is used like an enum, but isn't
+    InvalidEnumUsage(DedupPoolId<HirType>),
+
     MethodNotFound(SymbolPointer),
     StaticMethodNotFound(SymbolPointer),
     InvalidTypeAccess,
@@ -48,6 +51,24 @@ pub enum HIRErrorKind {
         actual: usize,
     },
     MissingReturn,
+
+    /// A raw-valued enum variant (`Name = <expr>`) had a non-integer value.
+    EnumVariantNotAnInt(SymbolPointer),
+
+    /// A `matches` expression's left-hand side is not an enum value.
+    MatchesOnNonEnum(DedupPoolId<HirType>),
+
+    /// The right-hand side of a `matches` expression is not a valid pattern
+    /// (a bare variant name or a variant call).
+    InvalidPattern,
+
+    /// A name was referenced as an enum variant, but no reachable enum
+    /// declares a variant with that name.
+    VariantNotRecognized(SymbolPointer),
+
+    /// An enum was declared with an unsupported representation (only `int` is
+    /// supported for raw/raw-valued enums).
+    InvalidEnumRepresentation(SymbolPointer),
 
     UnexpectedType {
         expected: DedupPoolId<HirType>,
@@ -200,6 +221,13 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
+    pub fn not_an_enum(ty: DedupPoolId<HirType>, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidEnumUsage(ty),
+            span,
+        }
+    }
+
     pub fn method_not_found(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::MethodNotFound(name),
@@ -243,6 +271,41 @@ impl HIRError {
     pub fn missing_return(span: Span) -> Self {
         Self {
             kind: HIRErrorKind::MissingReturn,
+            span,
+        }
+    }
+
+    pub fn enum_variant_must_be_an_int(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::EnumVariantNotAnInt(name),
+            span,
+        }
+    }
+
+    pub fn matches_on_non_enum(ty: DedupPoolId<HirType>, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::MatchesOnNonEnum(ty),
+            span,
+        }
+    }
+
+    pub fn invalid_pattern(span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidPattern,
+            span,
+        }
+    }
+
+    pub fn variant_unrecognized(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::VariantNotRecognized(name),
+            span,
+        }
+    }
+
+    pub fn invalid_enum_representation(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidEnumRepresentation(name),
             span,
         }
     }
@@ -528,6 +591,7 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::InvalidEnumUsage(_) => write!(f, "Invalid enum usage"),
             HIRErrorKind::MethodNotFound(_) => {
                 write!(f, "Method not found")
             }
@@ -547,6 +611,24 @@ impl std::fmt::Display for HIRError {
             HIRErrorKind::MissingReturn => write!(
                 f,
                 "This function does not return at all, even though it should"
+            ),
+            HIRErrorKind::EnumVariantNotAnInt(_) => {
+                write!(f, "Valued enum variants must have an integer literal value")
+            }
+            HIRErrorKind::MatchesOnNonEnum(_) => write!(
+                f,
+                "The left-hand side of a `matches` expression must be an enum value"
+            ),
+            HIRErrorKind::InvalidPattern => write!(
+                f,
+                "The right-hand side of a `matches` expression must be a variant name (`Foo`) or a variant call (`Foo(...)`)"
+            ),
+            HIRErrorKind::VariantNotRecognized(_) => {
+                write!(f, "No reachable enum declares a variant with this name")
+            }
+            HIRErrorKind::InvalidEnumRepresentation(_) => write!(
+                f,
+                "Only `int` is supported as an enum representation; raw enums must use `repr: int`"
             ),
             HIRErrorKind::UnexpectedType { .. } => {
                 write!(f, "Received mismatched types")

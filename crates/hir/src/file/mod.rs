@@ -7,8 +7,8 @@ use common::pool::PoolId;
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
-    HirStaticDeclaration, HirStylesheetDeclaration, SymbolPointer,
+    DeclarationId, HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration,
+    HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration, SymbolPointer,
     file::declarations::FileDeclarations,
 };
 
@@ -44,6 +44,7 @@ impl HirFile {
         create_component = insert_at_components(HirComponentDeclaration),
         create_static = insert_at_statik(HirStaticDeclaration),
         create_stylesheet = insert_at_styles(HirStylesheetDeclaration),
+        create_enum = insert_at_enums(HirEnumDeclaration),
     );
 
     pub fn find_function_with_name(

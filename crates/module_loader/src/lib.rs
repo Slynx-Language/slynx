@@ -158,7 +158,7 @@ impl<'a> SourceLoader<'a> {
 
         entry.pop(); //since its a file, we need to track its current folder to be able to get the siblings, and so we pop the name
         let mut pending: Vec<Vec<PathBuf>> = Vec::new();
-        for import in program.imports() {
+        for import in program.imports().iter() {
             let (resolved, is_folder) = self
                 .resolve_path(&import.path, global_entry, &entry, std_path)
                 .map_err(|e| {

@@ -1,7 +1,8 @@
 use crate::{
-    AliasDeclaration, ComponentDeclaration, FileImport, FuncDeclaration, ObjectDeclaration,
-    StaticDeclaration, StyleSheet,
+    AliasDeclaration, ComponentDeclaration, EnumDeclaration, FileImport, FuncDeclaration,
+    ObjectDeclaration, StaticDeclaration, StyleSheet,
 };
+use common::pool::Pool;
 use paste::paste;
 
 macro_rules! program {
@@ -9,7 +10,7 @@ macro_rules! program {
         #[derive(Debug)]
         pub struct Program {
             $(
-                $name: Vec<$typ>,
+                $name: Pool<$typ>,
             )*
         }
         impl Default for Program {
@@ -20,15 +21,15 @@ macro_rules! program {
         impl Program {
             pub fn new() -> Self {
                 Self {
-                    $($name: Vec::new(),)*
+                    $($name: Pool::new(),)*
                 }
             }
-            $(pub fn $name(&self) -> &[$typ] {
+            $(pub fn $name(&self) -> &Pool<$typ> {
                 &self.$name
             })*
             $(paste!{
-                pub fn [<append_ $name>](&mut self, data: $typ) {
-                    self.$name.push(data);
+                pub fn [<append_ $name>](&self, data: $typ) {
+                    self.$name.insert(data);
                 }
             })*
         }
@@ -41,5 +42,6 @@ program! {
     component: ComponentDeclaration,
     func: FuncDeclaration,
     style: StyleSheet,
-    statics: StaticDeclaration
+    statics: StaticDeclaration,
+    enums: EnumDeclaration
 }

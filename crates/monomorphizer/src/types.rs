@@ -12,7 +12,7 @@ use std::{
 };
 
 use common::pool::DedupPoolId;
-use slynx_hir::{HirType, Result, SlynxHir, SymbolPointer, id::AnyDeclarationId};
+use slynx_hir::{EnumVariantType, HirType, Result, SlynxHir, SymbolPointer, id::AnyDeclarationId};
 use smallvec::SmallVec;
 
 /// Maps a generic parameter index to the concrete type it should be
@@ -124,6 +124,26 @@ pub(crate) fn substitute_type(
             let new_inner = substitute_type(hir, *inner, subst)?;
             Ok(hir.create_type(HirType::Nullable(new_inner)))
         }
+        HirType::Enum(e) => {
+            let enum_view = hir.view(*e);
+            let variants = enum_view
+                .variants()
+                .iter()
+                .map(|variant| {
+                    let payload = variant
+                        .payload
+                        .iter()
+                        .map(|ty| substitute_type(hir, *ty, subst))
+                        .collect::<Result<Vec<_>>>()?;
+                    Ok(EnumVariantType {
+                        name: variant.name,
+                        discriminant: variant.discriminant,
+                        payload,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(hir.create_enum_type(enum_view.name(), variants))
+        }
         other => Ok(hir.create_type(other.clone())),
     }
 }
@@ -173,6 +193,12 @@ pub(crate) fn contains_generic_param(hir: &SlynxHir, ty: DedupPoolId<HirType>) -
                     .iter()
                     .any(|slot| !slot.is_null() && contains_generic_param(hir, *slot))
         }
+        HirType::Enum(e) => hir.view(*e).variants().iter().any(|variant| {
+            variant
+                .payload
+                .iter()
+                .any(|payload_ty| contains_generic_param(hir, *payload_ty))
+        }),
         _ => false,
     }
 }
@@ -195,7 +221,10 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: DedupPoolId<HirT
             {
                 let ty_view = hir.view(*rf);
                 let deref = ty_view.dereference();
-                if deref.is_struct().is_some() || deref.is_component().is_some() {
+                if deref.is_struct().is_some()
+                    || deref.is_component().is_some()
+                    || deref.is_enum().is_some()
+                {
                     return true;
                 }
             }

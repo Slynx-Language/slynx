@@ -25,13 +25,14 @@ impl ExpressionBuilder {
             .find_component_by_symbol(HirSymbol::new(owner, name))
             .is_none()
         {
-            let ty = queue.modules.find_type_inside_module(self.file(), name);
+            let ty = queue.modules.find_type(self.file(), name);
             if let Some(ASTType {
+                owner,
                 content: ASTTypeKind::Component(comp),
-                ..
             }) = ty
             {
-                queue.enqueue_component(comp, self.file())?;
+                let comp = queue.modules.get_entry(owner).component().get(comp);
+                queue.enqueue_component(comp, owner)?;
             } else {
                 return Err(HIRError::component_not_found(name, span));
             }

@@ -4,8 +4,8 @@ use common::pool::{DedupPoolId, PoolId};
 use module_loader::FileId;
 
 use crate::{
-    HirAliasDeclaration, HirComponentDeclaration, HirExpression, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration,
+    HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirExpression,
+    HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration,
 };
 
 /// Shared trait for all HIR IDs
@@ -25,6 +25,7 @@ pub enum AnyLocalDeclarationId {
     Style(PoolId<HirStylesheetDeclaration>),
     Alias(PoolId<HirAliasDeclaration>),
     Static(PoolId<HirStaticDeclaration>),
+    Enum(PoolId<HirEnumDeclaration>),
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]

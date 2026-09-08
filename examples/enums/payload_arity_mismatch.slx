@@ -1,0 +1,11 @@
+// xfail: constructing a variant with the wrong number of payload arguments
+// must be rejected.
+enum Result {
+    Ok(int),
+    Err(str)
+}
+
+func main(): bool {
+    let a = Result.Ok(1, 2, 3);
+    true
+}
