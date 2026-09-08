@@ -12,7 +12,9 @@ use std::{
 };
 
 use common::pool::DedupPoolId;
-use slynx_hir::{HirType, Result, SlynxHir, SymbolPointer, id::AnyDeclarationId};
+use slynx_hir::{
+    EnumVariantType, HirType, Result, SlynxHir, SymbolPointer, id::AnyDeclarationId,
+};
 use smallvec::SmallVec;
 
 /// Maps a generic parameter index to the concrete type it should be
@@ -123,6 +125,26 @@ pub(crate) fn substitute_type(
         HirType::Nullable(inner) => {
             let new_inner = substitute_type(hir, *inner, subst)?;
             Ok(hir.create_type(HirType::Nullable(new_inner)))
+        }
+        HirType::Enum(e) => {
+            let enum_view = hir.view(*e);
+            let variants = enum_view
+                .variants()
+                .iter()
+                .map(|variant| {
+                    let payload = variant
+                        .payload
+                        .iter()
+                        .map(|ty| substitute_type(hir, *ty, subst))
+                        .collect::<Result<Vec<_>>>()?;
+                    Ok(EnumVariantType {
+                        name: variant.name,
+                        discriminant: variant.discriminant,
+                        payload,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(hir.create_enum_type(enum_view.name(), variants))
         }
         other => Ok(hir.create_type(other.clone())),
     }
