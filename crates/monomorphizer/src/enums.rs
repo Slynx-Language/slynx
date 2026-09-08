@@ -20,7 +20,7 @@ impl Monomorphizer {
     ) -> Result<DedupPoolId<HirType>> {
         let view = hir.view(ty);
         let HirType::Reference { rf, generics } = view.raw() else {
-            unreachable!("Resolve enum target should receive a Reference type");
+            return Err(HIRError::not_an_enum(ty, span));
         };
         let reference_view = hir.view(*rf);
         let deref = reference_view.dereference();
@@ -30,7 +30,7 @@ impl Monomorphizer {
         let name = enum_view.name();
         let Some((template_file, template_local)) = self.find_enum_declaration_by_name(hir, name)
         else {
-            unreachable!("Every generic object type must have a HirObjectDeclaration")
+            unreachable!("Every generic enum type must have a HirEnumDeclaration")
         };
         let template_any =
             AnyDeclarationId::new(template_file, AnyLocalDeclarationId::Enum(template_local));
@@ -61,14 +61,14 @@ impl Monomorphizer {
 
         let key: MonomorphizationKey = (template_any, args.clone().into());
         if let Some(cached) = self.cache.get(&key) {
-            let AnyLocalDeclarationId::Object(local_id) = cached.local_id else {
-                unreachable!("A monomorphized object target must be an object")
+            let AnyLocalDeclarationId::Enum(local_id) = cached.local_id else {
+                unreachable!("A monomorphized enum target must be an enum")
             };
             return Ok(hir
                 .get_file(cached.file_id)
                 .declarations
                 .declarations
-                .objects[local_id]
+                .enums[local_id]
                 .ty);
         }
         if self.in_progress.contains(&key) {

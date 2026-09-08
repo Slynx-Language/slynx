@@ -272,8 +272,10 @@ impl Monomorphizer {
                 self.resolve_object_target(hir, ty, span)
             } else if deref.is_component().is_some() {
                 self.resolve_component_target(hir, ty, span)
+            } else if deref.is_enum().is_some() {
+                self.resolve_enum_target(hir, ty, span)
             } else {
-                unreachable!("Resolvable references only target structs or components")
+                unreachable!("Resolvable references only target structs, components, or enums")
             };
         }
 

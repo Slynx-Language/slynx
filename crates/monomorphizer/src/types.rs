@@ -173,6 +173,16 @@ pub(crate) fn contains_generic_param(hir: &SlynxHir, ty: DedupPoolId<HirType>) -
                     .iter()
                     .any(|slot| !slot.is_null() && contains_generic_param(hir, *slot))
         }
+        HirType::Enum(e) => hir
+            .view(*e)
+            .variants()
+            .iter()
+            .any(|variant| {
+                variant
+                    .payload
+                    .iter()
+                    .any(|payload_ty| contains_generic_param(hir, *payload_ty))
+            }),
         _ => false,
     }
 }
@@ -195,7 +205,10 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: DedupPoolId<HirT
             {
                 let ty_view = hir.view(*rf);
                 let deref = ty_view.dereference();
-                if deref.is_struct().is_some() || deref.is_component().is_some() {
+                if deref.is_struct().is_some()
+                    || deref.is_component().is_some()
+                    || deref.is_enum().is_some()
+                {
                     return true;
                 }
             }
