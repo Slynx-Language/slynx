@@ -121,6 +121,7 @@ impl IRTypes {
             IRType::Struct(sid) => self.structs[*sid].get_fields()[index],
             IRType::Component(cid) => self.components[*cid].fields[index],
             IRType::Pointer(ptr) => self.get_field_type(*ptr, field_index),
+            IRType::Union(uid) => self.unions[*uid].get_variants()[index],
             ref other => panic!(
                 "Expected struct or component type for field access, got {:?}",
                 other
@@ -250,7 +251,11 @@ impl IRTypes {
         variants: Vec<IRTypeId>,
         flags: IRUnionFlags,
     ) -> IRTypeId {
-        let size = variants.iter().map(|v| self.type_size(*v)).max().unwrap_or(0);
+        let size = variants
+            .iter()
+            .map(|v| self.type_size(*v))
+            .max()
+            .unwrap_or(0);
         let union_id = self.unions.insert(
             IRUnion::new(Some(name))
                 .with_flags(flags)
