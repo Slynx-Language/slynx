@@ -158,6 +158,23 @@ impl HirNode<'_> {
                     let e = self.modules.get_entry(data.owner).enums().get(e);
                     let enum_name = e.name;
                     let enum_context = TypeContext::new(&e.type_params);
+                    // Validate the enum representation, if any. Only `int` is
+                    // supported for raw/raw-valued enums.
+                    if let Some(representation) = &e.representation {
+                        let (_, repr_ty) = self.find_type(
+                            representation.span.make_spanned(representation.data),
+                            &TypeContext::new(&[]),
+                        )?;
+                        if !matches!(
+                            self.hir.view(repr_ty).dereference().raw(),
+                            HirType::Int
+                        ) {
+                            return Err(HIRError::invalid_enum_representation(
+                                enum_name,
+                                representation.span,
+                            ));
+                        }
+                    }
                     // Discriminants walk the variants in declaration order.
                     // Raw variants take the next sequential value; raw-valued
                     // variants set their explicit value and bump the counter
@@ -246,7 +263,10 @@ impl HirNode<'_> {
                 // arguments, so monomorphization can specialize it later.
                 let ty_view = self.hir.view(ty);
                 let deref = ty_view.dereference();
-                if deref.is_struct().is_none() && deref.is_component().is_none() {
+                if deref.is_struct().is_none()
+                    && deref.is_component().is_none()
+                    && deref.is_enum().is_none()
+                {
                     return Ok((owner, ty));
                 }
                 let args = generic

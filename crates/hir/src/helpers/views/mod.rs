@@ -20,6 +20,15 @@ impl<'a, T> HirViewer<'a, T> {
     }
 }
 
+impl<T: Copy> HirViewer<'_, T> {
+    ///The underlying id this viewer wraps. Pool ids are `Copy`, so returning
+    ///the id by value lets callers outside the HIR crate (e.g. codegen) key
+    ///caches off e.g. the raw enum type id of a dereferenced reference.
+    pub fn data(&self) -> T {
+        self.data
+    }
+}
+
 impl<T: Clone> Clone for HirViewer<'_, T> {
     fn clone(&self) -> Self {
         Self {

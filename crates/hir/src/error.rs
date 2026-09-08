@@ -66,6 +66,10 @@ pub enum HIRErrorKind {
     /// declares a variant with that name.
     VariantNotRecognized(SymbolPointer),
 
+    /// An enum was declared with an unsupported representation (only `int` is
+    /// supported for raw/raw-valued enums).
+    InvalidEnumRepresentation(SymbolPointer),
+
     UnexpectedType {
         expected: DedupPoolId<HirType>,
         received: DedupPoolId<HirType>,
@@ -295,6 +299,13 @@ impl HIRError {
     pub fn variant_unrecognized(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::VariantNotRecognized(name),
+            span,
+        }
+    }
+
+    pub fn invalid_enum_representation(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::InvalidEnumRepresentation(name),
             span,
         }
     }
@@ -615,6 +626,10 @@ impl std::fmt::Display for HIRError {
             HIRErrorKind::VariantNotRecognized(_) => {
                 write!(f, "No reachable enum declares a variant with this name")
             }
+            HIRErrorKind::InvalidEnumRepresentation(_) => write!(
+                f,
+                "Only `int` is supported as an enum representation; raw enums must use `repr: int`"
+            ),
             HIRErrorKind::UnexpectedType { .. } => {
                 write!(f, "Received mismatched types")
             }

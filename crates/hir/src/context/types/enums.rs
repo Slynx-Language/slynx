@@ -20,6 +20,17 @@ impl EnumsPool {
     ) -> DedupPoolId<EnumType> {
         self.enums.insert(EnumType { name, variants })
     }
+
+    ///Finds the enum type registered under `name`, if any.
+    ///
+    ///This is used to make [`TypesContext::create_enum_type`] idempotent by
+    ///name: rebuilding an enum that already exists must return the *existing*
+    ///type rather than registering a duplicate under the same name.
+    pub fn find_by_name(&self, name: SymbolPointer) -> Option<DedupPoolId<EnumType>> {
+        self.enums
+            .iter()
+            .find_map(|(id, ty)| (ty.name == name).then_some(id))
+    }
 }
 
 impl Debug for EnumsPool {

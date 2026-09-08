@@ -117,11 +117,20 @@ impl TypesContext {
 
     ///Creates a new enum type with the given `name` and `variants`, registering
     ///its name on the type namespace, and returns its type id.
+    ///
+    ///Idempotent by name: if an enum with this `name` already exists, its
+    ///existing type id is returned and the `names` namespace is left untouched.
+    ///This prevents specialization/substitution from registering a duplicate
+    ///enum under the same name and silently re-pointing the namespace at a
+    ///sibling type while older references still hold the original id.
     pub fn create_enum_type(
         &self,
         name: SymbolPointer,
         variants: Vec<EnumVariantType>,
     ) -> DedupPoolId<HirType> {
+        if let Some(existing) = self.enums.find_by_name(name) {
+            return self.create_type(HirType::Enum(existing));
+        }
         let id = self.enums.insert(name, variants);
         let id = self.create_type(HirType::Enum(id));
         self.names.insert(name, id);
