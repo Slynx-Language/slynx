@@ -11,6 +11,7 @@ to complete one of the kinds that is still stubbed. It assumes you have read
 | Function | `HirExpressionKind::FunctionCall.generics` | Implemented |
 | Struct (`object`) | `HirType::Reference` in an object literal / type position | Implemented |
 | Component | `HirType::Reference` in a component expression / type position | Implemented |
+| Enum | `HirType::Enum` (generic payload) in an enum expression / `matches` / type position | Implemented |
 | Type alias (`alias`) | — | Not implemented (`unimplemented!`) |
 | Stylesheet (`style`) | — | Not implemented (`unimplemented!`) |
 | Static (`static`) | — | Not implemented (`unimplemented!`) |
@@ -25,7 +26,9 @@ Monomorphization is driven by **generic type information that survives HIR
 building**. For functions this is the `generics: Vec<DedupPoolId<HirType>>`
 field on `FunctionCall`; for structs and components it is a
 `HirType::Reference { rf, generics }` produced by `HirNode::find_type` when the
-source writes a generic application (`Option<int>`, `List<int>`).
+source writes a generic application (`Option<int>`, `List<int>`); for enums it
+is the `HirType::Enum` payload types, specialized by `resolve_enum_target` and
+neutralized by `neutralize_generic_enums`.
 
 > **If the HIR drops the generic arguments, monomorphization has nothing to
 > work on.** The very first step for any new kind is to make the HIR builder
