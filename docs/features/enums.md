@@ -1,52 +1,12 @@
 # Enums
-Enums are a way to define a type that can have one of several possible values. Each value is called a variant.
-They can have associated values, the idea then is that a variant contains a value that is tied to it. This one can be anything, even a generic type.
 
-## Definition
-An basic enum for optional types can be achieved via
+## Overview
 
-```slynx
-enum Option<T> {
-    Some(T),
-    None,
-}
-```
-and its creation can be defined as:
+Enums define a type that can have one of several possible values. Each value is called a **variant**. Variants can carry associated values of any type — including generic types.
 
-```slynx
-let opt: Option<int> = Option.Some(42);
-```
+## Main Idea
 
-
-## Matches Expression
-Matches expressions allow you to check if the value of an enum matches a specific variant and its inner values. This is the entry point for pattern matching, even though it's not implemented yet. 
-It can be used as follows:
-
-```slynx
-if opt matches Some(44) {
-    print("opt is some and 44");
-}
-```
-This is idealized to be extended on the future to allow pattern matching in general, but at the moment it is used only for enum variants.
-The check can use only the name of the variant and its inner values, so if an enum is defined as
-```slynx
-enum User {
-    NormalUser(User),
-    AdminUser(User),
-    Owner(Owner),
-}
-```
-it can be matched as `user matches AdminUser(_)` to check if it is an admin user. It is pretty dumb at the moment and thus `_` is not working as expected, the main reasion is cause it checks it as an identifier and tries
-to check if the inner value of the variant is the same as the one provided. Thus something like `num matches Some(mynum)` ideally checks if num is a `Some` variant and its inner value is equal to `mynum`.
-# Enums
-
-Enums are a way to define a type that can have one of several possible values. Each value is called a variant.
-
-Variants can have associated values. An associated value is a value tied to a specific variant and can have any type, including a generic type.
-
-## Definition
-
-A basic enum for optional types can be defined as:
+An enum is a discriminated union type: it stores which variant the value represents (the **tag**) and, if the variant carries a payload, the associated data.
 
 ```slynx
 enum Option<T> {
@@ -55,50 +15,214 @@ enum Option<T> {
 }
 ```
 
-The enum can then be instantiated by providing the value associated with the variant:
+Creation uses the syntax `EnumName.VariantName`:
 
 ```slynx
 let opt: Option<int> = Option.Some(42);
 ```
 
-A variant does not need to have an associated value. For example, `None` above is a variant without any associated value, while `Some` contains a value of type `T`.
+## Declaration
 
-Associated values can use concrete types, generic types, or other types defined in the program.
+```slynx
+enum Name {
+    Variant1,                 // raw variant (no payload)
+    Variant2 = expr,          // raw variant with a value
+    Variant3(Type1, Type2),   // associated variant (positional payload)
+    Variant4 { field: Type }, // struct variant (named payload)
+}
+```
+
+### Four variant types
+
+| Type | Syntax | Example |
+|------|--------|---------|
+| **Raw** | `Name` | `None`, `Idle`, `Done` |
+| **RawValued** | `Name = expr` | `Zero = 0`, `Busy = 3` |
+| **Associated** | `Name(T1, T2)` | `Some(4)`, `C(1, "s", 2.5)` |
+| **Struct** | `Name { field: T }` | `Struct { name: str }` |
+
+### Representation
+
+Enums can declare a representation type after `:` — used for raw/raw-valued variants:
+
+```slynx
+enum Numbers: int {
+    One,
+    Two,
+    Three,
+}
+```
+
+Currently, `repr: int` is supported. `repr: str` is rejected by the compiler.
+
+### Empty enums
+
+```slynx
+enum Empty {}
+```
+
+### Attributes on variants
+
+Variants can carry attributes:
+
+```slynx
+enum Status {
+    @deprecated
+    Idle,
+    Busy,
+}
+```
+
+## Creation
+
+```slynx
+enum Status {
+    Idle,
+    Busy = 3,
+    Done,
+}
+
+let a = Status.Idle;
+let b = Status.Busy;
+```
+
+With payload:
+
+```slynx
+enum NetworkError {
+    Timeout,
+    NotFound,
+    BadRequest(str, int),     // payload posicional
+}
+
+let err = NetworkError.BadRequest("bad method", 405);
+```
+
+With struct variant:
+
+```slynx
+enum Shape {
+    Circle { radius: float },
+    Rect { w: float, h: float },
+}
+
+let circle = Shape.Circle(radius: 1.5);
+```
+
+## Generic Enums
+
+Enums can be generic:
+
+```slynx
+enum Thing<T> {
+    Some(T),
+    None,
+}
+
+enum Pair<A, B> {
+    Both(A, B),
+    OnlyA(A),
+}
+```
+
+Each specialization with different type arguments generates a distinct type:
+
+```slynx
+let a = Thing.Some(12);      // Thing<int>
+let b = Thing.Some("hi");    // Thing<str>
+```
+
+See [generic-enums.md](generic-enums.md) for details.
 
 ## Matches Expression
 
-The `matches` expression allows checking whether an enum value is a specific variant and whether its associated values match the values provided in the expression.
-
-It is the entry point for pattern matching, although general pattern matching is not implemented yet.
-
-For example:
+The `matches` expression checks whether an enum value corresponds to a variant and optionally to its inner values:
 
 ```slynx
 if opt matches Some(44) {
-    print("opt is some and 44");
+    // opt is Some and its content is 44
 }
 ```
 
-At the moment, `matches` only supports checking enum variants and their associated values. The syntax is intentionally designed to be extended into general pattern matching in the future.
+### Forms
 
-The variant name and its associated values are specified directly in the expression. For example, given:
+| Form | Syntax | Example |
+|------|--------|---------|
+| Variant without payload | `x matches Name` | `s matches Done` |
+| Variant with payload | `x matches Name(expr)` | `opt matches Some(44)` |
+| Struct variant | `x matches Name { field: expr }` | `x matches Foo { x: 1 }` |
+
+### Rules
+
+- `matches` returns `bool`.
+- For variants with payload, the inner value is compared against the pattern value.
+- The wildcard `_` does NOT work — it is treated as an identifier and equality is attempted.
+- `num matches Some(mynum)` means "the value is `Some` and its content is equal to `mynum`".
+- `matches` binds tighter than `&&`/`||` and looser than comparisons.
+
+See [matches-expression.md](matches-expression.md) for full documentation.
+
+## Examples
 
 ```slynx
-enum User {
-    NormalUser(User),
-    AdminUser(User),
-    Owner(Owner),
+enum Option<T> {
+    Some(T),
+    None,
+}
+
+func is_forty_two(opt: Option<int>): bool {
+    opt matches Option.Some(42)
+}
+
+func main(): int {
+    let opt = Option.Some(42);
+    if is_forty_two(opt) {
+        1
+    } else {
+        0
+    }
 }
 ```
 
-A value can be checked against the `AdminUser` variant with:
+Returning an enum from a function:
 
 ```slynx
-user matches AdminUser(_)
+enum Result {
+    Ok(int),
+    Err(str),
+}
+
+func div(a: int, b: int): Result {
+    if b == 0 {
+        Result.Err("division by zero")
+    } else {
+        Result.Ok(a / b)
+    }
+}
 ```
 
-However, `_` is not currently implemented as a wildcard. The current implementation treats it as an identifier and attempts to compare the associated value against it.
+## Interaction
 
-More generally, a check such as `num matches Some(mynum)` currently means that `num` must be a `Some` variant and that its associated value must be equal to `mynum`.
+- The parser produces `EnumDeclaration` with `EnumVariant` (4 kinds) (`crates/parser/src/enums.rs`).
+- In the HIR, the enum is represented with variants and discriminants.
+- In the IR, enums become structs with `tag` + union of the variant payloads.
+- The `matches` check is lowered via `Opcode::MatchesTag`.
+- Monomorphization specializes generic enums.
 
-This behavior is intentionally simple for now. In the future, `matches` is intended to evolve into general pattern matching, where constructs such as `_`, bindings, nested patterns, and other pattern forms can be supported.
+## Known limitations
+
+- Payload type mismatch validation in variants may not be rejected in all cases (`xpass` tests).
+- Invalid patterns in `matches` and use of `matches` on non-enums are rejected in some cases but may slip through in others (`xpass`/`xfail` tests).
+
+## Summary
+
+| Variant | Syntax | Payload |
+|---------|--------|---------|
+| Raw | `VariantName` | none |
+| RawValued | `VariantName = expr` | value (int) |
+| Associated | `VariantName(T, U)` | positional payload |
+| Struct | `VariantName { f: T }` | named payload |
+
+- Creation: `EnumName.VariantName(args)`.
+- Checking: `value matches VariantName(args)`.
+- Enums can be generic, with `repr: int` and with per-variant attributes.

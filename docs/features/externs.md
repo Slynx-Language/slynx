@@ -1,24 +1,122 @@
-# Extern values and types
-Extern values are values/types that do not exist on the codebase directly via Slynx, but are instead referenced from the runtime being compiled to, or any other way that some content is provided.
-For example, when compiling it to JS, there might be global objects such as `window`, `document`, `console`, etc. that slynx do not have by default, so, the idea is pretty simple, we simply say that 'an object named window
-with type "Window" is available'. And that's it. That is how extern values work.
+# Externs
 
-## Usage
-Their definition on the codebase is not much different from the default values/types that are available on the codebase. In case, the unique difference is that the definition of the ones on the codebase can execute code, while the ones referenced from the runtime cannot, thus, they cannot be anything that contains a body. So a function might be able to be referenced, but not with a body.
+## Overview
 
-They are defined using the `extern` keyword. Everything then that is inside an `extern` block is treated as a value/type definition that is extern, for example:
+Extern values/keywords refer to values and types that **do not exist in the program's source code**, but are provided by the runtime or execution environment for which the code is compiled. Typical examples: `window`, `document`, `console` when the target is a browser.
+
+## Main Idea
+
+When a program needs to access a global object provided by the host (without implementing it), the declaration is marked as external:
 
 ```slynx
-
 extern {
-  pub object Window {}
-  pub object Document {}
-  pub object Console {
-    pub func log(&self, message: str);
-  }
-  static window: Window;
-  static document: Document;
-  static console: Console;
+    pub object Window {}
+    pub object Document {}
+    pub object Console {
+        pub func log(&self, message: str);
+    }
+    static window: Window;
+    static document: Document;
+    static console: Console;
+}
+```
+
+The only difference from ordinary declarations is that declarations inside an `extern` block **cannot have a body** — they simply reference something that exists at runtime.
+
+## Syntax
+
+```slynx
+extern {
+    func name(args): ReturnType;
+    static NAME: Type;
+    pub object Name {
+        func method(&self, args): ReturnType;
+    }
+}
+```
+
+Inside the `extern` block:
+
+- functions: signature only, no body;
+- objects: fields and methods with signature only;
+- statics: typed, no initialization value.
+
+## What can be declared
+
+| Construct | Example |
+|-----------|---------|
+| Function | `func alert(msg: str): void;` |
+| Object | `pub object Window { }` |
+| Method on object | `func log(&self, message: str): void;` |
+| Static | `static PI: f64;` |
+| Static on object | `static document: Document;` |
+
+## Rules
+
+- Declarations in `extern` cannot contain bodies.
+- External objects can have methods; methods can take `&self`, `&mut self`, or `self`.
+- External methods are invocable via normal object syntax: `console.log("Hello")`.
+- External types can reference each other: `Node { func appendChild(self, child: Node): void }`.
+- Chained calls are supported: `window.getDocument().getElementById("main")`.
+
+## Examples
+
+```slynx
+extern {
+    pub object Console {
+        pub func log(&self, message: str): void;
+    }
+    pub object Node {
+        pub func appendChild(&self, child: Node): void;
+    }
+    pub object Document {
+        pub func createElement(&self, tag: str): Element;
+        pub func getElementById(&self, id: str): Document;
+    }
+    pub object Element { }
+    pub object Window {
+        pub func getDocument(&self): Document;
+    }
+
+    static window: Window;
+    static document: Document;
+    static console: Console;
 }
 
-Which now makes it possible to execute `console.log("Hello, World!")`.
+func main(): void {
+    console.log("Hello, World");
+}
+```
+
+Chaining:
+
+```slynx
+extern {
+    pub object Window {
+        pub func getDocument(&self): Document;
+    }
+    pub object Document {
+        pub func getElementById(&self, id: str): Element;
+    }
+    pub object Element { }
+
+    static window: Window;
+}
+
+func main(): void {
+    let elem = window.getDocument().getElementById("main");
+}
+```
+
+## Interaction
+
+- The parser uses the `OnlySignatures` flag inside `extern` blocks to skip bodies (`crates/parser/src/declarations.rs`).
+- In the HIR, declarations are marked as external (`external: true`).
+- In the IR, external functions/statics are marked for external linkage; external statics use `Opcode::GlobalExtern`.
+
+## Summary
+
+- `extern { ... }` declares values/types provided by the runtime/host.
+- External declarations have no body.
+- External objects can have methods and statics.
+- Supports functions, objects, methods, and statics; types can be self-referential and chained.

@@ -21,7 +21,7 @@ Before opening a new issue, quickly check:
 
 - open issues
 - recent pull requests
-- relevant documentation, especially [README.md](../README.md), [CONTRIBUTING.md](../CONTRIBUTING.md), and [middleend/README.md](../middleend/README.md)
+- relevant documentation, especially [README.md](../README.md), [CONTRIBUTING.md](../CONTRIBUTING.md), and [crates/ir/README.md](../crates/ir/README.md)
 
 This avoids duplicates and also helps you describe the problem using the same terminology the project already uses.
 
@@ -33,7 +33,7 @@ Good examples:
 
 - `[BUG] IR generation hides the original variable name`
 - `[FEATURE] Add graph generation validation pass`
-- `[DOCS] Clarify current status of the middleend README`
+- `[DOCS] Clarify current status of the IR README`
 - `[Discussion] Slot defaults and named child regions`
 
 Weak examples:
@@ -116,4 +116,4 @@ Before submitting, check that your issue:
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [README.md](../README.md)
-- [middleend/README.md](../middleend/README.md)
+- [crates/ir/README.md](../crates/ir/README.md)

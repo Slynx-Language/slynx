@@ -1,6 +1,6 @@
 # First Slynx File
 
-This short guide walks through a small `.slynx` file using the syntax that is
+This short guide walks through a small `.syx` file using the syntax that is
 currently supported on the `main` branch.
 
 The goal is to give new contributors one compact example they can read before
@@ -160,21 +160,27 @@ If you want to read the compiler output while learning the codebase, the root
 library already exposes dump generation through `SlynxContext::build_stages()`.
 
 ```rust
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 fn main() -> color_eyre::eyre::Result<()> {
-    let context = slynx::SlynxContext::new(Arc::new(PathBuf::from("slynx/booleans.slynx")))?;
+    let context = slynx::SlynxContext::new(
+        PathBuf::from("examples/booleans.syx"),
+        Some(PathBuf::from("./lib/std")),
+    )?;
     let stages = context.build_stages()?;
 
-    println!("{}", stages.hir_text());
-    stages.write_hir()?;
+    println!("{}", stages.ir_text());
     stages.write_ir()?;
+
+    let output = stages.into_output();
+    output.write()?;
     Ok(())
 }
 ```
 
 That is useful for contributors reading parser/HIR/type-checker changes without
-depending on a CLI binary.
+depending on a CLI binary. `CompilationStages` exposes `ir_text()`, `write_ir()`,
+and `dump_path(extension)`; write output with `into_output().write()`.
 
 ## What This Guide Does Not Promise
 
@@ -183,15 +189,17 @@ This guide is intentionally limited to the syntax that is already grounded on
 
 It does **not** document as finished:
 
-- tuple access or tuple destructuring;
+- tuple destructuring;
 - slots;
 - reactive graphs;
 - finalized child lowering in the IR;
 - a stable CLI workflow;
 - a production-ready backend.
 
+Tuple access is already implemented (see `docs/features/tuples.md`).
+
 ## Where To Go Next
 
 - [docs/language-surface.md](language-surface.md)
 - [README.md](../README.md)
-- [middleend/README.md](../middleend/README.md)
+- [crates/ir/README.md](../crates/ir/README.md)

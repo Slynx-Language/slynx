@@ -44,7 +44,14 @@ This helps contributors quickly navigate from documentation to code.
 
 | File | Description |
 |------|-------------|
+| [`project-organization.md`](project-organization.md) | Crate layout, pipeline overview, and per-crate conventions |
 | [`styles.md`](styles.md) | Stylesheet system: pipeline, how it works, how to add new style properties |
+| [`generics-implementation.md`](generics-implementation.md) | How generics work: parser, AST, HIR, monomorphizer, and known limits |
+| [`generics-inference.md`](generics-inference.md) | Current state of generic type inference (explicit type arguments only) |
+| [`intrinsic-types-codegen.md`](intrinsic-types-codegen.md) | How `@intrinsic`-tagged objects are lowered by the codegen |
+| [`boostraping-components.md`](boostraping-components.md) | Bootstrapped components contract: context, slots, lifecycle |
+| [`string-interning.md`](string-interning.md) | Symbol interning strategy (`SymbolPointer`) |
+| [`main-goal.md`](main-goal.md) | Main goal of the language and its remaining features |
 
 ## Conventions
 

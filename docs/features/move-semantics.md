@@ -1,66 +1,47 @@
 # Move Semantics
 
-Move semantics on the codebase works such as rust's move semantics. Until now, it contains 2 types of references: &T and &mut T.
+## Overview
 
-Ideally, the idea is that every value should be used once, and then discarded, then the move helps us to find who's got the ownership of that value and then track where and when it should be discarded.
-No drops are idealized on the codebase since the main goal is to NOT rely on top of RAII.
-For evicting moving everything and having to copy a lot on the codebase, then its used reference types, which are cheaply copied and do not require any memory allocation.
+Slynx uses an ownership and move semantics model inspired by Rust. Values are **moved** when transferred to another owner; after the move, the previous owner can no longer use the value. To avoid copying large values, the language offers reference types — cheap to copy and that do not transfer ownership.
+
+The model does **not** rely on RAII for memory management: ownership and lifetime are tracked explicitly by the compiler. There are no automatic `drop`/destructors in the current model.
+
 ## Main Idea
-The idea is pretty straightforward, a type `&T`, means that &T can be used to read values of that given type T, but without any kind of ownership, nor mutability.
-In counterpart to it, a type `&mut T` means that this T, is being passed as a reference such as `&T` and got's both read and write access to the value. Due to this, the same rules of the rust borrow checker are applied here.
 
-## Rules 
-Only one `&mut T` can exist at a time, and it must be unique, and no other `&T` might exist with a `&mut T` exists. This is mainly to avoid data races and undefined behavior via aliasing.
-A bunch of `&T` types can exists at the same time, but as long as there is no `&mut T` in the mix, then the borrow checker will not complain.
+The compiler tracks, for each value, who its owner is at each point in the program. When a value is moved, ownership is transferred and subsequent use by the previous owner is an error.
 
-### Extra
-Another variant is idealized to help things on the codebase, in this case it's the `&atomic`, the main reason for this is that any `&atomic` can be used to read and write values of that given type T, the same way it does with `&mut T`, but the difference is that this write and read is atomic, so it's safe to use in concurrent environments, so, even though it might write, it's possible to have a lot of `&atomic` types in the codebase.
-Note that this `&atomic` type doesn't define that that given type T uses atomic operations under the hood, it means that when writing/reading its contents, it 100% safe in environments of threaded execution. An &atomic T might be able to be atomic even though it uses a mutex or a spinlock under the hood, because even though it's not using atomic operations directly, it's still safe in threaded environments.
-# Move Semantics
+```slynx
+let a: T = ...;
+let b: T = a;   // move: `a` transfers ownership to `b`
+// `a` can no longer be used
+```
 
-Slynx uses an ownership and move semantics model inspired by Rust's ownership system.
+```
+Before:
+a ─────► T
 
-The main goal of move semantics is to make ownership explicit and allow the compiler to track which part of the program currently owns a value and where that value can be used.
-
-A value is normally **moved** when it is transferred to another owner. After a value has been moved, the previous owner can no longer use that value.
-
-The language does not rely on traditional RAII-based destruction as its fundamental memory-management model. Instead, ownership and lifetime information are tracked explicitly by the compiler.
-
-To avoid unnecessarily moving or copying large values, Slynx provides reference types. References do not transfer ownership and are intended to be cheap to pass around.
+After:
+a       b ─────► T
+                ownership
+```
 
 ## Reference Types
 
-Slynx currently provides three relevant reference forms:
+To avoid moving/copying large values, the language provides references. References do not transfer ownership.
 
-* `&T` — shared, immutable reference
-* `&mut T` — unique, mutable reference
-* `&atomic T` — shared, atomically synchronized reference
-
-The first two follow the same fundamental aliasing rules as Rust's shared and mutable references.
-
-### `&T`
-
-A value of type `&T` is a shared reference to a value of type `T`.
-
-It:
-
-* does not own the referenced value;
-* provides read-only access to the value;
-* may coexist with other `&T` references;
-* cannot be used to mutate the referenced value.
-
-For example:
+### `&T` — shared immutable reference
 
 ```slynx
 let value: T = ...;
 let reference: &T = &value;
 ```
 
-Creating or passing an `&T` does not transfer ownership of `value`.
+- does not own the value;
+- provides read-only access;
+- can coexist with other `&T` to the same value;
+- cannot mutate the value.
 
-Multiple `&T` references to the same value are allowed:
-
-```text
+```
         ┌─────────┐
         │    T    │
         └─────────┘
@@ -69,48 +50,19 @@ Multiple `&T` references to the same value are allowed:
          &T &T &T
 ```
 
-As long as the references remain shared and immutable, they may coexist.
-
-## `&mut T`
-
-A value of type `&mut T` is a unique mutable reference to a value of type `T`.
-
-It:
-
-* does not own the referenced value;
-* provides both read and write access;
-* must be unique while it exists;
-* cannot coexist with any `&T` reference to the same value;
-* cannot coexist with another `&mut T` reference to the same value.
-
-For example:
+### `&mut T` — exclusive mutable reference
 
 ```slynx
 let mut value: T = ...;
 let reference: &mut T = &mut value;
 ```
 
-While `reference` exists, no other shared or mutable reference to the same value may be used.
+- does not own the value;
+- provides read and write access;
+- must be **unique** while it exists;
+- does not coexist with any other `&T` or `&mut T` to the same value.
 
-The fundamental rule is:
-
-> Either there can be multiple shared `&T` references, or there can be exactly one `&mut T` reference, but never both at the same time.
-
-Conceptually:
-
-```text
-Multiple readers:
-
-        ┌─────────┐
-        │    T    │
-        └─────────┘
-          ↑  ↑  ↑
-          │  │  │
-         &T &T &T
-
-
-Exclusive writer:
-
+```
         ┌─────────┐
         │    T    │
         └─────────┘
@@ -119,123 +71,139 @@ Exclusive writer:
            &mut T
 ```
 
-These rules prevent invalid aliasing and data races caused by simultaneous mutable and immutable access.
+### Fundamental rule
+
+> Either there are multiple shared references `&T`, or there is exactly one mutable reference `&mut T` — never both at the same time on the same value.
+
+### `&atomic T` — planned
+
+A third type `&atomic T` is documented in the language design: an atomic/synchronized reference that allows concurrent read and write access and can coexist with other `&atomic T`. **Note**: `&atomic T` is **not yet implemented** in the parser, the type system, or the ownership analysis. Only `&T` and `&mut T` exist today.
 
 ## Ownership and Moves
 
-References do not transfer ownership. Moving a value does.
-
-For example:
+### Move by assignment
 
 ```slynx
-let a: T = ...;
-let b: T = a;
+let a: T = valor;
+let b: T = a;   // move: ownership transferido
 ```
 
-The assignment transfers ownership of the value from `a` to `b`.
+After the move, `a` is no longer a valid owner and cannot be used as if it still were.
 
-After the move, `a` is no longer a valid owner of that value and cannot be used as if it still owned it.
+### Copy Types
 
-Conceptually:
+Primitive types (`int`, `float`, `bool`, `str`) are **Copy**: they are implicitly duplicated, without a move.
 
-```text
-Before:
+### Move-only Types
 
-a ─────► T
+Structs (objects), tuples, arrays, vectors, enums are **Move-only**: assigning or passing transfers ownership.
 
+### Moves via function calls
 
-After:
-
-a       b ─────► T
-                 ownership
-```
-
-The compiler tracks these ownership transfers to determine where a value may be accessed.
-
-The exact point at which a value becomes unusable after a move is therefore part of the borrow checker's responsibility.
-
-## Why References Exist
-
-Moving large values whenever they are passed between functions or stored in other structures could require unnecessary copies or data movement.
-
-References provide an alternative:
+Passing a moved value by value to a function moves the value:
 
 ```slynx
-let value: T = ...;
-
-foo(&value);
+take(a);   // move: `a` is transferred to `take`'s parameter
 ```
 
-Instead of transferring ownership of `value`, `foo` receives a reference to it.
+### Borrow after move
 
-References are intended to be cheaply copied and do not require allocating a new copy of the referenced value.
-
-## `&atomic T`
-
-Slynx also is idealized to provide an `&atomic T` reference type for values that need to be accessed concurrently.
-
-Unlike `&mut T`, multiple `&atomic T` references may coexist.
-
-An `&atomic T` provides both read and write access to the referenced value, but those accesses are required to be synchronized so that concurrent access is safe.
-
-For example:
-
-```text
-              ┌─────────┐
-              │    T    │
-              └─────────┘
-               ↑   ↑   ↑
-               │   │   │
-            &atomic T
+```slynx
+let b = a;    // move
+let r = &a;   // error: `a` was already moved
 ```
 
-Multiple `&atomic T` references may therefore refer to the same value concurrently.
+## Ownership Analysis Rules
 
-### Atomic Does Not Mean Hardware Atomic Instructions
+| Situation | Status |
+|----------|--------|
+| Use after move (`let b = a; let c = a;`) | **Error** (`UseAfterMove`) |
+| Borrow after move (`let b = a; let r = &a;`) | **Error** |
+| Conflicting borrow (mutable + immutable on the same value) | **Error** (`ConflictingBorrow`) |
+| Move while borrowed | **Error** (`MoveWhileBorrowed`) |
+| `&mut` on an immutable variable | **Error** (`MutablyBorrowImmutable`) |
+| Multiple `&T` on the same value | Allowed |
+| Single `&mut T` on a value | Allowed |
 
-The name `atomic` describes the **synchronization guarantees provided by the reference**, not necessarily the implementation mechanism used to achieve them.
+## Examples
 
-An `&atomic T` may use hardware atomic instructions when appropriate, but it may also be implemented using mechanisms such as:
+Valid:
 
-* mutexes;
-* spinlocks;
-* other synchronization primitives.
+```slynx
+object Person {
+    name: str,
+}
 
-The important property is that concurrent reads and writes through `&atomic T` are synchronized and do not introduce data races.
+func main(): void {
+    let mut a = 5;
+    let mut p = Person(name: "John");
 
-Therefore:
+    let aref = &mut a;
+    let pref = &mut p;
+    *aref = 10;
+    pref.name = "";
+}
+```
 
-> `&atomic T` means that access to `T` is safe for concurrent use; it does not necessarily mean that `T` itself is implemented using CPU atomic instructions.
+Invalid (use after move):
 
-## Interaction Between Reference Types
+```slynx
+func main(): void {
+    let a = 5;
+    let b = a;   // `a` is moved
+    let c = a;   // erro: use after move
+}
+```
 
-The borrow checker must distinguish between ordinary references and atomic references.
+Invalid (borrow after move):
 
-`&T` and `&mut T` follow exclusive-access rules:
+```slynx
+func main(): void {
+    let a = 5;
+    let b = a;   // move
+    let r = &a;  // error: `a` was already moved
+}
+```
 
-* many `&T` references may coexist;
-* one `&mut T` may exist exclusively;
-* `&T` and `&mut T` cannot refer to the same value at the same time.
+Invalid (mutable borrow of immutable):
 
-`&atomic T` is different because its purpose is to permit concurrent access.
+```slynx
+func main(): void {
+    let a = 5;
+    let r = &mut a;  // error: `a` was not declared as mutable
+}
+```
 
-Therefore, `&atomic T` references may coexist with other `&atomic T` references.
+## Places and Tracking
 
-The exact interaction between `&atomic T` and ordinary `&T` / `&mut T` references must be defined by the borrow checker rules for the language. In particular, the language must specify whether an ordinary reference may coexist with an `&atomic T` reference to the same value.
+The analysis operates on **places** (`HirPlace`):
+
+| Place | Example |
+|-------|---------|
+| `Variable` | `x` |
+| `Temporary` | intermediate results |
+| `Field` | `obj.field` |
+| `Index` | `arr[i]` |
+| `Deref` | `*ptr` |
+
+The state of each place is tracked via `PlaceState` to detect moves, conflicting borrows, and use after move.
+
+## Interaction
+
+- Parser: `&expr`, `&mut expr`, `*expr` expressions (see [reference-expressions.md](reference-expressions.md), [dereference.md](dereference.md)).
+- Types: `&T`, `&mut T` in signatures.
+- Analysis: `crates/hir/src/ownership/` runs after HIR generation.
+- IR: references become pointers; opcodes `Deref`/`DerefWrite`/`Ref`/`FieldRef`.
 
 ## Summary
 
-Slynx's ownership model can be summarized as:
+| Type | Ownership | Read | Write | Multiple references |
+|------|-----------|------|-------|------------------------|
+| `T` | Owns | Yes | Yes, if mutable | N/A |
+| `&T` | No | Yes | No | Yes |
+| `&mut T` | No | Yes | Yes | No |
+| `&atomic T` | No (planned) | Yes | Yes | Yes (planned) |
 
-| Type        | Ownership  | Read | Write           | Multiple references |
-| ----------- | ---------- | ---- | --------------- | ------------------- |
-| `T`         | Owns value | Yes  | Yes, if mutable | N/A                 |
-| `&T`        | No         | Yes  | No              | Yes                 |
-| `&mut T`    | No         | Yes  | Yes             | No                  |
-| `&atomic T` | No         | Yes  | Yes             | Yes                 |
-
-The central invariant for ordinary references is:
-
-> Multiple readers are allowed, but mutable access must be exclusive.
-
-The `&atomic T` type provides a separate mechanism for shared concurrent access where reads and writes must remain synchronized.
+- Copy: `int`, `float`, `bool`, `str`.
+- Move-only: objects, tuples, arrays, vectors, enums.
+- `&atomic T` is a documented design, **not** implemented.
