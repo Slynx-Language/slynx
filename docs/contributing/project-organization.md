@@ -94,7 +94,7 @@ If a function does any of the following, it does NOT belong in helpers:
 - Iterates over declarations or expressions
 - Transforms or lowers one representation into another
 - Contains match arms on more than 2 variants
-- Calls into the checker or IR generator
+- Calls into the codegen/IR generation stage
 
 These belong in the appropriate `src/*.rs` implementation file.
 
@@ -109,16 +109,16 @@ Source
   │   TokenStream
   │
   ▼ crates/parser
-  │   Vec<ASTDeclaration>
+  │   Program (AST)
+  │
+  ▼ crates/module_loader
+  │   Modules (imports resolved)
   │
   ▼ crates/hir
-  │   Vec<HirDeclaration>
-  │
-  ▼ crates/checker
-  │   TypesModule (mutated HIR)
+  │   SlynxHir (type checking happens while the HIR is built)
   │
   ▼ crates/monomorphizer
-  │   TypesModule (mutated)
+  │   Specialized HIR (generics resolved)
   │
   ▼ crates/codegen
   │   SlynxIR (populated)
@@ -128,7 +128,11 @@ Source
 ```
 
 Each crate consumes the previous one's output and produces input for the next.
-No crate imports a later stage. `common` is shared by all.
+No crate imports a later stage. `crates/common` is shared by all.
+
+Note: there is no separate `crates/checker` crate. Type resolution and
+type checking are performed inside the HIR builders
+(`crates/hir/src/builders/`).
 
 ---
 
@@ -172,56 +176,42 @@ src/
 
 ```
 src/
-├── lib.rs              # SlynxHir struct + generate()
+├── lib.rs              # SlynxHir struct + re-exports
+├── builders/           # AST → HIR lowering + type checking
+│   ├── mod.rs          # HirQueueBuilder, find_type, signatures
+│   ├── function.rs     # function body building
+│   ├── structs.rs      # object declarations
+│   ├── component.rs    # component expressions
+│   ├── styles.rs       # stylesheet enqueueing
+│   ├── expression/     # expression/statement build + unify_types
+│   └── attributes/     # @builtin / @capabilities handling
+├── context/            # TypesContext, symbol registries, ScopeModule, LangItems
+├── file/               # HirFile, declaration pools
+├── generics.rs         # generic declarations handling
+├── ownership/          # OwnershipAnalysis (move semantics + borrow checking)
+├── helpers/            # Views over types/declarations
+├── queries.rs          # type_of_*, lookup helpers
 ├── model/              # HIR data definitions
-│   ├── mod.rs
-│   ├── declarations.rs
-│   ├── expression.rs
-│   ├── statements.rs
-│   └── types.rs
-├── declarations.rs     # hoist/resolve for declarations
-├── expression.rs       # expression resolution
-├── statements.rs       # statement resolution
-├── components.rs       # specialized component resolution
-├── names.rs            # name/type resolution helpers
 ├── error.rs            # HIRError
-├── id.rs               # DeclarationId, TypeId, etc.
-├── modules/            # Scope/symbol/type registries
-│   ├── mod.rs
-│   ├── declarations.rs
-│   ├── scopes.rs
-│   ├── symbols.rs
-│   └── types.rs
-└── helpers/            # Utility functions
-    ├── mod.rs
-    ├── expressions.rs
-    ├── names.rs
-    └── types.rs
+└── id.rs               # DeclarationId, VariableId, etc.
 ```
 
-### `crates/checker`
-
-```
-src/
-├── lib.rs         # TypeChecker struct + check()
-├── decl.rs        # Declaration type-checking
-├── defaults.rs    # Fallback type assignment
-├── expr.rs        # Expression type-checking
-├── statement.rs   # Statement type-checking
-├── styles.rs      # Stylesheet type-checking
-└── error.rs       # TypeError
-```
-
-Flat — no model/ directory needed (types are re-exported from `hir`).
+Type checking is not a separate crate: it happens inline while the HIR is built
+(`unify_types` in `builders/expression/`).
 
 ### `crates/monomorphizer`
 
 ```
 src/
-└── lib.rs         # Monomorphizer struct + resolve()
+├── lib.rs         # Monomorphizer struct + resolve() driver + tree builders
+├── types.rs       # Substitution, mangle_name, substitute_type
+├── functions.rs   # generic function specialization
+├── structs.rs     # generic object (struct) specialization
+├── components.rs  # generic component specialization
+└── enums.rs       # generic enum specialization
 ```
 
-### `crates/slynx_ir`
+### `crates/ir` (package `slynx-ir`)
 
 ```
 src/
@@ -230,7 +220,6 @@ src/
 ├── api.rs         # Public IR accessors and instructions (InstructionPtr, dereference, create_struct)
 ├── model/         # IR data definitions
 │   ├── mod.rs
-│   ├── context.rs
 │   ├── components.rs
 │   ├── instruction.rs
 │   ├── label.rs
@@ -261,27 +250,40 @@ src/
 └── error.rs       # IRError
 ```
 
+The repository also keeps design/spec docs under `crates/ir/docs/` and the
+`STYLES_TABLE.md` style-property code table next to `crates/ir/README.md`.
+
 ### `crates/codegen`
 
 ```
 src/
 ├── lib.rs              # Codegen struct + generate() orchestrator
 ├── error.rs            # CodegenError
-├── temporary_data.rs   # TempIRData — transient state during codegen
+├── functions.rs        # FunctionContext, instruction helpers
+├── components.rs       # Component lowering, style application
+├── expressions.rs      # Expression lowering
 ├── instructions.rs     # Instruction helpers (binary expressions, etc.)
-├── contexts.rs         # Function/context initialization
-├── components.rs       # Component lowering
-├── ir_value.rs         # Value creation helpers
+├── queries.rs          # Type/declaration lookups during lowering
 └── helper/             # Simple utility functions (lowering support)
     ├── mod.rs
     ├── styles.rs
     └── types.rs
 ```
 
-The codegen crate sits between `slynx_ir` and `slynx_hir`: it consumes the HIR
-and produces a populated `SlynxIR`. Its main struct `Codegen` owns both a
-`SlynxHir` and a `SlynxIR` and drives the multi-phase lowering pipeline via
-`generate()`.
+The codegen crate sits between `crates/ir` (`slynx-ir`) and `crates/hir`
+(`slynx-hir`): it consumes the HIR and produces a populated `SlynxIR`. Its main
+struct `Codegen` owns both a `SlynxHir` and a `SlynxIR` and drives the
+multi-phase lowering pipeline via `generate()`.
+
+### `crates/module_loader`
+
+```
+src/
+├── lib.rs         # SourceLoader — path/import resolution and source loading
+├── modules.rs     # Modules, ModulesSymbols — lookup of types/declarations by name
+├── sources.rs     # Per-module source storage and FileId management
+└── error.rs       # ModuleLoaderError
+```
 
 ### `crates/common`
 
@@ -300,7 +302,7 @@ Flat — shared primitives used by all crates.
 | Role | Where it lives | Example |
 |---|---|---|
 | Data types | `src/model/*.rs` | `HirDeclaration`, `StyleProperty`, `Instruction` |
-| Main struct | `src/lib.rs` | `SlynxHir`, `TypeChecker`, `SlynxIR` |
+| Main struct | `src/lib.rs` | `SlynxHir`, `SlynxIR` |
 | Orchestration | `src/lib.rs` (or `src/generate.rs` if large) | `generate()`, `check()` |
 | Phase 1 logic | `src/<name>.rs` | `hoist_stylesheet()`, `resolve_specialized()` |
 | Phase 2 logic | `src/<name>.rs` | `default_stylesheet()`, `lower_stylesheet()` |
@@ -311,7 +313,7 @@ Flat — shared primitives used by all crates.
 
 ## Naming conventions
 
-See [`name-convention.md`](name-convention.md) for the naming conventions used
+See [`../name-convention.md`](../name-convention.md) for the naming conventions used
 across phases.
 
 ---
@@ -323,10 +325,10 @@ across phases.
 | common | ✅ | — |
 | lexer | ✅ | — |
 | parser | ✅ | — |
-| hir | ⚠️ | `implementation/` folder — logic should be in `src/*.rs` |
-| checker | ✅ | — |
-| monomorphizer | ✅ | (single file is fine) |
-| slynx_ir | ⚠️ | `types/` and `model/` as separate dirs is clear but non-standard. `views/` and `builder/` are correct for their roles. |
+| module_loader | ✅ | — |
+| hir | ⚠️ | Builders split across `builders/` — logic not all in `src/*.rs` |
+| monomorphizer | ✅ | Flat per-declaration-kind modules (`functions.rs`, `structs.rs`, …) |
+| ir | ⚠️ | `types/` and `model/` as separate dirs is clear but non-standard. `views/` and `builder/` are correct for their roles. |
 | codegen | ⚠️ | Still has `helper/` dir with non-trivial lowering logic (styles.rs, types.rs). Should be migrated to flat `src/*.rs`. |
 
 ---
@@ -350,7 +352,7 @@ that deviate from idiomatic practice:
 
 ### What could be improved ⚠️
 
-#### 1. `slynx_ir` model/types split
+#### 1. `ir` model/types split
 
 The IR crate has two directories for type definitions:
 - `src/model/` — IR instruction model (Function, Component, Label, Value, Instruction, StyleProperty)
@@ -360,28 +362,23 @@ These serve different purposes, but having both at similar nesting levels
 can be confusing. They should either be merged into `src/model/` or both live
 under a shared namespace with clear names.
 
-#### 2. `lib.rs` in checker and HIR is too large
+#### 2. `lib.rs` in HIR is too large
 
-Checker's `lib.rs` is 423 lines and contains the `TypeChecker` struct,
-the top-level `check()` orchestration, AND the entire unification engine
-(`unify()`, `unify_with_ref()`, `recursive_ty()`).
-
-HIR's `lib.rs` is 445 lines and contains the `SlynxHir` struct AND the
-entire `generate()` two-pass orchestration.
+HIR's `lib.rs` contains the `SlynxHir` struct and the `generate()` two-pass
+orchestration entry points.
 
 Standard Rust convention is for `lib.rs` to be lean module declarations
 and re-exports, with logic in named files.
 
-**Fix**: Move unification from checker's `lib.rs` to `src/unify.rs`.
-Move HIR's `generate()` body to `src/generate.rs`.
+**Fix**: Move HIR's orchestration body to a named file (e.g. `src/builders/mod.rs`
+or `src/generate.rs`).
 
 #### 3. `helpers/` in HIR is inconsistently used
 
-`helpers/expressions.rs`, `helpers/names.rs`, and `helpers/types.rs` contain
-one-liner accessors. This is correct per the helper definition above. However,
-`helpers/names.rs` also contains `retrieve_information_of_type()` which is
-~15 lines and does non-trivial lookup logic — this should arguably be in
-`src/names.rs` alongside the other name resolution functions.
+`helpers/` contains viewer/accessor functions over types and declarations.
+Most are small and correct per the helper definition above, but any that grow
+into non-trivial lookup or transformation logic should be promoted into a
+named `src/*.rs` module alongside the rest of the implementation.
 
 #### 4. Inline tests are sparse
 
@@ -395,9 +392,9 @@ document edge cases.
 
 | Change | Crate | Effort |
 |---|---|---|
-| Merge `model/` + `types/` or rename clearly | slynx_ir | 30min |
-| Move `unify()` to `src/unify.rs` | checker | 15min |
-| Move `generate()` body to `src/generate.rs` | hir | 15min |
+| Merge `model/` + `types/` or rename clearly | ir | 30min |
+| Move `generate()` orchestration to a named file | hir | 15min |
+| Slim down `lib.rs` to re-exports | hir | 15min |
 | Add `pub use` re-exports to lib.rs | all | 10min each |
 | Add inline unit tests | all | ongoing |
 

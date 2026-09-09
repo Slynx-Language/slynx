@@ -1,8 +1,8 @@
 # Monomorphizer architecture
 
-> Status: **implemented** for functions, structs (objects), and components.
-> Aliases, styles, statics, and object methods are not implemented yet — see
-> [`extension-guide.md`](./extension-guide.md).
+> Status: **implemented** for functions, structs (objects), components, and
+> enums. Aliases, styles, statics, and object methods are not implemented yet —
+> see [`extension-guide.md`](./extension-guide.md).
 
 ## Goal
 
@@ -27,6 +27,7 @@ Each source file in `crates/monomorphizer/src/` owns one piece of the pass:
 | [`functions.rs`](../src/functions.rs) | Function specialization: [`resolve_function_target`](../src/functions.rs) creates/retrieves the concrete copy of a generic function for one set of type arguments, and [`function_return_type`](../src/functions.rs) reads a specialization's return type. |
 | [`structs.rs`](../src/structs.rs) | Struct (object) specialization: [`resolve_object_target`](../src/structs.rs) creates/retrieves a concrete struct type + `HirObjectDeclaration` for one instantiation, and rewrites generic object usage in expression/signature positions. |
 | [`components.rs`](../src/components.rs) | Component specialization: [`resolve_component_target`](../src/components.rs) creates/retrieves a concrete component type + `HirComponentDeclaration` (including rebuilt property defaults and child tree), and rewrites generic component usage. |
+| [`enums.rs`](../src/enums.rs) | Enum specialization: [`resolve_enum_target`](../src/enums.rs) creates/retrieves a concrete enum type + `HirEnumDeclaration` for one instantiation, and [`neutralize_generic_enums`](../src/enums.rs) neutralizes remaining generic enums. |
 
 ### Why split per declaration kind?
 
@@ -34,10 +35,11 @@ Monomorphization of each declaration kind is largely independent:
 
 - the **trigger** is different (a `FunctionCall.generics` field vs. a
   `HirType::Reference` in an object literal vs. a `HirType::Reference` in a
-  component expression);
+  component expression vs. a `HirType::Enum` reference in an enum expression or
+  `matches`);
 - the **artifact** is different (a `HirFunctionDeclaration` with statements, a
   `HirObjectDeclaration` with a struct type, a `HirComponentDeclaration` with
-  property members);
+  property members, an `HirEnumDeclaration` with payload types);
 - the **dedup cache** is keyed by the same `(template, type_args)` shape but
   stored under the declaration's `AnyDeclarationId`.
 
@@ -82,7 +84,10 @@ pub struct Monomorphizer {
    template; references are resolved to the concrete specialization.
 4. **Neutralize generic templates.** Every remaining generic declaration gets
    an empty body / neutral type and is inserted into `dead_code`, so codegen
-   never sees a `GenericParam`-typed signature.
+   never sees a `GenericParam`-typed signature. This covers generic objects
+   (`neutralize_generic_objects`), generic components
+   (`neutralize_generic_components`), and generic enums
+   (`neutralize_generic_enums`).
 
 Steps 1–3 share the same tree builders from `lib.rs`; they differ only in the
 node they rewrite (a `HirFunctionDeclaration` vs a `HirComponentDeclaration`
@@ -132,6 +137,7 @@ whose fields/properties are `substitute_type`-substituted.
 
 - After `resolve` returns, no reachable declaration has a
   `HirType::GenericParam` anywhere in a signature, body, or expression type.
-- Every generic template (functions, objects, components) is in `dead_code`.
+- Every generic template (functions, objects, components, enums) is in
+  `dead_code`.
 - No two specializations share a name (mangling) and no specialization collides
   with a user declaration (specializations are pooled next to templates).

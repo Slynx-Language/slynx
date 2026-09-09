@@ -8,10 +8,10 @@ This repository is still experimental and the language is still moving, so the b
 
 The current repository is strongest in these areas:
 
-- `frontend/`: lexer, parser, HIR, and type checker work
-- `middleend/`: IR design, lowering, and related tests/specification work
+- frontend crates (`crates/lexer`, `crates/parser`, `crates/hir`): lexing, parsing, HIR, and type checking work
+- middleend crates (`crates/ir`, `crates/codegen`): IR design, lowering, and related tests/specification work
 - documentation, specifications, and examples that stay aligned with the current code
-- regression tests for parser/checker/middleend behavior
+- regression tests for parser/type-checker/codegen behavior
 
 ## Before You Start
 
@@ -22,7 +22,7 @@ Relevant project docs:
 - [README.md](README.md)
 - [GOVERNANCE.md](GOVERNANCE.md)
 - [RELEASING.md](RELEASING.md)
-- [middleend/README.md](middleend/README.md)
+- [crates/ir/README.md](crates/ir/README.md)
 - [docs/issue-reporting.md](docs/issue-reporting.md)
 
 ## Local Setup
@@ -51,7 +51,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-If your change only affects a specific crate, include the narrower validation command in the PR as well (for example `cargo test -p frontend` or `cargo test -p middleend`).
+If your change only affects a specific crate, include the narrower validation command in the PR as well (for example `cargo test -p slynx-hir` or `cargo test -p slynx-ir`).
 
 ## Documentation Changes
 

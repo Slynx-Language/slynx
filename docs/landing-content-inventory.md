@@ -30,10 +30,10 @@ These files are the main factual references for landing-page content:
 - [GOVERNANCE.md](../GOVERNANCE.md): maintainership and decision structure
 - [RELEASING.md](../RELEASING.md): release/tag process
 - [CHANGELOG.md](../CHANGELOG.md): release history
-- [middleend/README.md](../middleend/README.md): middleend and IR design reference
-- [middleend/docs/reactive-graph-generation.md](../middleend/docs/reactive-graph-generation.md):
+- [crates/ir/README.md](../crates/ir/README.md): middleend and IR design reference
+- [crates/ir/docs/reactive-graph-generation.md](../crates/ir/docs/reactive-graph-generation.md):
   reactive graph generation spec
-- [docs/component-slots.md](component-slots.md): slot model spec for the first implementation
+- [component-slots.md](goals/component-slots.md): slot model spec for the first implementation
 
 ## Content That Is Ready For The Landing Page
 
@@ -46,14 +46,15 @@ Safe claims today:
 - Slynx is an experimental UI language project
 - the current repository is library-first
 - the current workspace is focused on the frontend and middleend of the language
-- `main` can lex, parse, build HIR, run type checking, resolve the current alias surface, and lower to the current `SlynxIR`
-- the root crate can write the default `.sir` output and can expose `.hir` / `.ir` dumps through `SlynxContext::build_stages()`
+- `main` can lex, parse, build HIR, run type checking, resolve generics/enums/aliases, and lower to the current `SlynxIR`
+- the root crate can write the default `.sir` output and can expose IR text/dump through
+  `SlynxContext::build_stages()`
 
 Evidence:
 
 - [README.md](../README.md)
 - [src/lib.rs](../src/lib.rs)
-- [src/context.rs](../src/context.rs)
+- [src/compilation_context/mod.rs](../src/compilation_context/mod.rs)
 
 Claims to avoid:
 
@@ -68,17 +69,19 @@ Status: `Implemented`
 
 Safe content:
 
-- `common/`: shared AST and common language structures
-- `frontend/`: lexer, parser, HIR generation, and type checking
-- `middleend/`: current `SlynxIR` and IR/lowering work
+- `crates/common/`: shared AST and common language structures
+- `crates/lexer/`, `crates/parser/`, `crates/hir/`: lexing, parsing, HIR generation, and type checking
+- `crates/ir/`, `crates/codegen/`: current `SlynxIR` and IR/lowering work
 - root crate: compile helpers, context, and error presentation
 
 Evidence:
 
 - [README.md](../README.md)
-- [common/](../common)
-- [frontend/](../frontend)
-- [middleend/](../middleend)
+- [crates/common/](../crates/common)
+- [crates/lexer/](../crates/lexer)
+- [crates/parser/](../crates/parser)
+- [crates/hir/](../crates/hir)
+- [crates/ir/](../crates/ir)
 - [src/](../src)
 
 ### 3. Getting Started As A Contributor
@@ -109,23 +112,26 @@ Safe content:
 
 - top-level `object`, `component`, and `func` declarations
 - top-level `alias` declarations
+- enums with associated values and `matches` expressions
+- generics (structured as well as functional) via monomorphization
 - block-bodied and arrow-bodied functions
-- `let` / `let mut`
+- `let` / `let mut`, `static`
 - assignment
 - `while`
 - function calls, including zero-argument calls
-- tuple types and tuple literals
-- object expressions
+- tuple types, tuple literals, and tuple access
+- object expressions, struct methods
 - component expressions
 - field access
 - arithmetic/comparison/logical/bitwise binary expressions
 - `if` expressions
+- nullable types, `&` references, move semantics
 
 Evidence:
 
 - [docs/language-surface.md](language-surface.md)
-- [frontend/src/parser](../frontend/src/parser)
-- [frontend/tests/parser.rs](../frontend/tests/parser.rs)
+- [crates/parser/src](../crates/parser/src)
+- [crates/hir/src](../crates/hir/src)
 
 ### 5. Public Library Entry Points
 
@@ -137,14 +143,13 @@ Safe content:
 - `slynx::compile_to_ir(...)`
 - `SlynxContext`
 - `SlynxContext::build_stages()`
-- `CompilationStages`
-- `.hir` / `.ir` dump writing through the library API
-- public module re-exports for `checker`, `hir`, `lexer`, and `parser`
+- `CompilationStages` (with `ir_text()`, `write_ir()`, `dump_path()`, `into_output()`)
+- public module re-exports for `hir`, `ir`, `lexer`, and `parser`
 
 Evidence:
 
 - [src/lib.rs](../src/lib.rs)
-- [src/context.rs](../src/context.rs)
+- [src/compilation_context/mod.rs](../src/compilation_context/mod.rs)
 
 Important limitation:
 
@@ -190,11 +195,11 @@ Safe framing:
 
 Evidence:
 
-- [middleend/README.md](../middleend/README.md)
+- [crates/ir/README.md](../crates/ir/README.md)
 
 Do not present as fully implemented:
 
-- the full IR surface described in `middleend/README.md`
+- the full IR surface described in `crates/ir/README.md`
 - every operation/example in that document as if it already exists in the codebase
 
 ### 2. Reactive Graph Generation
@@ -208,7 +213,7 @@ Safe framing:
 
 Evidence:
 
-- [middleend/docs/reactive-graph-generation.md](../middleend/docs/reactive-graph-generation.md)
+- [crates/ir/docs/reactive-graph-generation.md](../crates/ir/docs/reactive-graph-generation.md)
 
 Do not present as implemented:
 
@@ -227,7 +232,7 @@ Safe framing:
 
 Evidence:
 
-- [docs/component-slots.md](component-slots.md)
+- [docs/goals/component-slots.md](goals/component-slots.md)
 
 Do not present as implemented:
 
@@ -247,7 +252,6 @@ These topics should not be published as current product features:
 - stable versioned textual `.hir` / `.ir` dump contracts
 - implemented component slots
 - implemented reactive graph lowering
-- stable generics / monomorphization pipeline
 - production-ready component lowering in the IR
 
 ## Suggested Landing Structure
@@ -288,8 +292,8 @@ Only present features with strict wording:
 - HIR generation
 - type checking
 - lowering to current `SlynxIR`
-- aliases, tuple literals/types, and `while` in the current frontend surface
-- library-side `.hir` / `.ir` / `.sir` dump generation
+- aliases, enums, generics, tuples, and `while` in the current frontend surface
+- library-side `.ir` / `.sir` dump generation
 - CI + release/tag workflow
 
 Avoid broad claims like:
@@ -315,7 +319,7 @@ If the team wants to move quickly without inventing content, this order is the s
 2. expose contributor onboarding from [CONTRIBUTING.md](../CONTRIBUTING.md)
 3. add a small API-reference page for the current root helpers
 4. add a clearly labeled "Design Docs" section for:
-   - [middleend/README.md](../middleend/README.md)
-   - [middleend/docs/reactive-graph-generation.md](../middleend/docs/reactive-graph-generation.md)
-   - [docs/component-slots.md](component-slots.md)
+   - [crates/ir/README.md](../crates/ir/README.md)
+   - [crates/ir/docs/reactive-graph-generation.md](../crates/ir/docs/reactive-graph-generation.md)
+   - [docs/goals/component-slots.md](goals/component-slots.md)
 5. leave unfinished or speculative features out of the marketing copy until they land on `main`
