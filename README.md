@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
 
-Slynx is an experimental programming language project for user interfaces. The long-term direction is to expose a reusable IR that downstream compilers can consume, but the current repository is primarily a library-first workspace for the language frontend and middleend.
+Slynx is an experimental programming language project for user interfaces and in the long run, general programming. This repository is a library so other projects might want to use it. It provides all the phases of the language, finishing in the IR to be consumed.
 
 ## Current Status
 
@@ -14,10 +14,12 @@ Slynx is still experimental and under active design.
 What is true on the current `main` branch:
 
 - the workspace is library-first; there is no official CLI binary target in `main` right now
-- the root crate can lex, parse, build HIR, run type checking, resolve the current alias surface, and lower source files into `SlynxIR`
-- the root library can write the default `.sir` output and can expose `.hir` / `.ir` dumps through `SlynxContext::build_stages()`
-- sample `.syx` sources live under [`examples/`](examples)
-- the IR design is still evolving, and the design reference in [`crates/slynx_ir/README.md`](crates/slynx_ir/README.md) is broader than what `main` emits today
+- the root crate can lex, parse, load modules, build HIR, run type checking and ownership analysis, resolve aliases/generics/enums, monomorphize, and lower source files into `SlynxIR`
+- the root library can write the default `.sir` output alongside the source and can expose `.ir` dumps through `SlynxContext::build_stages()`
+- sample `.syx` / `.slx` sources live under [`examples/`](examples)
+- generics are monomorphized for functions, objects, components, and enums; call-site type inference is **not** implemented yet (explicit type arguments are required)
+- stylesheets are parsed but not lowered end-to-end on `main` yet
+- the IR design is still evolving, and the design reference in [`crates/ir/README.md`](crates/ir/README.md) is broader than what `main` emits today
 
 ## Workspace Layout
 
@@ -26,24 +28,27 @@ The repository is a Cargo workspace. The root crate (`src/`) is the library entr
 - [`crates/common/`](crates/common): shared AST types and common language data structures
 - [`crates/lexer/`](crates/lexer): lexical analysis (`slynx-lexer`)
 - [`crates/parser/`](crates/parser): parser (`slynx-parser`)
-- [`crates/hir/`](crates/hir): HIR generation and name resolution (`slynx-hir`)
-- [`crates/checker/`](crates/checker): type checking and type inference (`slynx-typechecker`)
-- [`crates/monomorphizer/`](crates/monomorphizer): monomorphization (`slynx-monomorphizer`)
-- [`crates/slynx_ir/`](crates/slynx_ir): `SlynxIR` definition and lowering (`slynx-ir`)
+- [`crates/module_loader/`](crates/module_loader): module loading and import resolution (`module_loader`)
+- [`crates/hir/`](crates/hir): HIR generation and type checking (`slynx-hir`)
+- [`crates/monomorphizer/`](crates/monomorphizer): monomorphization of generics (`slynx-monomorphizer`)
+- [`crates/codegen/`](crates/codegen): HIR → IR lowering, including stylesheets (`slynx-codegen`)
+- [`crates/ir/`](crates/ir): `SlynxIR` definition and lowering (`slynx-ir`)
 - [`src/`](src): root library glue (`SlynxContext`, compile helpers, error presentation)
 
 ## What Exists Today
 
 The current codebase already includes:
 
-- lexical analysis and parsing for core language constructs such as functions, objects, components, aliases, tuple literals/types, and control flow such as `if` and `while`
-- HIR generation and name resolution
-- type checking, type inference, and monomorphization for the current supported alias surface
-- library entry points for compiling to IR or inspecting HIR/IR dumps before writing output
+- lexical analysis and parsing for core language constructs such as `object`, `component`, `func`, `enum`, `alias`, tuples, arrays/vectors/slices, nullable types, references, imports, statics, and control flow such as `if` and `while`
+- HIR generation, type checking, and ownership analysis (move semantics and borrow checking)
+- monomorphization for generic functions, objects, components, and enums, with explicit type arguments at use sites
+- matching expressions (`matches`), struct methods (`self` / `Self`), and `extern` declarations
+- stylesheet declarations: parsing, `uses` inheritance, and `styles { }` blocks, with a codegen lowering path that is not fully wired end-to-end yet
+- library entry points for compiling to IR or inspecting IR dumps before writing output
 - lowering to the current `SlynxIR`
 - CI, release, governance, and contribution documentation
 
-The current repository does **not** ship an official backend crate or an official CLI binary on `main`.
+The current repository does **not** ship an official backend crate, an official CLI binary, generic type inference, or an end-to-end stylesheet pipeline on `main`.
 
 ## Getting Started
 
@@ -71,7 +76,10 @@ The root crate exposes helper functions for lowering a `.syx` file into IR:
 use std::path::PathBuf;
 
 fn main() -> color_eyre::eyre::Result<()> {
-    let ir = slynx::compile_to_ir(PathBuf::from("examples/component.syx"))?;
+    let ir = slynx::compile_to_ir(
+        PathBuf::from("examples/booleans.syx"),
+        Some(PathBuf::from("lib/std")),
+    )?;
     println!("{ir:#?}");
     Ok(())
 }
@@ -83,7 +91,7 @@ To write the default `.sir` output file alongside the source:
 use std::path::PathBuf;
 
 fn main() -> color_eyre::eyre::Result<()> {
-    slynx::compile_code(PathBuf::from("examples/component.syx"))?;
+    slynx::compile_code(PathBuf::from("examples/booleans.syx"), None)?;
     Ok(())
 }
 ```
@@ -91,14 +99,16 @@ fn main() -> color_eyre::eyre::Result<()> {
 If you want to inspect intermediate dumps before writing output, the root context also exposes stage building:
 
 ```rust
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 fn main() -> color_eyre::eyre::Result<()> {
-    let context = slynx::SlynxContext::new(Arc::new(PathBuf::from("examples/booleans.syx")))?;
+    let context = slynx::SlynxContext::new(
+        PathBuf::from("examples/booleans.syx"),
+        Some(PathBuf::from("lib/std")),
+    )?;
     let stages = context.build_stages()?;
 
-    println!("{}", stages.hir_text());
-    stages.write_hir()?;
+    println!("{}", stages.ir_text());
     stages.write_ir()?;
 
     let output = stages.into_output();
@@ -109,19 +119,29 @@ fn main() -> color_eyre::eyre::Result<()> {
 
 Today:
 
-- `compile_code(...)` writes the default sibling `.sir` file
-- `compile_to_ir(...)` returns the compiled `SlynxIR` directly
-- `build_stages()` lets callers inspect or persist `.hir` and `.ir` dumps through the library API
+- `compile_code(path, std)` writes the default sibling `.sir` file
+- `compile_to_ir(path, std)` returns the compiled `SlynxIR` directly
+- `SlynxContext::new(entry_point, std_path)` with `build_stages()` lets callers inspect or persist `.ir` dumps (`ir_text()`, `write_ir()`, `dump_path(...)`) through the library API
+- the `std` argument is optional and falls back to `./lib/std`
 - there is still no polished CLI workflow for dump generation on `main`
 
 ## Example Sources
 
 Real samples that match the current repository syntax live under [`examples/`](examples), for example:
 
+- [`examples/enums/`](examples/enums/): enums usage examples
+- [`examples/externs/`](examples/externs/): basic usage of extern values
+- [`examples/imports/`](examples/imports/): imports of values, types, functions, etc, from other files
+- [`examples/generics/`](examples/generics/): generics examples used in declarations
+- [`examples/move_semantics/`](examples/move_semantics/): move semantics examples
+- [`examples/styles/`](examples/styles/): styles examples (styles are not finished yet)
 - [`examples/component.syx`](examples/component.syx): basic component construction
 - [`examples/objects.syx`](examples/objects.syx): object construction and field mutation
 - [`examples/while.syx`](examples/while.syx): `while` loops
 - [`examples/functionCall.syx`](examples/functionCall.syx): typed function calls
+- [`examples/arrays.syx`](examples/arrays.syx): arrays
+- [`examples/tupleAccess.syx`](examples/tupleAccess.syx): tuple types and tuple access
+- [`examples/nullables.syx`](examples/nullables.syx): nullable types
 
 One small component example:
 
@@ -170,7 +190,7 @@ Core project documents:
 - [CHANGELOG.md](CHANGELOG.md): repository-level changelog
 - [docs/language-surface.md](docs/language-surface.md): grounded overview of the current language syntax and constructs
 - [docs/first-slynx-file.md](docs/first-slynx-file.md): short tutorial-style example for new contributors
-- [crates/slynx_ir/README.md](crates/slynx_ir/README.md): IR design/specification reference
+- [crates/ir/README.md](crates/ir/README.md): IR design/specification reference
 - [docs/issue-reporting.md](docs/issue-reporting.md): guide for opening clear, actionable issues
 - [docs/landing-content-inventory.md](docs/landing-content-inventory.md): grounded inventory of what can already be published on the landing page
 
@@ -184,7 +204,7 @@ Operational templates:
 
 ## Releases and Versioning
 
-The latest release is [`v0.0.1`](https://github.com/Slynx-Language/slynx/releases/tag/v0.0.1), published on 2026-05-04.
+The latest release is [`v0.0.1`](https://github.com/Slynx-Language/slynx/releases/tag/v0.0.1), tagged on 2026-05-03.
 
 - [GitHub Releases](https://github.com/Slynx-Language/slynx/releases)
 - [Git tags](https://github.com/Slynx-Language/slynx/tags)
@@ -197,6 +217,7 @@ Contributions are welcome, especially in these areas:
 
 - frontend/parser/type-checker work
 - IR and middleend design
+- monomorphization and generics
 - tests and regression coverage
 - documentation and specifications
 
