@@ -39,7 +39,7 @@ impl<'a> HirQueueBuilder<'a> {
             })
             .collect();
         let args = args?;
-        let ty = self.hir.types_module.create_style_type(name, args);
+        let ty = self.hir.types.create_style_type(name, args);
 
         let id = {
             let decl = HirStylesheetDeclaration {
@@ -53,7 +53,7 @@ impl<'a> HirQueueBuilder<'a> {
                 external: false,
                 attributes: Vec::new(),
             };
-            let file = self.hir.get_or_create_file(file_id);
+            let file = self.hir.store.get_or_create_file(file_id);
             let id = file.create_stylesheet(decl);
             self.hir
                 .symbols_registry

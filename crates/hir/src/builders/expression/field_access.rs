@@ -199,7 +199,7 @@ impl ExpressionBuilder {
 
             _ => Err(HIRError::invalid_type_access(span)),
         }?;
-        Ok(span.make_spanned(queue.hir.insert_expression(expr)))
+        Ok(span.make_spanned(queue.hir.store.insert_expression(expr)))
     }
 
     ///Builds a member access against an already-built parent expression.
@@ -285,7 +285,7 @@ impl ExpressionBuilder {
                                 _ => field_ty,
                             };
 
-                            let parent = parent.span.make_spanned(queue.hir.insert_expression(
+                            let parent = parent.span.make_spanned(queue.hir.store.insert_expression(
                                 HirExpression {
                                     ty: concrete_type.data,
                                     kind: HirExpressionKind::Deref(parent),
@@ -319,9 +319,11 @@ impl ExpressionBuilder {
                                 {
                                     Some(method)
                                 } else {
-                                    queue.hir.methods.get(&parent_ty.data).and_then(|methods| {
-                                        methods.get(&name_sym).map(|v| *v.value())
-                                    })
+                                    queue
+                                        .hir
+                                        .types
+                                        .methods
+                                        .method_of(parent_ty.data, name_sym)
                                 };
 
                             let func_id = match func_id {
@@ -381,6 +383,6 @@ impl ExpressionBuilder {
                 }
                 _ => return Err(HIRError::invalid_field_access(span)),
             };
-        Ok(span.make_spanned(queue.hir.insert_expression(expr)))
+        Ok(span.make_spanned(queue.hir.store.insert_expression(expr)))
     }
 }

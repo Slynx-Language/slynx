@@ -18,7 +18,7 @@ pub(crate) fn process_attributes(
         let kind = match hir.get_name(attr.data.name) {
             "builtin" => {
                 let name = attr.data.args.first().copied().unwrap_or(attr.data.name);
-                hir.lang_items.register(hir.get_name(name), decl_id);
+                hir.store.lang_items.register(hir.get_name(name), decl_id);
                 HirAttributeKind::Builtin { name }
             }
             "capabilities" => HirAttributeKind::Capabilities(attr.data.args.clone()),

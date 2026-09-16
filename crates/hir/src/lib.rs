@@ -69,24 +69,21 @@ pub mod model;
 /// Ownership analysis: move semantics, borrow checking, and place construction.
 pub mod ownership;
 mod queries;
+mod store;
 
-use std::ops::{Deref, Index};
+use std::ops::Index;
 
 pub use crate::error::{HIRError, HIRErrorKind};
 use crate::{
-    context::{LangItems, SymbolRegistry, TypesContext},
+    context::{SymbolRegistry, TypesContext},
     file::HirFile,
 };
-use common::{
-    FrontendSymbol, SymbolsModule,
-    pool::{Pool, PoolId},
-};
-use dashmap::{DashMap, mapref::one::RefMut};
+use common::{FrontendSymbol, SymbolsModule, pool::PoolId};
 pub use helpers::{HirViewer, Visible};
 
 pub use id::{ComponentId, DeclarationId, ExpressionId, VariableId};
 pub use model::*;
-use module_loader::{FileId, Modules};
+use module_loader::Modules;
 
 /// Result type for HIR operations.
 ///
@@ -95,162 +92,90 @@ use module_loader::{FileId, Modules};
 pub type Result<T> = std::result::Result<T, HIRError>;
 pub type SymbolPointer = common::SymbolPointer<FrontendSymbol>;
 
+pub use store::HirStore;
+
 /// The main HIR structure coordinating high-level intermediate representation.
 ///
-/// `SlynxHir` manages the transformation of AST declarations into a complete HIR
-/// representation. It maintains all declarations, type information, and provides
-/// the context for type checking and analysis.
-///
-/// # Structure
-///
-/// The HIR is built through a two-phase process:
-///
-/// 1. **Hoisting Phase** — Top-level declarations (functions, components, objects)
-///    are registered in their respective scopes before their bodies are resolved.
-///    This ensures forward references are valid (e.g., calling a function defined
-///    later in the source).
-///
-/// 2. **Resolution Phase** — The bodies of functions and components are processed,
-///    expressions are typed, and variable references are resolved to their
-///    declarations.
-///
-/// # Fields
-///
-/// - [`modules`](SlynxHir::modules) — Manages scopes, symbols, types, and declarations
-/// - [`declarations`](SlynxHir::declarations) — All top-level declarations in the HIR
-/// - `types` — Internal cache mapping type IDs to their [`HirType`] representations
+/// `SlynxHir` is a read-only facade that provides query access to all HIR data
+/// via explicit fields: [`store`](SlynxHir::store) for data pools,
+/// [`types`](SlynxHir::types) for the type system, and
+/// [`symbols_registry`](SlynxHir::symbols_registry) for declaration lookup.
 ///
 /// # Example
 ///
 /// ```text
 /// let hir = SlynxHir::new(&modules)?;
-/// // hir.files contains the full HIR generated from the parsed modules.
+/// // hir.store.files contains the full HIR generated from the parsed modules.
 /// ```
 ///
 /// # See Also
 ///
-/// - [`generate`](SlynxHir::generate) — Main entry point for AST → HIR transformation
-/// - [`model`] module — HIR data structures
-/// - [`modules::HirModules`] — Scopes and symbol management
-
+/// - [`store::HirStore`] — data pools (expressions, statements, files, …)
+/// - [`TypesContext`] — type storage, registry, and method table
+/// - [`context::SymbolRegistry`] — name→declaration lookup
+/// - [`model`] — HIR data structures
 #[derive(Debug)]
 pub struct SlynxHir<'a> {
     /// Resolver for interning and looking up symbol names.
     pub symbols_resolver: &'a SymbolsModule<FrontendSymbol>,
     pub symbols_registry: SymbolRegistry,
-    /// Module managing all types and their IDs.
-    pub types_module: TypesContext,
-    pub expressions: Pool<HirExpression>,
-    pub statements: Pool<HirStatement>,
-    pub component_expressions: Pool<HirComponentExpression>,
-    /// Pool of places constructed during ownership analysis.
-    pub places: Pool<HirPlace>,
-    /// Mapping from VariableId to its source name, populated during HIR construction.
-    pub variable_names: DashMap<VariableId, SymbolPointer>,
-    /// All top-level declarations generated from the sources.
-    ///
-    /// This vector contains every function, component, object, and type alias
-    /// defined in the source code, in the order they were processed.
-    ///
-    /// Each declaration includes:
-    /// - A unique [`DeclarationId`] for identification
-    /// - Its [`HirDeclarationKind`] describing what kind of declaration it is
-    /// - The declaration's [`TypeId`]
-    /// - The source [`Span`] for error reporting
-    pub files: DashMap<FileId, HirFile>,
-    pub lang_items: LangItems,
+    /// The type system: type storage, name registry, and method table.
+    pub types: TypesContext,
+    /// All HIR data pools and file declarations.
+    pub store: HirStore,
 }
 
 impl<'a> SlynxHir<'a> {
-    /// Creates a new, empty `SlynxHir` instance.
+    /// Creates a new `SlynxHir` instance by generating the HIR from the given AST modules.
     ///
-    /// The returned instance has no declarations and an initialized module
-    /// context with built-in types (int, float, str, bool, void, etc.).
-    ///
-    /// # Examples
-    ///
-    /// ```text
-    /// let hir = SlynxHir::new(&modules)?;
-    /// // The HIR is empty until modules are generated into it.
-    /// ```
+    /// The returned instance has built-in types registered and all top-level
+    /// declarations hoisted and their bodies resolved.
     ///
     /// # See Also
     ///
-    /// - [`generate`](SlynxHir::generate) — Populate the HIR from AST
-    /// - [`modules::HirModules::new`](crate::hir::modules::HirModules::new)
+    /// - [`store::HirStore`] — data pools
+    /// - [`crate::builders::generate_hir`] — the build orchestration
     #[inline]
     #[allow(clippy::result_large_err)]
     pub fn new(modules: &'a Modules<'a>) -> std::result::Result<Self, (Self, HIRError)> {
         let out = Self {
-            expressions: Pool::new(),
-            statements: Pool::new(),
-            component_expressions: Pool::new(),
-            places: Pool::new(),
-            variable_names: DashMap::new(),
-            symbols_registry: SymbolRegistry::default(),
             symbols_resolver: modules.symbols(),
-            types_module: TypesContext::new(),
-            files: DashMap::new(),
-            lang_items: LangItems::new(),
+            symbols_registry: SymbolRegistry::default(),
+            types: TypesContext::new(),
+            store: HirStore::new(),
         };
-        if let Err(e) = out.generate(modules) {
+        if let Err(e) = crate::builders::generate_hir(&out, modules) {
             Err((out, e))
         } else {
             Ok(out)
         }
-    }
-
-    ///Gets or create an Hir file with the given `id`
-    fn get_or_create_file(&self, id: FileId) -> RefMut<'_, FileId, HirFile> {
-        self.files.entry(id).or_insert_with(|| HirFile::new(id))
-    }
-
-    fn generate(&'a self, modules: &Modules) -> Result<()> {
-        let builder = HirQueueBuilder::new(self, modules);
-        {
-            let entry = &modules.entries()[0];
-            let main_symbol = self.intern_name("main");
-            if let Some(mainfunc) = entry.func().iter().find(|func| func.name == main_symbol) {
-                builder.enqueue_function(mainfunc, entry.id)?;
-                builder.process()?;
-            }
-        }
-        builder.close_bodies();
-        Ok(())
-    }
-}
-
-impl<'a> Deref for SlynxHir<'a> {
-    type Target = TypesContext;
-    fn deref(&self) -> &Self::Target {
-        &self.types_module
     }
 }
 
 impl Index<PoolId<HirExpression>> for SlynxHir<'_> {
     type Output = HirExpression;
     fn index(&self, index: PoolId<HirExpression>) -> &Self::Output {
-        &self.expressions[index]
+        &self.store[index]
     }
 }
 
 impl Index<PoolId<HirStatement>> for SlynxHir<'_> {
     type Output = HirStatement;
     fn index(&self, index: PoolId<HirStatement>) -> &Self::Output {
-        &self.statements[index]
+        &self.store[index]
     }
 }
 
 impl Index<PoolId<HirComponentExpression>> for SlynxHir<'_> {
     type Output = HirComponentExpression;
     fn index(&self, index: PoolId<HirComponentExpression>) -> &Self::Output {
-        &self.component_expressions[index]
+        &self.store[index]
     }
 }
 
 impl Index<PoolId<HirPlace>> for SlynxHir<'_> {
     type Output = HirPlace;
     fn index(&self, index: PoolId<HirPlace>) -> &Self::Output {
-        &self.places[index]
+        &self.store[index]
     }
 }

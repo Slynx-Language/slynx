@@ -274,7 +274,7 @@ impl ExpressionBuilder {
                 let rhs_ty = queue.hir.view(rhs.data).ty();
                 let ty = self.unify_types(queue, lhs_ty, rhs_ty, target.span)?;
                 let ty = if op.is_logical() {
-                    queue.hir.create_type(HirType::Bool)
+                    queue.hir.types.create_type(HirType::Bool)
                 } else {
                     ty
                 };
@@ -349,7 +349,7 @@ impl ExpressionBuilder {
                 self.build_vector(queue, expressions, target.span, expected, context)?
             }
         };
-        let exprid = queue.hir.insert_expression(expr);
+        let exprid = queue.hir.store.insert_expression(expr);
         Ok(target.span.make_spanned(exprid))
     }
 }

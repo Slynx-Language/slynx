@@ -117,7 +117,7 @@ impl<'a> HirQueueBuilder<'a> {
                     visibility: component.visibility,
                     attributes: Vec::new(),
                 };
-                let file = self.hir.get_or_create_file(node.entry);
+                let file = self.hir.store.get_or_create_file(node.entry);
                 Ok(file.create_component(decl))
             },
         )?;

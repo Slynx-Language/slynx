@@ -1,34 +1,20 @@
-use std::ops::Deref;
 
 use common::{
     Span,
-    pool::{DedupPoolId, PoolId},
+    pool::{DedupPoolId},
 };
 use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HIRError, HirComponentDeclaration, HirComponentExpression, HirExpression,
-    HirFunctionDeclaration, HirStatement, HirType, Result, SlynxHir, SymbolPointer, VariableId,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirType, Result, SlynxHir, SymbolPointer,
+    VariableId,
     context::HirSymbol,
-    file::HirFile,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 
 impl SlynxHir<'_> {
-    pub fn insert_expression(&self, expr: HirExpression) -> PoolId<HirExpression> {
-        self.expressions.insert(expr)
-    }
-    pub fn insert_statement(&self, stmt: HirStatement) -> PoolId<HirStatement> {
-        self.statements.insert(stmt)
-    }
-    pub fn insert_component_expression(
-        &self,
-        component: HirComponentExpression,
-    ) -> PoolId<HirComponentExpression> {
-        self.component_expressions.insert(component)
-    }
     pub fn find_function_by_symbol(
         &self,
         symbol: HirSymbol,
@@ -39,7 +25,7 @@ impl SlynxHir<'_> {
     pub fn find_component_by_symbol(
         &self,
         symbol: HirSymbol,
-    ) -> Option<DeclarationId<HirComponentDeclaration>> {
+    ) -> Option<DeclarationId<crate::HirComponentDeclaration>> {
         self.symbols_registry.get_component(symbol)
     }
 
@@ -53,24 +39,22 @@ impl SlynxHir<'_> {
 
     pub fn get_variable_name(&self, id: VariableId) -> &str {
         let ptr = self
+            .store
             .variable_names
             .get(&id)
             .expect("Variable name should be registered during HIR construction");
         self.symbols_resolver.get_name(*ptr)
     }
 
-    pub fn get_file(&self, id: FileId) -> Ref<'_, FileId, HirFile> {
-        self.files
-            .get(&id)
-            .expect("A file with the given id should exist")
+    pub fn get_file(&self, id: FileId) -> Ref<'_, FileId, crate::file::HirFile> {
+        self.store.get_file(id)
     }
-    pub fn get_file_mut(&self, id: FileId) -> RefMut<'_, FileId, HirFile> {
-        self.files
-            .get_mut(&id)
-            .expect("A file with the given id should exist")
+    pub fn get_file_mut(&self, id: FileId) -> RefMut<'_, FileId, crate::file::HirFile> {
+        self.store.get_file_mut(id)
     }
+
     pub fn get_declaration_type(&self, id: AnyDeclarationId) -> DedupPoolId<HirType> {
-        let file = self.get_or_create_file(id.file_id);
+        let file = self.store.get_or_create_file(id.file_id);
         match id.local_id {
             AnyLocalDeclarationId::Alias(alias) => file.alias.get(alias).ty,
             AnyLocalDeclarationId::Component(component) => file.components.get(component).ty,
@@ -83,7 +67,7 @@ impl SlynxHir<'_> {
     }
 
     pub fn get_declaration_generics(&self, id: AnyDeclarationId) -> Vec<SymbolPointer> {
-        let file = self.get_or_create_file(id.file_id);
+        let file = self.store.get_or_create_file(id.file_id);
         match id.local_id {
             AnyLocalDeclarationId::Alias(alias) => &file.alias.get(alias).generics,
             AnyLocalDeclarationId::Component(component) => &file.components.get(component).generics,
@@ -99,7 +83,7 @@ impl SlynxHir<'_> {
     }
 
     pub fn type_of_intrinsic(&self, name: &str, span: Span) -> Result<DedupPoolId<HirType>> {
-        let id = self.lang_items.get(name).map_err(|_| {
+        let id = self.store.lang_items.get(name).map_err(|_| {
             let sym = self.intern_name(name);
             HIRError::intrinsic_not_registered(sym, span)
         })?;
@@ -110,7 +94,7 @@ impl SlynxHir<'_> {
     /// A struct `Color { inner: int }` flattens to `[int]`.
     /// A struct `Border { color: Color, width: int, radius: int }` flattens to `[int, int, int]`.
     pub fn flatten_type(&self, ty: DedupPoolId<HirType>) -> Vec<DedupPoolId<HirType>> {
-        match &self.deref()[ty] {
+        match &self.types[ty] {
             HirType::Int | HirType::Float | HirType::Bool | HirType::Str => vec![ty],
             HirType::Struct(strukt) => self
                 .view(*strukt)

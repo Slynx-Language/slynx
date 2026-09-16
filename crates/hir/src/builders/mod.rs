@@ -31,6 +31,28 @@ use slynx_parser::{
     FuncDeclaration, GenericIdentifier, StaticDeclaration, Type, TypeContext,
 };
 
+/// Orchestrates the AST → HIR build: hoists `main`, enqueues its transitive
+/// dependencies, resolves bodies, and closes the work channels.
+///
+/// This is the entry point of the lowerer; it drives [`HirQueueBuilder`]
+/// against an immutable `&SlynxHir` facade (which owns the mutable data).
+pub(crate) fn generate_hir<'a>(
+    hir: &'a SlynxHir<'a>,
+    modules: &'a Modules<'a>,
+) -> Result<()> {
+    let builder = HirQueueBuilder::new(hir, modules);
+    {
+        let entry = &modules.entries()[0];
+        let main_symbol = hir.intern_name("main");
+        if let Some(mainfunc) = entry.func().iter().find(|func| func.name == main_symbol) {
+            builder.enqueue_function(mainfunc, entry.id)?;
+            builder.process()?;
+        }
+    }
+    builder.close_bodies();
+    Ok(())
+}
+
 pub struct PendingSignatures<'a> {
     /// Signature resolution state per component (by (FileId, SymbolPointer)).
     pub signatures_in_progress: &'a DashSet<(FileId, SymbolPointer)>,
@@ -100,7 +122,7 @@ impl HirNode<'_> {
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
         if let Some(data) = self.modules.find_type(self.entry, name.data) {
             let id = match data.content {
-                ASTTypeKind::Builtin(builtin) => self.hir.create_type(builtin.into()),
+                ASTTypeKind::Builtin(builtin) => self.hir.types.create_type(builtin.into()),
                 ASTTypeKind::Alias(alias) => {
                     let target = self.modules.get_entry(data.owner).alias().get(alias).target;
                     return self.find_type(target, context);
@@ -125,10 +147,10 @@ impl HirNode<'_> {
                         })
                         .collect::<Result<Vec<_>>>()?;
 
-                    let struct_ty = self.hir.create_struct_type(struct_name, fields, Vec::new());
+                    let struct_ty = self.hir.types.create_struct_type(struct_name, fields, Vec::new());
                     // Register a HirObjectDeclaration so the codegen's
                     // hoist_declarations can create an IR struct for this type.
-                    let file = self.hir.get_or_create_file(data.owner);
+                    let file = self.hir.store.get_or_create_file(data.owner);
                     let already = file
                         .declarations
                         .objects
@@ -217,10 +239,10 @@ impl HirNode<'_> {
                             discriminant,
                         });
                     }
-                    let enum_ty = self.hir.create_enum_type(enum_name, variants);
+                    let enum_ty = self.hir.types.create_enum_type(enum_name, variants);
                     // Register a HirEnumDeclaration so the codegen's
                     // hoist_declarations can create an IR type for this enum.
-                    let file = self.hir.get_or_create_file(data.owner);
+                    let file = self.hir.store.get_or_create_file(data.owner);
                     let already = file.declarations.enums.iter().any(|d| d.name == enum_name);
                     if !already {
                         file.create_enum(HirEnumDeclaration {
@@ -276,7 +298,7 @@ impl HirNode<'_> {
                     .collect::<Result<Vec<_>>>()?;
                 Ok((
                     owner,
-                    self.hir.create_type(HirType::new_generic_ref(ty, args)),
+                    self.hir.types.create_type(HirType::new_generic_ref(ty, args)),
                 ))
             }
             Type::Array(t, len) => {
@@ -287,32 +309,32 @@ impl HirNode<'_> {
                         "Array length can only be used as integers at the moment. It is idealized to be used in comptime in the future"
                     ),
                 };
-                let ty = self.hir.create_type(HirType::Array(ty, len));
+                let ty = self.hir.types.create_type(HirType::Array(ty, len));
                 Ok((id, ty))
             }
             Type::Vector(t) => {
                 let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
-                let ty = self.hir.create_type(HirType::Vector(ty));
+                let ty = self.hir.types.create_type(HirType::Vector(ty));
                 Ok((id, ty))
             }
             Type::Reference(t) => {
                 let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
-                let ty = self.hir.create_type(HirType::ImutableRef(ty));
+                let ty = self.hir.types.create_type(HirType::ImutableRef(ty));
                 Ok((id, ty))
             }
             Type::MutableReference(t) => {
                 let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
-                let ty = self.hir.create_type(HirType::MutableRef(ty));
+                let ty = self.hir.types.create_type(HirType::MutableRef(ty));
                 Ok((id, ty))
             }
 
             Type::Nullable(nullable) => {
                 let (id, ty) = self.find_type(ty.span.make_spanned(*nullable), context)?;
-                let ty = self.hir.create_type(HirType::Nullable(ty));
+                let ty = self.hir.types.create_type(HirType::Nullable(ty));
                 Ok((id, ty))
             }
             Type::Generic(index) => {
-                let ty = self.hir.create_type(HirType::GenericParam {
+                let ty = self.hir.types.create_type(HirType::GenericParam {
                     index: *index,
                     name: context.generic_names[*index as usize],
                 });
@@ -332,7 +354,7 @@ impl HirNode<'_> {
                 self.find_type(inner, &context).map(|v| v.1)
             })
             .collect::<Result<_>>()?;
-        Ok(self.hir.create_function_type(args, ret))
+        Ok(self.hir.types.create_function_type(args, ret))
     }
 
     /// Pure computation of a component's signature type (no cycle detection).
@@ -371,6 +393,7 @@ impl HirNode<'_> {
         };
         Ok(self
             .hir
+            .types
             .create_component_type(component.name, properties, children))
     }
 
@@ -459,7 +482,7 @@ impl<'a> HirQueueBuilder<'a> {
                     external: s.external,
                     attributes: Vec::new(),
                 };
-                let file = self.hir.get_or_create_file(node.entry);
+                let file = self.hir.store.get_or_create_file(node.entry);
                 file.create_static(decl)
             },
         );

@@ -46,7 +46,7 @@ impl<'a> HirQueueBuilder<'a> {
                         attributes: Vec::new(),
                         span: f.span,
                     };
-                    let file = self.hir.get_or_create_file(owner);
+                    let file = self.hir.store.get_or_create_file(owner);
                     file.create_function(decl)
                 });
 
@@ -123,7 +123,7 @@ impl HirFunctionBuilder {
             .get_argument(arg_index)
             .expect("Argument index should be < function argument count");
         self.builder.create_mapped_variable(name, id, false, ty);
-        queue.hir.variable_names.insert(id, name);
+        queue.hir.store.variable_names.insert(id, name);
         self.args.push(id);
     }
     pub(crate) fn build_body(
@@ -152,7 +152,7 @@ impl HirFunctionBuilder {
                     statment
                 };
                 contains_return = matches!(statment, HirStatement::Return { .. });
-                let stmt = queue.hir.insert_statement(statment);
+                let stmt = queue.hir.store.insert_statement(statment);
                 statements.push(span.make_spanned(stmt));
             }
             statements
@@ -160,7 +160,7 @@ impl HirFunctionBuilder {
         let func_view = queue.hir.view(self.target);
         if !func_view.raw_declaration().external
             && !contains_return
-            && func_view.return_type() != queue.hir.create_type(HirType::Void)
+            && func_view.return_type() != queue.hir.types.create_type(HirType::Void)
         {
             Err(HIRError::missing_return(func_view.raw_declaration().span))
         } else {

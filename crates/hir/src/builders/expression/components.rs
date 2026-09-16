@@ -78,7 +78,7 @@ impl ExpressionBuilder {
             properties,
             children,
         };
-        let id = queue.hir.insert_component_expression(component_expr);
+        let id = queue.hir.store.insert_component_expression(component_expr);
         Ok(span.make_spanned(id))
     }
 }

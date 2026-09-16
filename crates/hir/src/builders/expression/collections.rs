@@ -1,4 +1,3 @@
-use std::ops::Deref;
 
 use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, RangeType, TypeContext};
@@ -40,7 +39,7 @@ impl ExpressionBuilder {
             expressions.push(expr);
         }
         Ok(HirExpression {
-            ty: queue.hir.create_tuple_type(types),
+            ty: queue.hir.types.create_tuple_type(types),
             kind: HirExpressionKind::Tuple(expressions),
         })
     }
@@ -112,7 +111,7 @@ impl ExpressionBuilder {
         )?;
         let after_index_type = {
             let expr_type = queue.hir[expr.data].ty;
-            match &queue.hir.deref()[expr_type] {
+            match &queue.hir.types[expr_type] {
                 HirType::Vector(t) => *t,
                 HirType::Array(t, _) => *t,
                 HirType::GenericParam { .. } => expr_type,
@@ -136,7 +135,7 @@ impl ExpressionBuilder {
                     _ => {
                         return Err(HIRError::unexpected_type(
                             ty_viewer.data,
-                            queue.hir.create_type(HirType::Int),
+                            queue.hir.types.create_type(HirType::Int),
                             index.span,
                         ));
                     }
@@ -203,7 +202,7 @@ impl ExpressionBuilder {
                 span,
             ));
         }
-        let final_type = queue.hir.create_type(HirType::Array(ty, final_length));
+        let final_type = queue.hir.types.create_type(HirType::Array(ty, final_length));
         Ok(HirExpression {
             ty: final_type,
             kind: HirExpressionKind::Array(exprs),
@@ -253,7 +252,7 @@ impl ExpressionBuilder {
             )?;
             exprs.push(expr);
         }
-        let final_type = queue.hir.create_type(HirType::Vector(ty));
+        let final_type = queue.hir.types.create_type(HirType::Vector(ty));
         Ok(HirExpression {
             ty: final_type,
             kind: HirExpressionKind::Vector(exprs),

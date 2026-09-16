@@ -23,24 +23,24 @@ impl<'a> HirQueueBuilder<'a> {
                         "Array length can only be used as integers at the moment. It is idealized to be used in comptime in the future"
                     ),
                 };
-                self.hir.create_type(HirType::Array(selftype, len))
+                self.hir.types.create_type(HirType::Array(selftype, len))
             }
             Type::Vector(typ) => {
                 let selftype = self.find_self_type(*typ, selfty);
-                self.hir.create_type(HirType::Vector(selftype))
+                self.hir.types.create_type(HirType::Vector(selftype))
             }
             Type::Plain(_) => selfty,
             Type::Reference(inner) => {
                 let selftype = self.find_self_type(*inner, selfty);
-                self.hir.create_type(HirType::ImutableRef(selftype))
+                self.hir.types.create_type(HirType::ImutableRef(selftype))
             }
             Type::MutableReference(inner) => {
                 let selftype = self.find_self_type(*inner, selfty);
-                self.hir.create_type(HirType::MutableRef(selftype))
+                self.hir.types.create_type(HirType::MutableRef(selftype))
             }
             Type::Nullable(inner) => {
                 let selftype = self.find_self_type(*inner, selfty);
-                self.hir.create_type(HirType::Nullable(selftype))
+                self.hir.types.create_type(HirType::Nullable(selftype))
             }
             Type::Generic(_) => {
                 panic!("Generics should not be handled. Cause i dont know how to handle them")
@@ -59,11 +59,11 @@ impl<'a> HirQueueBuilder<'a> {
         method_name: SymbolPointer,
         span: Span,
     ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
-        let struct_id = match self.hir.types_module[struct_ty] {
+        let struct_id = match self.hir.types[struct_ty] {
             HirType::Struct(id) => id,
             _ => return Err(HIRError::not_a_struct(struct_ty, span)),
         };
-        let struct_name = self.hir.get_struct_name(struct_id);
+        let struct_name = self.hir.types.get_struct_name(struct_id);
 
         let ast_type = self.modules.find_type(file_id, struct_name);
         let (obj_file_id, obj_decl) = match ast_type {
@@ -104,7 +104,7 @@ impl<'a> HirQueueBuilder<'a> {
             .collect::<Result<Vec<_>>>()?;
         let return_type = find_self_type(method.return_type)?;
 
-        let func_ty = self.hir.create_function_type(args, return_type);
+        let func_ty = self.hir.types.create_function_type(args, return_type);
 
         let mangled = format!(
             "{}_{}",
@@ -128,14 +128,12 @@ impl<'a> HirQueueBuilder<'a> {
                     attributes: Vec::new(),
                     span: method.span,
                 };
-                let file = self.hir.get_or_create_file(obj_file_id);
+                let file = self.hir.store.get_or_create_file(obj_file_id);
                 file.create_function(decl)
             },
         );
 
-        self.hir
-            .types_module
-            .create_method(struct_ty, method_name, decl_id);
+        self.hir.types.create_method(struct_ty, method_name, decl_id);
 
         if !obj_decl.external {
             let arg_names: Vec<SymbolPointer> = method

@@ -45,7 +45,7 @@ impl ExpressionBuilder {
                 context,
             },
         )?;
-        let bool_ty = queue.hir.create_type(HirType::Bool);
+        let bool_ty = queue.hir.types.create_type(HirType::Bool);
         self.unify_types(queue, queue.hir[condition.data].ty, bool_ty, span)?;
 
         let then_branch = body
@@ -68,18 +68,18 @@ impl ExpressionBuilder {
             .map(|s| match &queue.hir[s.data] {
                 HirStatement::Expression { expr } => queue.hir[expr.data].ty,
                 HirStatement::Variable { value, .. } => queue.hir[value.data].ty,
-                _ => queue.hir.create_type(HirType::Void),
+                _ => queue.hir.types.create_type(HirType::Void),
             })
-            .unwrap_or_else(|| queue.hir.create_type(HirType::Void));
+            .unwrap_or_else(|| queue.hir.types.create_type(HirType::Void));
         let else_ty = else_branch
             .as_ref()
             .and_then(|b| b.last())
             .map(|s| match &queue.hir[s.data] {
                 HirStatement::Expression { expr } => queue.hir[expr.data].ty,
                 HirStatement::Variable { value, .. } => queue.hir[value.data].ty,
-                _ => queue.hir.create_type(HirType::Void),
+                _ => queue.hir.types.create_type(HirType::Void),
             })
-            .unwrap_or_else(|| queue.hir.create_type(HirType::Void));
+            .unwrap_or_else(|| queue.hir.types.create_type(HirType::Void));
         self.unify_types(queue, else_ty, then_ty, span)?;
         Ok(HirExpression {
             ty: then_ty,
