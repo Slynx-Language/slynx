@@ -8,6 +8,15 @@ use crate::{
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
 
+///Which collection literal kind a [`build_sequence`](ExpressionBuilder::build_sequence)
+///call produces. Arrays may carry a fixed length from the expected type;
+///vectors always infer their element type.
+#[derive(Clone, Copy)]
+pub(super) enum SequenceKind {
+    Array,
+    Vector,
+}
+
 impl ExpressionBuilder {
     pub(super) fn build_tuple_expression(
         &mut self,
@@ -149,113 +158,88 @@ impl ExpressionBuilder {
         }
     }
 
-    pub(super) fn build_array(
+    pub(super) fn build_sequence(
         &mut self,
         queue: &HirQueueBuilder,
         expressions: &[Spanned<DedupPoolId<ASTExpression>>],
         span: Span,
         expected: Option<DedupPoolId<HirType>>,
         context: &TypeContext,
+        kind: SequenceKind,
     ) -> Result<HirExpression> {
         let mut exprs = Vec::with_capacity(expressions.len());
         let Some(first) = expressions.first() else {
-            return match expected {
-                Some(ty) if queue.hir.view(ty).is_array().is_some() => Ok(HirExpression {
-                    ty,
-                    kind: HirExpressionKind::Array(exprs),
-                }),
-                Some(_) | None => Err(HIRError::couldnt_infer(span)),
-            };
+        let matches_expected = |ty: DedupPoolId<HirType>| {
+            let viewer = queue.hir.view(ty);
+            match kind {
+                SequenceKind::Array => viewer.is_array().is_some(),
+                SequenceKind::Vector => viewer.is_vector().is_some(),
+            }
         };
-        let (inner_type, size) = expected.and_then(|e| queue.hir.view(e).is_array()).unzip();
+        return match expected {
+            Some(ty) if matches_expected(ty) => Ok(HirExpression {
+                ty,
+                kind: match kind {
+                    SequenceKind::Array => HirExpressionKind::Array(exprs),
+                    SequenceKind::Vector => HirExpressionKind::Vector(exprs),
+                },
+            }),
+            Some(_) | None => Err(HIRError::couldnt_infer(span)),
+        };
+    };
+    let (inner_type, expected_len) = match kind {
+        SequenceKind::Vector => (expected.and_then(|e| queue.hir.view(e).is_vector()), None),
+        SequenceKind::Array => expected
+            .and_then(|e| queue.hir.view(e).is_array())
+            .map(|(inner, size)| (Some(inner), Some(size)))
+            .unwrap_or((None, None)),
+    };
+    let expr = self.build_expression(
+        queue,
+        ExpressionDescriptor {
+            target: *first,
+            expected: inner_type,
+            context,
+        },
+    )?;
+    let ty = queue.hir[expr.data].ty;
+    if let Some(expected) = inner_type {
+        self.unify_types(queue, ty, expected, span)?;
+    }
+    exprs.push(expr);
+    for expr in &expressions[1..] {
         let expr = self.build_expression(
             queue,
             ExpressionDescriptor {
-                target: *first,
-                expected: inner_type,
+                target: *expr,
+                expected: Some(ty),
                 context,
             },
         )?;
-        let ty = queue.hir[expr.data].ty;
-        if let Some(expected) = inner_type {
-            self.unify_types(queue, ty, expected, span)?;
-        }
         exprs.push(expr);
-        for expr in &expressions[1..] {
-            let expr = self.build_expression(
-                queue,
-                ExpressionDescriptor {
-                    target: *expr,
-                    expected: Some(ty),
-                    context,
-                },
-            )?;
-            exprs.push(expr);
-        }
-        let final_length = size.unwrap_or(exprs.len());
-        if let Some(expected_len) = size
-            && final_length != expected_len
-        {
-            return Err(HIRError::array_length_mismatch(
-                expected_len,
-                final_length,
-                span,
-            ));
-        }
-        let final_type = queue.hir.types.create_type(HirType::Array(ty, final_length));
-        Ok(HirExpression {
-            ty: final_type,
-            kind: HirExpressionKind::Array(exprs),
-        })
     }
-
-    pub(super) fn build_vector(
-        &mut self,
-        queue: &HirQueueBuilder,
-        expressions: &[Spanned<DedupPoolId<ASTExpression>>],
-        span: Span,
-        expected: Option<DedupPoolId<HirType>>,
-        context: &TypeContext,
-    ) -> Result<HirExpression> {
-        let mut exprs = Vec::with_capacity(expressions.len());
-        let Some(first) = expressions.first() else {
-            return match expected {
-                Some(ty) if queue.hir.view(ty).is_vector().is_some() => Ok(HirExpression {
-                    ty,
-                    kind: HirExpressionKind::Vector(exprs),
-                }),
-                Some(_) | None => Err(HIRError::couldnt_infer(span)),
-            };
-        };
-        let inner_type = expected.and_then(|e| queue.hir.view(e).is_vector());
-        let expr = self.build_expression(
-            queue,
-            ExpressionDescriptor {
-                target: *first,
-                expected: inner_type,
-                context,
-            },
-        )?;
-        let ty = queue.hir[expr.data].ty;
-        if let Some(expected) = inner_type {
-            self.unify_types(queue, ty, expected, span)?;
+    let final_type = match kind {
+        SequenceKind::Vector => queue.hir.types.create_type(HirType::Vector(ty)),
+        SequenceKind::Array => {
+            let final_length = expected_len.unwrap_or(exprs.len());
+            if let Some(expected_len) = expected_len
+                && final_length != expected_len
+            {
+                return Err(HIRError::array_length_mismatch(
+                    expected_len,
+                    final_length,
+                    span,
+                ));
+            }
+            queue.hir.types.create_type(HirType::Array(ty, final_length))
         }
-        exprs.push(expr);
-        for expr in &expressions[1..] {
-            let expr = self.build_expression(
-                queue,
-                ExpressionDescriptor {
-                    target: *expr,
-                    expected: Some(ty),
-                    context,
-                },
-            )?;
-            exprs.push(expr);
-        }
-        let final_type = queue.hir.types.create_type(HirType::Vector(ty));
-        Ok(HirExpression {
-            ty: final_type,
-            kind: HirExpressionKind::Vector(exprs),
-        })
-    }
+    };
+    Ok(HirExpression {
+        ty: final_type,
+        kind: match kind {
+            SequenceKind::Array => HirExpressionKind::Array(exprs),
+            SequenceKind::Vector => HirExpressionKind::Vector(exprs),
+        },
+    })
+}
 }

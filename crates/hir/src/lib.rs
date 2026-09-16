@@ -93,6 +93,7 @@ pub type Result<T> = std::result::Result<T, HIRError>;
 pub type SymbolPointer = common::SymbolPointer<FrontendSymbol>;
 
 pub use store::HirStore;
+pub use crate::file::DeclarationsPool;
 
 /// The main HIR structure coordinating high-level intermediate representation.
 ///

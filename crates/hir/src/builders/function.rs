@@ -13,7 +13,7 @@ use crate::{
         expression::{ExpressionBuildResult, ExpressionBuilder},
     },
     context::HirSymbol,
-    id::{AnyDeclarationId, AnyLocalDeclarationId, OwnerId},
+    id::{AnyLocalDeclarationId, OwnerId},
 };
 
 pub struct HirFunctionBuilder {
@@ -51,17 +51,11 @@ impl<'a> HirQueueBuilder<'a> {
                 });
 
         // Process attributes after the declaration is registered so we have the decl_id
-        let decl_id =
-            AnyDeclarationId::new(id.file_id, AnyLocalDeclarationId::Function(id.local_id));
-        let attrs = super::attributes::process_attributes(self.hir, &f.attributes, decl_id);
-        if !attrs.is_empty() {
-            self.hir
-                .get_file_mut(id.file_id)
-                .declarations
-                .functions
-                .get_mut(id.local_id)
-                .attributes = attrs;
-        }
+        self.attach_attributes(
+            id.file_id,
+            AnyLocalDeclarationId::Function(id.local_id),
+            &f.attributes,
+        );
 
         self.bodies.send(PendantFunction {
             context: TypeContext::new(&f.type_params),

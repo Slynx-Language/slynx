@@ -21,14 +21,15 @@ use crate::{
     },
     context::HirSymbol,
     helpers::Visible,
+    id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
 pub use expression::*;
 use module_loader::{ASTTypeKind, FileId, Modules};
 use slynx_parser::{
-    ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind, EnumVariantKind,
-    FuncDeclaration, GenericIdentifier, StaticDeclaration, Type, TypeContext,
+    ASTAttribute, ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind,
+    EnumVariantKind, FuncDeclaration, GenericIdentifier, StaticDeclaration, Type, TypeContext,
 };
 
 /// Orchestrates the AST → HIR build: hoists `main`, enqueues its transitive
@@ -464,6 +465,35 @@ impl<'a> HirQueueBuilder<'a> {
             },
         }
     }
+
+    ///Processes the attributes of a just-registered declaration and writes the
+    ///resulting HIR attributes back into it. Shared by every hoist path so the
+    ///process-attributes-and-write-back postamble is not repeated per kind.
+    pub(crate) fn attach_attributes(
+        &self,
+        file: FileId,
+        id: AnyLocalDeclarationId,
+        attributes: &[Spanned<ASTAttribute>],
+    ) {
+        let attrs =
+            attributes::process_attributes(self.hir, attributes, AnyDeclarationId::new(file, id));
+        if attrs.is_empty() {
+            return;
+        }
+        let pool = &mut self.hir.get_file_mut(file).declarations.declarations;
+        let target = match id {
+            AnyLocalDeclarationId::Function(local) => &mut pool.functions.get_mut(local).attributes,
+            AnyLocalDeclarationId::Object(local) => &mut pool.objects.get_mut(local).attributes,
+            AnyLocalDeclarationId::Component(local) => {
+                &mut pool.components.get_mut(local).attributes
+            }
+            AnyLocalDeclarationId::Style(local) => &mut pool.styles.get_mut(local).attributes,
+            AnyLocalDeclarationId::Static(local) => &mut pool.statik.get_mut(local).attributes,
+            AnyLocalDeclarationId::Enum(local) => &mut pool.enums.get_mut(local).attributes,
+            AnyLocalDeclarationId::Alias(_) => return,
+        };
+        *target = attrs;
+    }
     ///Hoists the given function, and then enqueues it so its body can be checked. On being processed, this function might generate more than simply the given `f` function since it will generate all the dependencies of `f` to work. Including impures
     pub(crate) fn enqueue_static(
         &self,
@@ -488,19 +518,11 @@ impl<'a> HirQueueBuilder<'a> {
         );
 
         // Process attributes after the declaration is registered
-        let decl_id = crate::id::AnyDeclarationId::new(
+        self.attach_attributes(
             node.entry,
-            crate::id::AnyLocalDeclarationId::Static(id.local_id),
+            AnyLocalDeclarationId::Static(id.local_id),
+            &s.attributes,
         );
-        let attrs = attributes::process_attributes(self.hir, &s.attributes, decl_id);
-        if !attrs.is_empty() {
-            self.hir
-                .get_file_mut(node.entry)
-                .declarations
-                .statik
-                .get_mut(id.local_id)
-                .attributes = attrs;
-        }
 
         self.statics.send(());
         Ok(id)

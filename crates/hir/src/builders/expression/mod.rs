@@ -342,12 +342,22 @@ impl ExpressionBuilder {
                     context,
                 },
             )?,
-            ASTExpression::Array(expressions) => {
-                self.build_array(queue, expressions, target.span, expected, context)?
-            }
-            ASTExpression::Vector(expressions) => {
-                self.build_vector(queue, expressions, target.span, expected, context)?
-            }
+            ASTExpression::Array(expressions) => self.build_sequence(
+                queue,
+                expressions,
+                target.span,
+                expected,
+                context,
+                collections::SequenceKind::Array,
+            )?,
+            ASTExpression::Vector(expressions) => self.build_sequence(
+                queue,
+                expressions,
+                target.span,
+                expected,
+                context,
+                collections::SequenceKind::Vector,
+            )?,
         };
         let exprid = queue.hir.store.insert_expression(expr);
         Ok(target.span.make_spanned(exprid))

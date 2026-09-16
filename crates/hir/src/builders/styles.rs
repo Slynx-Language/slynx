@@ -5,7 +5,7 @@ use crate::{
     DeclarationId, HirStylesheetDeclaration, Result, SymbolPointer,
     builders::HirQueueBuilder,
     context::HirSymbol,
-    id::{AnyDeclarationId, AnyLocalDeclarationId},
+    id::AnyLocalDeclarationId,
 };
 
 impl<'a> HirQueueBuilder<'a> {
@@ -61,17 +61,11 @@ impl<'a> HirQueueBuilder<'a> {
             id
         };
 
-        let decl_id = AnyDeclarationId::new(file_id, AnyLocalDeclarationId::Style(id.local_id));
-        let attrs =
-            super::attributes::process_attributes(self.hir, &stylesheet.attributes, decl_id);
-        if !attrs.is_empty() {
-            self.hir
-                .get_file_mut(file_id)
-                .declarations
-                .styles
-                .get_mut(id.local_id)
-                .attributes = attrs;
-        }
+        self.attach_attributes(
+            file_id,
+            AnyLocalDeclarationId::Style(id.local_id),
+            &stylesheet.attributes,
+        );
 
         Ok(id)
     }
