@@ -3,7 +3,7 @@ use smallvec::{SmallVec, smallvec};
 use crate::{
     Component, ComponentValueBuilder, Function, IRError, IRErrorDescription, IRErrorKind,
     IRPointer, IRStorage, IRType, IRTypeId, Instruction, Label, Opcode, Operand, SlynxIR,
-    StyleProperty, SymbolPointer, Value,
+    SymbolPointer, Value,
 };
 
 // ── LabelBuilder (intermediate bookkeeping, dropped after generate()) ──────
@@ -405,10 +405,6 @@ impl FunctionBuilder<'_> {
 
     pub fn struct_literal(&mut self, ty: IRTypeId, fields: &[Value]) -> Value {
         self.emit(Opcode::Struct, fields.to_vec(), ty)
-    }
-
-    pub fn sapply(&mut self, property_code: StyleProperty, operands: &[Value]) -> Value {
-        self.emit_void(Opcode::SApply { property_code }, operands.to_vec())
     }
 
     pub fn initcall(&mut self, func: IRPointer<Function, 1>, operands: &[Value]) -> Value {
