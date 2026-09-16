@@ -8,7 +8,7 @@
 
 use common::{
     Span,
-    pool::{DedupPoolId, PoolId},
+    pool::DedupPoolId,
 };
 use slynx_hir::{
     DeclarationId, HirFunctionDeclaration, HirType, Result, SlynxHir,
@@ -17,7 +17,7 @@ use slynx_hir::{
 
 use crate::{
     Monomorphizer,
-    types::{MonomorphizationKey, Substitution, mangle_name, substitute_type},
+    types::substitute_type,
 };
 
 impl Monomorphizer {
@@ -50,72 +50,61 @@ impl Monomorphizer {
             )
         };
 
-        if generics.len() != args.len() {
-            return Err(slynx_hir::HIRError::generic_arity_mismatch(
-                name,
-                generics.len(),
-                args.len(),
-                span,
-            ));
-        }
-
-        let key: MonomorphizationKey = (template_any, args.clone().into());
-        if let Some(cached) = self.cache.get(&key) {
-            return Ok(*cached);
-        }
-        if self.in_progress.contains(&key) {
-            return Err(slynx_hir::HIRError::cyclic_monomorphization(
-                name, args, span,
-            ));
-        }
-        self.in_progress.insert(key.clone());
-
-        let subst = Substitution::new(&args);
-        let specialized_ty =
-            self.resolve_expression_type(hir, substitute_type(hir, fty, &subst)?, span)?;
-        let mangled_name = mangle_name(hir, name, &args);
-        let mangled_symbol = hir.intern_name(&mangled_name);
-
-        let specialized_local = {
-            let file = hir.get_file_mut(template.file_id);
-            file.declarations
-                .declarations
-                .functions
-                .insert(HirFunctionDeclaration {
-                    name: mangled_symbol,
-                    generics: Vec::new(),
-                    args: fargs,
-                    ty: specialized_ty,
-                    statements: Vec::new(),
-                    visibility,
-                    external,
-                    attributes,
+        self.specialize(
+            hir,
+            name,
+            template_any,
+            generics.len(),
+            args,
+            span,
+            |_, cached| cached,
+            |monomorphizer, hir, subst, mangled_symbol, key| {
+                let specialized_ty = monomorphizer.resolve_expression_type(
+                    hir,
+                    substitute_type(hir, fty, subst)?,
                     span,
-                })
-        };
-        let specialized = AnyDeclarationId::new(
-            template.file_id,
-            AnyLocalDeclarationId::Function(specialized_local),
-        );
+                )?;
 
-        // Cache *before* generating the body so recursive instantiations of the
-        // same (template, args) resolve to this very declaration.
-        self.cache.insert(key.clone(), specialized);
+                let specialized_local = {
+                    let file = hir.get_file_mut(template.file_id);
+                    file.declarations
+                        .declarations
+                        .functions
+                        .insert(HirFunctionDeclaration {
+                            name: mangled_symbol,
+                            generics: Vec::new(),
+                            args: fargs,
+                            ty: specialized_ty,
+                            statements: Vec::new(),
+                            visibility,
+                            external,
+                            attributes,
+                            span,
+                        })
+                };
+                let specialized = AnyDeclarationId::new(
+                    template.file_id,
+                    AnyLocalDeclarationId::Function(specialized_local),
+                );
 
-        let new_statements = self.build_statements(hir, &statements, &subst)?;
-        {
-            let mut file = hir.get_file_mut(template.file_id);
-            file.declarations
-                .declarations
-                .functions
-                .get_mut(specialized_local)
-                .statements = new_statements;
-        }
+                // Cache *before* generating the body so recursive instantiations
+                // of the same (template, args) resolve to this very declaration.
+                monomorphizer.cache.insert(key.clone(), specialized);
 
-        self.in_progress.remove(&key);
-        self.dead_code.insert(template_any);
+                let new_statements =
+                    monomorphizer.build_statements(hir, &statements, subst)?;
+                {
+                    let mut file = hir.get_file_mut(template.file_id);
+                    file.declarations
+                        .declarations
+                        .functions
+                        .get_mut(specialized_local)
+                        .statements = new_statements;
+                }
 
-        Ok(specialized)
+                Ok((specialized, specialized))
+            },
+        )
     }
 
     ///Retrieves the return type of the given (already specialized) function
@@ -135,39 +124,5 @@ impl Monomorphizer {
             .is_function()
             .expect("Function declaration should have a function type");
         Ok(function.return_type())
-    }
-
-    ///Neutralizes every generic function template so codegen never sees a
-    ///`GenericParam`-typed signature, and marks it as dead.
-    pub(crate) fn neutralize_generic_functions(
-        &mut self,
-        hir: &SlynxHir,
-        files: &[module_loader::FileId],
-        void_ty: DedupPoolId<HirType>,
-    ) {
-        for file_id in files {
-            let generic_ids: Vec<PoolId<HirFunctionDeclaration>> = {
-                let file = hir.get_file(*file_id);
-                file.declarations
-                    .declarations
-                    .functions
-                    .iter()
-                    .with_ids()
-                    .filter(|(_, declaration)| !declaration.generics.is_empty())
-                    .map(|(id, _)| id)
-                    .collect()
-            };
-
-            for local_id in generic_ids {
-                let mut file = hir.get_file_mut(*file_id);
-                let declaration = file.declarations.declarations.functions.get_mut(local_id);
-                declaration.statements = Vec::new();
-                declaration.ty = void_ty;
-                self.dead_code.insert(AnyDeclarationId::new(
-                    *file_id,
-                    AnyLocalDeclarationId::Function(local_id),
-                ));
-            }
-        }
     }
 }

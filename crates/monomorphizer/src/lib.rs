@@ -33,20 +33,20 @@ use std::collections::{HashMap, HashSet};
 
 use common::{
     Span, Spanned,
-    pool::{DedupPoolId, PoolId},
+    pool::{DedupPoolId, Pool, PoolId},
 };
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationId, HIRError, HirComponentExpression, HirExpression, HirExpressionKind,
-    HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result, SlynxHir,
-    VariableId,
+    DeclarationsPool, DeclarationId, HIRError, HirComponentExpression, HirExpression,
+    HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result,
+    SlynxHir, SymbolPointer, VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 
 use types::{
     MonomorphizationKey, Substitution, contains_resolvable_reference, is_resolvable_reference,
-    substitute_type,
+    mangle_name, substitute_type,
 };
 
 /// A snapshot of a function to be rewritten: its local declaration id and the
@@ -233,12 +233,167 @@ impl Monomorphizer {
         let void_ty = hir
             .types
             .create_function_type(Vec::new(), hir.types.create_type(HirType::Void));
-        self.neutralize_generic_functions(hir, &files, void_ty);
-        self.neutralize_generic_objects(hir, &files, void_ty);
-        self.neutralize_generic_components(hir, &files, void_ty);
-        self.neutralize_generic_enums(hir, &files, void_ty);
+        self.neutralize_generic(
+            hir,
+            &files,
+            void_ty,
+            |pool| &pool.functions,
+            |pool| &mut pool.functions,
+            |declaration| !declaration.generics.is_empty(),
+            |declaration, void| {
+                declaration.statements = Vec::new();
+                declaration.ty = void;
+            },
+            AnyLocalDeclarationId::Function,
+        );
+        self.neutralize_generic(
+            hir,
+            &files,
+            void_ty,
+            |pool| &pool.objects,
+            |pool| &mut pool.objects,
+            |declaration| !declaration.generics.is_empty(),
+            |declaration, void| declaration.ty = void,
+            AnyLocalDeclarationId::Object,
+        );
+        self.neutralize_generic(
+            hir,
+            &files,
+            void_ty,
+            |pool| &pool.components,
+            |pool| &mut pool.components,
+            |declaration| !declaration.generics.is_empty(),
+            |declaration, void| {
+                declaration.props = Vec::new();
+                declaration.ty = void;
+            },
+            AnyLocalDeclarationId::Component,
+        );
+        self.neutralize_generic(
+            hir,
+            &files,
+            void_ty,
+            |pool| &pool.enums,
+            |pool| &mut pool.enums,
+            |declaration| !declaration.generics.is_empty(),
+            |declaration, void| declaration.ty = void,
+            AnyLocalDeclarationId::Enum,
+        );
 
         Ok(())
+    }
+
+    /// Validates the arity of `args`, then retrieves (cache hit) or generates
+    /// the specialization of the generic template `template_any` for the given
+    /// concrete type arguments.
+    ///
+    /// `from_cached` converts a cache hit into the caller's expected result;
+    /// `build` generates the specialized declaration and its result value (and
+    /// may pre-populate the cache through `key`, as recursive function bodies
+    /// require). The template is recorded as dead code once the specialization
+    /// is complete.
+    #[allow(clippy::too_many_arguments)]
+    fn specialize<T>(
+        &mut self,
+        hir: &SlynxHir,
+        name: SymbolPointer,
+        template_any: AnyDeclarationId,
+        generic_count: usize,
+        args: Vec<DedupPoolId<HirType>>,
+        span: Span,
+        from_cached: impl FnOnce(&SlynxHir, AnyDeclarationId) -> T,
+        build: impl FnOnce(
+            &mut Self,
+            &SlynxHir,
+            &Substitution,
+            SymbolPointer,
+            &MonomorphizationKey,
+        ) -> Result<(AnyDeclarationId, T)>,
+    ) -> Result<T> {
+        if generic_count != args.len() {
+            return Err(HIRError::generic_arity_mismatch(
+                name,
+                generic_count,
+                args.len(),
+                span,
+            ));
+        }
+
+        let key: MonomorphizationKey = (template_any, args.clone().into());
+        if let Some(cached) = self.cache.get(&key) {
+            return Ok(from_cached(hir, *cached));
+        }
+        if self.in_progress.contains(&key) {
+            return Err(HIRError::cyclic_monomorphization(name, args, span));
+        }
+        self.in_progress.insert(key.clone());
+
+        let subst = Substitution::new(&args);
+        let mangled_symbol = hir.intern_name(&mangle_name(hir, name, &args));
+        let (specialized, result) = build(self, hir, &subst, mangled_symbol, &key)?;
+
+        self.in_progress.remove(&key);
+        self.cache.insert(key, specialized);
+        self.dead_code.insert(template_any);
+
+        Ok(result)
+    }
+
+    ///Finds the declaration of the given kind with the given `name` in any
+    ///file, returning its `(file, local)` id.
+    fn find_declaration_by_name<D>(
+        &self,
+        hir: &SlynxHir,
+        name: SymbolPointer,
+        select: fn(&DeclarationsPool) -> &Pool<D>,
+        name_of: fn(&D) -> SymbolPointer,
+    ) -> Option<(FileId, PoolId<D>)> {
+        for file in hir.store.files.iter() {
+            for (id, declaration) in select(&file.declarations.declarations).iter().with_ids() {
+                if name_of(declaration) == name {
+                    return Some((file.file, id));
+                }
+            }
+        }
+        None
+    }
+
+    ///Neutralizes every generic template of the given declaration kind so
+    ///codegen never sees a `GenericParam`-typed signature, and marks each one
+    ///as dead.
+    #[allow(clippy::too_many_arguments)]
+    fn neutralize_generic<D>(
+        &mut self,
+        hir: &SlynxHir,
+        files: &[FileId],
+        void_ty: DedupPoolId<HirType>,
+        select: fn(&DeclarationsPool) -> &Pool<D>,
+        select_mut: fn(&mut DeclarationsPool) -> &mut Pool<D>,
+        is_generic: impl Fn(&D) -> bool,
+        mut neutralize: impl FnMut(&mut D, DedupPoolId<HirType>),
+        to_any: fn(PoolId<D>) -> AnyLocalDeclarationId,
+    ) {
+        for file_id in files {
+            let generic_ids: Vec<PoolId<D>> = {
+                let file = hir.get_file(*file_id);
+                select(&file.declarations.declarations)
+                    .iter()
+                    .with_ids()
+                    .filter(|(_, declaration)| is_generic(declaration))
+                    .map(|(id, _)| id)
+                    .collect()
+            };
+
+            for local_id in generic_ids {
+                let mut file = hir.get_file_mut(*file_id);
+                neutralize(
+                    select_mut(&mut file.declarations.declarations).get_mut(local_id),
+                    void_ty,
+                );
+                self.dead_code
+                    .insert(AnyDeclarationId::new(*file_id, to_any(local_id)));
+            }
+        }
     }
 
     ///Monomorphization of generic type aliases and stylesheets is not supported
