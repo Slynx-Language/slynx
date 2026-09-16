@@ -81,7 +81,7 @@ impl Parser<'_> {
                     .span
                     .merge_with(self.expect(&TokenKind::SemiColon)?.span);
                 let body = vec![Spanned::new(
-                    self.intern_statment(ASTStatement::Expression(expr)),
+                    self.intern_statement(ASTStatement::Expression(expr)),
                     end,
                 )];
                 Ok(FuncDeclaration {

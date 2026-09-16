@@ -6,7 +6,7 @@ use slynx_parser::ParseError;
 
 #[derive(Debug)]
 pub enum SourceErrorKind {
-    InexsitantSource(std::io::Error, Span, PathBuf),
+    InexistantSource(std::io::Error, Span, PathBuf),
     Lexing(LexerError),
     Parsing(ParseError),
 }
@@ -26,7 +26,7 @@ impl SourceError {
         span: Span,
     ) -> Self {
         Self {
-            kind: SourceErrorKind::InexsitantSource(e, span, generator),
+            kind: SourceErrorKind::InexistantSource(e, span, generator),
             entry: entry.clone(),
         }
     }

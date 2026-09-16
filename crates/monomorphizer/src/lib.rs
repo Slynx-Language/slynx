@@ -38,7 +38,7 @@ use common::{
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationId, HirComponentExpression, HirExpression, HirExpressionKind,
+    DeclarationId, HIRError, HirComponentExpression, HirExpression, HirExpressionKind,
     HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result, SlynxHir,
     VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
@@ -121,7 +121,7 @@ impl Monomorphizer {
     }
 
     fn run(&mut self, hir: &SlynxHir) -> Result<()> {
-        self.assert_no_generic_non_functions(hir);
+        self.assert_no_generic_non_functions(hir)?;
 
         let files: Vec<FileId> = hir.store.files.iter().map(|file| *file.key()).collect();
 
@@ -230,7 +230,9 @@ impl Monomorphizer {
 
         // Step 4: neutralize every generic template so codegen never sees a
         // `GenericParam`-typed signature, and mark it as dead.
-        let void_ty = hir.types.create_function_type(Vec::new(), hir.types.create_type(HirType::Void));
+        let void_ty = hir
+            .types
+            .create_function_type(Vec::new(), hir.types.create_type(HirType::Void));
         self.neutralize_generic_functions(hir, &files, void_ty);
         self.neutralize_generic_objects(hir, &files, void_ty);
         self.neutralize_generic_components(hir, &files, void_ty);
@@ -241,7 +243,7 @@ impl Monomorphizer {
 
     ///Monomorphization of generic type aliases and stylesheets is not supported
     ///yet, so encountering one is a hard error (`unimplemented!()`).
-    fn assert_no_generic_non_functions(&self, hir: &SlynxHir) {
+    fn assert_no_generic_non_functions(&self, hir: &SlynxHir) -> Result<()> {
         for file in hir.store.files.iter() {
             for alias in file.declarations.declarations.alias.iter() {
                 if !alias.generics.is_empty() {
@@ -254,6 +256,7 @@ impl Monomorphizer {
                 }
             }
         }
+        Ok(())
     }
 
     ///Resolves every generic struct/component reference inside `ty` to its

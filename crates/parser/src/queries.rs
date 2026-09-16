@@ -10,7 +10,7 @@ impl<'a> Parser<'a> {
     pub fn intern(&self, name: &str) -> SymbolPointer {
         self.symbols.intern(name)
     }
-    pub fn intern_statment(&self, stmt: ASTStatement) -> DedupPoolId<ASTStatement> {
+    pub fn intern_statement(&self, stmt: ASTStatement) -> DedupPoolId<ASTStatement> {
         self.statements.insert(stmt)
     }
     pub fn intern_expression(&self, expr: ASTExpression) -> DedupPoolId<ASTExpression> {
