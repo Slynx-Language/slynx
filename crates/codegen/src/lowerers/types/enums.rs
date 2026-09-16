@@ -1,40 +1,13 @@
 use common::pool::DedupPoolId;
-use slynx_hir::{HirType, SlynxHir};
+use slynx_hir::HirType;
 use slynx_ir::IRType;
 
-use crate::{Codegen, CodegenError, EnumLayout};
+use crate::{
+    CodegenError,
+    lowerers::{EnumLayout, TypeLowerer},
+};
 
-impl Codegen {
-    pub(crate) fn insert_object_fields_for(
-        &mut self,
-        decl: DedupPoolId<HirType>,
-        hir: &SlynxHir,
-        ir: &mut slynx_ir::SlynxIR,
-    ) -> Result<(), CodegenError> {
-        let obj_handle = self
-            .get_mapped_type(&decl)
-            .ok_or(CodegenError::IRTypeNotRecognized(decl))?;
-        let IRType::Struct(obj) = *ir.get_type(obj_handle) else {
-            return Err(CodegenError::InternalError(format!(
-                "{decl:?} should map to an Object, but it doesn't"
-            )));
-        };
-        let fields = if let Some(viewer) = hir.view(decl).dereference().is_struct() {
-            viewer.field_types().to_vec()
-        } else {
-            return Err(CodegenError::InternalError(format!(
-                "{decl:?} should map to an Object, but it doesn't"
-            )));
-        };
-
-        for field in &fields {
-            let ty = self.get_or_create_ir_type(field, hir, ir)?;
-            let obj_ty = ir.get_object_type_mut(obj);
-            obj_ty.insert_field(ty);
-        }
-        Ok(())
-    }
-
+impl<'a> TypeLowerer<'a> {
     ///Materializes the IR layout for a hoisted enum: a struct whose `field[0]`
     ///holds the variant discriminant tag and whose `field[1]` is a union of the
     ///per-variant payload structs (member index == variant index). Enums whose
@@ -57,22 +30,21 @@ impl Codegen {
     pub(crate) fn insert_enum_fields_for(
         &mut self,
         decl: DedupPoolId<HirType>,
-        hir: &SlynxHir,
         ir: &mut slynx_ir::SlynxIR,
     ) -> Result<(), CodegenError> {
-        let key = hir.view(decl).dereference().data();
+        let key = self.hir.view(decl).dereference().data();
         if self.enum_layouts.contains_key(&key) {
             return Ok(());
         }
         let enum_struct = match self.get_mapped_type(&key) {
             Some(ty) => ty,
             None => {
-                let enum_view = hir.view(key).dereference().is_enum().ok_or_else(|| {
+                let enum_view = self.hir.view(key).dereference().is_enum().ok_or_else(|| {
                     CodegenError::InternalError(format!(
                         "{decl:?} should map to an Enum, but it doesn't"
                     ))
                 })?;
-                let name = hir.get_name(enum_view.name());
+                let name = self.hir.get_name(enum_view.name());
                 let ty = ir.create_struct(name);
                 self.types.insert(key, ty);
                 ty
@@ -86,10 +58,10 @@ impl Codegen {
         if !ir.get_object_type(enum_struct_id).get_fields().is_empty() {
             return Ok(());
         }
-        let enum_view = hir.view(decl).dereference().is_enum().ok_or_else(|| {
+        let enum_view = self.hir.view(decl).dereference().is_enum().ok_or_else(|| {
             CodegenError::InternalError(format!("{decl:?} should map to an Enum, but it doesn't"))
         })?;
-        let enum_name = hir.get_name(enum_view.name());
+        let enum_name = self.hir.get_name(enum_view.name());
         let int_type = ir.int_type();
 
         let has_payload = enum_view
@@ -111,13 +83,13 @@ impl Codegen {
             let mut members = Vec::with_capacity(enum_view.variants().len());
             for variant in enum_view.variants() {
                 let payload_struct_name =
-                    format!("{enum_name}_variant_{}", hir.get_name(variant.name));
+                    format!("{enum_name}_variant_{}", self.hir.get_name(variant.name));
                 let payload_struct = ir.create_struct(&payload_struct_name);
                 let IRType::Struct(payload_struct_id) = *ir.get_type(payload_struct) else {
                     unreachable!("create_struct must produce a struct");
                 };
                 for payload_ty in &variant.payload {
-                    let field_ty = self.get_or_create_ir_type(payload_ty, hir, ir)?;
+                    let field_ty = self.get_or_create_ir_type(*payload_ty, ir)?;
                     ir.get_object_type_mut(payload_struct_id)
                         .insert_field(field_ty);
                 }

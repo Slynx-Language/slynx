@@ -1,10 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
 use common::{Spanned, pool::PoolId};
-use slynx_hir::{HirStatement, SlynxHir, VariableId};
+use slynx_hir::{HirStatement, VariableId};
 use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, SlynxIR, Value};
 
-use crate::{Codegen, CodegenError, TypeId};
+use crate::{CodegenError, TypeId, lowerers::LoweringState};
 
 /// Per-function state during HIR-to-IR lowering.
 pub struct FunctionContext<'a> {
@@ -52,31 +52,27 @@ impl<'a> DerefMut for FunctionContext<'a> {
     }
 }
 
-impl Codegen {
+impl<'a> LoweringState<'a> {
     fn map_function_type(
         &mut self,
         func_ty: TypeId,
-        hir: &SlynxHir,
         ir: &mut SlynxIR,
     ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
-        let (args, return_type) = {
-            let view = hir.view(func_ty);
-            let Some(viewer) = view.is_function() else {
-                unreachable!("Initialize function should initialize with the type of a function");
-            };
-            (viewer.arguments().to_vec(), viewer.return_type())
+        let Some(viewer) = self.hir.view(func_ty).is_function() else {
+            unreachable!("Initialize function should initialize with the type of a function");
         };
+        let (args, return_type) = (viewer.arguments().to_vec(), viewer.return_type());
         let args = args
             .iter()
-            .map(|v| self.get_or_create_ir_type(v, hir, ir))
+            .map(|v| self.types.get_or_create_ir_type(*v, ir))
             .collect::<Result<Vec<_>, CodegenError>>()?;
-        let return_type = self.get_or_create_ir_type(&return_type, hir, ir)?;
+        let return_type = self.types.get_or_create_ir_type(return_type, ir)?;
         Ok((args, return_type))
     }
 
-    pub(crate) fn map_function_arguments<'a>(
+    pub(crate) fn map_function_arguments<'b>(
         &mut self,
-        context: &mut FunctionContext<'a>,
+        context: &mut FunctionContext<'b>,
         args: &[VariableId],
     ) {
         let arg_values = context.arguments().to_vec();
@@ -91,10 +87,9 @@ impl Codegen {
         func_ty: TypeId,
         statements: &[Spanned<PoolId<HirStatement>>],
         args: &[VariableId],
-        hir: &SlynxHir,
         ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
-        let (arg_types, return_type) = self.map_function_type(func_ty, hir, ir)?;
+        let (arg_types, return_type) = self.map_function_type(func_ty, ir)?;
         let builder = ir.build_function(fptr);
         let mut context = FunctionContext::new(builder);
 
@@ -107,19 +102,18 @@ impl Codegen {
 
         self.map_function_arguments(&mut context, args);
 
-        self.lower_body(&mut context, hir, statements)?;
+        self.lower_body(&mut context, statements)?;
         context.finish();
         Ok(())
     }
 
-    fn lower_body<'a>(
+    fn lower_body<'b>(
         &mut self,
-        ctx: &mut FunctionContext<'a>,
-        hir: &SlynxHir,
+        ctx: &mut FunctionContext<'b>,
         statements: &[Spanned<PoolId<HirStatement>>],
     ) -> Result<(), CodegenError> {
         for (idx, statement) in statements.iter().enumerate() {
-            if let Some(value) = self.lower_statement(*statement, hir, ctx)?
+            if let Some(value) = self.lower_statement(*statement, ctx)?
                 && idx == statements.len() - 1
             {
                 ctx.ret(value);
