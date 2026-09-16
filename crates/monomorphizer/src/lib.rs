@@ -123,7 +123,7 @@ impl Monomorphizer {
     fn run(&mut self, hir: &SlynxHir) -> Result<()> {
         self.assert_no_generic_non_functions(hir);
 
-        let files: Vec<FileId> = hir.files.iter().map(|file| *file.key()).collect();
+        let files: Vec<FileId> = hir.store.files.iter().map(|file| *file.key()).collect();
 
         // Step 1: rewrite every non-generic function body, resolving generic
         // call sites and generic struct/component usage as they are found.
@@ -230,7 +230,7 @@ impl Monomorphizer {
 
         // Step 4: neutralize every generic template so codegen never sees a
         // `GenericParam`-typed signature, and mark it as dead.
-        let void_ty = hir.create_function_type(Vec::new(), hir.create_type(HirType::Void));
+        let void_ty = hir.types.create_function_type(Vec::new(), hir.types.create_type(HirType::Void));
         self.neutralize_generic_functions(hir, &files, void_ty);
         self.neutralize_generic_objects(hir, &files, void_ty);
         self.neutralize_generic_components(hir, &files, void_ty);
@@ -242,7 +242,7 @@ impl Monomorphizer {
     ///Monomorphization of generic type aliases and stylesheets is not supported
     ///yet, so encountering one is a hard error (`unimplemented!()`).
     fn assert_no_generic_non_functions(&self, hir: &SlynxHir) {
-        for file in hir.files.iter() {
+        for file in hir.store.files.iter() {
             for alias in file.declarations.declarations.alias.iter() {
                 if !alias.generics.is_empty() {
                     unimplemented!("monomorphization of generic aliases is not implemented yet")
@@ -280,17 +280,17 @@ impl Monomorphizer {
         }
 
         match hir.view(ty).raw() {
-            HirType::ImutableRef(inner) => Ok(hir.create_type(HirType::ImutableRef(
+            HirType::ImutableRef(inner) => Ok(hir.types.create_type(HirType::ImutableRef(
                 self.resolve_expression_type(hir, *inner, span)?,
             ))),
-            HirType::MutableRef(inner) => Ok(hir.create_type(HirType::MutableRef(
+            HirType::MutableRef(inner) => Ok(hir.types.create_type(HirType::MutableRef(
                 self.resolve_expression_type(hir, *inner, span)?,
             ))),
-            HirType::Array(inner, len) => Ok(hir.create_type(HirType::Array(
+            HirType::Array(inner, len) => Ok(hir.types.create_type(HirType::Array(
                 self.resolve_expression_type(hir, *inner, span)?,
                 *len,
             ))),
-            HirType::Vector(inner) => Ok(hir.create_type(HirType::Vector(
+            HirType::Vector(inner) => Ok(hir.types.create_type(HirType::Vector(
                 self.resolve_expression_type(hir, *inner, span)?,
             ))),
             HirType::Function(function) => {
@@ -301,7 +301,7 @@ impl Monomorphizer {
                     .map(|arg| self.resolve_expression_type(hir, *arg, span))
                     .collect::<Result<Vec<_>>>()?;
                 let ret = self.resolve_expression_type(hir, function_view.return_type(), span)?;
-                Ok(hir.create_function_type(args, ret))
+                Ok(hir.types.create_function_type(args, ret))
             }
             HirType::Tuple(tuple) => {
                 let tuple_view = hir.view(*tuple);
@@ -310,7 +310,7 @@ impl Monomorphizer {
                     .iter()
                     .map(|field| self.resolve_expression_type(hir, *field, span))
                     .collect::<Result<Vec<_>>>()?;
-                Ok(hir.create_tuple_type(fields))
+                Ok(hir.types.create_tuple_type(fields))
             }
             HirType::Component(component) => {
                 self.rebuild_component_type(hir, *component, &Substitution::empty(), span)
@@ -323,16 +323,16 @@ impl Monomorphizer {
                         *slot = self.resolve_expression_type(hir, *slot, span)?;
                     }
                 }
-                Ok(hir.create_type(HirType::Reference {
+                Ok(hir.types.create_type(HirType::Reference {
                     rf: new_rf,
                     generics: new_generics,
                 }))
             }
             HirType::Nullable(inner) => {
                 let new_inner = self.resolve_expression_type(hir, *inner, span)?;
-                Ok(hir.create_type(HirType::Nullable(new_inner)))
+                Ok(hir.types.create_type(HirType::Nullable(new_inner)))
             }
-            other => Ok(hir.create_type(other.clone())),
+            other => Ok(hir.types.create_type(other.clone())),
         }
     }
 
@@ -404,7 +404,7 @@ impl Monomorphizer {
                 body: self.build_statements(hir, body, subst)?,
             },
         };
-        let id = hir.insert_statement(new_statement);
+        let id = hir.store.insert_statement(new_statement);
         Ok(statement.span.make_spanned(id))
     }
 
@@ -576,7 +576,7 @@ impl Monomorphizer {
         } else {
             substituted_ty
         };
-        let id = hir.insert_expression(HirExpression { ty, kind });
+        let id = hir.store.insert_expression(HirExpression { ty, kind });
         Ok(expression.span.make_spanned(id))
     }
 
@@ -624,7 +624,7 @@ impl Monomorphizer {
                 .map(|child| self.build_component_expression(hir, *child, subst))
                 .collect::<Result<Vec<_>>>()?,
         };
-        let id = hir.insert_component_expression(new_component);
+        let id = hir.store.insert_component_expression(new_component);
         Ok(component.span.make_spanned(id))
     }
 }

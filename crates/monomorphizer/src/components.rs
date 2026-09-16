@@ -176,7 +176,7 @@ impl Monomorphizer {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(hir.create_component_type(name, properties, children))
+        Ok(hir.types.create_component_type(name, properties, children))
     }
 
     ///Rebuilds the member list of a component declaration, substituting the
@@ -247,7 +247,7 @@ impl Monomorphizer {
         hir: &SlynxHir,
         name: SymbolPointer,
     ) -> Option<(module_loader::FileId, PoolId<HirComponentDeclaration>)> {
-        for file in hir.files.iter() {
+        for file in hir.store.files.iter() {
             for (id, declaration) in file.declarations.declarations.components.iter().with_ids() {
                 if declaration.name == name {
                     return Some((file.file, id));

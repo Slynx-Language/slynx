@@ -118,7 +118,7 @@ impl Monomorphizer {
 
         let mangled_name = mangle_name(hir, name, &args);
         let mangled_symbol = hir.intern_name(&mangled_name);
-        let specialized_ty = hir.create_struct_type(mangled_symbol, fields, Vec::new());
+        let specialized_ty = hir.types.create_struct_type(mangled_symbol, fields, Vec::new());
 
         let specialized_local = {
             let file = hir.get_file_mut(template_file);
@@ -152,7 +152,7 @@ impl Monomorphizer {
         hir: &SlynxHir,
         name: slynx_hir::SymbolPointer,
     ) -> Option<(module_loader::FileId, PoolId<HirObjectDeclaration>)> {
-        for file in hir.files.iter() {
+        for file in hir.store.files.iter() {
             for (id, declaration) in file.declarations.declarations.objects.iter().with_ids() {
                 if declaration.name == name {
                     return Some((file.file, id));
