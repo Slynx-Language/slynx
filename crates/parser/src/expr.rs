@@ -466,7 +466,10 @@ impl Parser<'_> {
                 TokenKind::BitAnd => Operator::And,
                 TokenKind::BitOr => Operator::Or,
                 TokenKind::Xor => Operator::Xor,
-                _ if self.is_shiftright()? => Operator::RightShift,
+                _ if self.is_shiftright()? => {
+                    self.eat()?;
+                    Operator::RightShift
+                }
                 _ => unreachable!(),
             };
             let rhs = self.parse_bitoperation(type_params)?;
