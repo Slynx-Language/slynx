@@ -177,17 +177,9 @@ impl<'a> LoweringState<'a> {
             _ if let HirExpressionKind::Deref(inner) =
                 self.hir.store.expressions[expr.data].kind =>
             {
-                let viewer = self.hir.view(inner.data);
-                let type_viewer = viewer.ty_viewer();
-                let concrete_type = type_viewer.concrete_type();
-                let concrete_type = concrete_type
-                    .is_struct()
-                    .expect("Field access should be made on a struct type");
-                let field_type = {
-                    let tmp = concrete_type.field_types()[field_index as usize];
-                    let field_type = self.types.get_or_create_ir_type(tmp, ctx.ir())?;
-                    ctx.ir().pointer_type(field_type)
-                };
+                let field_type =
+                    self.types
+                        .deref_field_type(inner.data, field_index as usize, ctx.ir())?;
                 let base = self.lower_expression(inner, ctx)?;
 
                 let fp = ctx.field_ref(base, field_index);

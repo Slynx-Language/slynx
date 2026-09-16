@@ -169,9 +169,6 @@ impl<'a> LoweringState<'a> {
 
                 let own_props = self.collect_style_properties(statements);
                 let resolved = self.resolve_style_inheritance(usages, &own_props);
-                if let Some(style_data) = self.styles.get_mut(&DeclarationId::new(file.file, id)) {
-                    style_data.property_codes = resolved.iter().map(|rp| rp.property).collect();
-                }
             }
         }
     }

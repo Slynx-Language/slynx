@@ -588,12 +588,6 @@ impl<'a> Formatter<'a> {
             Opcode::BlockParam(idx) => {
                 format!("lp{idx}")
             }
-            Opcode::SApply { property_code } => {
-                let name = property_code.to_string();
-                let component = self.fmt_value(instr.operands[0]);
-                let value = self.fmt_value(instr.operands[1]);
-                format!("@sapply {name}, {component}, {value};")
-            }
             Opcode::InitCall(func) => {
                 let comp = self.fmt_operands(&instr.operands);
                 let view = self.ir.get_view(*func);

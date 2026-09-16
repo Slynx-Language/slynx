@@ -2,8 +2,8 @@ mod enums;
 mod structs;
 use std::collections::HashMap;
 
-use common::pool::DedupPoolId;
-use slynx_hir::{HirType, SlynxHir};
+use common::pool::{DedupPoolId, PoolId};
+use slynx_hir::{HirExpression, HirType, SlynxHir};
 use slynx_ir::{IRStructFlags, IRTypeId, SlynxIR};
 
 use crate::{CodegenError, TypeId};
@@ -144,5 +144,31 @@ impl<'a> TypeLowerer<'a> {
 
     pub(crate) fn get_mapped_type(&self, ty: &TypeId) -> Option<IRTypeId> {
         self.types.get(ty).cloned()
+    }
+
+    ///Computes the IR pointer type of the struct field at `field_index`, for a
+    ///field access reached through a deref of `inner`. Both the field-access
+    ///read and write paths share this so the struct-reference check and the
+    ///pointer-type computation happen in one place.
+    pub(crate) fn deref_field_type(
+        &mut self,
+        inner: PoolId<HirExpression>,
+        field_index: usize,
+        ir: &mut SlynxIR,
+    ) -> Result<IRTypeId, CodegenError> {
+        let struct_view = self
+            .hir
+            .view(inner)
+            .ty_viewer()
+            .concrete_type()
+            .is_struct()
+            .ok_or_else(|| {
+                CodegenError::InternalError(
+                    "Field access should be made on a struct type".into(),
+                )
+            })?;
+        let field_type = struct_view.field_types()[field_index];
+        let field_type = self.get_or_create_ir_type(field_type, ir)?;
+        Ok(ir.pointer_type(field_type))
     }
 }

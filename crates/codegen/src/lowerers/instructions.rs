@@ -53,21 +53,8 @@ impl<'a> LoweringState<'a> {
                 field_index,
                 field_name,
             } if let HirExpressionKind::Deref(inner) = self.hir.store.expressions[expr.data].kind => {
-                let field_type = {
-                    let field_type = {
-                        if let Some(ty) = self.hir.view(inner.data).ty_viewer().is_mutable_ref()
-                            && let Some(s) = ty.is_struct()
-                        {
-                            s.field_types()[*field_index]
-                        } else {
-                            panic!(
-                                "This shit should be a reference type, and since its inside a field access, a reference to a struct"
-                            )
-                        }
-                    };
-                    let ty = self.types.get_or_create_ir_type(field_type, context.ir())?;
-                    context.ir().pointer_type(ty)
-                };
+                let field_type =
+                    self.types.deref_field_type(inner.data, *field_index, context.ir())?;
                 let parent = self.lower_expression(inner, context)?;
                 let parent = context.emit(
                     Opcode::FieldRef(*field_index as u16),
