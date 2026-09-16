@@ -9,6 +9,7 @@ use crate::{
         HirQueueBuilder, PendantComponent,
         expression::{ExpressionBuilder, ExpressionDescriptor},
     },
+    components::ComponentExpressionDescriptor,
     context::HirSymbol,
     id::{AnyLocalDeclarationId, OwnerId},
 };
@@ -190,9 +191,14 @@ impl ComponentBuilder {
                     prop_index += 1;
                 }
                 ComponentMemberKind::Child(c) => {
-                    let expr = self
-                        .builder
-                        .build_component_expression(queue, &c.data, c.span, &context)?;
+                    let expr = self.builder.build_component_expression(
+                        queue,
+                        ComponentExpressionDescriptor {
+                            component: &c.data,
+                            span: c.span,
+                            context: &context,
+                        },
+                    )?;
                     decls.push(ComponentMemberDeclaration::Child(expr));
                 }
             }

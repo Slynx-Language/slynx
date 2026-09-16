@@ -9,13 +9,21 @@ use crate::{
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
 
+pub struct ComponentExpressionDescriptor<'a> {
+    pub component: &'a ComponentExpression,
+    pub span: Span,
+    pub context: &'a TypeContext<'a>,
+}
+
 impl ExpressionBuilder {
     pub(crate) fn build_component_expression(
         &mut self,
         queue: &HirQueueBuilder,
-        component: &ComponentExpression,
-        span: Span,
-        context: &TypeContext,
+        ComponentExpressionDescriptor {
+            component,
+            span,
+            context,
+        }: ComponentExpressionDescriptor,
     ) -> Result<Spanned<PoolId<HirComponentExpression>>> {
         let name = queue.get_plain_type(component.name).identifier;
         let node = queue.get_node(self.file());
@@ -66,8 +74,14 @@ impl ExpressionBuilder {
                     properties.push(PropertyExpression::new(pos, expr));
                 }
                 ComponentMemberValue::Child(child) => {
-                    let child_expr =
-                        self.build_component_expression(queue, child, span, context)?;
+                    let child_expr = self.build_component_expression(
+                        queue,
+                        ComponentExpressionDescriptor {
+                            component: child,
+                            span,
+                            context,
+                        },
+                    )?;
                     children.push(child_expr);
                 }
             }
