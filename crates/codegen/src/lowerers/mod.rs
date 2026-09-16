@@ -2,16 +2,11 @@ mod components;
 mod expressions;
 mod functions;
 mod instructions;
-mod styles;
 mod types;
 
 use std::collections::{HashMap, HashSet};
 
 use common::{FrontendSymbol, SymbolPointer};
-use petgraph::{
-    algo::toposort,
-    graph::{DiGraph, NodeIndex},
-};
 use slynx_hir::{
     DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
     HirStylesheetDeclaration, HirType, SlynxHir,
@@ -49,8 +44,6 @@ pub struct LoweringState<'a> {
     functions: HashMap<DeclarationId<HirFunctionDeclaration>, IRPointer<Function, 1>>,
     ///Hoisted IR components keyed by HIR declaration.
     components: HashMap<DeclarationId<HirComponentDeclaration>, IRPointer<Component, 1>>,
-    ///Hoisted style lowering data keyed by HIR declaration.
-    styles: HashMap<DeclarationId<HirStylesheetDeclaration>, styles::StyleData>,
     ///Ownership analysis results for move/copy/borrow tracking.
     ownership: OwnershipAnalysis,
 }
@@ -65,7 +58,6 @@ impl<'a> LoweringState<'a> {
             globals: HashMap::new(),
             functions: HashMap::new(),
             components: HashMap::new(),
-            styles: HashMap::new(),
             ownership: OwnershipAnalysis::new(),
         }
     }
@@ -92,7 +84,6 @@ impl<'a> LoweringState<'a> {
         self.hoist_declarations(&mut ir, &deadcode)?;
         self.stylesheet_pre_pass(&mut ir, &deadcode);
         self.lower_non_stylesheets(&mut ir, &deadcode)?;
-        self.lower_stylesheets(&mut ir, &deadcode)?;
         Ok(ir)
     }
 
@@ -157,28 +148,6 @@ impl<'a> LoweringState<'a> {
                 self.types.register_mapping(declaration.ty, component_ty);
                 self.components
                     .insert(DeclarationId::new(file.file, id), component);
-            }
-            for (id, declaration) in file.declarations.styles.iter().with_ids() {
-                if deadcode.contains(&AnyDeclarationId::new(
-                    file.file,
-                    AnyLocalDeclarationId::Style(id),
-                )) {
-                    continue;
-                }
-                let name = self.hir.get_name(declaration.name);
-                let init_func = ir.create_function(&format!("__init_{name}"), false);
-                let apply_func = ir.create_function(&format!("__apply_{name}"), false);
-                let struct_ty = ir.create_struct(&format!("__{name}_struct"));
-                self.types.register_mapping(declaration.ty, struct_ty);
-                self.styles.insert(
-                    DeclarationId::new(file.file, id),
-                    styles::StyleData {
-                        init_func,
-                        apply_func,
-                        struct_ty,
-                        property_codes: Vec::new(),
-                    },
-                );
             }
         }
         Ok(())
@@ -280,66 +249,6 @@ impl<'a> LoweringState<'a> {
                     self.initialize_function(*function_ptr, declaration.ty, statements, args, ir)?;
                 }
             }
-        }
-        Ok(())
-    }
-
-    /// Phase 2: Lower stylesheets in dependency order.
-    fn lower_stylesheets(
-        &mut self,
-        ir: &mut SlynxIR,
-        deadcode: &HashSet<AnyDeclarationId>,
-    ) -> Result<(), CodegenError> {
-        let (flat_decls, decl_to_idx): (Vec<_>, _) = {
-            let mut decls = Vec::new();
-            let mut idx = HashMap::new();
-            for file in &self.hir.store.files {
-                for (id, _decl) in file.value().declarations.styles.iter().with_ids() {
-                    if deadcode.contains(&AnyDeclarationId::new(
-                        file.file,
-                        AnyLocalDeclarationId::Style(id),
-                    )) {
-                        continue;
-                    }
-                    let id = DeclarationId::new(file.file, id);
-                    idx.insert(id, decls.len());
-                    decls.push(id);
-                }
-            }
-            (decls, idx)
-        };
-        if flat_decls.is_empty() {
-            return Ok(());
-        }
-
-        let mut graph: DiGraph<usize, ()> = DiGraph::new();
-        let mut node_indices: HashMap<usize, NodeIndex<u32>> = HashMap::new();
-
-        for (idx, _) in flat_decls.iter().enumerate() {
-            node_indices.insert(idx, graph.add_node(idx));
-        }
-
-        for (idx, id) in flat_decls.iter().enumerate() {
-            let reader = self.hir.get_file(id.file_id);
-            let HirStylesheetDeclaration { usages, .. } = &reader[id.local_id];
-
-            for usage in usages {
-                let parent_idx = decl_to_idx[&usage.style];
-                if let Some(&parent_node) = node_indices.get(&parent_idx) {
-                    graph.add_edge(parent_node, node_indices[&idx], ());
-                }
-            }
-        }
-
-        let order = match toposort(&graph, None) {
-            Ok(order) => order.into_iter().map(|n| graph[n]).collect::<Vec<_>>(),
-            Err(_) => (0..flat_decls.len()).collect(),
-        };
-
-        for &idx in &order {
-            let id = flat_decls[idx];
-            let reader = self.hir.get_file(id.file_id);
-            self.lower_stylesheet(id, &reader[id.local_id], ir)?;
         }
         Ok(())
     }
