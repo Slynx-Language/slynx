@@ -43,7 +43,7 @@ impl SlynxContext {
             .unwrap_or("Internal IR generation error")
             .to_string();
 
-        SlynxError::new_hir(
+        SlynxError::new_compiler(
             0,
             0,
             0,

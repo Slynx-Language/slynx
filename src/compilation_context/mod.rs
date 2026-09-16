@@ -10,7 +10,7 @@ use std::{
 use common::{FrontendSymbol, SymbolsModule, pool::DedupPool};
 use dashmap::DashMap;
 use module_loader::{Modules, SourceLoader, SourceProvider};
-use slynx_codegen::Codegen;
+use slynx_codegen::LoweringState;
 use slynx_hir::{SlynxHir, id::AnyDeclarationId, ownership::OwnershipAnalysis};
 use slynx_ir::SlynxIR;
 use slynx_lexer::{Lexer, TokenStream};
@@ -371,9 +371,9 @@ impl SlynxContext {
         deadcode: HashSet<AnyDeclarationId>,
         ownership: OwnershipAnalysis,
     ) -> Result<SlynxIR, SlynxError> {
-        let mut codegen = Codegen::new();
+        let codegen = LoweringState::new(&hir);
         codegen
-            .generate(&hir, deadcode, ownership)
+            .generate(deadcode, ownership)
             .map_err(|e| self.build_ir_generation_error(&e, &hir))
     }
 

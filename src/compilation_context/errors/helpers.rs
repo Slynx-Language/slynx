@@ -160,7 +160,7 @@ pub fn suggestions_from_source(err: &SourceError) -> Vec<SlynxSuggestion> {
     match err.kind() {
         SourceErrorKind::Lexing(lex_err) => suggestions_from_lexer(lex_err),
         SourceErrorKind::Parsing(parse_err) => suggestions_from_parser(parse_err),
-        SourceErrorKind::InexsitantSource(_, _, _) => vec![],
+        SourceErrorKind::InexistantSource(_, _, _) => vec![],
     }
 }
 
