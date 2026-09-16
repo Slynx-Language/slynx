@@ -41,19 +41,15 @@ impl<'a> Parser<'a> {
             let start = self.expect(&TokenKind::At)?.span;
             let name = self.expect_identifier()?;
             self.expect(&TokenKind::LParen)?;
-            let args = {
-                let mut args = Vec::new();
-                loop {
-                    if self.peek()?.kind == TokenKind::RParen {
-                        break args;
-                    }
-                    let (arg, _) = self.expect_string()?;
-                    args.push(arg);
-                    if self.peek()?.kind == TokenKind::Comma {
-                        self.eat()?;
-                    }
-                }
-            };
+            let args = self.parse_separated(
+                TokenKind::RParen,
+                TokenKind::Comma,
+                true,
+                |parser| {
+                    let (arg, _) = parser.expect_string()?;
+                    Ok(arg)
+                },
+            )?;
             let end = self.expect(&TokenKind::RParen)?.span;
             let attrib = start.merge_with(end).make_spanned(ASTAttribute {
                 name: name.data,

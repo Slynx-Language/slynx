@@ -1,6 +1,5 @@
 use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
-use smallvec::SmallVec;
 
 use crate::{
     ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, Parser, Result, Type,
@@ -40,14 +39,14 @@ impl Parser<'_> {
             }
             TokenKind::LParen => {
                 self.eat()?;
-                let mut associated_types = SmallVec::new();
-                while self.peek()?.kind != TokenKind::RParen {
-                    let inner = self.parse_type(generics)?;
-                    associated_types.push(inner);
-                    if self.peek()?.kind == TokenKind::Comma {
-                        self.eat()?;
-                    }
-                }
+                let associated_types = self
+                    .parse_separated(
+                        TokenKind::RParen,
+                        TokenKind::Comma,
+                        true,
+                        |parser| parser.parse_type(generics),
+                    )?
+                    .into();
                 let endspan = self.expect(&TokenKind::RParen)?.span;
                 Ok(EnumVariant {
                     name,
@@ -58,14 +57,14 @@ impl Parser<'_> {
             }
             TokenKind::LBrace => {
                 self.eat()?;
-                let mut types = SmallVec::new();
-                while self.peek()?.kind != TokenKind::RBrace {
-                    let inner = self.parse_typedname(generics)?;
-                    types.push(inner);
-                    if self.peek()?.kind == TokenKind::Comma {
-                        self.eat()?;
-                    }
-                }
+                let types = self
+                    .parse_separated(
+                        TokenKind::RBrace,
+                        TokenKind::Comma,
+                        true,
+                        |parser| parser.parse_typedname(generics),
+                    )?
+                    .into();
                 let endspan = self.expect(&TokenKind::RBrace)?.span;
                 Ok(EnumVariant {
                     name,
@@ -85,14 +84,15 @@ impl Parser<'_> {
 
     pub fn parse_enum_variants(&mut self, generics: TypeParamScope) -> Result<Vec<EnumVariant>> {
         self.expect(&TokenKind::LBrace)?;
-        let mut variants = Vec::new();
-        while self.peek()?.kind != TokenKind::RBrace {
-            let attributes = self.parse_attributes()?;
-            variants.push(self.parse_enum_variant(attributes, generics)?);
-            if self.peek()?.kind == TokenKind::Comma {
-                self.eat()?;
-            }
-        }
+        let variants = self.parse_separated(
+            TokenKind::RBrace,
+            TokenKind::Comma,
+            true,
+            |parser| {
+                let attributes = parser.parse_attributes()?;
+                parser.parse_enum_variant(attributes, generics)
+            },
+        )?;
         self.expect(&TokenKind::RBrace)?;
         Ok(variants)
     }

@@ -10,17 +10,12 @@ use common::{Span, Spanned};
 impl Parser<'_> {
     ///Parses the arguments of a function. It parses until the `)` of the function args.
     pub fn parse_args(&mut self, type_params: TypeParamScope) -> Result<Vec<Spanned<TypedName>>> {
-        let mut names = Vec::new();
-        while !matches!(self.peek()?.kind, TokenKind::RParen) {
-            names.push(self.parse_typedname(type_params)?);
-            if matches!(self.peek()?.kind, TokenKind::RParen) {
-                break;
-            } else {
-                self.expect(&TokenKind::Comma)?;
-            }
-        }
-
-        Ok(names)
+        self.parse_separated(
+            TokenKind::RParen,
+            TokenKind::Comma,
+            true,
+            |parser| parser.parse_typedname(type_params),
+        )
     }
 
     ///Parses a function. The provided `span` is the initial span for the 'func' keyword.

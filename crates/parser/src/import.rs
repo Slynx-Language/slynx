@@ -52,12 +52,12 @@ impl Parser<'_> {
                 match self.peek()?.kind {
                     TokenKind::LBrace => {
                         self.eat()?;
-                        while self.peek()?.kind != TokenKind::RBrace {
-                            out.push(self.parse_import_usage()?);
-                            if self.peek()?.kind == TokenKind::Comma {
-                                self.eat()?;
-                            }
-                        }
+                        out = self.parse_separated(
+                            TokenKind::RBrace,
+                            TokenKind::Comma,
+                            true,
+                            |parser| parser.parse_import_usage(),
+                        )?;
                         self.eat()?;
                     }
                     _ => out.push(self.parse_import_usage()?),

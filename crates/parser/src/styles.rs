@@ -175,19 +175,12 @@ impl Parser<'_> {
         let (name, generics) = self.parse_generic_name()?;
 
         self.expect(&TokenKind::LParen)?;
-        let args = {
-            let mut out = Vec::new();
-            loop {
-                if let TokenKind::RParen = self.peek()?.kind {
-                    break out;
-                }
-                let arg = self.parse_typedname(&[])?;
-                out.push(arg);
-                if let TokenKind::Comma = self.peek()?.kind {
-                    self.eat()?;
-                }
-            }
-        };
+        let args = self.parse_separated(
+            TokenKind::RParen,
+            TokenKind::Comma,
+            true,
+            |parser| parser.parse_typedname(&[]),
+        )?;
 
         self.expect(&TokenKind::RParen)?;
         let usages = if let TokenKind::Identifier(ref name) = self.peek()?.kind

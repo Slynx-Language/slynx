@@ -192,3 +192,33 @@ fn comparison_operator_still_parses() {
     };
     assert_eq!(*op, Operator::LessThan);
 }
+
+#[test]
+fn right_shift_parses_without_panicking() {
+    // `>>` is not a single lexer token: the parser must recognise it as two
+    // consecutive `>` tokens instead of falling into an unreachable!().
+    let (program, symbols, _, statements, expressions) =
+        parse_program("func main(): int { let a: int = x >> y; }");
+
+    let func = &program.func().get(PoolId::new(0));
+    let ASTStatement::Var { rhs, .. } = &statements[func.body[0].data] else {
+        panic!("expected a variable declaration");
+    };
+    let ASTExpression::Binary {
+        op,
+        lhs,
+        rhs: shift_count,
+    } = &expressions[rhs.data]
+    else {
+        panic!("expected a binary expression");
+    };
+    assert_eq!(*op, Operator::RightShift);
+    let ASTExpression::Identifier(lhs_name) = &expressions[lhs.data] else {
+        panic!("expected the shift target to be an identifier");
+    };
+    let ASTExpression::Identifier(rhs_name) = &expressions[shift_count.data] else {
+        panic!("expected the shift amount to be an identifier");
+    };
+    assert_eq!(*lhs_name, symbols.intern("x"));
+    assert_eq!(*rhs_name, symbols.intern("y"));
+}
