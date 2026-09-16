@@ -8,8 +8,8 @@ use std::collections::{HashMap, HashSet};
 
 use common::{FrontendSymbol, SymbolPointer};
 use slynx_hir::{
-    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
-    HirStylesheetDeclaration, HirType, SlynxHir,
+    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration, HirType,
+    SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::OwnershipAnalysis,
 };
@@ -82,7 +82,6 @@ impl<'a> LoweringState<'a> {
         self.ownership = ownership;
         let mut ir = SlynxIR::new();
         self.hoist_declarations(&mut ir, &deadcode)?;
-        self.stylesheet_pre_pass(&mut ir, &deadcode);
         self.lower_non_stylesheets(&mut ir, &deadcode)?;
         Ok(ir)
     }
@@ -151,26 +150,6 @@ impl<'a> LoweringState<'a> {
             }
         }
         Ok(())
-    }
-
-    /// Pre-pass: compute property codes for all stylesheets.
-    fn stylesheet_pre_pass(&mut self, _ir: &mut SlynxIR, deadcode: &HashSet<AnyDeclarationId>) {
-        for file in self.hir.store.files.iter() {
-            for (id, declaration) in file.declarations.declarations.styles.iter().with_ids() {
-                if deadcode.contains(&AnyDeclarationId::new(
-                    file.file,
-                    AnyLocalDeclarationId::Style(id),
-                )) {
-                    continue;
-                }
-                let HirStylesheetDeclaration {
-                    usages, statements, ..
-                } = declaration;
-
-                let own_props = self.collect_style_properties(statements);
-                let resolved = self.resolve_style_inheritance(usages, &own_props);
-            }
-        }
     }
 
     /// Phase 1: Lower all non-stylesheet declarations.

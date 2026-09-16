@@ -1,7 +1,7 @@
 use common::{Spanned, pool::PoolId};
 use slynx_hir::{
     ComponentMemberDeclaration, DeclarationId, HirComponentDeclaration, HirComponentExpression,
-    HirStyleUsage, VariableId,
+    VariableId,
 };
 use slynx_ir::{ComponentBuilder, ComponentValueBuilder, IRTypeId, SlynxIR, Value};
 
@@ -62,19 +62,6 @@ impl<'a> LoweringState<'a> {
         self.types
             .get_mapped_type(&expr.name)
             .ok_or(CodegenError::IRTypeNotRecognized(expr.name))
-    }
-
-    pub(crate) fn get_usage_args(
-        &mut self,
-        usage: &HirStyleUsage,
-        ctx: &mut FunctionContext,
-    ) -> Result<Vec<Value>, CodegenError> {
-        let mut out = Vec::with_capacity(usage.params.len());
-        for param in &usage.params {
-            let value = self.lower_expression(*param, ctx)?;
-            out.push(value);
-        }
-        Ok(out)
     }
 
     pub(crate) fn initialize_component(

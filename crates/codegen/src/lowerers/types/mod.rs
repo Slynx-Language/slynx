@@ -156,16 +156,13 @@ impl<'a> TypeLowerer<'a> {
         field_index: usize,
         ir: &mut SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
-        let struct_view = self
-            .hir
-            .view(inner)
+        let expr_view = self.hir.view(inner);
+        let struct_view = expr_view
             .ty_viewer()
             .concrete_type()
             .is_struct()
             .ok_or_else(|| {
-                CodegenError::InternalError(
-                    "Field access should be made on a struct type".into(),
-                )
+                CodegenError::InternalError("Field access should be made on a struct type".into())
             })?;
         let field_type = struct_view.field_types()[field_index];
         let field_type = self.get_or_create_ir_type(field_type, ir)?;

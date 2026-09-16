@@ -11,7 +11,7 @@ use super::{ExpressionBuilder, ExpressionDescriptor};
 ///call produces. Arrays may carry a fixed length from the expected type;
 ///vectors always infer their element type.
 #[derive(Clone, Copy)]
-pub(super) enum SequenceKind {
+pub enum SequenceKind {
     Array,
     Vector,
 }

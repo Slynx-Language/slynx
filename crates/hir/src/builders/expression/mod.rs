@@ -245,7 +245,7 @@ impl ExpressionBuilder {
                 collections::TupleExpressionDescriptor {
                     context,
                     expected,
-                    fields: fields,
+                    fields,
                 },
             )?,
 
@@ -346,7 +346,7 @@ impl ExpressionBuilder {
                 let child = self.build_component_expression(
                     queue,
                     ComponentExpressionDescriptor {
-                        component: &component,
+                        component,
                         span: target.span,
                         context,
                     },

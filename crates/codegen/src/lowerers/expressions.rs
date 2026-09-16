@@ -30,17 +30,22 @@ impl<'a> LoweringState<'a> {
         // exact shape registered at materialization time.
         let deref = self.hir.view(ty).dereference();
         let key = deref.data();
-        let enum_view = deref.is_enum().ok_or_else(|| {
-            CodegenError::InternalError("enum expression must resolve to an enum type".into())
-        })?;
-        let variant_info = enum_view.variants().get(variant).ok_or_else(|| {
-            CodegenError::InternalError("enum variant index out of bounds".into())
-        })?;
+        let enum_view = deref.is_enum().ok_or(CodegenError::InternalError(
+            "enum expression must resolve to an enum type".into(),
+        ))?;
+        let variant_info = enum_view
+            .variants()
+            .get(variant)
+            .ok_or(CodegenError::InternalError(
+                "enum variant index out of bounds".into(),
+            ))?;
 
         let layout = self
             .types
             .enum_layout(&key)
-            .ok_or_else(|| CodegenError::InternalError("enum layout is not registered".into()))?
+            .ok_or(CodegenError::InternalError(
+                "enum layout is not registered".into(),
+            ))?
             .clone();
 
         let int_type = context.ir().int_type();
@@ -55,9 +60,9 @@ impl<'a> LoweringState<'a> {
                 .get(variant)
                 .copied()
                 .flatten()
-                .ok_or_else(|| {
-                    CodegenError::InternalError("variant payload struct is not registered".into())
-                })?;
+                .ok_or(CodegenError::InternalError(
+                    "variant payload struct is not registered".into(),
+                ))?;
             let args = args
                 .iter()
                 .map(|arg| self.lower_expression(*arg, context))
@@ -430,11 +435,9 @@ impl<'a> LoweringState<'a> {
         let layout = self
             .types
             .enum_layout(&enum_type.data())
-            .ok_or_else(|| {
-                CodegenError::InternalError(
-                    "enum layout for matches target is not registered".into(),
-                )
-            })?
+            .ok_or(CodegenError::InternalError(
+                "enum layout for matches target is not registered".into(),
+            ))?
             .clone();
         let discriminant = enum_type
             .is_enum()
@@ -453,11 +456,9 @@ impl<'a> LoweringState<'a> {
         }
         // A non-empty pattern implies the matched variant carries a payload, so
         // the enum must have the payload union registered in its layout.
-        layout.union_type.ok_or_else(|| {
-            CodegenError::InternalError(
-                "matched variant carries a payload but the enum has no payload union".into(),
-            )
-        })?;
+        layout.union_type.ok_or(CodegenError::InternalError(
+            "matched variant carries a payload but the enum has no payload union".into(),
+        ))?;
         ctx.branch_conditional(cond, then_label, end_label, &[], &[false_value]);
         let union_value = ctx.get_field(value, 1);
 

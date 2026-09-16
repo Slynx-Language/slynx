@@ -3,7 +3,7 @@ use slynx_hir::HirType;
 use slynx_ir::IRType;
 
 use crate::{
-    CodegenError,
+    CodegenError, TypeMappingError,
     lowerers::{EnumLayout, TypeLowerer},
 };
 
@@ -39,11 +39,9 @@ impl<'a> TypeLowerer<'a> {
         let enum_struct = match self.get_mapped_type(&key) {
             Some(ty) => ty,
             None => {
-                let enum_view = self.hir.view(key).dereference().is_enum().ok_or_else(|| {
-                    CodegenError::InternalError(format!(
-                        "{decl:?} should map to an Enum, but it doesn't"
-                    ))
-                })?;
+                let enum_view = self.hir.view(key).dereference().is_enum().ok_or(
+                    CodegenError::InvalidMapping(TypeMappingError::NotAnEnum(key)),
+                )?;
                 let name = self.hir.get_name(enum_view.name());
                 let ty = ir.create_struct(name);
                 self.types.insert(key, ty);
@@ -58,9 +56,14 @@ impl<'a> TypeLowerer<'a> {
         if !ir.get_object_type(enum_struct_id).get_fields().is_empty() {
             return Ok(());
         }
-        let enum_view = self.hir.view(decl).dereference().is_enum().ok_or_else(|| {
-            CodegenError::InternalError(format!("{decl:?} should map to an Enum, but it doesn't"))
-        })?;
+        let enum_view =
+            self.hir
+                .view(decl)
+                .dereference()
+                .is_enum()
+                .ok_or(CodegenError::InvalidMapping(TypeMappingError::NotAnEnum(
+                    key,
+                )))?;
         let enum_name = self.hir.get_name(enum_view.name());
         let int_type = ir.int_type();
 
