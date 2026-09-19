@@ -13,7 +13,7 @@ impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
             HIRErrorKind::InvalidEnumUsage(ty) => {
-                format!("Type '{}' is being used as an enum, even though it isnt", hir.view(*ty).name())
+                format!("Type '{}' is being used as an enum, even though it isn't", hir.view(*ty).name())
             }
             HIRErrorKind::MethodNotFound(name) => {
                 format!(
@@ -35,7 +35,7 @@ impl SlynxContext {
                 )
             }
             HIRErrorKind::InvalidDeref => {
-                "Invalid deref, value being dereferenced is not a reference(mutable or imutable)"
+                "Invalid deref, value being dereferenced is not a reference(mutable or immutable)"
                     .to_string()
             }
             HIRErrorKind::ArrayLengthMismatch { expected, actual } => {
@@ -242,6 +242,10 @@ impl SlynxContext {
             HIRErrorKind::CyclicMonomorphization { func, .. } => {
                 let func = hir.get_name(*func);
                 format!("Monomorphization of generic function '{func}' does not terminate")
+            }
+            HIRErrorKind::NotImplemented(name) => {
+                let name = hir.get_name(*name);
+                format!("'{name}' uses a construct that is not implemented yet")
             }
         }
     }
