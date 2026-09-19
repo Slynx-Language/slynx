@@ -9,19 +9,13 @@
 //! Generic struct methods are not specialized: the specialized struct is
 //! created with an empty method table (see the extension guide).
 
-use common::{
-    Span,
-    pool::DedupPoolId,
-};
+use common::{Span, pool::DedupPoolId};
 use slynx_hir::{
     HIRError, HirObjectDeclaration, HirType, Result, SlynxHir, Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 
-use crate::{
-    Monomorphizer,
-    types::substitute_type,
-};
+use crate::{Monomorphizer, types::substitute_type};
 
 impl Monomorphizer {
     ///Given the `HirType::Reference` type of a generic object usage such as
@@ -110,7 +104,8 @@ impl Monomorphizer {
                     .collect::<Result<Vec<_>>>()?;
 
                 let specialized_ty =
-                    hir.types.create_struct_type(mangled_symbol, fields, Vec::new());
+                    hir.types
+                        .create_struct_type(mangled_symbol, fields, Vec::new());
 
                 let specialized_local = {
                     let file = hir.get_file_mut(template_file);

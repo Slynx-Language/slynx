@@ -1,5 +1,6 @@
 use crate::{
-    ASTAttribute, ComponentDeclaration, Result, TypeParamScope, ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
+    ASTAttribute, ComponentDeclaration, Result, TypeParamScope,
+    ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
 };
 use common::{Span, Spanned};
 

@@ -28,7 +28,6 @@ impl<'a> HirNode<'a> {
 }
 
 impl<'a> HirQueueBuilder<'a> {
-
     /// Lazily resolves a method on a struct type. Looks up the `ObjectDeclaration`
     /// from the AST, creates the function declaration, registers it as a method
     /// on the type, and enqueues the body for processing.
@@ -114,7 +113,9 @@ impl<'a> HirQueueBuilder<'a> {
             },
         );
 
-        self.hir.types.create_method(struct_ty, method_name, decl_id);
+        self.hir
+            .types
+            .create_method(struct_ty, method_name, decl_id);
 
         if !obj_decl.external {
             let arg_names: Vec<SymbolPointer> = method

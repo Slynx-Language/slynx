@@ -2,10 +2,8 @@ use module_loader::FileId;
 use slynx_parser::TypeContext;
 
 use crate::{
-    DeclarationId, HirStylesheetDeclaration, Result, SymbolPointer,
-    builders::HirQueueBuilder,
-    context::HirSymbol,
-    id::AnyLocalDeclarationId,
+    DeclarationId, HirStylesheetDeclaration, Result, SymbolPointer, builders::HirQueueBuilder,
+    context::HirSymbol, id::AnyLocalDeclarationId,
 };
 
 impl<'a> HirQueueBuilder<'a> {

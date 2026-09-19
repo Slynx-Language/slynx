@@ -748,10 +748,7 @@ impl std::fmt::Display for HIRError {
                 )
             }
             HIRErrorKind::NotImplemented(name) => {
-                write!(
-                    f,
-                    "'{name:?}' uses a construct that is not implemented yet"
-                )
+                write!(f, "'{name:?}' uses a construct that is not implemented yet")
             }
         }
     }

@@ -1,6 +1,6 @@
 use crate::{
-    ASTExpression, ComponentExpression, ComponentMemberValue, NamedExpr,
-    RangeType, Type, TypeParamScope,
+    ASTExpression, ComponentExpression, ComponentMemberValue, NamedExpr, RangeType, Type,
+    TypeParamScope,
 };
 use crate::{Parser, Result, error::ParseError};
 use common::pool::DedupPoolId;
@@ -30,12 +30,9 @@ impl Parser<'_> {
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.expect(&TokenKind::LParen)?;
         let params: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 7]> = self
-            .parse_separated(
-                TokenKind::RParen,
-                TokenKind::Comma,
-                false,
-                |parser| parser.parse_expression(type_params),
-            )?
+            .parse_separated(TokenKind::RParen, TokenKind::Comma, false, |parser| {
+                parser.parse_expression(type_params)
+            })?
             .into();
         let Token { span: last, .. } = self.expect(&TokenKind::RParen)?;
         let span = identifier.span.merge_with(last);
@@ -140,12 +137,9 @@ impl Parser<'_> {
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.expect(&TokenKind::LParen)?;
         let fields: SmallVec<[Spanned<NamedExpr>; 4]> = self
-            .parse_separated(
-                TokenKind::RParen,
-                TokenKind::Comma,
-                true,
-                |parser| parser.parse_named_expr(type_params),
-            )?
+            .parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
+                parser.parse_named_expr(type_params)
+            })?
             .into();
         let end = self.expect(&TokenKind::RParen)?.span;
         let span = name.span.merge_with(end);
@@ -529,12 +523,9 @@ impl Parser<'_> {
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let exprs: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]> = self
-            .parse_separated(
-                TokenKind::RBracket,
-                TokenKind::Comma,
-                true,
-                |parser| parser.parse_expression(type_params),
-            )?
+            .parse_separated(TokenKind::RBracket, TokenKind::Comma, true, |parser| {
+                parser.parse_expression(type_params)
+            })?
             .into();
         let end = self.expect(&TokenKind::RBracket)?.span;
         let id = self.intern_expression(ASTExpression::Array(exprs));
@@ -548,12 +539,9 @@ impl Parser<'_> {
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let exprs: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]> = self
-            .parse_separated(
-                TokenKind::RBrace,
-                TokenKind::Comma,
-                true,
-                |parser| parser.parse_expression(type_params),
-            )?
+            .parse_separated(TokenKind::RBrace, TokenKind::Comma, true, |parser| {
+                parser.parse_expression(type_params)
+            })?
             .into();
         let end = self.expect(&TokenKind::RBrace)?.span;
         let id = self.intern_expression(ASTExpression::Vector(exprs));

@@ -1,16 +1,10 @@
-use common::{
-    Span,
-    pool::DedupPoolId,
-};
+use common::{Span, pool::DedupPoolId};
 use slynx_hir::{
     EnumVariantType, HIRError, HirEnumDeclaration, HirType, Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 
-use crate::{
-    Monomorphizer,
-    types::substitute_type,
-};
+use crate::{Monomorphizer, types::substitute_type};
 impl Monomorphizer {
     pub fn resolve_enum_target(
         &mut self,

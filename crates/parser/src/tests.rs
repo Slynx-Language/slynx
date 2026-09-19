@@ -230,17 +230,12 @@ fn chained_right_shift_parses_without_panicking() {
     let (program, symbols, _, statements, expressions) =
         parse_program("func main(): int { let a: int = x >> y >> z; }");
 
-let func = &program.func().get(PoolId::new(0));
+    let func = &program.func().get(PoolId::new(0));
     let ASTStatement::Var { rhs, .. } = &statements[func.body[0].data] else {
         panic!("expected a variable declaration");
     };
     let outer = &expressions[rhs.data];
-    let ASTExpression::Binary {
-        op,
-        lhs,
-        rhs: rest,
-    } = outer
-    else {
+    let ASTExpression::Binary { op, lhs, rhs: rest } = outer else {
         panic!("expected an outer binary expression");
     };
     assert_eq!(*op, Operator::RightShift);

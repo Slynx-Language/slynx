@@ -79,12 +79,12 @@ pub(crate) fn substitute_type(
 ) -> Result<DedupPoolId<HirType>> {
     match hir.view(ty).raw() {
         HirType::GenericParam { index, .. } => Ok(subst.get(index).copied().unwrap_or(ty)),
-        HirType::Array(inner, len) => {
-            Ok(hir.types.create_type(HirType::Array(substitute_type(hir, *inner, subst)?, *len)))
-        }
-        HirType::Vector(inner) => {
-            Ok(hir.types.create_type(HirType::Vector(substitute_type(hir, *inner, subst)?)))
-        }
+        HirType::Array(inner, len) => Ok(hir
+            .types
+            .create_type(HirType::Array(substitute_type(hir, *inner, subst)?, *len))),
+        HirType::Vector(inner) => Ok(hir
+            .types
+            .create_type(HirType::Vector(substitute_type(hir, *inner, subst)?))),
         HirType::Function(function) => {
             let function_view = hir.view(*function);
             let args = function_view

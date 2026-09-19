@@ -1,4 +1,3 @@
-
 use common::{
     Span, Spanned,
     pool::{DedupPoolId, PoolId},

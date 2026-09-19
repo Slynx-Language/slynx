@@ -3,10 +3,7 @@
 use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::{Token, TokenKind};
 
-use crate::{
-    ASTAttribute, Parser, Result, StaticDeclaration,
-    flags::ParserFlag, program::Program,
-};
+use crate::{ASTAttribute, Parser, Result, StaticDeclaration, flags::ParserFlag, program::Program};
 
 impl<'a> Parser<'a> {
     pub fn parse_static(&mut self, span: Span) -> Result<StaticDeclaration> {
@@ -41,15 +38,11 @@ impl<'a> Parser<'a> {
             let start = self.expect(&TokenKind::At)?.span;
             let name = self.expect_identifier()?;
             self.expect(&TokenKind::LParen)?;
-            let args = self.parse_separated(
-                TokenKind::RParen,
-                TokenKind::Comma,
-                true,
-                |parser| {
+            let args =
+                self.parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
                     let (arg, _) = parser.expect_string()?;
                     Ok(arg)
-                },
-            )?;
+                })?;
             let end = self.expect(&TokenKind::RParen)?.span;
             let attrib = start.merge_with(end).make_spanned(ASTAttribute {
                 name: name.data,
@@ -124,7 +117,7 @@ impl<'a> Parser<'a> {
             _ => {
                 return self.unexpected(
                     "Unknown declaration that starts with it. Expected some valid declaration",
-                )
+                );
             }
         };
         Ok(())

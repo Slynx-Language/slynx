@@ -86,19 +86,16 @@ impl TypesContext {
         args: Vec<DedupPoolId<HirType>>,
         ret: DedupPoolId<HirType>,
     ) -> DedupPoolId<HirType> {
-        let fid = self
-            .storage
-            .functions
-            .insert(FunctionType { args: args.into(), ret });
+        let fid = self.storage.functions.insert(FunctionType {
+            args: args.into(),
+            ret,
+        });
         self.storage.insert_type(HirType::Function(fid))
     }
 
     /// Creates a new tuple type with the given field types and returns its [`TypeId`].
     pub fn create_tuple_type(&self, fields: Vec<DedupPoolId<HirType>>) -> DedupPoolId<HirType> {
-        let tuple = self
-            .storage
-            .structs
-            .insert_at_tuples(TupleType { fields });
+        let tuple = self.storage.structs.insert_at_tuples(TupleType { fields });
         self.storage.insert_type(HirType::Tuple(tuple))
     }
 
@@ -173,11 +170,14 @@ impl TypesContext {
         name: SymbolPointer,
         args: Vec<DedupPoolId<HirType>>,
     ) -> DedupPoolId<HirType> {
-        let metadata = self.storage.styles.insert_at_metadata(StyleMetadata { name });
-        let style_id = self
+        let metadata = self
             .storage
             .styles
-            .insert_at_styles(StyleType { args: args.into(), metadata });
+            .insert_at_metadata(StyleMetadata { name });
+        let style_id = self.storage.styles.insert_at_styles(StyleType {
+            args: args.into(),
+            metadata,
+        });
         let id = self.storage.insert_type(HirType::Style(style_id));
         self.registry.register(name, id);
         id
@@ -228,7 +228,8 @@ impl TypesContext {
         name: SymbolPointer,
         return_type: DedupPoolId<HirType>,
     ) {
-        self.methods.register_external_method(parent_ty, name, return_type);
+        self.methods
+            .register_external_method(parent_ty, name, return_type);
     }
 
     /// Returns the return type of an external method on `parent_ty` with the given `name`.
@@ -334,4 +335,14 @@ macro_rules! impl_index {
     };
 }
 
-impl_index!(HirType, StructType, StructDefinition, TupleType, EnumType, ComponentType, ComponentDefinition, FunctionType, StyleType);
+impl_index!(
+    HirType,
+    StructType,
+    StructDefinition,
+    TupleType,
+    EnumType,
+    ComponentType,
+    ComponentDefinition,
+    FunctionType,
+    StyleType
+);

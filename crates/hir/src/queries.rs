@@ -1,8 +1,4 @@
-
-use common::{
-    Span,
-    pool::{DedupPoolId},
-};
+use common::{Span, pool::DedupPoolId};
 use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
@@ -81,7 +77,11 @@ impl SlynxHir<'_> {
         .to_vec()
     }
 
-    pub fn type_of_intrinsic(&self, name: SymbolPointer, span: Span) -> Result<DedupPoolId<HirType>> {
+    pub fn type_of_intrinsic(
+        &self,
+        name: SymbolPointer,
+        span: Span,
+    ) -> Result<DedupPoolId<HirType>> {
         let id = self.store.lang_items.get(name, span)?;
         Ok(self.get_declaration_type(id))
     }

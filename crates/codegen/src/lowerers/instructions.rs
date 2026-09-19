@@ -52,9 +52,12 @@ impl<'a> LoweringState<'a> {
                 expr,
                 field_index,
                 field_name,
-            } if let HirExpressionKind::Deref(inner) = self.hir.store.expressions[expr.data].kind => {
+            } if let HirExpressionKind::Deref(inner) =
+                self.hir.store.expressions[expr.data].kind =>
+            {
                 let field_type =
-                    self.types.deref_field_type(inner.data, *field_index, context.ir())?;
+                    self.types
+                        .deref_field_type(inner.data, *field_index, context.ir())?;
                 let parent = self.lower_expression(inner, context)?;
                 let parent = context.emit(
                     Opcode::FieldRef(*field_index as u16),

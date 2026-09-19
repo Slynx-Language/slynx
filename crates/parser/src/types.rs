@@ -1,7 +1,5 @@
 use super::Parser;
-use crate::{
-    ASTExpression, AliasDeclaration, SymbolPointer, Type, TypeParamScope, TypedName,
-};
+use crate::{ASTExpression, AliasDeclaration, SymbolPointer, Type, TypeParamScope, TypedName};
 use crate::{Result, ast::GenericIdentifier};
 use common::pool::DedupPoolId;
 use common::{Span, Spanned, VisibilityModifier};
@@ -199,12 +197,9 @@ impl Parser<'_> {
             TokenKind::LParen => {
                 self.eat()?;
                 let types: SmallVec<[Spanned<DedupPoolId<Type>>; 2]> = self
-                    .parse_separated(
-                        TokenKind::RParen,
-                        TokenKind::Comma,
-                        false,
-                        |parser| parser.parse_type(type_params),
-                    )?
+                    .parse_separated(TokenKind::RParen, TokenKind::Comma, false, |parser| {
+                        parser.parse_type(type_params)
+                    })?
                     .into();
                 let span = start_span.merge_with(self.eat()?.span);
                 let ty = if types.len() == 1 {

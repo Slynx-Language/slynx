@@ -1,9 +1,6 @@
 use dashmap::DashMap;
 
-use crate::{
-    HIRError, SymbolPointer,
-    id::AnyDeclarationId,
-};
+use crate::{HIRError, SymbolPointer, id::AnyDeclarationId};
 
 #[derive(Debug, Default)]
 ///A struct to map intrinsic functions, objects, etc

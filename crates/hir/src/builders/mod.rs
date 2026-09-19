@@ -37,10 +37,7 @@ use slynx_parser::{
 ///
 /// This is the entry point of the lowerer; it drives [`HirQueueBuilder`]
 /// against an immutable `&SlynxHir` facade (which owns the mutable data).
-pub(crate) fn generate_hir<'a>(
-    hir: &'a SlynxHir<'a>,
-    modules: &'a Modules<'a>,
-) -> Result<()> {
+pub(crate) fn generate_hir<'a>(hir: &'a SlynxHir<'a>, modules: &'a Modules<'a>) -> Result<()> {
     let builder = HirQueueBuilder::new(hir, modules);
     {
         let entry = &modules.entries()[0];
@@ -148,7 +145,10 @@ impl HirNode<'_> {
                         })
                         .collect::<Result<Vec<_>>>()?;
 
-                    let struct_ty = self.hir.types.create_struct_type(struct_name, fields, Vec::new());
+                    let struct_ty =
+                        self.hir
+                            .types
+                            .create_struct_type(struct_name, fields, Vec::new());
                     // Register a HirObjectDeclaration so the codegen's
                     // hoist_declarations can create an IR struct for this type.
                     let file = self.hir.store.get_or_create_file(data.owner);
@@ -318,15 +318,14 @@ impl HirNode<'_> {
                     .collect::<Result<Vec<_>>>()?;
                 Ok((
                     owner,
-                    self.hir.types.create_type(HirType::new_generic_ref(ty, args)),
+                    self.hir
+                        .types
+                        .create_type(HirType::new_generic_ref(ty, args)),
                 ))
             }
             Type::Array(t, len) => {
-                let (id, ty) = self.find_type_inner(
-                    ty.span.make_spanned(*t),
-                    context,
-                    self_substitute,
-                )?;
+                let (id, ty) =
+                    self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
                 let len = match self.modules.get_expr(*len) {
                     ASTExpression::IntLiteral(i) => *i as usize,
                     _ => unimplemented!(
@@ -337,29 +336,20 @@ impl HirNode<'_> {
                 Ok((id, ty))
             }
             Type::Vector(t) => {
-                let (id, ty) = self.find_type_inner(
-                    ty.span.make_spanned(*t),
-                    context,
-                    self_substitute,
-                )?;
+                let (id, ty) =
+                    self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
                 let ty = self.hir.types.create_type(HirType::Vector(ty));
                 Ok((id, ty))
             }
             Type::Reference(t) => {
-                let (id, ty) = self.find_type_inner(
-                    ty.span.make_spanned(*t),
-                    context,
-                    self_substitute,
-                )?;
+                let (id, ty) =
+                    self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
                 let ty = self.hir.types.create_type(HirType::ImutableRef(ty));
                 Ok((id, ty))
             }
             Type::MutableReference(t) => {
-                let (id, ty) = self.find_type_inner(
-                    ty.span.make_spanned(*t),
-                    context,
-                    self_substitute,
-                )?;
+                let (id, ty) =
+                    self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
                 let ty = self.hir.types.create_type(HirType::MutableRef(ty));
                 Ok((id, ty))
             }

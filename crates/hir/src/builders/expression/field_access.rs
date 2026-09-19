@@ -211,178 +211,172 @@ impl ExpressionBuilder {
         span: Span,
         context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
-        let expr =
-            match queue.get_expr(field_ast.data) {
-                ASTExpression::FieldAccess {
-                    parent: inner_parent,
-                    field: inner_field,
-                } => {
-                    let intermediate =
-                        self.build_field_access_impl(queue, parent, *inner_parent, span, context)?;
-                    return self.build_field_access_impl(
-                        queue,
-                        intermediate,
-                        *inner_field,
-                        span,
-                        context,
-                    );
-                }
-                ASTExpression::Identifier(field_name) => {
-                    let parent_ty = queue.hir[parent.data].ty;
-                    let parent_view = queue.hir.view(parent_ty);
-                    let concrete_type = parent_view.concrete_type();
-                    let dereferenced_type = parent_view.dereference();
-                    match dereferenced_type.is_struct() {
-                        Some(view) => {
-                            let (fields, field_types) = (view.fields(), view.field_types());
-                            let position = fields
-                                .iter()
-                                .position(|f| f.data == *field_name)
-                                .ok_or_else(|| {
-                                    HIRError::property_unrecognized(
-                                        dereferenced_type.data,
-                                        vec![*field_name],
-                                        span,
-                                    )
-                                })?;
+        let expr = match queue.get_expr(field_ast.data) {
+            ASTExpression::FieldAccess {
+                parent: inner_parent,
+                field: inner_field,
+            } => {
+                let intermediate =
+                    self.build_field_access_impl(queue, parent, *inner_parent, span, context)?;
+                return self.build_field_access_impl(
+                    queue,
+                    intermediate,
+                    *inner_field,
+                    span,
+                    context,
+                );
+            }
+            ASTExpression::Identifier(field_name) => {
+                let parent_ty = queue.hir[parent.data].ty;
+                let parent_view = queue.hir.view(parent_ty);
+                let concrete_type = parent_view.concrete_type();
+                let dereferenced_type = parent_view.dereference();
+                match dereferenced_type.is_struct() {
+                    Some(view) => {
+                        let (fields, field_types) = (view.fields(), view.field_types());
+                        let position = fields
+                            .iter()
+                            .position(|f| f.data == *field_name)
+                            .ok_or_else(|| {
+                                HIRError::property_unrecognized(
+                                    dereferenced_type.data,
+                                    vec![*field_name],
+                                    span,
+                                )
+                            })?;
 
-                            let field_ty = field_types[position];
-                            let field_ty = match queue.hir.view(parent_ty).raw() {
-                                HirType::Reference { generics, .. } => {
-                                    crate::generics::substitute_types(queue.hir, generics, field_ty)
-                                }
-                                _ => field_ty,
-                            };
-                            HirExpression {
-                                ty: field_ty,
-                                kind: HirExpressionKind::FieldAccess {
-                                    expr: parent,
-                                    field_index: position,
-                                    field_name: Some(*field_name),
-                                },
+                        let field_ty = field_types[position];
+                        let field_ty = match queue.hir.view(parent_ty).raw() {
+                            HirType::Reference { generics, .. } => {
+                                crate::generics::substitute_types(queue.hir, generics, field_ty)
                             }
+                            _ => field_ty,
+                        };
+                        HirExpression {
+                            ty: field_ty,
+                            kind: HirExpressionKind::FieldAccess {
+                                expr: parent,
+                                field_index: position,
+                                field_name: Some(*field_name),
+                            },
                         }
-                        None if parent_view.dereference().is_ref()
-                            && let Some(view) = parent_view.concrete_type().is_struct() =>
+                    }
+                    None if parent_view.dereference().is_ref()
+                        && let Some(view) = parent_view.concrete_type().is_struct() =>
+                    {
+                        let (fields, field_types) = (view.fields(), view.field_types());
+                        let position = fields
+                            .iter()
+                            .position(|f| f.data == *field_name)
+                            .ok_or_else(|| {
+                                HIRError::property_unrecognized(
+                                    concrete_type.data,
+                                    vec![*field_name],
+                                    span,
+                                )
+                            })?;
+
+                        let field_ty = field_types[position];
+                        let field_ty = match queue.hir.view(parent_ty).raw() {
+                            HirType::Reference { generics, .. } => {
+                                crate::generics::substitute_types(queue.hir, generics, field_ty)
+                            }
+                            _ => field_ty,
+                        };
+
+                        let parent = parent.span.make_spanned(queue.hir.store.insert_expression(
+                            HirExpression {
+                                ty: concrete_type.data,
+                                kind: HirExpressionKind::Deref(parent),
+                            },
+                        ));
+                        HirExpression {
+                            ty: field_ty,
+                            kind: HirExpressionKind::FieldAccess {
+                                expr: parent,
+                                field_index: position,
+                                field_name: Some(*field_name),
+                            },
+                        }
+                    }
+                    None => {
+                        let ty = dereferenced_type.data;
+                        return Err(HIRError::not_a_struct(ty, span));
+                    }
+                }
+            }
+            ASTExpression::FunctionCall { name, args } => {
+                let name_sym = queue.type_name(name.data, &TypeContext::EMPTY);
+                let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
+                let parent_ty = parent_type_view.dereference();
+                match parent_ty.is_struct() {
+                    None => return Err(HIRError::not_a_struct(parent_ty.data, span)),
+                    Some(view) => {
+                        let func_id = if let Some(method) =
+                            view.method_named_as(name_sym, VisibilityModifier::Public)
                         {
-                            let (fields, field_types) = (view.fields(), view.field_types());
-                            let position = fields
-                                .iter()
-                                .position(|f| f.data == *field_name)
-                                .ok_or_else(|| {
-                                    HIRError::property_unrecognized(
-                                        concrete_type.data,
-                                        vec![*field_name],
-                                        span,
-                                    )
-                                })?;
+                            Some(method)
+                        } else {
+                            queue.hir.types.methods.method_of(parent_ty.data, name_sym)
+                        };
 
-                            let field_ty = field_types[position];
-                            let field_ty = match queue.hir.view(parent_ty).raw() {
-                                HirType::Reference { generics, .. } => {
-                                    crate::generics::substitute_types(queue.hir, generics, field_ty)
-                                }
-                                _ => field_ty,
-                            };
-
-                            let parent = parent.span.make_spanned(queue.hir.store.insert_expression(
-                                HirExpression {
-                                    ty: concrete_type.data,
-                                    kind: HirExpressionKind::Deref(parent),
-                                },
-                            ));
-                            HirExpression {
-                                ty: field_ty,
-                                kind: HirExpressionKind::FieldAccess {
-                                    expr: parent,
-                                    field_index: position,
-                                    field_name: Some(*field_name),
-                                },
+                        let func_id = match func_id {
+                            Some(id) => id,
+                            None if let Some(id) = queue.resolve_method(
+                                self.file(),
+                                parent_ty.data,
+                                name_sym,
+                                span,
+                            )? =>
+                            {
+                                id
                             }
-                        }
-                        None => {
-                            let ty = dereferenced_type.data;
-                            return Err(HIRError::not_a_struct(ty, span));
-                        }
-                    }
-                }
-                ASTExpression::FunctionCall { name, args } => {
-                    let name_sym = queue.type_name(name.data, &TypeContext::EMPTY);
-                    let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
-                    let parent_ty = parent_type_view.dereference();
-                    match parent_ty.is_struct() {
-                        None => return Err(HIRError::not_a_struct(parent_ty.data, span)),
-                        Some(view) => {
-                            let func_id =
-                                if let Some(method) =
-                                    view.method_named_as(name_sym, VisibilityModifier::Public)
-                                {
-                                    Some(method)
-                                } else {
-                                    queue
-                                        .hir
-                                        .types
-                                        .methods
-                                        .method_of(parent_ty.data, name_sym)
-                                };
+                            _ => {
+                                return Err(HIRError::missing_properties(vec![name_sym], span));
+                            }
+                        };
 
-                            let func_id = match func_id {
-                                Some(id) => id,
-                                None if let Some(id) = queue.resolve_method(
-                                    self.file(),
-                                    parent_ty.data,
-                                    name_sym,
-                                    span,
-                                )? =>
+                        let prepend_args = {
+                            let func_view = queue.hir.view(func_id);
+                            let first_arg = match func_view.get_argument_type(0) {
+                                Some(ty)
+                                    if let HirType::ImutableRef(_) | HirType::MutableRef(_) =
+                                        queue.hir.view(ty).raw() =>
                                 {
-                                    id
+                                    self.build_reference_expression(
+                                        queue,
+                                        ReferenceExpressionDescriptor {
+                                            target: Either::Right(parent),
+                                            mutable: matches!(
+                                                queue.hir.view(ty).raw(),
+                                                HirType::MutableRef(_)
+                                            ),
+                                            context,
+                                        },
+                                    )?
                                 }
-                                _ => {
-                                    return Err(HIRError::missing_properties(vec![name_sym], span));
-                                }
+                                _ => parent,
                             };
-
-                            let prepend_args = {
-                                let func_view = queue.hir.view(func_id);
-                                let first_arg = match func_view.get_argument_type(0) {
-                                    Some(ty)
-                                        if let HirType::ImutableRef(_) | HirType::MutableRef(_) =
-                                            queue.hir.view(ty).raw() =>
-                                    {
-                                        self.build_reference_expression(
-                                            queue,
-                                            ReferenceExpressionDescriptor {
-                                                target: Either::Right(parent),
-                                                mutable: matches!(
-                                                    queue.hir.view(ty).raw(),
-                                                    HirType::MutableRef(_)
-                                                ),
-                                                context,
-                                            },
-                                        )?
-                                    }
-                                    _ => parent,
-                                };
-                                [first_arg]
-                            };
-                            self.build_function_call(
-                                queue,
-                                FunctionCallDescriptor {
-                                    target: FunctionTarget::Resolved {
-                                        target: func_id,
-                                        type_arguments: &queue.get_plain_type(*name).generic,
-                                    },
-                                    arguments: args,
-                                    prepended_arguments: &prepend_args,
-                                    span,
-                                    context,
+                            [first_arg]
+                        };
+                        self.build_function_call(
+                            queue,
+                            FunctionCallDescriptor {
+                                target: FunctionTarget::Resolved {
+                                    target: func_id,
+                                    type_arguments: &queue.get_plain_type(*name).generic,
                                 },
-                            )?
-                        }
+                                arguments: args,
+                                prepended_arguments: &prepend_args,
+                                span,
+                                context,
+                            },
+                        )?
                     }
                 }
-                _ => return Err(HIRError::invalid_field_access(span)),
-            };
+            }
+            _ => return Err(HIRError::invalid_field_access(span)),
+        };
         Ok(span.make_spanned(queue.hir.store.insert_expression(expr)))
     }
 }

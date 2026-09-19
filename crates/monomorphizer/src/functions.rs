@@ -6,19 +6,13 @@
 //! concrete, mangled `HirFunctionDeclaration` whose signature and body have
 //! every generic parameter substituted.
 
-use common::{
-    Span,
-    pool::DedupPoolId,
-};
+use common::{Span, pool::DedupPoolId};
 use slynx_hir::{
     DeclarationId, HirFunctionDeclaration, HirType, Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 
-use crate::{
-    Monomorphizer,
-    types::substitute_type,
-};
+use crate::{Monomorphizer, types::substitute_type};
 
 impl Monomorphizer {
     ///Generates (or retrieves from the cache) the specialization of the generic
@@ -91,8 +85,7 @@ impl Monomorphizer {
                 // of the same (template, args) resolve to this very declaration.
                 monomorphizer.cache.insert(key.clone(), specialized);
 
-                let new_statements =
-                    monomorphizer.build_statements(hir, &statements, subst)?;
+                let new_statements = monomorphizer.build_statements(hir, &statements, subst)?;
                 {
                     let mut file = hir.get_file_mut(template.file_id);
                     file.declarations

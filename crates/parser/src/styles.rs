@@ -2,8 +2,8 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
-    ASTAttribute, ASTExpression, Parser, StyleBlock, StyleSheet,
-    StyleSheetStatement, StyleState, error::ParseError,
+    ASTAttribute, ASTExpression, Parser, StyleBlock, StyleSheet, StyleSheetStatement, StyleState,
+    error::ParseError,
 };
 
 impl Parser<'_> {
@@ -175,12 +175,9 @@ impl Parser<'_> {
         let (name, generics) = self.parse_generic_name()?;
 
         self.expect(&TokenKind::LParen)?;
-        let args = self.parse_separated(
-            TokenKind::RParen,
-            TokenKind::Comma,
-            true,
-            |parser| parser.parse_typedname(&[]),
-        )?;
+        let args = self.parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
+            parser.parse_typedname(&[])
+        })?;
 
         self.expect(&TokenKind::RParen)?;
         let usages = if let TokenKind::Identifier(ref name) = self.peek()?.kind

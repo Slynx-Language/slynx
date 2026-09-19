@@ -30,9 +30,7 @@ impl<'a> LoweringState<'a> {
         // exact shape registered at materialization time.
         let deref = self.hir.view(ty).dereference();
         let key = deref.data();
-        let enum_view = deref
-            .is_enum()
-            .ok_or(CodegenError::NotAnEnum(key))?;
+        let enum_view = deref.is_enum().ok_or(CodegenError::NotAnEnum(key))?;
         let variant_info = enum_view
             .variants()
             .get(variant)
@@ -260,7 +258,11 @@ impl<'a> LoweringState<'a> {
         // Pre-compute type IDs from the ir to avoid borrow conflicts
         let (bool_ty, float_ty, int_ty) = {
             let ir = context.ir();
-            (ir.types.bool_type(), ir.types.float_type(), ir.types.int_type())
+            (
+                ir.types.bool_type(),
+                ir.types.float_type(),
+                ir.types.int_type(),
+            )
         };
         let expression = &self.hir[expr.data];
 

@@ -43,9 +43,12 @@ impl<'a> TypeLowerer<'a> {
         let enum_struct = match self.get_mapped_type(&key) {
             Some(ty) => ty,
             None => {
-                let enum_view = self.hir.view(key).dereference().is_enum().ok_or(
-                    CodegenError::NotAnEnum(key),
-                )?;
+                let enum_view = self
+                    .hir
+                    .view(key)
+                    .dereference()
+                    .is_enum()
+                    .ok_or(CodegenError::NotAnEnum(key))?;
                 let name = self.hir.get_name(enum_view.name());
                 let ty = ir.create_struct(name);
                 self.types.insert(key, ty);
@@ -55,7 +58,12 @@ impl<'a> TypeLowerer<'a> {
         let IRType::Struct(enum_struct_id) = *ir.types.get_type(enum_struct) else {
             return Err(CodegenError::NotAStruct(key));
         };
-        if !ir.types.get_object_type(enum_struct_id).get_fields().is_empty() {
+        if !ir
+            .types
+            .get_object_type(enum_struct_id)
+            .get_fields()
+            .is_empty()
+        {
             return Ok(enum_struct);
         }
         let enum_view = self
@@ -91,7 +99,8 @@ impl<'a> TypeLowerer<'a> {
                 };
                 for payload_ty in &variant.payload {
                     let field_ty = self.get_or_create_ir_type(*payload_ty, ir)?;
-                    ir.types.get_object_type_mut(payload_struct_id)
+                    ir.types
+                        .get_object_type_mut(payload_struct_id)
                         .insert_field(field_ty);
                 }
                 members.push(payload_struct);
@@ -110,7 +119,8 @@ impl<'a> TypeLowerer<'a> {
             struct_ir.insert_field(union_ty);
         } else {
             variant_payload = enum_view.variants().iter().map(|_| None).collect();
-            ir.types.get_object_type_mut(enum_struct_id)
+            ir.types
+                .get_object_type_mut(enum_struct_id)
                 .insert_field(int_type);
         }
 

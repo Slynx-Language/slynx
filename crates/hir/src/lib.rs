@@ -92,8 +92,8 @@ use module_loader::Modules;
 pub type Result<T> = std::result::Result<T, HIRError>;
 pub type SymbolPointer = common::SymbolPointer<FrontendSymbol>;
 
-pub use store::HirStore;
 pub use crate::file::DeclarationsPool;
+pub use store::HirStore;
 
 /// The main HIR structure coordinating high-level intermediate representation.
 ///

@@ -38,7 +38,7 @@ use common::{
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationsPool, DeclarationId, HIRError, HirComponentExpression, HirExpression,
+    DeclarationId, DeclarationsPool, HIRError, HirComponentExpression, HirExpression,
     HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result,
     SlynxHir, SymbolPointer, VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},

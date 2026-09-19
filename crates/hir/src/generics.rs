@@ -118,7 +118,8 @@ impl GenericTypeArguments {
     /// arguments, preserving unresolved (null) slots in the same positions they
     /// occupy in the mapping.
     pub fn finish_ref(&self, hir: &SlynxHir, rf: DedupPoolId<HirType>) -> DedupPoolId<HirType> {
-        hir.types.create_type(HirType::new_generic_ref(rf, self.slots.clone()))
+        hir.types
+            .create_type(HirType::new_generic_ref(rf, self.slots.clone()))
     }
 
     /// Consumes the mapping into its raw slot list, indexed by parameter
