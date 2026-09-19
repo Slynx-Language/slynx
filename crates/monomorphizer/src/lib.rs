@@ -104,8 +104,8 @@ impl Monomorphizer {
     /// Monomorphizes every generic function, struct (object), and component of
     /// the given `hir`.
     ///
-    /// Generic type aliases and stylesheets are currently unsupported and will
-    /// `unimplemented!()`.
+    /// Generic type aliases and stylesheets are currently unsupported and
+    /// produce a diagnostic error.
     ///
     /// Returns the set of generic templates that were neutralized and should
     /// be treated as dead code.
@@ -397,17 +397,17 @@ impl Monomorphizer {
     }
 
     ///Monomorphization of generic type aliases and stylesheets is not supported
-    ///yet, so encountering one is a hard error (`unimplemented!()`).
+    ///yet, so encountering one is a hard error.
     fn assert_no_generic_non_functions(&self, hir: &SlynxHir) -> Result<()> {
         for file in hir.store.files.iter() {
             for alias in file.declarations.declarations.alias.iter() {
                 if !alias.generics.is_empty() {
-                    unimplemented!("monomorphization of generic aliases is not implemented yet")
+                    return Err(HIRError::not_implemented(alias.name, Span::default()));
                 }
             }
             for style in file.declarations.declarations.styles.iter() {
                 if !style.generics.is_empty() {
-                    unimplemented!("monomorphization of generic styles is not implemented yet")
+                    return Err(HIRError::not_implemented(style.name, Span::default()));
                 }
             }
         }
