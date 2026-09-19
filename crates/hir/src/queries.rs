@@ -7,8 +7,7 @@ use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirType, Result, SlynxHir, SymbolPointer,
-    VariableId,
+    DeclarationId, HirFunctionDeclaration, HirType, Result, SlynxHir, SymbolPointer, VariableId,
     context::HirSymbol,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
@@ -82,11 +81,8 @@ impl SlynxHir<'_> {
         .to_vec()
     }
 
-    pub fn type_of_intrinsic(&self, name: &str, span: Span) -> Result<DedupPoolId<HirType>> {
-        let id = self.store.lang_items.get(name).map_err(|_| {
-            let sym = self.intern_name(name);
-            HIRError::intrinsic_not_registered(sym, span)
-        })?;
+    pub fn type_of_intrinsic(&self, name: SymbolPointer, span: Span) -> Result<DedupPoolId<HirType>> {
+        let id = self.store.lang_items.get(name, span)?;
         Ok(self.get_declaration_type(id))
     }
 

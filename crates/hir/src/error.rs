@@ -218,6 +218,9 @@ pub enum HIRErrorKind {
         /// The generic type arguments that keep growing.
         args: Vec<DedupPoolId<HirType>>,
     },
+    /// A construct that is not yet supported was encountered. The named
+    /// declaration cannot be processed by the current implementation.
+    NotImplemented(SymbolPointer),
 }
 
 impl HIRError {
@@ -372,8 +375,8 @@ impl HIRError {
         }
     }
 
-    ///Creates a new `InvalidStyleDefinition` error, where the name of the style definition is the given `name` and the given `span` is
-    ///the span on the code that generated so
+    /// Creates a new [`HIRErrorKind::InvalidTupleIndex`] error for a tuple index out of bounds,
+    /// where the given `span` is the span on the code that generated it.
     pub fn invalid_tuple_index(index: usize, max_index: usize, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidTupleIndex {
@@ -383,23 +386,21 @@ impl HIRError {
             span,
         }
     }
-    ///Creates a new `InvalidStyleDefinition` error, where the name of the style definition is the given `name` and the given `span` is
-    ///the span on the code that generated so
+    /// Creates a new [`HIRErrorKind::InvalidTupleAccessTarget`] error for accessing a non-tuple
+    /// type as a tuple, where the given `span` is the span on the code that generated it.
     pub fn invalid_tuple_target(target: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidTupleAccessTarget { ty: target },
             span,
         }
     }
-    ///Creates a new `InvalidStyleDefinition` error, where the name of the style definition is the given `name` and the given `span` is
-    ///the span on the code that generated so
     pub fn invalid_style_definition(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidStyleDefinition { name },
             span,
         }
     }
-    ///Creates a new `InvalidStyleEvent` error, where the `name` is the invalid style event
+    /// Creates a new [`HIRErrorKind::InvalidStyleEvent`] error, where the `name` is the invalid style event
     pub fn invalid_style_event(name: SymbolPointer, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidStyleEvent { name },
@@ -586,6 +587,14 @@ impl HIRError {
             span,
         }
     }
+
+    /// Creates a [`HIRErrorKind::NotImplemented`] error for the given declaration.
+    pub fn not_implemented(name: SymbolPointer, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::NotImplemented(name),
+            span,
+        }
+    }
 }
 
 impl std::fmt::Display for HIRError {
@@ -637,15 +646,15 @@ impl std::fmt::Display for HIRError {
                 f,
                 "The given expression cannot be indexed because it is not an array nor vector"
             ),
-            HIRErrorKind::CouldntInfer => write!(f, "Expression type couldn't be infered"),
+            HIRErrorKind::CouldntInfer => write!(f, "Expression type couldn't be inferred"),
             HIRErrorKind::ComponentNotFound(_) => write!(f, "Component not found"),
-            HIRErrorKind::NotAComponent(_) => write!(f, "Atempt to use value as a component"),
+            HIRErrorKind::NotAComponent(_) => write!(f, "Attempt to use value as a component"),
             HIRErrorKind::ComponentPropertyMissingType => {
                 write!(f, "Component property is missing type definition")
             }
 
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(_)) => {
-                write!(f, "Atempt to write on a imutable variable")
+                write!(f, "Attempt to write on an immutable variable")
             }
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable) => {
                 write!(f, "The expression is not assignable")
@@ -736,6 +745,12 @@ impl std::fmt::Display for HIRError {
                 write!(
                     f,
                     "monomorphization of generic function '{func:?}' does not terminate"
+                )
+            }
+            HIRErrorKind::NotImplemented(name) => {
+                write!(
+                    f,
+                    "'{name:?}' uses a construct that is not implemented yet"
                 )
             }
         }
