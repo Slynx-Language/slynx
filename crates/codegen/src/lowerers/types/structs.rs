@@ -2,7 +2,7 @@ use common::pool::DedupPoolId;
 use slynx_hir::HirType;
 use slynx_ir::IRType;
 
-use crate::{CodegenError, TypeMappingError, lowerers::TypeLowerer};
+use crate::{CodegenError, lowerers::TypeLowerer};
 
 impl<'a> TypeLowerer<'a> {
     pub(crate) fn insert_object_fields_for(
@@ -13,22 +13,18 @@ impl<'a> TypeLowerer<'a> {
         let obj_handle = self
             .get_mapped_type(&decl)
             .ok_or(CodegenError::IRTypeNotRecognized(decl))?;
-        let IRType::Struct(obj) = *ir.get_type(obj_handle) else {
-            return Err(CodegenError::InternalError(
-                "Expected to find a Struct type".to_string(),
-            ));
+        let IRType::Struct(obj) = *ir.types.get_type(obj_handle) else {
+            return Err(CodegenError::NotAStruct(decl));
         };
         let fields = if let Some(viewer) = self.hir.view(decl).dereference().is_struct() {
             viewer.field_types().to_vec()
         } else {
-            return Err(CodegenError::InvalidMapping(TypeMappingError::NotAStruct(
-                decl,
-            )));
+            return Err(CodegenError::NotAStruct(decl));
         };
 
         for field in &fields {
             let ty = self.get_or_create_ir_type(*field, ir)?;
-            let obj_ty = ir.get_object_type_mut(obj);
+            let obj_ty = ir.types.get_object_type_mut(obj);
             obj_ty.insert_field(ty);
         }
         Ok(())

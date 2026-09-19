@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use common::{Spanned, pool::PoolId};
 use slynx_hir::{HirStatement, VariableId};
-use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, SlynxIR, Value};
+use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, Label, SlynxIR, Value};
 
 use crate::{CodegenError, TypeId, lowerers::LoweringState};
 
@@ -26,6 +26,12 @@ impl<'a> FunctionContext<'a> {
 
     pub fn add_variable(&mut self, id: VariableId, value: Value) {
         self.args.push((id, value));
+    }
+
+    /// Switches the active block, propagating errors from the IR builder
+    /// instead of panicking on corrupt builder state.
+    pub fn block(&mut self, label: IRPointer<Label, 1>) -> Result<(), CodegenError> {
+        self.switch_to_block(label).map_err(CodegenError::from)
     }
 
     pub fn ir(&mut self) -> &mut SlynxIR {
@@ -70,17 +76,6 @@ impl<'a> LoweringState<'a> {
         Ok((args, return_type))
     }
 
-    pub(crate) fn map_function_arguments<'b>(
-        &mut self,
-        context: &mut FunctionContext<'b>,
-        args: &[VariableId],
-    ) {
-        let arg_values = context.arguments().to_vec();
-        for (variable, value) in args.iter().zip(arg_values) {
-            context.add_variable(*variable, value);
-        }
-    }
-
     pub(crate) fn initialize_function(
         &mut self,
         fptr: IRPointer<Function, 1>,
@@ -95,12 +90,14 @@ impl<'a> LoweringState<'a> {
 
         // Switch to entry block
         let entry = context.create_label("entry");
-        context.switch_to_block(entry).unwrap();
+        context.block(entry)?;
 
-        context.set_function_type(arg_types, return_type);
-        // Emit function arg instructions and set the function type
-
-        self.map_function_arguments(&mut context, args);
+        // Emit function arg instructions and set the function type. The arg
+        // values returned here are the single source for the parameter slots.
+        let arg_values = context.set_function_type(arg_types, return_type).to_vec();
+        for (variable, value) in args.iter().zip(arg_values) {
+            context.add_variable(*variable, value);
+        }
 
         self.lower_body(&mut context, statements)?;
         context.finish();

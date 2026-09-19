@@ -30,25 +30,17 @@ impl<'a> LoweringState<'a> {
         // exact shape registered at materialization time.
         let deref = self.hir.view(ty).dereference();
         let key = deref.data();
-        let enum_view = deref.is_enum().ok_or(CodegenError::InternalError(
-            "enum expression must resolve to an enum type".into(),
-        ))?;
+        let enum_view = deref
+            .is_enum()
+            .ok_or(CodegenError::NotAnEnum(key))?;
         let variant_info = enum_view
             .variants()
             .get(variant)
-            .ok_or(CodegenError::InternalError(
-                "enum variant index out of bounds".into(),
-            ))?;
+            .ok_or(CodegenError::InvalidVariantIndex(key, variant))?;
 
-        let layout = self
-            .types
-            .enum_layout(&key)
-            .ok_or(CodegenError::InternalError(
-                "enum layout is not registered".into(),
-            ))?
-            .clone();
+        let layout = self.types.enum_layout(&key)?.clone();
 
-        let int_type = context.ir().int_type();
+        let int_type = context.ir().types.int_type();
         let tag = context.emit_const(Operand::Int(variant_info.discriminant as i64), int_type);
 
         let mut operands = Vec::with_capacity(2);
@@ -60,9 +52,7 @@ impl<'a> LoweringState<'a> {
                 .get(variant)
                 .copied()
                 .flatten()
-                .ok_or(CodegenError::InternalError(
-                    "variant payload struct is not registered".into(),
-                ))?;
+                .ok_or(CodegenError::MissingEnumPayload(key))?;
             let args = args
                 .iter()
                 .map(|arg| self.lower_expression(*arg, context))
@@ -117,7 +107,7 @@ impl<'a> LoweringState<'a> {
         for &v in &values {
             element_types.push(ctx.value_type(v));
         }
-        let ty = ctx.ir().create_or_get_tuple(element_types);
+        let ty = ctx.ir().types.create_or_get_tuple(element_types);
         Ok(ctx.struct_literal(ty, &values))
     }
 
@@ -130,11 +120,11 @@ impl<'a> LoweringState<'a> {
         let func = self.functions[&name];
         let ret_ty = {
             let ty = ctx.ir().get(func).ty();
-            let IRType::Function(fid) = ctx.ir().get_type(ty) else {
+            let IRType::Function(fid) = ctx.ir().types.get_type(ty) else {
                 unreachable!()
             };
             let fid = *fid;
-            ctx.ir().get_function_type(fid).get_return_type()
+            ctx.ir().types.get_function_type(fid).get_return_type()
         };
         let mut arg_values = Vec::with_capacity(args.len());
         for arg in args {
@@ -199,8 +189,8 @@ impl<'a> LoweringState<'a> {
         lhs_value: Value,
         rhs_value: Value,
         context: &mut FunctionContext<'b>,
-    ) -> Value {
-        let bool_type = context.ir().bool_type();
+    ) -> Result<Value, CodegenError> {
+        let bool_type = context.ir().types.bool_type();
         let end_label = context.create_label("and_end");
         context
             .ir()
@@ -209,8 +199,8 @@ impl<'a> LoweringState<'a> {
 
         let false_val = context.emit_const(false.into(), bool_type);
         context.branch_conditional(lhs_value, end_label, end_label, &[rhs_value], &[false_val]);
-        context.switch_to_block(end_label).unwrap();
-        context.block_param(end_label, 0)
+        context.block(end_label)?;
+        Ok(context.block_param(end_label, 0))
     }
 
     fn generate_logic_or_instruction<'b>(
@@ -218,8 +208,8 @@ impl<'a> LoweringState<'a> {
         lhs_value: Value,
         rhs_value: Value,
         context: &mut FunctionContext<'b>,
-    ) -> Value {
-        let bool_type = context.ir().bool_type();
+    ) -> Result<Value, CodegenError> {
+        let bool_type = context.ir().types.bool_type();
         let end_label = context.create_label("or_end");
         context
             .ir()
@@ -228,8 +218,8 @@ impl<'a> LoweringState<'a> {
 
         let true_val = context.emit_const(true.into(), bool_type);
         context.branch_conditional(lhs_value, end_label, end_label, &[true_val], &[rhs_value]);
-        context.switch_to_block(end_label).unwrap();
-        context.block_param(end_label, 0)
+        context.block(end_label)?;
+        Ok(context.block_param(end_label, 0))
     }
     pub(crate) fn handle_binary_expression<'b>(
         &mut self,
@@ -242,8 +232,8 @@ impl<'a> LoweringState<'a> {
         let b = self.lower_expression(rhs, context)?;
 
         let result = match op {
-            Operator::LogicAnd => self.generate_logic_and_instruction(a, b, context),
-            Operator::LogicOr => self.generate_logic_or_instruction(a, b, context),
+            Operator::LogicAnd => self.generate_logic_and_instruction(a, b, context)?,
+            Operator::LogicOr => self.generate_logic_or_instruction(a, b, context)?,
             Operator::RightShift => context.shr(a, b),
             Operator::LeftShift => context.shl(a, b),
             Operator::Xor => context.xor(a, b),
@@ -270,7 +260,7 @@ impl<'a> LoweringState<'a> {
         // Pre-compute type IDs from the ir to avoid borrow conflicts
         let (bool_ty, float_ty, int_ty) = {
             let ir = context.ir();
-            (ir.bool_type(), ir.float_type(), ir.int_type())
+            (ir.types.bool_type(), ir.types.float_type(), ir.types.int_type())
         };
         let expression = &self.hir[expr.data];
 
@@ -349,7 +339,7 @@ impl<'a> LoweringState<'a> {
             HirExpressionKind::Tuple(vector) => self.lower_tuple_expression(vector, context)?,
             HirExpressionKind::StringLiteral(v) => {
                 let string = self.intern_to_ir(context.ir(), *v);
-                let str_ty = context.ir().str_type();
+                let str_ty = context.ir().types.str_type();
                 context.emit_const(Operand::String(string), str_ty)
             }
             HirExpressionKind::True | HirExpressionKind::False => context.emit_const(
@@ -402,7 +392,7 @@ impl<'a> LoweringState<'a> {
             } => self.lower_matches(value, *variant, args, context)?,
         };
         if let HirType::Nullable(_) = &self.hir.types[expression.ty] {
-            let bool_ty = context.ir().bool_type();
+            let bool_ty = context.ir().types.bool_type();
             let bool_value = context.emit_const(
                 Operand::Bool(matches!(expression.kind, HirExpressionKind::Null)),
                 bool_ty,
@@ -427,22 +417,18 @@ impl<'a> LoweringState<'a> {
 
         let then_label = ctx.create_label("matches_then");
         let end_label = ctx.create_label("matches_end");
-        let int_type = ctx.ir().int_type();
-        let bool_type = ctx.ir().bool_type();
+        let int_type = ctx.ir().types.int_type();
+        let bool_type = ctx.ir().types.bool_type();
         let false_value = ctx.emit_const(Operand::Bool(false), bool_type);
         let expr_view = self.hir.view(hir_value.data);
         let enum_type = expr_view.ty_viewer().dereference();
-        let layout = self
-            .types
-            .enum_layout(&enum_type.data())
-            .ok_or(CodegenError::InternalError(
-                "enum layout for matches target is not registered".into(),
-            ))?
-            .clone();
+        let layout = self.types.enum_layout(&enum_type.data())?.clone();
         let discriminant = enum_type
             .is_enum()
-            .expect("Expected type of value on matches expression to be an enum")
-            .variants()[variant]
+            .ok_or(CodegenError::NotAnEnum(enum_type.data()))?
+            .variants()
+            .get(variant)
+            .ok_or(CodegenError::InvalidVariantIndex(enum_type.data(), variant))?
             .discriminant;
 
         let cond = {
@@ -456,9 +442,10 @@ impl<'a> LoweringState<'a> {
         }
         // A non-empty pattern implies the matched variant carries a payload, so
         // the enum must have the payload union registered in its layout.
-        layout.union_type.ok_or(CodegenError::InternalError(
-            "matched variant carries a payload but the enum has no payload union".into(),
-        ))?;
+        let key = enum_type.data();
+        layout
+            .union_type
+            .ok_or(CodegenError::MissingEnumPayload(key))?;
         ctx.branch_conditional(cond, then_label, end_label, &[], &[false_value]);
         let union_value = ctx.get_field(value, 1);
 
@@ -479,7 +466,7 @@ impl<'a> LoweringState<'a> {
             //then2:
             // cmp branch payload.field2 == arg2, end(payload.field3 == arg3), end(false).
             //But this will not be a thing yet
-            ctx.switch_to_block(then_label).unwrap();
+            ctx.block(then_label)?;
             let mut args = args
                 .iter()
                 .map(|arg| self.lower_expression(*arg, ctx))
@@ -505,7 +492,7 @@ impl<'a> LoweringState<'a> {
                 let then_next = ctx.create_label("then_next_field");
                 ctx.branch_conditional(field_check, then_next, end_label, &[], &[false_value]);
                 current_label = then_next;
-                ctx.switch_to_block(current_label).unwrap();
+                ctx.block(current_label)?;
             }
             let last_cmp = ctx.cmp(last_arg, last_field);
             ctx.branch(end_label, &[last_cmp]);
@@ -529,13 +516,13 @@ impl<'a> LoweringState<'a> {
 
         ctx.branch_conditional(cond, then_label, else_label, &[], &[]);
 
-        ctx.switch_to_block(then_label).unwrap();
+        ctx.block(then_label)?;
         self.lower_if_branch(then_branch, end_label, ctx)?;
 
-        ctx.switch_to_block(else_label).unwrap();
+        ctx.block(else_label)?;
         self.lower_if_branch(else_branch.as_deref().unwrap_or(&[]), end_label, ctx)?;
 
-        ctx.switch_to_block(end_label).unwrap();
+        ctx.block(end_label)?;
         if ctx.ir().get(end_label).arguments().is_empty() {
             Ok(Value::VOID)
         } else {

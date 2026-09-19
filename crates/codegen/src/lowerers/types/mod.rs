@@ -70,10 +70,13 @@ impl<'a> TypeLowerer<'a> {
         self.types.insert(hir_ty, ir_ty);
     }
 
-    ///The registered [`EnumLayout`] for an enum type, if it has been
-    ///materialized by `insert_enum_fields_for`.
-    pub(crate) fn enum_layout(&self, ty: &TypeId) -> Option<&EnumLayout> {
-        self.enum_layouts.get(ty)
+    ///The registered [`EnumLayout`] for an enum type. Returns a single typed
+    ///error rather than letting every consumer construct a near-identical
+    ///"layout is not registered" string.
+    pub(crate) fn enum_layout(&self, ty: &TypeId) -> Result<&EnumLayout, CodegenError> {
+        self.enum_layouts
+            .get(ty)
+            .ok_or(CodegenError::MissingEnumLayout(*ty))
     }
     pub(crate) fn get_or_create_ir_type(
         &mut self,
@@ -82,12 +85,12 @@ impl<'a> TypeLowerer<'a> {
     ) -> Result<IRTypeId, CodegenError> {
         let view = self.hir.view(ty);
         let out = match view.dereference().raw() {
-            HirType::Int => ir.int_type(),
-            HirType::Float => ir.float_type(),
-            HirType::Bool => ir.bool_type(),
-            HirType::Void => ir.void_type(),
-            HirType::Str => ir.str_type(),
-            HirType::GenericComponent => ir.generic_component_type(),
+            HirType::Int => ir.types.int_type(),
+            HirType::Float => ir.types.float_type(),
+            HirType::Bool => ir.types.bool_type(),
+            HirType::Void => ir.types.void_type(),
+            HirType::Str => ir.types.str_type(),
+            HirType::GenericComponent => ir.types.generic_component_type(),
             _ if let Some(mapped) = self.get_mapped_type(&ty) => mapped,
             _ if let Some(viewer) = view.is_tuple() => {
                 let ir_fields = {
@@ -97,7 +100,7 @@ impl<'a> TypeLowerer<'a> {
                     }
                     out
                 };
-                ir.create_or_get_tuple(ir_fields)
+                ir.types.create_or_get_tuple(ir_fields)
             }
             HirType::Array(t, len) => {
                 let ty = self.get_or_create_ir_type(*t, ir)?;
@@ -110,7 +113,7 @@ impl<'a> TypeLowerer<'a> {
             HirType::Nullable(inner) => {
                 let name = self.nullable_inner_name(inner);
                 let inner_type = self.get_or_create_ir_type(*inner, ir)?;
-                let boolean = ir.bool_type();
+                let boolean = ir.types.bool_type();
                 //struct {T, bool}
                 ir.create_struct_full(
                     &format!("Nullable{name}"),
@@ -120,7 +123,7 @@ impl<'a> TypeLowerer<'a> {
             }
             HirType::ImutableRef(t) | HirType::MutableRef(t) => {
                 let ty = self.get_or_create_ir_type(*t, ir)?;
-                ir.pointer_type(ty)
+                ir.types.pointer_type(ty)
             }
             HirType::Enum(_) => {
                 let key = view.dereference().data();
@@ -129,12 +132,7 @@ impl<'a> TypeLowerer<'a> {
                 // payload union and the `EnumLayout` together (idempotently),
                 // so this on-demand branch and the hoist pass agree on the
                 // same shape every time.
-                self.insert_enum_fields_for(key, ir)?;
-                self.get_mapped_type(&key).ok_or_else(|| {
-                    CodegenError::InternalError(
-                        "enum layout was materialized but its struct is not mapped".into(),
-                    )
-                })?
+                self.insert_enum_fields_for(key, ir)?
             }
 
             _ => return Err(CodegenError::IRTypeNotRecognized(ty)),
@@ -157,15 +155,13 @@ impl<'a> TypeLowerer<'a> {
         ir: &mut SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
         let expr_view = self.hir.view(inner);
-        let struct_view = expr_view
-            .ty_viewer()
-            .concrete_type()
+        let concrete = expr_view.ty_viewer().concrete_type();
+        let concrete_ty = concrete.data();
+        let struct_view = concrete
             .is_struct()
-            .ok_or_else(|| {
-                CodegenError::InternalError("Field access should be made on a struct type".into())
-            })?;
+            .ok_or(CodegenError::NotAStruct(concrete_ty))?;
         let field_type = struct_view.field_types()[field_index];
         let field_type = self.get_or_create_ir_type(field_type, ir)?;
-        Ok(ir.pointer_type(field_type))
+        Ok(ir.types.pointer_type(field_type))
     }
 }

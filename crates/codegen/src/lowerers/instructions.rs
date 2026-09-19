@@ -19,17 +19,17 @@ impl<'a> LoweringState<'a> {
         let body_label = context.create_label("while_body");
         let end_label = context.create_label("while_end");
 
-        context.switch_to_block(cond_label).unwrap();
+        context.block(cond_label)?;
         let cond_value = self.lower_expression(*condition, context)?;
         context.branch_conditional(cond_value, body_label, end_label, &[], &[]);
 
-        context.switch_to_block(body_label).unwrap();
+        context.block(body_label)?;
         for stmt in body {
             self.lower_statement(*stmt, context)?;
         }
         context.branch(cond_label, &[]);
 
-        context.switch_to_block(end_label).unwrap();
+        context.block(end_label)?;
         Ok(())
     }
 
@@ -45,7 +45,7 @@ impl<'a> LoweringState<'a> {
             HirExpressionKind::Identifier(id) => {
                 let slot = context
                     .get_variable(*id)
-                    .expect("Variable not found for assignment");
+                    .ok_or(CodegenError::UnrecognizedVariable(*id))?;
                 context.write(slot, value);
             }
             HirExpressionKind::FieldAccess {
