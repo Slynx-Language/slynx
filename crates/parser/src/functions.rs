@@ -116,13 +116,10 @@ impl Parser<'_> {
                     body,
                 })
             }
-            _ => Err(ParseError::UnexpectedToken(
+            _ => self.unexpected_with(
+                "Instead was expecting function body, which initializes with '->' or '{'",
                 current,
-                ExpectedContent::Raw(
-                    "Instead was expecting function body, which initializes with '->' or '{'"
-                        .to_string(),
-                ),
-            )),
+            ),
         }
     }
 }

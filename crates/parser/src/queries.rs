@@ -66,11 +66,28 @@ impl<'a> Parser<'a> {
                 TokenKind::String(_) => "Instead was expecting a string literal".to_string(),
                 _ => format!("'{kind:?}'",),
             };
-            Err(ParseError::UnexpectedToken(
-                token,
-                ExpectedContent::Raw(kind),
-            ))
+            self.unexpected_with(kind, token)
         }
+    }
+
+    /// Builds an [`ParseError::UnexpectedToken`] error from the *next* token
+    /// (which is consumed) and returns it as a `T`-typed failure. `msg` is the
+    /// text explaining what was expected instead.
+    pub fn unexpected<T>(&mut self, msg: impl Into<String>) -> Result<T> {
+        Err(ParseError::UnexpectedToken(
+            self.eat()?,
+            ExpectedContent::Raw(msg.into()),
+        ))
+    }
+
+    /// Builds an [`ParseError::UnexpectedToken`] error from an already-consumed
+    /// `token` and returns it as a `T`-typed failure. `msg` is the text
+    /// explaining what was expected instead.
+    pub fn unexpected_with<T>(&mut self, msg: impl Into<String>, token: Token) -> Result<T> {
+        Err(ParseError::UnexpectedToken(
+            token,
+            ExpectedContent::Raw(msg.into()),
+        ))
     }
 
     ///Does the same as `self.expect()` but expecting specifically an identifier
@@ -115,10 +132,7 @@ impl<'a> Parser<'a> {
         loop {
             if self.peek()?.kind == term {
                 if !allow_trailing && after_separator {
-                    return Err(ParseError::UnexpectedToken(
-                        self.eat()?,
-                        ExpectedContent::Raw(format!("Was expecting an item before '{term:?}'")),
-                    ));
+                    return self.unexpected(format!("Was expecting an item before '{term:?}'"));
                 }
                 break;
             }
@@ -131,10 +145,7 @@ impl<'a> Parser<'a> {
                 ref kind if kind == &term => break,
                 _ if allow_trailing => after_separator = false,
                 _ => {
-                    return Err(ParseError::UnexpectedToken(
-                        self.eat()?,
-                        ExpectedContent::Raw(format!("Was expecting a ',' or '{term:?}'")),
-                    ));
+                    return self.unexpected(format!("Was expecting a ',' or '{term:?}'"));
                 }
             }
         }

@@ -222,3 +222,45 @@ fn right_shift_parses_without_panicking() {
     assert_eq!(*lhs_name, symbols.intern("x"));
     assert_eq!(*rhs_name, symbols.intern("y"));
 }
+
+#[test]
+fn chained_right_shift_parses_without_panicking() {
+    // After consuming the two `>` tokens of the first `>>`, the loop must
+    // re-check the *next* token pair instead of misreading a lone `>`.
+    let (program, symbols, _, statements, expressions) =
+        parse_program("func main(): int { let a: int = x >> y >> z; }");
+
+let func = &program.func().get(PoolId::new(0));
+    let ASTStatement::Var { rhs, .. } = &statements[func.body[0].data] else {
+        panic!("expected a variable declaration");
+    };
+    let outer = &expressions[rhs.data];
+    let ASTExpression::Binary {
+        op,
+        lhs,
+        rhs: rest,
+    } = outer
+    else {
+        panic!("expected an outer binary expression");
+    };
+    assert_eq!(*op, Operator::RightShift);
+    let ASTExpression::Identifier(rhs_is_x) = &expressions[lhs.data] else {
+        panic!("expected the first operand to be an identifier");
+    };
+    assert_eq!(*rhs_is_x, symbols.intern("x"));
+    let ASTExpression::Binary {
+        op, lhs, rhs: last, ..
+    } = &expressions[rest.data]
+    else {
+        panic!("expected the tail to be another shift expression");
+    };
+    assert_eq!(*op, Operator::RightShift);
+    let ASTExpression::Identifier(rhs_is_y) = &expressions[lhs.data] else {
+        panic!("expected the second operand to be an identifier");
+    };
+    let ASTExpression::Identifier(rhs_is_z) = &expressions[last.data] else {
+        panic!("expected the third operand to be an identifier");
+    };
+    assert_eq!(*rhs_is_y, symbols.intern("y"));
+    assert_eq!(*rhs_is_z, symbols.intern("z"));
+}

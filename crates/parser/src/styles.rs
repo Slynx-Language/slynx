@@ -2,7 +2,7 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
-    ASTAttribute, ASTExpression, ExpectedContent, Parser, StyleBlock, StyleSheet,
+    ASTAttribute, ASTExpression, Parser, StyleBlock, StyleSheet,
     StyleSheetStatement, StyleState, error::ParseError,
 };
 
@@ -89,13 +89,13 @@ impl Parser<'_> {
         let styles_span = {
             let ident = self.expect_identifier()?;
             if ident.data != self.intern("styles") {
-                return Err(ParseError::UnexpectedToken(
+                return self.unexpected_with(
+                    "Was expecting 'styles'",
                     Token {
                         kind: TokenKind::Identifier(self.symbols.get_name(ident.data).to_string()),
                         span: ident.span,
                     },
-                    ExpectedContent::Raw("Was expecting 'styles'".to_string()),
-                ));
+                );
             }
             ident.span
         };

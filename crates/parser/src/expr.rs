@@ -1,5 +1,5 @@
 use crate::{
-    ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, NamedExpr,
+    ASTExpression, ComponentExpression, ComponentMemberValue, NamedExpr,
     RangeType, Type, TypeParamScope,
 };
 use crate::{Parser, Result, error::ParseError};
@@ -132,37 +132,6 @@ impl Parser<'_> {
         let id = self.intern_expression(ASTExpression::Tuple(vec));
         Ok(Spanned { data: id, span })
     }
-    ///Parses a tuple expression, which follows the rule (expr, expr, expr) or ()
-    pub fn parse_tupleparse_tuple_with_first(
-        &mut self,
-        start_span: &Span,
-        type_params: TypeParamScope,
-    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        if self.peek()?.kind == TokenKind::RParen {
-            let end = self.eat()?;
-            let id = self.intern_expression(ASTExpression::Tuple(smallvec![]));
-            return Ok(Spanned::new(id, start_span.merge_with(end.span)));
-        }
-
-        let first = self.parse_expression(type_params)?;
-        if self.peek()?.kind == TokenKind::RParen {
-            let _ = self.eat()?;
-            return Ok(first);
-        }
-        self.expect(&TokenKind::Comma)?;
-        let mut items = smallvec![first];
-        while self.peek()?.kind != TokenKind::RParen {
-            items.push(self.parse_expression(type_params)?);
-            if self.peek()?.kind == TokenKind::Comma {
-                self.eat()?;
-            }
-        }
-        let end = self.expect(&TokenKind::RParen)?.span;
-        let span = start_span.merge_with(end);
-        let id = self.intern_expression(ASTExpression::Tuple(items));
-        Ok(Spanned { data: id, span })
-    }
-
     ///Parses an object expression, which follows the rule Object(field: expr, field: value)
     pub fn parse_object_expression_with_name(
         &mut self,
@@ -218,12 +187,7 @@ impl Parser<'_> {
                         let id = self.intern_expression(ASTExpression::Component(component.data));
                         Ok(Some(Spanned::new(id, span)))
                     }
-                    _ => Err(ParseError::UnexpectedToken(
-                        self.eat()?,
-                        ExpectedContent::Raw(
-                            "Instead was expecting '(' or '{' after a generic name".to_string(),
-                        ),
-                    )),
+                    _ => self.unexpected("Instead was expecting '(' or '{' after a generic name"),
                 }
             }
             TokenKind::Lt => Ok(None),
@@ -366,10 +330,7 @@ impl Parser<'_> {
                     }
                 }
 
-                _ => Err(ParseError::UnexpectedToken(
-                    current,
-                    ExpectedContent::Raw("Was expecting an expression".to_string()),
-                )),
+                _ => self.unexpected_with("Was expecting an expression", current),
             }?
         };
 

@@ -4,7 +4,7 @@ use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{
-    ASTAttribute, ExpectedContent, ParseError, Parser, Result, StaticDeclaration,
+    ASTAttribute, Parser, Result, StaticDeclaration,
     flags::ParserFlag, program::Program,
 };
 
@@ -122,13 +122,9 @@ impl<'a> Parser<'a> {
                 program.append_enums(enum_decl);
             }
             _ => {
-                return Err(ParseError::UnexpectedToken(
-                    self.eat()?,
-                    ExpectedContent::Raw(
-                        "Unknown declaration that starts with it. Expected some valid declaration"
-                            .to_owned(),
-                    ),
-                ));
+                return self.unexpected(
+                    "Unknown declaration that starts with it. Expected some valid declaration",
+                )
             }
         };
         Ok(())
