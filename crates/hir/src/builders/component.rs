@@ -128,7 +128,7 @@ impl<'a> HirQueueBuilder<'a> {
             id.file_id,
             AnyLocalDeclarationId::Component(id.local_id),
             &component.attributes,
-        );
+        )?;
 
         self.components.send(PendantComponent {
             owner: id,

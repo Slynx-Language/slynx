@@ -270,8 +270,27 @@ impl HirNode<'_> {
         ty: Spanned<DedupPoolId<Type>>,
         context: &TypeContext,
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
+        self.find_type_inner(ty, context, None)
+    }
+
+    ///The single recursive `Type` → HIR type lowering shared by [`find_type`](Self::find_type)
+    ///and [`find_self_type`](Self::find_self_type) (see `builders/structs.rs`).
+    ///
+    ///When `self_substitute` is `Some`, a bare `Type::Plain` (such as `Self` in a
+    ///method signature) lowers directly to that type instead of being resolved
+    ///by name; every wrapper type recurses through this same helper, so the two
+    ///walkers cannot drift apart.
+    fn find_type_inner(
+        &self,
+        ty: Spanned<DedupPoolId<Type>>,
+        context: &TypeContext,
+        self_substitute: Option<DedupPoolId<HirType>>,
+    ) -> Result<(FileId, DedupPoolId<HirType>)> {
         let real = self.modules.get_type(ty.data);
         match real {
+            Type::Plain(generic) if self_substitute.is_some() => {
+                Ok((self.entry, self_substitute.expect("guarded above")))
+            }
             Type::Plain(generic) => {
                 let (owner, ty) =
                     self.find_type_named_as(ty.span.make_spanned(generic.identifier), context)?;
@@ -293,7 +312,7 @@ impl HirNode<'_> {
                     .generic
                     .iter()
                     .map(|arg| {
-                        self.find_type(arg.span.make_spanned(arg.data), context)
+                        self.find_type_inner(arg.span.make_spanned(arg.data), context, None)
                             .map(|v| v.1)
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -303,7 +322,11 @@ impl HirNode<'_> {
                 ))
             }
             Type::Array(t, len) => {
-                let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
+                let (id, ty) = self.find_type_inner(
+                    ty.span.make_spanned(*t),
+                    context,
+                    self_substitute,
+                )?;
                 let len = match self.modules.get_expr(*len) {
                     ASTExpression::IntLiteral(i) => *i as usize,
                     _ => unimplemented!(
@@ -314,25 +337,44 @@ impl HirNode<'_> {
                 Ok((id, ty))
             }
             Type::Vector(t) => {
-                let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
+                let (id, ty) = self.find_type_inner(
+                    ty.span.make_spanned(*t),
+                    context,
+                    self_substitute,
+                )?;
                 let ty = self.hir.types.create_type(HirType::Vector(ty));
                 Ok((id, ty))
             }
             Type::Reference(t) => {
-                let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
+                let (id, ty) = self.find_type_inner(
+                    ty.span.make_spanned(*t),
+                    context,
+                    self_substitute,
+                )?;
                 let ty = self.hir.types.create_type(HirType::ImutableRef(ty));
                 Ok((id, ty))
             }
             Type::MutableReference(t) => {
-                let (id, ty) = self.find_type(ty.span.make_spanned(*t), context)?;
+                let (id, ty) = self.find_type_inner(
+                    ty.span.make_spanned(*t),
+                    context,
+                    self_substitute,
+                )?;
                 let ty = self.hir.types.create_type(HirType::MutableRef(ty));
                 Ok((id, ty))
             }
 
             Type::Nullable(nullable) => {
-                let (id, ty) = self.find_type(ty.span.make_spanned(*nullable), context)?;
+                let (id, ty) = self.find_type_inner(
+                    ty.span.make_spanned(*nullable),
+                    context,
+                    self_substitute,
+                )?;
                 let ty = self.hir.types.create_type(HirType::Nullable(ty));
                 Ok((id, ty))
+            }
+            Type::Generic(index) if self_substitute.is_some() => {
+                panic!("Generics should not be handled. Cause i dont know how to handle them")
             }
             Type::Generic(index) => {
                 let ty = self.hir.types.create_type(HirType::GenericParam {
@@ -474,11 +516,11 @@ impl<'a> HirQueueBuilder<'a> {
         file: FileId,
         id: AnyLocalDeclarationId,
         attributes: &[Spanned<ASTAttribute>],
-    ) {
+    ) -> crate::Result<()> {
         let attrs =
-            attributes::process_attributes(self.hir, attributes, AnyDeclarationId::new(file, id));
+            attributes::process_attributes(self.hir, attributes, AnyDeclarationId::new(file, id))?;
         if attrs.is_empty() {
-            return;
+            return Ok(());
         }
         let pool = &mut self.hir.get_file_mut(file).declarations.declarations;
         let target = match id {
@@ -490,9 +532,10 @@ impl<'a> HirQueueBuilder<'a> {
             AnyLocalDeclarationId::Style(local) => &mut pool.styles.get_mut(local).attributes,
             AnyLocalDeclarationId::Static(local) => &mut pool.statik.get_mut(local).attributes,
             AnyLocalDeclarationId::Enum(local) => &mut pool.enums.get_mut(local).attributes,
-            AnyLocalDeclarationId::Alias(_) => return,
+            AnyLocalDeclarationId::Alias(_) => return Ok(()),
         };
         *target = attrs;
+        Ok(())
     }
     ///Hoists the given function, and then enqueues it so its body can be checked. On being processed, this function might generate more than simply the given `f` function since it will generate all the dependencies of `f` to work. Including impures
     pub(crate) fn enqueue_static(
@@ -522,7 +565,7 @@ impl<'a> HirQueueBuilder<'a> {
             node.entry,
             AnyLocalDeclarationId::Static(id.local_id),
             &s.attributes,
-        );
+        )?;
 
         self.statics.send(());
         Ok(id)

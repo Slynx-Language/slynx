@@ -65,7 +65,7 @@ impl<'a> HirQueueBuilder<'a> {
             file_id,
             AnyLocalDeclarationId::Style(id.local_id),
             &stylesheet.attributes,
-        );
+        )?;
 
         Ok(id)
     }

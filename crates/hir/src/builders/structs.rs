@@ -1,52 +1,33 @@
 use common::{Span, Spanned, pool::DedupPoolId};
 use module_loader::{ASTType, ASTTypeKind, FileId};
-use slynx_parser::{ASTExpression, Type, TypeContext};
+use slynx_parser::{Type, TypeContext};
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirQueueBuilder, HirType, PendantFunction,
-    Result, SymbolPointer, context::HirSymbol,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirNode, HirQueueBuilder, HirType,
+    PendantFunction, Result, SymbolPointer, context::HirSymbol,
 };
 
-impl<'a> HirQueueBuilder<'a> {
+impl<'a> HirNode<'a> {
     ///Finds the 'Self' type of a struct based on the 'ty'. In case this is just a copy/paste of the given `ty` that will replace every occurrence of 'Self' to the given `selfty`. If `ty` is simply 'A', then it just returns 'selfty', if its &A, then '&selfty', and so on.
     pub fn find_self_type(
         &self,
         ty: DedupPoolId<Type>,
         selfty: DedupPoolId<HirType>,
     ) -> DedupPoolId<HirType> {
-        match self.modules.get_type(ty) {
-            Type::Array(typ, len) => {
-                let selftype = self.find_self_type(*typ, selfty);
-                let len = match self.modules.get_expr(*len) {
-                    ASTExpression::IntLiteral(i) => *i as usize,
-                    _ => unimplemented!(
-                        "Array length can only be used as integers at the moment. It is idealized to be used in comptime in the future"
-                    ),
-                };
-                self.hir.types.create_type(HirType::Array(selftype, len))
-            }
-            Type::Vector(typ) => {
-                let selftype = self.find_self_type(*typ, selfty);
-                self.hir.types.create_type(HirType::Vector(selftype))
-            }
-            Type::Plain(_) => selfty,
-            Type::Reference(inner) => {
-                let selftype = self.find_self_type(*inner, selfty);
-                self.hir.types.create_type(HirType::ImutableRef(selftype))
-            }
-            Type::MutableReference(inner) => {
-                let selftype = self.find_self_type(*inner, selfty);
-                self.hir.types.create_type(HirType::MutableRef(selftype))
-            }
-            Type::Nullable(inner) => {
-                let selftype = self.find_self_type(*inner, selfty);
-                self.hir.types.create_type(HirType::Nullable(selftype))
-            }
-            Type::Generic(_) => {
-                panic!("Generics should not be handled. Cause i dont know how to handle them")
-            }
-        }
+        // Delegates to the single shared Type → HIR-type walker (`HirNode::find_type_inner`)
+        // with `Self` substituted, so wrapper types like `&Self` fork from
+        // `find_type` instead of re-implementing the traversal.
+        self.find_type_inner(
+            Span::default().make_spanned(ty),
+            &TypeContext::EMPTY,
+            Some(selfty),
+        )
+        .map(|(_, ty)| ty)
+        .expect("a type with Self substituted inside cannot fail to lower")
     }
+}
+
+impl<'a> HirQueueBuilder<'a> {
 
     /// Lazily resolves a method on a struct type. Looks up the `ObjectDeclaration`
     /// from the AST, creates the function declaration, registers it as a method
@@ -92,7 +73,7 @@ impl<'a> HirQueueBuilder<'a> {
             if let Some(name) = self.modules.referenced_name(ty.data)
                 && name == self_sym
             {
-                Ok(self.find_self_type(ty.data, struct_ty))
+                Ok(node.find_self_type(ty.data, struct_ty))
             } else {
                 node.find_type(ty, &context).map(|v| v.1)
             }

@@ -55,7 +55,7 @@ impl<'a> HirQueueBuilder<'a> {
             id.file_id,
             AnyLocalDeclarationId::Function(id.local_id),
             &f.attributes,
-        );
+        )?;
 
         self.bodies.send(PendantFunction {
             context: TypeContext::new(&f.type_params),
