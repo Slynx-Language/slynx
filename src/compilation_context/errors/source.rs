@@ -22,7 +22,7 @@ impl SlynxContext {
         let file_key = self.find_file_key(error.entry());
 
         match error.kind() {
-            SourceErrorKind::InexsitantSource(inner, span, generator) => {
+            SourceErrorKind::InexistantSource(inner, span, generator) => {
                 let file_key = self.find_file_key(generator);
                 let (line, col_start, col_end, src) = if let Some(ref key) = file_key {
                     let info = self.get_line_info(key, span.start as usize);

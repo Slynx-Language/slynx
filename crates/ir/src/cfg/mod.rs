@@ -12,6 +12,7 @@ pub enum EdgeKind {
     ConditionalTrue,
     ConditionalFalse,
     Backedge,
+    Exit,
 }
 
 pub struct BasicBlock {
@@ -111,7 +112,7 @@ impl ControlFlowGraph {
             )),
             _ => {
                 // No terminator or non-branching end → back-edge (treated as exit)
-                Some((vec![], vec![EdgeKind::Backedge]))
+                Some((vec![], vec![EdgeKind::Exit]))
             }
         }
     }

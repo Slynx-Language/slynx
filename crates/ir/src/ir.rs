@@ -1,5 +1,3 @@
-use std::ops::{Deref, DerefMut};
-
 use common::SymbolsModule;
 
 use crate::{
@@ -43,7 +41,7 @@ pub struct SlynxIR {
     /// **All** instructions that are impured appended during lowering.
     pub(crate) impure_instructions: Vec<Value>,
     /// Type storage.
-    pub(crate) types: IRTypes,
+    pub types: IRTypes,
     /// Interned string pool.
     pub strings: SymbolsModule<SlynxIR>,
 }
@@ -127,17 +125,6 @@ impl SlynxIR {
             ptr: IRPointer::new(0, self.get_storage().len()),
             ir: self,
         }
-    }
-}
-impl Deref for SlynxIR {
-    type Target = IRTypes;
-    fn deref(&self) -> &Self::Target {
-        &self.types
-    }
-}
-impl DerefMut for SlynxIR {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.types
     }
 }
 

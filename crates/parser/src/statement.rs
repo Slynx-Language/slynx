@@ -33,7 +33,7 @@ impl Parser<'_> {
         self.expect(&TokenKind::Eq)?; //eat '='
         let rhs = self.parse_expression(type_params)?;
         let span = letspan.merge_with(rhs.span);
-        let id = self.intern_statment(if mutable {
+        let id = self.intern_statement(if mutable {
             ASTStatement::MutableVar {
                 name: name.data,
                 ty: vartype,
@@ -60,7 +60,7 @@ impl Parser<'_> {
 
         let (body, block_span) = self.parse_block(type_params)?;
 
-        let id = self.intern_statment(ASTStatement::While { condition, body });
+        let id = self.intern_statement(ASTStatement::While { condition, body });
         Ok(Spanned::new(id, span.merge_with(block_span)))
     }
 
@@ -76,7 +76,7 @@ impl Parser<'_> {
             Some(self.parse_expression(type_params)?)
         };
         let end_span = value.as_ref().map(|v| v.span).unwrap_or(span);
-        let id = self.intern_statment(ASTStatement::Return { value });
+        let id = self.intern_statement(ASTStatement::Return { value });
         Ok(Spanned::new(id, span.merge_with(end_span)))
     }
 
@@ -109,11 +109,11 @@ impl Parser<'_> {
                     self.eat()?;
                     let rhs = self.parse_expression(type_params)?;
                     let span = expr.span.merge_with(rhs.span);
-                    let id = self.intern_statment(ASTStatement::Assign { lhs: expr, rhs });
+                    let id = self.intern_statement(ASTStatement::Assign { lhs: expr, rhs });
                     Ok(Spanned::new(id, span))
                 } else {
                     let span = expr.span;
-                    let id = self.intern_statment(ASTStatement::Expression(expr));
+                    let id = self.intern_statement(ASTStatement::Expression(expr));
                     Ok(Spanned::new(id, span))
                 }
             }

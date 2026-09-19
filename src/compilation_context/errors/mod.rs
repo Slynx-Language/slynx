@@ -44,7 +44,7 @@ impl std::fmt::Display for SlynxErrorType {
         match self {
             SlynxErrorType::Lexer => write!(f, "Lexing Error"),
             SlynxErrorType::Parser => write!(f, "Parsing Error"),
-            SlynxErrorType::Hir => write!(f, "Name Resolution Error"),
+            SlynxErrorType::Hir => write!(f, "HIR Error"),
             SlynxErrorType::Compilation => write!(f, "Compilation Error"),
             SlynxErrorType::Type => write!(f, "Type Checking Error"),
         }

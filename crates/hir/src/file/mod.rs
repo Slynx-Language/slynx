@@ -1,6 +1,7 @@
 //! Module idealized to handle HirFiles, which is a file on the slynx codebase
 
 mod declarations;
+pub use declarations::DeclarationsPool;
 use std::ops::Deref;
 
 use common::pool::PoolId;

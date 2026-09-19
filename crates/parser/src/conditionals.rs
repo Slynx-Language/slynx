@@ -24,7 +24,7 @@ impl Parser<'_> {
                 let end = expr.span;
 
                 let span = expr.span;
-                let id = self.intern_statment(ASTStatement::Expression(expr));
+                let id = self.intern_statement(ASTStatement::Expression(expr));
                 (vec![Spanned::new(id, span)], end)
             }
             TokenKind::Else => {

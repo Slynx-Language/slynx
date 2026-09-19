@@ -10,12 +10,11 @@ use std::{
 use common::{FrontendSymbol, SymbolsModule, pool::DedupPool};
 use dashmap::DashMap;
 use module_loader::{Modules, SourceLoader, SourceProvider};
-use slynx_codegen::Codegen;
+use slynx_codegen::LoweringState;
 use slynx_hir::{SlynxHir, id::AnyDeclarationId, ownership::OwnershipAnalysis};
 use slynx_ir::SlynxIR;
-use slynx_lexer::{Lexer, TokenStream};
 use slynx_monomorphizer::Monomorphizer;
-use slynx_parser::{ASTExpression, ASTStatement, Parser, Program, Type};
+use slynx_parser::{ASTExpression, ASTStatement, Type};
 
 pub use crate::compilation_context::errors::*;
 
@@ -300,24 +299,6 @@ impl SlynxContext {
         self.entry_point.to_string_lossy().to_string()
     }
 
-    ///Builds the token stream to be used by the Parser from the source code
-    pub fn build_tokens(&self) -> Result<TokenStream, SlynxError> {
-        Lexer::tokenize(&self.get_entry_point_source()).map_err(|e| self.handle_lexer_error(e))
-    }
-
-    ///Builds the Slynx AST from the given `tokens` stream.
-    pub fn build_parser(&self, tokens: TokenStream) -> Result<Program, SlynxError> {
-        Parser::new(
-            tokens,
-            &self.pools.names,
-            &self.pools.expressions,
-            &self.pools.statements,
-            &self.pools.types,
-        )
-        .parse_declarations()
-        .map_err(|e| self.handle_parser_error(&e))
-    }
-
     pub fn load_modules<'a>(&'a self) -> Result<Modules<'a>, SlynxError> {
         let loader = SourceLoader::new(
             &self.pools.names,
@@ -371,33 +352,16 @@ impl SlynxContext {
         deadcode: HashSet<AnyDeclarationId>,
         ownership: OwnershipAnalysis,
     ) -> Result<SlynxIR, SlynxError> {
-        let mut codegen = Codegen::new();
+        let codegen = LoweringState::new(&hir);
         codegen
-            .generate(&hir, deadcode, ownership)
+            .generate(deadcode, ownership)
             .map_err(|e| self.build_ir_generation_error(&e, &hir))
     }
 
     ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps
     ///before materializing the default `.sir` output.
     pub fn build_stages(self) -> Result<CompilationStages, SlynxError> {
-        let entry = (*self.entry_point).clone();
-        let modules = {
-            let std = self.std.clone();
-            let on_load = |path: &Path, source: &str| {
-                self.register_loaded_file(Arc::new(path.to_path_buf()), source.to_string());
-            };
-            let source = SourceLoader::new(
-                &self.pools.names,
-                &self.pools.statements,
-                &self.pools.expressions,
-                &self.pools.types,
-            );
-            source.load(entry, std, on_load, &self.files)
-        };
-        let modules = match modules {
-            Ok(modules) => modules,
-            Err(e) => return Err(self.handle_source_error(&e)),
-        };
+        let modules = self.load_modules()?;
         let (hir, deadcode, ownership) = self.build_hir(&modules)?;
         let ir = self.build_ir(hir, deadcode, ownership)?;
 

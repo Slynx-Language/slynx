@@ -9,11 +9,11 @@ use crate::{
 
 impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     pub fn raw(&self) -> &HirType {
-        &self.hir.types_module[self.data]
+        &self.hir.types[self.data]
     }
 
     pub fn name(&self) -> String {
-        match self.hir.types_module[self.dereference().data] {
+        match self.hir.types[self.dereference().data] {
             HirType::Bool => "bool".to_string(),
             HirType::Float => "float32".to_string(),
             HirType::Int => "int".to_string(),
@@ -88,7 +88,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     }
 
     pub fn is_nullable(self) -> Option<DedupPoolId<HirType>> {
-        if let HirType::Nullable(inner) = self.hir.deref()[self.data] {
+        if let HirType::Nullable(inner) = self.hir.types[self.data] {
             Some(inner)
         } else {
             None
@@ -96,14 +96,14 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     }
 
     pub fn is_vector(self) -> Option<DedupPoolId<HirType>> {
-        if let HirType::Vector(inner) = self.hir.deref()[self.data] {
+        if let HirType::Vector(inner) = self.hir.types[self.data] {
             Some(inner)
         } else {
             None
         }
     }
     pub fn is_array(self) -> Option<(DedupPoolId<HirType>, usize)> {
-        if let HirType::Array(inner, size) = self.hir.deref()[self.data] {
+        if let HirType::Array(inner, size) = self.hir.types[self.data] {
             Some((inner, size))
         } else {
             None
@@ -111,42 +111,42 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     }
 
     pub fn is_function(self) -> Option<HirViewer<'a, DedupPoolId<FunctionType>>> {
-        if let HirType::Function(f) = self.hir.deref()[self.data] {
+        if let HirType::Function(f) = self.hir.types[self.data] {
             Some(self.new_with(f))
         } else {
             None
         }
     }
     pub fn is_struct(self) -> Option<HirViewer<'a, DedupPoolId<StructType>>> {
-        if let HirType::Struct(s) = self.hir.deref()[self.data] {
+        if let HirType::Struct(s) = self.hir.types[self.data] {
             Some(self.new_with(s))
         } else {
             None
         }
     }
     pub fn is_tuple(self) -> Option<HirViewer<'a, DedupPoolId<TupleType>>> {
-        if let HirType::Tuple(s) = self.hir.deref()[self.data] {
+        if let HirType::Tuple(s) = self.hir.types[self.data] {
             Some(self.new_with(s))
         } else {
             None
         }
     }
     pub fn is_component(self) -> Option<HirViewer<'a, DedupPoolId<ComponentType>>> {
-        if let HirType::Component(s) = self.hir.deref()[self.data] {
+        if let HirType::Component(s) = self.hir.types[self.data] {
             Some(self.new_with(s))
         } else {
             None
         }
     }
     pub fn is_enum(self) -> Option<HirViewer<'a, DedupPoolId<EnumType>>> {
-        if let HirType::Enum(e) = self.hir.deref()[self.data] {
+        if let HirType::Enum(e) = self.hir.types[self.data] {
             Some(self.new_with(e))
         } else {
             None
         }
     }
     pub fn is_style(self) -> Option<HirViewer<'a, DedupPoolId<StyleType>>> {
-        if let HirType::Style(s) = self.hir.deref()[self.data] {
+        if let HirType::Style(s) = self.hir.types[self.data] {
             Some(self.new_with(s))
         } else {
             None
@@ -155,7 +155,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     ///Makes a dereference for this type. Since a type can be a reference to another, what this function does is to retrieve the concrete type with no references at all
     pub fn dereference(self) -> HirViewer<'a, DedupPoolId<HirType>> {
         let mut data = self.data;
-        while let HirType::Reference { rf, .. } = self.hir.deref()[data] {
+        while let HirType::Reference { rf, .. } = self.hir.types[data] {
             data = rf;
         }
         self.new_with(data)
@@ -168,7 +168,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     ///
     ///```
     ///let strukt_type = hir.create_struct_type();
-    ///let ty = hir.create_type(HirType::Nullable(strukt_type));
+    ///let ty = hir.types.create_type(HirType::Nullable(strukt_type));
     ///let type_view = type_view.concrete_type();
     ///assert_eq!(type_view.data, strukt_type);
     ///```
@@ -178,7 +178,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
         while let HirType::Nullable(rf)
         | HirType::ImutableRef(rf)
         | HirType::MutableRef(rf)
-        | HirType::Reference { rf, .. } = self.hir.deref()[data]
+        | HirType::Reference { rf, .. } = self.hir.types[data]
         {
             data = rf
         }
@@ -187,19 +187,19 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
 
     pub fn is_ref(self) -> bool {
         matches!(
-            self.hir.deref()[self.data],
+            self.hir.types[self.data],
             HirType::ImutableRef { .. } | HirType::MutableRef { .. }
         )
     }
     pub fn is_imutable_ref(self) -> Option<HirViewer<'a, DedupPoolId<HirType>>> {
-        if let HirType::ImutableRef(inner) = self.hir.deref()[self.data] {
+        if let HirType::ImutableRef(inner) = self.hir.types[self.data] {
             Some(self.new_with(inner))
         } else {
             None
         }
     }
     pub fn is_mutable_ref(self) -> Option<HirViewer<'a, DedupPoolId<HirType>>> {
-        if let HirType::MutableRef(inner) = self.hir.deref()[self.data] {
+        if let HirType::MutableRef(inner) = self.hir.types[self.data] {
             Some(self.new_with(inner))
         } else {
             None
@@ -210,7 +210,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
 impl Deref for HirViewer<'_, DedupPoolId<HirType>> {
     type Target = HirType;
     fn deref(&self) -> &Self::Target {
-        &self.hir.deref()[self.data]
+        &self.hir.types[self.data]
     }
 }
 

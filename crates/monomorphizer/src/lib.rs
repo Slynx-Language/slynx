@@ -33,20 +33,20 @@ use std::collections::{HashMap, HashSet};
 
 use common::{
     Span, Spanned,
-    pool::{DedupPoolId, PoolId},
+    pool::{DedupPoolId, Pool, PoolId},
 };
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationId, HirComponentExpression, HirExpression, HirExpressionKind,
-    HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result, SlynxHir,
-    VariableId,
+    DeclarationsPool, DeclarationId, HIRError, HirComponentExpression, HirExpression,
+    HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result,
+    SlynxHir, SymbolPointer, VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 
 use types::{
     MonomorphizationKey, Substitution, contains_resolvable_reference, is_resolvable_reference,
-    substitute_type,
+    mangle_name, substitute_type,
 };
 
 /// A snapshot of a function to be rewritten: its local declaration id and the
@@ -104,8 +104,8 @@ impl Monomorphizer {
     /// Monomorphizes every generic function, struct (object), and component of
     /// the given `hir`.
     ///
-    /// Generic type aliases and stylesheets are currently unsupported and will
-    /// `unimplemented!()`.
+    /// Generic type aliases and stylesheets are currently unsupported and
+    /// produce a diagnostic error.
     ///
     /// Returns the set of generic templates that were neutralized and should
     /// be treated as dead code.
@@ -121,9 +121,9 @@ impl Monomorphizer {
     }
 
     fn run(&mut self, hir: &SlynxHir) -> Result<()> {
-        self.assert_no_generic_non_functions(hir);
+        self.assert_no_generic_non_functions(hir)?;
 
-        let files: Vec<FileId> = hir.files.iter().map(|file| *file.key()).collect();
+        let files: Vec<FileId> = hir.store.files.iter().map(|file| *file.key()).collect();
 
         // Step 1: rewrite every non-generic function body, resolving generic
         // call sites and generic struct/component usage as they are found.
@@ -230,30 +230,188 @@ impl Monomorphizer {
 
         // Step 4: neutralize every generic template so codegen never sees a
         // `GenericParam`-typed signature, and mark it as dead.
-        let void_ty = hir.create_function_type(Vec::new(), hir.create_type(HirType::Void));
-        self.neutralize_generic_functions(hir, &files, void_ty);
-        self.neutralize_generic_objects(hir, &files, void_ty);
-        self.neutralize_generic_components(hir, &files, void_ty);
-        self.neutralize_generic_enums(hir, &files, void_ty);
+        let void_ty = hir
+            .types
+            .create_function_type(Vec::new(), hir.types.create_type(HirType::Void));
+        self.neutralize_generic(
+            hir,
+            &files,
+            void_ty,
+            |pool| &pool.functions,
+            |pool| &mut pool.functions,
+            |declaration| !declaration.generics.is_empty(),
+            |declaration, void| {
+                declaration.statements = Vec::new();
+                declaration.ty = void;
+            },
+            AnyLocalDeclarationId::Function,
+        );
+        self.neutralize_generic(
+            hir,
+            &files,
+            void_ty,
+            |pool| &pool.objects,
+            |pool| &mut pool.objects,
+            |declaration| !declaration.generics.is_empty(),
+            |declaration, void| declaration.ty = void,
+            AnyLocalDeclarationId::Object,
+        );
+        self.neutralize_generic(
+            hir,
+            &files,
+            void_ty,
+            |pool| &pool.components,
+            |pool| &mut pool.components,
+            |declaration| !declaration.generics.is_empty(),
+            |declaration, void| {
+                declaration.props = Vec::new();
+                declaration.ty = void;
+            },
+            AnyLocalDeclarationId::Component,
+        );
+        self.neutralize_generic(
+            hir,
+            &files,
+            void_ty,
+            |pool| &pool.enums,
+            |pool| &mut pool.enums,
+            |declaration| !declaration.generics.is_empty(),
+            |declaration, void| declaration.ty = void,
+            AnyLocalDeclarationId::Enum,
+        );
 
         Ok(())
     }
 
+    /// Validates the arity of `args`, then retrieves (cache hit) or generates
+    /// the specialization of the generic template `template_any` for the given
+    /// concrete type arguments.
+    ///
+    /// `from_cached` converts a cache hit into the caller's expected result;
+    /// `build` generates the specialized declaration and its result value (and
+    /// may pre-populate the cache through `key`, as recursive function bodies
+    /// require). The template is recorded as dead code once the specialization
+    /// is complete.
+    #[allow(clippy::too_many_arguments)]
+    fn specialize<T>(
+        &mut self,
+        hir: &SlynxHir,
+        name: SymbolPointer,
+        template_any: AnyDeclarationId,
+        generic_count: usize,
+        args: Vec<DedupPoolId<HirType>>,
+        span: Span,
+        from_cached: impl FnOnce(&SlynxHir, AnyDeclarationId) -> T,
+        build: impl FnOnce(
+            &mut Self,
+            &SlynxHir,
+            &Substitution,
+            SymbolPointer,
+            &MonomorphizationKey,
+        ) -> Result<(AnyDeclarationId, T)>,
+    ) -> Result<T> {
+        if generic_count != args.len() {
+            return Err(HIRError::generic_arity_mismatch(
+                name,
+                generic_count,
+                args.len(),
+                span,
+            ));
+        }
+
+        let key: MonomorphizationKey = (template_any, args.clone().into());
+        if let Some(cached) = self.cache.get(&key) {
+            return Ok(from_cached(hir, *cached));
+        }
+        if self.in_progress.contains(&key) {
+            return Err(HIRError::cyclic_monomorphization(name, args, span));
+        }
+        self.in_progress.insert(key.clone());
+
+        let subst = Substitution::new(&args);
+        let mangled_symbol = hir.intern_name(&mangle_name(hir, name, &args));
+        let (specialized, result) = build(self, hir, &subst, mangled_symbol, &key)?;
+
+        self.in_progress.remove(&key);
+        self.cache.insert(key, specialized);
+        self.dead_code.insert(template_any);
+
+        Ok(result)
+    }
+
+    ///Finds the declaration of the given kind with the given `name` in any
+    ///file, returning its `(file, local)` id.
+    fn find_declaration_by_name<D>(
+        &self,
+        hir: &SlynxHir,
+        name: SymbolPointer,
+        select: fn(&DeclarationsPool) -> &Pool<D>,
+        name_of: fn(&D) -> SymbolPointer,
+    ) -> Option<(FileId, PoolId<D>)> {
+        for file in hir.store.files.iter() {
+            for (id, declaration) in select(&file.declarations.declarations).iter().with_ids() {
+                if name_of(declaration) == name {
+                    return Some((file.file, id));
+                }
+            }
+        }
+        None
+    }
+
+    ///Neutralizes every generic template of the given declaration kind so
+    ///codegen never sees a `GenericParam`-typed signature, and marks each one
+    ///as dead.
+    #[allow(clippy::too_many_arguments)]
+    fn neutralize_generic<D>(
+        &mut self,
+        hir: &SlynxHir,
+        files: &[FileId],
+        void_ty: DedupPoolId<HirType>,
+        select: fn(&DeclarationsPool) -> &Pool<D>,
+        select_mut: fn(&mut DeclarationsPool) -> &mut Pool<D>,
+        is_generic: impl Fn(&D) -> bool,
+        mut neutralize: impl FnMut(&mut D, DedupPoolId<HirType>),
+        to_any: fn(PoolId<D>) -> AnyLocalDeclarationId,
+    ) {
+        for file_id in files {
+            let generic_ids: Vec<PoolId<D>> = {
+                let file = hir.get_file(*file_id);
+                select(&file.declarations.declarations)
+                    .iter()
+                    .with_ids()
+                    .filter(|(_, declaration)| is_generic(declaration))
+                    .map(|(id, _)| id)
+                    .collect()
+            };
+
+            for local_id in generic_ids {
+                let mut file = hir.get_file_mut(*file_id);
+                neutralize(
+                    select_mut(&mut file.declarations.declarations).get_mut(local_id),
+                    void_ty,
+                );
+                self.dead_code
+                    .insert(AnyDeclarationId::new(*file_id, to_any(local_id)));
+            }
+        }
+    }
+
     ///Monomorphization of generic type aliases and stylesheets is not supported
-    ///yet, so encountering one is a hard error (`unimplemented!()`).
-    fn assert_no_generic_non_functions(&self, hir: &SlynxHir) {
-        for file in hir.files.iter() {
+    ///yet, so encountering one is a hard error.
+    fn assert_no_generic_non_functions(&self, hir: &SlynxHir) -> Result<()> {
+        for file in hir.store.files.iter() {
             for alias in file.declarations.declarations.alias.iter() {
                 if !alias.generics.is_empty() {
-                    unimplemented!("monomorphization of generic aliases is not implemented yet")
+                    return Err(HIRError::not_implemented(alias.name, Span::default()));
                 }
             }
             for style in file.declarations.declarations.styles.iter() {
                 if !style.generics.is_empty() {
-                    unimplemented!("monomorphization of generic styles is not implemented yet")
+                    return Err(HIRError::not_implemented(style.name, Span::default()));
                 }
             }
         }
+        Ok(())
     }
 
     ///Resolves every generic struct/component reference inside `ty` to its
@@ -280,17 +438,17 @@ impl Monomorphizer {
         }
 
         match hir.view(ty).raw() {
-            HirType::ImutableRef(inner) => Ok(hir.create_type(HirType::ImutableRef(
+            HirType::ImutableRef(inner) => Ok(hir.types.create_type(HirType::ImutableRef(
                 self.resolve_expression_type(hir, *inner, span)?,
             ))),
-            HirType::MutableRef(inner) => Ok(hir.create_type(HirType::MutableRef(
+            HirType::MutableRef(inner) => Ok(hir.types.create_type(HirType::MutableRef(
                 self.resolve_expression_type(hir, *inner, span)?,
             ))),
-            HirType::Array(inner, len) => Ok(hir.create_type(HirType::Array(
+            HirType::Array(inner, len) => Ok(hir.types.create_type(HirType::Array(
                 self.resolve_expression_type(hir, *inner, span)?,
                 *len,
             ))),
-            HirType::Vector(inner) => Ok(hir.create_type(HirType::Vector(
+            HirType::Vector(inner) => Ok(hir.types.create_type(HirType::Vector(
                 self.resolve_expression_type(hir, *inner, span)?,
             ))),
             HirType::Function(function) => {
@@ -301,7 +459,7 @@ impl Monomorphizer {
                     .map(|arg| self.resolve_expression_type(hir, *arg, span))
                     .collect::<Result<Vec<_>>>()?;
                 let ret = self.resolve_expression_type(hir, function_view.return_type(), span)?;
-                Ok(hir.create_function_type(args, ret))
+                Ok(hir.types.create_function_type(args, ret))
             }
             HirType::Tuple(tuple) => {
                 let tuple_view = hir.view(*tuple);
@@ -310,7 +468,7 @@ impl Monomorphizer {
                     .iter()
                     .map(|field| self.resolve_expression_type(hir, *field, span))
                     .collect::<Result<Vec<_>>>()?;
-                Ok(hir.create_tuple_type(fields))
+                Ok(hir.types.create_tuple_type(fields))
             }
             HirType::Component(component) => {
                 self.rebuild_component_type(hir, *component, &Substitution::empty(), span)
@@ -323,16 +481,16 @@ impl Monomorphizer {
                         *slot = self.resolve_expression_type(hir, *slot, span)?;
                     }
                 }
-                Ok(hir.create_type(HirType::Reference {
+                Ok(hir.types.create_type(HirType::Reference {
                     rf: new_rf,
                     generics: new_generics,
                 }))
             }
             HirType::Nullable(inner) => {
                 let new_inner = self.resolve_expression_type(hir, *inner, span)?;
-                Ok(hir.create_type(HirType::Nullable(new_inner)))
+                Ok(hir.types.create_type(HirType::Nullable(new_inner)))
             }
-            other => Ok(hir.create_type(other.clone())),
+            other => Ok(hir.types.create_type(other.clone())),
         }
     }
 
@@ -404,7 +562,7 @@ impl Monomorphizer {
                 body: self.build_statements(hir, body, subst)?,
             },
         };
-        let id = hir.insert_statement(new_statement);
+        let id = hir.store.insert_statement(new_statement);
         Ok(statement.span.make_spanned(id))
     }
 
@@ -576,7 +734,7 @@ impl Monomorphizer {
         } else {
             substituted_ty
         };
-        let id = hir.insert_expression(HirExpression { ty, kind });
+        let id = hir.store.insert_expression(HirExpression { ty, kind });
         Ok(expression.span.make_spanned(id))
     }
 
@@ -624,7 +782,7 @@ impl Monomorphizer {
                 .map(|child| self.build_component_expression(hir, *child, subst))
                 .collect::<Result<Vec<_>>>()?,
         };
-        let id = hir.insert_component_expression(new_component);
+        let id = hir.store.insert_component_expression(new_component);
         Ok(component.span.make_spanned(id))
     }
 }

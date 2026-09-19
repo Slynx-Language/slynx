@@ -80,7 +80,7 @@ pub enum OwnershipErrorKind {
 /// Check if a type is Copy (can be implicitly duplicated).
 pub fn is_copy_type(hir: &SlynxHir, ty: common::pool::DedupPoolId<HirType>) -> bool {
     matches!(
-        hir.types_module[ty],
+        hir.types[ty],
         HirType::Int | HirType::Float | HirType::Bool | HirType::Str
     )
 }

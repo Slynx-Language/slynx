@@ -8,23 +8,23 @@ use crate::{
 
 impl HirViewer<'_, DedupPoolId<StructType>> {
     pub fn name(&self) -> SymbolPointer {
-        self.hir.types_module.get_struct_name(self.data)
+        self.hir.types.get_struct_name(self.data)
     }
 
     pub fn fields(&self) -> &[Visible<SymbolPointer>] {
-        self.hir.types_module.get_struct_fields(self.data)
+        self.hir.types.get_struct_fields(self.data)
     }
 
     pub fn field_types(&self) -> &[DedupPoolId<HirType>] {
-        self.hir.types_module.get_struct_field_types(self.data)
+        self.hir.types.get_struct_field_types(self.data)
     }
 
     pub fn signature(&self) -> Vec<(&Visible<SymbolPointer>, &DedupPoolId<HirType>)> {
-        self.hir.types_module.get_struct_signature(self.data)
+        self.hir.types.get_struct_signature(self.data)
     }
     pub fn methods(&self) -> &[Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>] {
-        let metadata = self.hir.types_module[self.data].metadata;
-        &self.hir.types_module[metadata].methods
+        let metadata = self.hir.types[self.data].metadata;
+        &self.hir.types[metadata].methods
     }
     pub fn public_methods(
         &self,
@@ -48,21 +48,21 @@ impl HirViewer<'_, DedupPoolId<StructType>> {
 
 impl HirViewer<'_, DedupPoolId<TupleType>> {
     pub fn fields(&self) -> &[DedupPoolId<HirType>] {
-        &self.hir.types_module[self.data].fields
+        &self.hir.types[self.data].fields
     }
 }
 
 impl HirViewer<'_, DedupPoolId<EnumType>> {
     pub fn name(&self) -> SymbolPointer {
-        self.hir.types_module.get_enum_name(self.data)
+        self.hir.types.get_enum_name(self.data)
     }
 
     pub fn variants(&self) -> &[EnumVariantType] {
-        self.hir.types_module.get_enum_variants(self.data)
+        self.hir.types.get_enum_variants(self.data)
     }
 
     ///Finds the variant with the given `name` on this enum.
     pub fn find_variant(&self, name: SymbolPointer) -> Option<usize> {
-        self.hir.types_module.find_enum_variant(self.data, name)
+        self.hir.types.find_enum_variant(self.data, name)
     }
 }

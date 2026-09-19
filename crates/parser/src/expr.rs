@@ -1,5 +1,5 @@
 use crate::{
-    ASTExpression, ComponentExpression, ComponentMemberValue, ExpectedContent, NamedExpr,
+    ASTExpression, ComponentExpression, ComponentMemberValue, NamedExpr,
     RangeType, Type, TypeParamScope,
 };
 use crate::{Parser, Result, error::ParseError};
@@ -29,32 +29,14 @@ impl Parser<'_> {
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.expect(&TokenKind::LParen)?;
-        let mut params = SmallVec::new();
-        if self.peek()?.kind == TokenKind::RParen {
-            let Token { span: last, .. } = self.expect(&TokenKind::RParen)?;
-            let span = identifier.span.merge_with(last);
-            let id = self.intern_expression(ASTExpression::FunctionCall {
-                name: identifier,
-                args: params,
-            });
-            return Ok(Spanned { data: id, span });
-        }
-        loop {
-            let param = self.parse_expression(type_params)?;
-            params.push(param);
-            match self.peek()?.kind {
-                TokenKind::RParen => break,
-                TokenKind::Comma => {
-                    self.eat()?;
-                }
-                _ => {
-                    return Err(ParseError::UnexpectedToken(
-                        self.eat()?,
-                        ExpectedContent::Raw("Was expecting an ','".to_string()),
-                    ));
-                }
-            }
-        }
+        let params: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 7]> = self
+            .parse_separated(
+                TokenKind::RParen,
+                TokenKind::Comma,
+                false,
+                |parser| parser.parse_expression(type_params),
+            )?
+            .into();
         let Token { span: last, .. } = self.expect(&TokenKind::RParen)?;
         let span = identifier.span.merge_with(last);
         let id = self.intern_expression(ASTExpression::FunctionCall {
@@ -150,37 +132,6 @@ impl Parser<'_> {
         let id = self.intern_expression(ASTExpression::Tuple(vec));
         Ok(Spanned { data: id, span })
     }
-    ///Parses a tuple expression, which follows the rule (expr, expr, expr) or ()
-    pub fn parse_tupleparse_tuple_with_first(
-        &mut self,
-        start_span: &Span,
-        type_params: TypeParamScope,
-    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        if self.peek()?.kind == TokenKind::RParen {
-            let end = self.eat()?;
-            let id = self.intern_expression(ASTExpression::Tuple(smallvec![]));
-            return Ok(Spanned::new(id, start_span.merge_with(end.span)));
-        }
-
-        let first = self.parse_expression(type_params)?;
-        if self.peek()?.kind == TokenKind::RParen {
-            let _ = self.eat()?;
-            return Ok(first);
-        }
-        self.expect(&TokenKind::Comma)?;
-        let mut items = smallvec![first];
-        while self.peek()?.kind != TokenKind::RParen {
-            items.push(self.parse_expression(type_params)?);
-            if self.peek()?.kind == TokenKind::Comma {
-                self.eat()?;
-            }
-        }
-        let end = self.expect(&TokenKind::RParen)?.span;
-        let span = start_span.merge_with(end);
-        let id = self.intern_expression(ASTExpression::Tuple(items));
-        Ok(Spanned { data: id, span })
-    }
-
     ///Parses an object expression, which follows the rule Object(field: expr, field: value)
     pub fn parse_object_expression_with_name(
         &mut self,
@@ -188,16 +139,14 @@ impl Parser<'_> {
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.expect(&TokenKind::LParen)?;
-        let mut fields = SmallVec::new();
-        while self.peek()?.kind != TokenKind::RParen {
-            let named_expr = self.parse_named_expr(type_params)?;
-            fields.push(named_expr);
-            if let TokenKind::RParen = self.peek()?.kind {
-                break;
-            } else {
-                self.expect(&TokenKind::Comma)?;
-            }
-        }
+        let fields: SmallVec<[Spanned<NamedExpr>; 4]> = self
+            .parse_separated(
+                TokenKind::RParen,
+                TokenKind::Comma,
+                true,
+                |parser| parser.parse_named_expr(type_params),
+            )?
+            .into();
         let end = self.expect(&TokenKind::RParen)?.span;
         let span = name.span.merge_with(end);
         let id = self.intern_expression(ASTExpression::ObjectExpression { name, fields });
@@ -238,12 +187,7 @@ impl Parser<'_> {
                         let id = self.intern_expression(ASTExpression::Component(component.data));
                         Ok(Some(Spanned::new(id, span)))
                     }
-                    _ => Err(ParseError::UnexpectedToken(
-                        self.eat()?,
-                        ExpectedContent::Raw(
-                            "Instead was expecting '(' or '{' after a generic name".to_string(),
-                        ),
-                    )),
+                    _ => self.unexpected("Instead was expecting '(' or '{' after a generic name"),
                 }
             }
             TokenKind::Lt => Ok(None),
@@ -386,14 +330,45 @@ impl Parser<'_> {
                     }
                 }
 
-                _ => Err(ParseError::UnexpectedToken(
-                    current,
-                    ExpectedContent::Raw("Was expecting an expression".to_string()),
-                )),
+                _ => self.unexpected_with("Was expecting an expression", current),
             }?
         };
 
         self.parse_postfix_chain(expr, type_params)
+    }
+
+    /// Shared skeleton for the precedence cascade: parses a left-hand side with
+    /// `lhs`, then folds consecutive `rhs` operands into a node as long as
+    /// `next_op` keeps reporting an operator. `fold` builds the AST row from
+    /// the operator (which is the unit type for operators without one, such as
+    /// `matches`) and the two already-parsed operands.
+    fn parse_infix<E>(
+        &mut self,
+        type_params: TypeParamScope,
+        mut lhs: impl FnMut(&mut Self, TypeParamScope) -> Result<Spanned<DedupPoolId<ASTExpression>>>,
+        mut rhs: impl FnMut(&mut Self, TypeParamScope) -> Result<Spanned<DedupPoolId<ASTExpression>>>,
+        mut next_op: impl FnMut(&mut Self) -> Result<Option<E>>,
+        mut fold: impl FnMut(
+            E,
+            Spanned<DedupPoolId<ASTExpression>>,
+            Spanned<DedupPoolId<ASTExpression>>,
+        ) -> ASTExpression,
+    ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
+        let mut current = lhs(self, type_params)?;
+        loop {
+            let op = match next_op(self) {
+                Ok(Some(op)) => op,
+                Ok(None) => break,
+                // The original loops stopped on end of input instead of failing.
+                Err(ParseError::UnexpectedEndOfInput) => break,
+                Err(err) => return Err(err),
+            };
+            let rhs = rhs(self, type_params)?;
+            let span = current.span.merge_with(rhs.span);
+            let id = self.intern_expression(fold(op, current, rhs));
+            current = Spanned::new(id, span);
+        }
+        Ok(current)
     }
 
     /// Parses multiplicative expressions, which consist of primary expressions combined with multiplication '*' or division '/' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a primary expression, and then repeatedly checking for multiplicative operators and parsing the right-hand side (RHS) as another primary expression until no more multiplicative operators are found.
@@ -401,46 +376,42 @@ impl Parser<'_> {
         &mut self,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_primary(type_params)?;
-        while let Ok(curr) = self.peek()
-            && matches!(curr.kind, TokenKind::Star | TokenKind::Slash)
-        {
-            let op = if let TokenKind::Star = self.eat()?.kind {
-                Operator::Star
-            } else {
-                Operator::Slash
-            };
-            let rhs = self.parse_primary(type_params)?;
-            let span = lhs.span.merge_with(rhs.span);
-            lhs = Spanned::new(
-                self.intern_expression(ASTExpression::Binary { lhs, op, rhs }),
-                span,
-            );
-        }
-        Ok(lhs)
+        self.parse_infix(
+            type_params,
+            |parser, tps| parser.parse_primary(tps),
+            |parser, tps| parser.parse_primary(tps),
+            |parser| {
+                let op = match parser.peek()?.kind {
+                    TokenKind::Star => Operator::Star,
+                    TokenKind::Slash => Operator::Slash,
+                    _ => return Ok(None),
+                };
+                parser.eat()?;
+                Ok(Some(op))
+            },
+            |op, lhs, rhs| ASTExpression::Binary { lhs, op, rhs },
+        )
     }
     /// Parses additive expressions, which consist of multiplicative expressions combined with addition '+' or subtraction '-' operators. It handles operator precedence by first parsing the left-hand side (LHS) as a multiplicative expression, and then repeatedly checking for additive operators and parsing the right-hand side (RHS) as another multiplicative expression until no more additive operators are found.
     pub fn parse_additive(
         &mut self,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_multiplicative(type_params)?;
-        while let Ok(curr) = self.peek()
-            && matches!(curr.kind, TokenKind::Plus | TokenKind::Sub)
-        {
-            let op = if let TokenKind::Plus = self.eat()?.kind {
-                Operator::Add
-            } else {
-                Operator::Sub
-            };
-            let rhs = self.parse_multiplicative(type_params)?;
-            let span = lhs.span.merge_with(rhs.span);
-            lhs = Spanned::new(
-                self.intern_expression(ASTExpression::Binary { lhs, op, rhs }),
-                span,
-            );
-        }
-        Ok(lhs)
+        self.parse_infix(
+            type_params,
+            |parser, tps| parser.parse_multiplicative(tps),
+            |parser, tps| parser.parse_multiplicative(tps),
+            |parser| {
+                let op = match parser.peek()?.kind {
+                    TokenKind::Plus => Operator::Add,
+                    TokenKind::Sub => Operator::Sub,
+                    _ => return Ok(None),
+                };
+                parser.eat()?;
+                Ok(Some(op))
+            },
+            |op, lhs, rhs| ASTExpression::Binary { lhs, op, rhs },
+        )
     }
 
     ///This function simply checks if the current and the next token are '>' which makes a '>>'
@@ -453,33 +424,29 @@ impl Parser<'_> {
         &mut self,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_additive(type_params)?;
-
-        while let Ok(curr) = self.peek()
-            && (matches!(curr.kind, |TokenKind::ShiftLeft| TokenKind::BitAnd
-                | TokenKind::BitOr
-                | TokenKind::Xor)
-                || self.is_shiftright()?)
-        {
-            let op = match self.eat()?.kind {
-                TokenKind::ShiftLeft => Operator::LeftShift,
-                TokenKind::BitAnd => Operator::And,
-                TokenKind::BitOr => Operator::Or,
-                TokenKind::Xor => Operator::Xor,
-                _ if self.is_shiftright()? => Operator::RightShift,
-                _ => unreachable!(),
-            };
-            let rhs = self.parse_bitoperation(type_params)?;
-            let span = Span {
-                start: lhs.span.start,
-                end: rhs.span.end,
-            };
-            lhs = Spanned::new(
-                self.intern_expression(ASTExpression::Binary { lhs, op, rhs }),
-                span,
-            );
-        }
-        Ok(lhs)
+        self.parse_infix(
+            type_params,
+            |parser, tps| parser.parse_additive(tps),
+            |parser, tps| parser.parse_bitoperation(tps),
+            |parser| {
+                let op = match parser.peek()?.kind {
+                    TokenKind::ShiftLeft => Operator::LeftShift,
+                    TokenKind::BitAnd => Operator::And,
+                    TokenKind::BitOr => Operator::Or,
+                    TokenKind::Xor => Operator::Xor,
+                    // The lexer has no single `>>` token: a right shift is two
+                    // consecutive `>` tokens, both consumed here.
+                    TokenKind::Gt if parser.is_shiftright()? => Operator::RightShift,
+                    _ => return Ok(None),
+                };
+                parser.eat()?;
+                if op == Operator::RightShift {
+                    parser.eat()?;
+                }
+                Ok(Some(op))
+            },
+            |op, lhs, rhs| ASTExpression::Binary { lhs, op, rhs },
+        )
     }
 
     ///Parses comparison expressions, thus, anything whose value returned is a boolean
@@ -487,32 +454,24 @@ impl Parser<'_> {
         &mut self,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_bitoperation(type_params)?;
-        while let Ok(curr) = self.peek()
-            && matches!(
-                curr.kind,
-                TokenKind::Gt | TokenKind::GtEq | TokenKind::Lt | TokenKind::LtEq | TokenKind::EqEq
-            )
-        {
-            let op = match self.eat()?.kind {
-                TokenKind::EqEq => Operator::Equals,
-                TokenKind::Lt => Operator::LessThan,
-                TokenKind::Gt => Operator::GreaterThan,
-                TokenKind::LtEq => Operator::LessThanOrEqual,
-                TokenKind::GtEq => Operator::GreaterThanOrEqual,
-                _ => unreachable!(),
-            };
-            let rhs = self.parse_bitoperation(type_params)?;
-            let span = Span {
-                start: lhs.span.start,
-                end: rhs.span.end,
-            };
-            lhs = Spanned::new(
-                self.intern_expression(ASTExpression::Binary { lhs, op, rhs }),
-                span,
-            );
-        }
-        Ok(lhs)
+        self.parse_infix(
+            type_params,
+            |parser, tps| parser.parse_bitoperation(tps),
+            |parser, tps| parser.parse_bitoperation(tps),
+            |parser| {
+                let op = match parser.peek()?.kind {
+                    TokenKind::EqEq => Operator::Equals,
+                    TokenKind::Lt => Operator::LessThan,
+                    TokenKind::Gt => Operator::GreaterThan,
+                    TokenKind::LtEq => Operator::LessThanOrEqual,
+                    TokenKind::GtEq => Operator::GreaterThanOrEqual,
+                    _ => return Ok(None),
+                };
+                parser.eat()?;
+                Ok(Some(op))
+            },
+            |op, lhs, rhs| ASTExpression::Binary { lhs, op, rhs },
+        )
     }
 
     ///Parses `matches` expressions, i.e. `lhs matches Pattern`.
@@ -526,22 +485,20 @@ impl Parser<'_> {
         &mut self,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_comparison(type_params)?;
-        while let Ok(curr) = self.peek()
-            && curr.kind == TokenKind::Matches
-        {
-            self.eat()?;
-            let pattern = self.parse_primary(type_params)?;
-            let span = Span {
-                start: lhs.span.start,
-                end: pattern.span.end,
-            };
-            lhs = Spanned::new(
-                self.intern_expression(ASTExpression::Matches { lhs, pattern }),
-                span,
-            );
-        }
-        Ok(lhs)
+        self.parse_infix(
+            type_params,
+            |parser, tps| parser.parse_comparison(tps),
+            |parser, tps| parser.parse_primary(tps),
+            |parser| {
+                if parser.peek()?.kind == TokenKind::Matches {
+                    parser.eat()?;
+                    Ok(Some(()))
+                } else {
+                    Ok(None)
+                }
+            },
+            |(), lhs, pattern| ASTExpression::Matches { lhs, pattern },
+        )
     }
 
     ///Parses logical expressions, thus, anything whose value returned is a boolean
@@ -549,26 +506,21 @@ impl Parser<'_> {
         &mut self,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut lhs = self.parse_match(type_params)?;
-        while let Ok(curr) = self.peek()
-            && matches!(curr.kind, TokenKind::And | TokenKind::Or)
-        {
-            let op = match self.eat()?.kind {
-                TokenKind::And => Operator::LogicAnd,
-                TokenKind::Or => Operator::LogicOr,
-                _ => unreachable!(),
-            };
-            let rhs = self.parse_match(type_params)?;
-            let span = Span {
-                start: lhs.span.start,
-                end: rhs.span.end,
-            };
-            lhs = Spanned::new(
-                self.intern_expression(ASTExpression::Binary { lhs, op, rhs }),
-                span,
-            );
-        }
-        Ok(lhs)
+        self.parse_infix(
+            type_params,
+            |parser, tps| parser.parse_match(tps),
+            |parser, tps| parser.parse_match(tps),
+            |parser| {
+                let op = match parser.peek()?.kind {
+                    TokenKind::And => Operator::LogicAnd,
+                    TokenKind::Or => Operator::LogicOr,
+                    _ => return Ok(None),
+                };
+                parser.eat()?;
+                Ok(Some(op))
+            },
+            |op, lhs, rhs| ASTExpression::Binary { lhs, op, rhs },
+        )
     }
 
     pub fn parse_array(
@@ -576,17 +528,14 @@ impl Parser<'_> {
         span: Span,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut exprs = SmallVec::new();
-        loop {
-            if self.peek()?.kind == TokenKind::RBracket {
-                break;
-            }
-            let expr = self.parse_expression(type_params)?;
-            exprs.push(expr);
-            if self.peek()?.kind != TokenKind::RBracket {
-                self.expect(&TokenKind::Comma)?;
-            }
-        }
+        let exprs: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]> = self
+            .parse_separated(
+                TokenKind::RBracket,
+                TokenKind::Comma,
+                true,
+                |parser| parser.parse_expression(type_params),
+            )?
+            .into();
         let end = self.expect(&TokenKind::RBracket)?.span;
         let id = self.intern_expression(ASTExpression::Array(exprs));
         Ok(span.merge_with(end).make_spanned(id))
@@ -598,17 +547,14 @@ impl Parser<'_> {
         span: Span,
         type_params: TypeParamScope,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        let mut exprs = SmallVec::new();
-        loop {
-            if self.peek()?.kind == TokenKind::RBrace {
-                break;
-            }
-            let expr = self.parse_expression(type_params)?;
-            exprs.push(expr);
-            if self.peek()?.kind != TokenKind::RBrace {
-                self.expect(&TokenKind::Comma)?;
-            }
-        }
+        let exprs: SmallVec<[Spanned<DedupPoolId<ASTExpression>>; 2]> = self
+            .parse_separated(
+                TokenKind::RBrace,
+                TokenKind::Comma,
+                true,
+                |parser| parser.parse_expression(type_params),
+            )?
+            .into();
         let end = self.expect(&TokenKind::RBrace)?.span;
         let id = self.intern_expression(ASTExpression::Vector(exprs));
         Ok(span.merge_with(end).make_spanned(id))

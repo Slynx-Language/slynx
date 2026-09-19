@@ -38,7 +38,9 @@ impl ExpressionBuilder {
         } = descriptor;
 
         let ty = if let Some(self_type) = &self.self_type {
-            queue.find_self_type(name.data, *self_type)
+            queue
+                .get_node(self.file())
+                .find_self_type(name.data, *self_type)
         } else {
             queue.get_node(self.file()).find_type(name, context)?.1
         };

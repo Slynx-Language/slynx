@@ -1,10 +1,8 @@
 use crate::{
-    ASTAttribute, ComponentDeclaration, ExpectedContent, Result, TypeParamScope,
-    ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
+    ASTAttribute, ComponentDeclaration, Result, TypeParamScope, ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
 };
 use common::{Span, Spanned};
 
-use crate::error::ParseError;
 use slynx_lexer::tokens::{Token, TokenKind};
 
 use super::Parser;
@@ -23,14 +21,13 @@ impl Parser<'_> {
                     } else if modifier.data == self.intern("child") {
                         VisibilityModifier::ChildrenPublic
                     } else {
-                        return Err(ParseError::UnexpectedToken(
+                        return self.unexpected_with(
+                            "Instead was expecting child' or 'parent' to determine who will be able to access it",
                             Token {
                                 kind: TokenKind::Identifier(self.symbols.get_name(modifier.data).to_string()),
                                 span: modifier.span,
                             },
-                            ExpectedContent::Raw("Instead was expecting child' or 'parent' to determine who will be able to access it"
-                                .to_string()),
-                        ));
+                        );
                     };
                     self.expect(&TokenKind::RParen)?;
                     modifier
@@ -90,10 +87,10 @@ impl Parser<'_> {
                                 Some(expr)
                             }
                             _ => {
-                                return Err(ParseError::UnexpectedToken(
+                                return self.unexpected_with(
+                                    "Was expecing ';' to determine this property initialization is required by it's parent or '=' to give it a default value",
                                     curr,
-                                    ExpectedContent::Raw("Was expecing ';' to determine this property initialization is required by it's parent or '=' to give it a default value".to_string()),
-                                ));
+                                );
                             }
                         };
                         Ok(ComponentMember {
@@ -121,17 +118,15 @@ impl Parser<'_> {
                         })
                     }
                     _ => {
-                        Err(ParseError::UnexpectedToken(
-                            self.eat()?,
-                            ExpectedContent::Raw("Was expecting '=' or ':' to define the type of the property or a ';' to keep it to be initialized by it's parent".to_string()),
-                        ))
+                        self.unexpected(
+                            "Was expecting '=' or ':' to define the type of the property or a ';' to keep it to be initialized by it's parent",
+                        )
                     }
                 }
             }
-            _ => Err(ParseError::UnexpectedToken(
-                self.eat()?,
-                ExpectedContent::Raw("Was expecting some component member. Try defining a property, a method or child".to_string()),
-            )),
+            _ => self.unexpected(
+                "Was expecting some component member. Try defining a property, a method or child",
+            ),
         }
     }
     ///Parses a component declaration. This initializes on the 'component' keyword

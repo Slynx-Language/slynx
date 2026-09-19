@@ -112,11 +112,11 @@ impl<'a> ComponentBuilder<'a> {
     pub fn generate(mut self) -> IRPointer<Component, 1> {
         {
             let component = self.ir.get(self.component_id);
-            let IRType::Component(ty) = self.ir.get_type(component.ty) else {
+            let IRType::Component(ty) = self.ir.types.get_type(component.ty) else {
                 unreachable!("Type of component should be, on IR, component");
             };
             let ty = *ty;
-            let ty = self.ir.get_component_type_mut(ty);
+            let ty = self.ir.types.get_component_type_mut(ty);
             ty.fields.extend_from_slice(&self.fields);
             ty.children.extend_from_slice(&self.children);
         }
@@ -130,7 +130,7 @@ impl<'a> ComponentBuilder<'a> {
             self.ir.instructions.push(Instruction::initcall(
                 initcall.func_ptr,
                 initcall.args.into(),
-                self.ir.void_type(),
+                self.ir.types.void_type(),
             ));
         }
         let len = self.ir.instructions.len() - start;

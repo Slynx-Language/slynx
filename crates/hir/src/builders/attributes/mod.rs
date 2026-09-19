@@ -12,13 +12,13 @@ pub(crate) fn process_attributes(
     hir: &SlynxHir,
     attrs: &[Spanned<ASTAttribute>],
     decl_id: AnyDeclarationId,
-) -> Vec<HirAttribute> {
+) -> crate::Result<Vec<HirAttribute>> {
     let mut out = Vec::with_capacity(attrs.len());
     for attr in attrs {
         let kind = match hir.get_name(attr.data.name) {
             "builtin" => {
                 let name = attr.data.args.first().copied().unwrap_or(attr.data.name);
-                hir.lang_items.register(hir.get_name(name), decl_id);
+                hir.store.lang_items.register(name, decl_id, attr.span)?;
                 HirAttributeKind::Builtin { name }
             }
             "capabilities" => HirAttributeKind::Capabilities(attr.data.args.clone()),
@@ -32,5 +32,5 @@ pub(crate) fn process_attributes(
             span: attr.span,
         });
     }
-    out
+    Ok(out)
 }

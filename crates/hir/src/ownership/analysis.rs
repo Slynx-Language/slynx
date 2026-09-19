@@ -50,7 +50,7 @@ impl OwnershipAnalysis {
     /// Run ownership analysis on the entire HIR.
     pub fn analyze(hir: &SlynxHir) -> Self {
         let mut analysis = Self::new();
-        for file in hir.files.iter() {
+        for file in hir.store.files.iter() {
             for (id, func) in file.declarations.functions.iter().with_ids() {
                 let func_id = DeclarationId::new(file.file, id);
                 analysis.analyze_function(hir, func_id, func);
@@ -314,7 +314,7 @@ impl OwnershipAnalysis {
         };
 
         if let Some(place_id) = self.build_place_from_expr(hir, inner.data)
-            && let HirPlace::Variable(id) = &hir.places[place_id]
+            && let HirPlace::Variable(id) = &hir.store.places[place_id]
         {
             match () {
                 _ if state.can_borrow_variable(*id, kind) => state.borrow_variable(*id, kind),
