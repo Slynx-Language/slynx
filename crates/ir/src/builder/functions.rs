@@ -71,11 +71,11 @@ impl<'a> FunctionBuilder<'a> {
     pub fn set_function_type(&mut self, args: Vec<IRTypeId>, ret: IRTypeId) -> &[Value] {
         let ty = self.ir.get(self.func_id).ty();
 
-        let IRType::Function(func_id) = self.ir.get_type(ty) else {
+        let IRType::Function(func_id) = self.ir.types.get_type(ty) else {
             unreachable!()
         };
         let func_id = *func_id;
-        let func_ty = self.ir.get_function_type_mut(func_id);
+        let func_ty = self.ir.types.get_function_type_mut(func_id);
         func_ty.insert_arg_types(&args);
         func_ty.set_return_type(ret);
         self.emit_function_args(&args);
@@ -213,7 +213,7 @@ impl<'a> FunctionBuilder<'a> {
         opcode: Opcode,
         operands: impl Into<smallvec::SmallVec<[Value; 4]>>,
     ) -> Value {
-        self.emit(opcode, operands, self.ir.void_type())
+        self.emit(opcode, operands, self.ir.types.void_type())
     }
 
     /// Look up the result type of the instruction that produced `v`.
@@ -359,7 +359,7 @@ impl FunctionBuilder<'_> {
 
     pub fn get_field(&mut self, object: Value, index: u16) -> Value {
         let ty = self.value_type(object);
-        let field_ty = self.ir.get_field_type(ty, index);
+        let field_ty = self.ir.types.get_field_type(ty, index);
         self.emit(Opcode::GetField(index), smallvec![object], field_ty)
     }
 
@@ -374,7 +374,7 @@ impl FunctionBuilder<'_> {
         self.emit(
             Opcode::FieldRef(field_index),
             smallvec![value],
-            self.ir.insert_type(IRType::Pointer(ty)),
+            self.ir.types.insert_type(IRType::Pointer(ty)),
         )
     }
     /// Dynamically get a field by name from an external object.

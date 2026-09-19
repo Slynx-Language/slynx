@@ -320,7 +320,7 @@ impl<'a> Formatter<'a> {
             .iter()
             .enumerate()
             .map(|(idx, c)| {
-                let ty = self.ir.get_type(*c);
+                let ty = self.ir.types.get_type(*c);
                 let ty = if let IRType::Component(component) = ty {
                     self.fmt_component_type(component)
                 } else {
