@@ -10,7 +10,7 @@ pub use slynx_lexer;
 pub use slynx_monomorphizer;
 pub use slynx_parser;
 
-///Compiels the provided `slynx` code from the provided `path` and writes the slynx IR textual form into the same `path` but with extension `sir`
+///Compiles the provided `slynx` code from the provided `path` and writes the slynx IR textual form into the same `path` but with extension `sir`
 pub fn compile_code(path: PathBuf, std: Option<PathBuf>) -> color_eyre::eyre::Result<()> {
     let context = SlynxContext::new(path, std)?;
     let output = context.compile()?;
@@ -18,7 +18,7 @@ pub fn compile_code(path: PathBuf, std: Option<PathBuf>) -> color_eyre::eyre::Re
     Ok(())
 }
 
-///Compiels the provided `slynx` code from the provided `path` and returns the compiled slynx IR
+///Compiles the provided `slynx` code from the provided `path` and returns the compiled slynx IR
 pub fn compile_to_ir(path: PathBuf, std: Option<PathBuf>) -> color_eyre::eyre::Result<SlynxIR> {
     let context = SlynxContext::new(path, std)?;
     let output = context.compile()?;
