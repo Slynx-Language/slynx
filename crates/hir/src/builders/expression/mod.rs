@@ -18,6 +18,10 @@ use crate::{
         HirQueueBuilder,
         expression::{
             calls::{FunctionCallDescriptor, FunctionTarget},
+            collections::{
+                IndexExpressionDescriptor, SequenceExpressionDescriptor, TupleAccessDescriptor,
+            },
+            components::ComponentExpressionDescriptor,
             field_access::FieldAccessDescriptor,
             literals::{DereferenceExpressionDescriptor, ReferenceExpressionDescriptor},
         },
@@ -26,17 +30,17 @@ use crate::{
     id::OwnerId,
 };
 
-mod calls;
-mod collections;
-mod components;
-mod control_flow;
-mod enums;
-mod field_access;
-mod literals;
-mod names;
-mod objects;
-mod statements;
-mod typing;
+pub mod calls;
+pub mod collections;
+pub mod components;
+pub mod control_flow;
+pub mod enums;
+pub mod field_access;
+pub mod literals;
+pub mod names;
+pub mod objects;
+pub mod statements;
+pub mod typing;
 
 use self::{control_flow::IfExpressionDescriptor, objects::ObjectDescriptor};
 
@@ -220,18 +224,30 @@ impl ExpressionBuilder {
                 );
             }
             ASTExpression::Null => self.build_null(queue, target.span, expected)?,
-            ASTExpression::IndexExpression(expr, range) => {
-                self.build_index(queue, *expr, range, expected, target.span, context)?
-            }
+            ASTExpression::IndexExpression(expr, range) => self.build_index(
+                queue,
+                IndexExpressionDescriptor {
+                    span: target.span,
+                    expr: *expr,
+                    range,
+                    expected,
+                    context,
+                },
+            )?,
             ASTExpression::False => self.build_bool(queue, false),
             ASTExpression::True => self.build_bool(queue, true),
             ASTExpression::Identifier(name) => self.build_identifier(queue, *name, target.span)?,
             ASTExpression::IntLiteral(i) => self.build_int_literal(queue, *i),
             ASTExpression::FloatLiteral(f) => self.build_float_literal(queue, f.into_inner()),
             ASTExpression::StringLiteral(s) => self.build_str_literal(queue, *s),
-            ASTExpression::Tuple(fields) => {
-                self.build_tuple_expression(queue, fields, expected, context)?
-            }
+            ASTExpression::Tuple(fields) => self.build_tuple_expression(
+                queue,
+                collections::TupleExpressionDescriptor {
+                    context,
+                    expected,
+                    fields,
+                },
+            )?,
 
             ASTExpression::FieldAccess { parent, field } => {
                 return self.build_field_access(
@@ -247,11 +263,13 @@ impl ExpressionBuilder {
             }
             ASTExpression::TupleAccess { tuple, index } => self.build_tuple_access(
                 queue,
-                *tuple,
-                expected,
-                target.span,
-                *index as usize,
-                context,
+                TupleAccessDescriptor {
+                    tuple: *tuple,
+                    expected,
+                    span: target.span,
+                    index: *index as usize,
+                    context,
+                },
             )?,
             ASTExpression::Binary { lhs, op, rhs } => {
                 let lhs = self.build_expression(
@@ -274,7 +292,7 @@ impl ExpressionBuilder {
                 let rhs_ty = queue.hir.view(rhs.data).ty();
                 let ty = self.unify_types(queue, lhs_ty, rhs_ty, target.span)?;
                 let ty = if op.is_logical() {
-                    queue.hir.create_type(HirType::Bool)
+                    queue.hir.types.create_type(HirType::Bool)
                 } else {
                     ty
                 };
@@ -325,8 +343,14 @@ impl ExpressionBuilder {
                 },
             )?,
             ASTExpression::Component(component) => {
-                let child =
-                    self.build_component_expression(queue, component, target.span, context)?;
+                let child = self.build_component_expression(
+                    queue,
+                    ComponentExpressionDescriptor {
+                        component,
+                        span: target.span,
+                        context,
+                    },
+                )?;
                 HirExpression {
                     ty: queue.hir[child.data].name,
                     kind: HirExpressionKind::Component(child),
@@ -342,14 +366,28 @@ impl ExpressionBuilder {
                     context,
                 },
             )?,
-            ASTExpression::Array(expressions) => {
-                self.build_array(queue, expressions, target.span, expected, context)?
-            }
-            ASTExpression::Vector(expressions) => {
-                self.build_vector(queue, expressions, target.span, expected, context)?
-            }
+            ASTExpression::Array(expressions) => self.build_sequence(
+                queue,
+                SequenceExpressionDescriptor {
+                    expressions,
+                    expected,
+                    context,
+                    kind: collections::SequenceKind::Array,
+                    span: target.span,
+                },
+            )?,
+            ASTExpression::Vector(expressions) => self.build_sequence(
+                queue,
+                SequenceExpressionDescriptor {
+                    expressions,
+                    expected,
+                    context,
+                    kind: collections::SequenceKind::Vector,
+                    span: target.span,
+                },
+            )?,
         };
-        let exprid = queue.hir.insert_expression(expr);
+        let exprid = queue.hir.store.insert_expression(expr);
         Ok(target.span.make_spanned(exprid))
     }
 }

@@ -10,7 +10,7 @@ impl<'a> Parser<'a> {
     pub fn intern(&self, name: &str) -> SymbolPointer {
         self.symbols.intern(name)
     }
-    pub fn intern_statment(&self, stmt: ASTStatement) -> DedupPoolId<ASTStatement> {
+    pub fn intern_statement(&self, stmt: ASTStatement) -> DedupPoolId<ASTStatement> {
         self.statements.insert(stmt)
     }
     pub fn intern_expression(&self, expr: ASTExpression) -> DedupPoolId<ASTExpression> {
@@ -66,11 +66,28 @@ impl<'a> Parser<'a> {
                 TokenKind::String(_) => "Instead was expecting a string literal".to_string(),
                 _ => format!("'{kind:?}'",),
             };
-            Err(ParseError::UnexpectedToken(
-                token,
-                ExpectedContent::Raw(kind),
-            ))
+            self.unexpected_with(kind, token)
         }
+    }
+
+    /// Builds an [`ParseError::UnexpectedToken`] error from the *next* token
+    /// (which is consumed) and returns it as a `T`-typed failure. `msg` is the
+    /// text explaining what was expected instead.
+    pub fn unexpected<T>(&mut self, msg: impl Into<String>) -> Result<T> {
+        Err(ParseError::UnexpectedToken(
+            self.eat()?,
+            ExpectedContent::Raw(msg.into()),
+        ))
+    }
+
+    /// Builds an [`ParseError::UnexpectedToken`] error from an already-consumed
+    /// `token` and returns it as a `T`-typed failure. `msg` is the text
+    /// explaining what was expected instead.
+    pub fn unexpected_with<T>(&mut self, msg: impl Into<String>, token: Token) -> Result<T> {
+        Err(ParseError::UnexpectedToken(
+            token,
+            ExpectedContent::Raw(msg.into()),
+        ))
     }
 
     ///Does the same as `self.expect()` but expecting specifically an identifier
@@ -96,5 +113,42 @@ impl<'a> Parser<'a> {
         };
         let name = self.intern(&name);
         Ok((name, span))
+    }
+
+    ///Parses a list of `item`s separated by `sep` and ending at `term`, which
+    ///is left unconsumed. When `allow_trailing` is set, a separator directly
+    ///before the terminator (i.e. a trailing comma) is accepted. On every other
+    ///token after an item the list stops, so malformed input is rejected either
+    ///here or by the caller expecting the `term`inator.
+    pub fn parse_separated<T>(
+        &mut self,
+        term: TokenKind,
+        sep: TokenKind,
+        allow_trailing: bool,
+        mut item: impl FnMut(&mut Self) -> Result<T>,
+    ) -> Result<Vec<T>> {
+        let mut out = Vec::new();
+        let mut after_separator = false;
+        loop {
+            if self.peek()?.kind == term {
+                if !allow_trailing && after_separator {
+                    return self.unexpected(format!("Was expecting an item before '{term:?}'"));
+                }
+                break;
+            }
+            out.push(item(self)?);
+            match self.peek()?.kind {
+                ref kind if kind == &sep => {
+                    self.eat()?;
+                    after_separator = true;
+                }
+                ref kind if kind == &term => break,
+                _ if allow_trailing => after_separator = false,
+                _ => {
+                    return self.unexpected(format!("Was expecting a ',' or '{term:?}'"));
+                }
+            }
+        }
+        Ok(out)
     }
 }

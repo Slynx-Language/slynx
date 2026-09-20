@@ -152,7 +152,7 @@ pub enum HirStyleStatement {
 /// statement. Explicit `return` statements are also supported and lowered
 /// to the same `Return` variant.
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[repr(C)]
+
 pub enum HirStatement {
     /// Assignment statement.
     ///

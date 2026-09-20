@@ -76,16 +76,6 @@ impl IRTypes {
         self.unions.iter().map(|(_, u)| u)
     }
 
-    ///Checks if the provided `ty` is some variant of unsigned int
-    pub fn is_negative_int(&self, ty: DedupPoolId<IRType>) -> bool {
-        let typ = *self.types.get(ty);
-        typ == IRType::U8
-            || typ == IRType::U16
-            || typ == IRType::U32
-            || typ == IRType::U64
-            || typ == IRType::USIZE
-    }
-
     ///Retrieves the raw IR type from the provided `id`
     pub fn get_type(&self, id: IRTypeId) -> &IRType {
         self.types.get(id)

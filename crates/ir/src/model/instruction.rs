@@ -1,8 +1,6 @@
 use smallvec::{SmallVec, smallvec};
 
-use crate::{
-    Function, GlobalValue, IRPointer, IRTypeId, Label, Operand, StyleProperty, SymbolPointer, Value,
-};
+use crate::{Function, GlobalValue, IRPointer, IRTypeId, Label, Operand, SymbolPointer, Value};
 
 // ── Opcode ─────────────────────────────────────────────────────────────────
 
@@ -129,14 +127,6 @@ pub enum Opcode {
     /// holds the raw bits.
     RawValue,
 
-    // ═══════════════════════════════════════════════════════════════════
-    //  UI (framework-specific)
-    // ═══════════════════════════════════════════════════════════════════
-    /// Apply a style property to a UI component.
-    SApply {
-        property_code: StyleProperty,
-    },
-
     /// Call a style initializer function on a component.
     InitCall(IRPointer<Function, 1>),
 
@@ -179,7 +169,7 @@ pub struct Instruction {
 
 impl Opcode {
     pub fn is_ui(&self) -> bool {
-        matches!(self, Opcode::InitCall(_) | Opcode::SApply { .. })
+        matches!(self, Opcode::InitCall(_))
     }
     ///Checks if the Opcode executes something and so cannot be discarted directly
     pub fn is_impure(&self) -> bool {
@@ -193,7 +183,6 @@ impl Opcode {
                 | Opcode::DynMethodCall(_)
                 | Opcode::Call(_)
                 | Opcode::InitCall(_)
-                | Opcode::SApply { .. }
                 | Opcode::Br(_)
                 | Opcode::Cbr { .. }
                 | Opcode::Ret
@@ -426,18 +415,6 @@ impl Instruction {
         Instruction {
             opcode: Opcode::Component,
             operands: fields,
-            value_type: ty,
-        }
-    }
-
-    pub fn sapply(
-        property_code: StyleProperty,
-        operands: SmallVec<[Value; 4]>,
-        ty: IRTypeId,
-    ) -> Self {
-        Instruction {
-            opcode: Opcode::SApply { property_code },
-            operands,
             value_type: ty,
         }
     }

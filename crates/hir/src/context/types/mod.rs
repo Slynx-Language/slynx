@@ -1,52 +1,49 @@
 mod components;
 mod enums;
+mod methods;
+mod registry;
+mod storage;
 mod structs;
 mod styles;
-use std::{
-    collections::{HashSet, VecDeque},
-    ops::Index,
-};
+use std::ops::Index;
 
-use common::{
-    Span,
-    pool::{DedupPool, DedupPoolId},
-};
+use common::pool::DedupPoolId;
 use dashmap::{DashMap, DashSet};
 
 use crate::{
-    ComponentType, DeclarationId, EnumType, EnumVariantType, FunctionType, HIRError,
-    HirFunctionDeclaration, HirType, Result, StructType, StyleType, SymbolPointer, TupleType,
-    VariableId, context::types::styles::StylesPool, helpers::Visible,
+    ComponentType, DeclarationId, EnumType, EnumVariantType, FunctionType, HirFunctionDeclaration,
+    HirType, Result, StructType, StyleType, SymbolPointer, TupleType, VariableId, helpers::Visible,
 };
+
 pub use components::ComponentDefinition;
-use components::*;
-use enums::*;
+pub use methods::MethodTable;
+pub use registry::TypeRegistry;
+pub use storage::TypeStorage;
 pub use structs::StructDefinition;
 pub use styles::StyleMetadata;
 
-use structs::*;
-
 #[derive(Debug)]
 /// Manages all types in the HIR, including built-ins, user-defined types, and variables.
+///
+/// This is a thin facade over three single-purpose collaborators:
+/// - [`TypeStorage`] — the deduplicated pools holding type shapes,
+/// - [`TypeRegistry`] — the name→type-id mapping,
+/// - [`MethodTable`] — methods attached to any type.
+///
+/// It additionally tracks variables and externally-marked types.
 pub struct TypesContext {
     ///Maps a variable to it's type
     pub variables: DashMap<VariableId, DedupPoolId<HirType>>,
-    pub names: DashMap<SymbolPointer, DedupPoolId<HirType>>,
-    pub methods: DashMap<
-        DedupPoolId<HirType>,
-        DashMap<SymbolPointer, DeclarationId<HirFunctionDeclaration>>,
-    >,
-    /// Maps (parent_type, method_name) -> return_type for external object methods.
-    external_methods: DashMap<(DedupPoolId<HirType>, SymbolPointer), DedupPoolId<HirType>>,
+    /// Deduplicated pools holding every type shape.
+    pub storage: TypeStorage,
+    /// Maps names to the type ids they refer to.
+    pub registry: TypeRegistry,
+    /// Methods attached to types. Methods may be registered on any type id,
+    /// so any value can carry methods.
+    pub methods: MethodTable,
     /// Set of DedupPoolId<HirType>s that are external (from JS/interop).
     /// When a type is marked external, all references to it are also external.
     externals: DashSet<DedupPoolId<HirType>>,
-    structs: StructsPool,
-    components: ComponentsPool,
-    styles: StylesPool,
-    enums: EnumsPool,
-    functions: DedupPool<FunctionType>,
-    types: DedupPool<HirType>,
 }
 impl Default for TypesContext {
     fn default() -> Self {
@@ -57,27 +54,21 @@ impl TypesContext {
     /// Creates a new [`TypesContext`] with built-in types pre-registered under the given symbol names.
     pub fn new() -> Self {
         Self {
-            names: DashMap::new(),
             variables: DashMap::new(),
-            methods: DashMap::new(),
-            external_methods: DashMap::new(),
+            storage: TypeStorage::default(),
+            registry: TypeRegistry::new(),
+            methods: MethodTable::new(),
             externals: DashSet::new(),
-            types: DedupPool::new(),
-            functions: DedupPool::new(),
-            structs: StructsPool::default(),
-            components: ComponentsPool::default(),
-            styles: StylesPool::default(),
-            enums: EnumsPool::default(),
         }
     }
 
     /// Number of distinct types in the type pool.
     pub fn len(&self) -> usize {
-        self.types.len()
+        self.storage.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.storage.is_empty()
     }
 
     ///Inserts a new variable on this Context
@@ -85,22 +76,27 @@ impl TypesContext {
         self.variables.insert(varid, ty);
     }
 
+    /// Returns the [`DedupPoolId<HirType>`] of the given variable, if it has been registered.
+    pub fn get_variable(&self, id: &VariableId) -> Option<DedupPoolId<HirType>> {
+        self.variables.get(id).map(|v| *v.value())
+    }
+
     pub fn create_function_type(
         &self,
         args: Vec<DedupPoolId<HirType>>,
         ret: DedupPoolId<HirType>,
     ) -> DedupPoolId<HirType> {
-        let fid = self.functions.insert(FunctionType {
+        let fid = self.storage.functions.insert(FunctionType {
             args: args.into(),
             ret,
         });
-        self.create_type(HirType::Function(fid))
+        self.storage.insert_type(HirType::Function(fid))
     }
 
     /// Creates a new tuple type with the given field types and returns its [`TypeId`].
     pub fn create_tuple_type(&self, fields: Vec<DedupPoolId<HirType>>) -> DedupPoolId<HirType> {
-        let tuple = self.structs.insert_at_tuples(TupleType { fields });
-        self.types.insert(HirType::Tuple(tuple))
+        let tuple = self.storage.structs.insert_at_tuples(TupleType { fields });
+        self.storage.insert_type(HirType::Tuple(tuple))
     }
 
     pub fn create_struct_type(
@@ -109,9 +105,9 @@ impl TypesContext {
         fields: Vec<Visible<(SymbolPointer, DedupPoolId<HirType>)>>,
         methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
     ) -> DedupPoolId<HirType> {
-        let (id, _) = self.structs.insert(name, fields, methods);
-        let id = self.create_type(HirType::Struct(id));
-        self.names.insert(name, id);
+        let (id, _) = self.storage.structs.insert(name, fields, methods);
+        let id = self.storage.insert_type(HirType::Struct(id));
+        self.registry.register(name, id);
         id
     }
 
@@ -128,24 +124,24 @@ impl TypesContext {
         name: SymbolPointer,
         variants: Vec<EnumVariantType>,
     ) -> DedupPoolId<HirType> {
-        if let Some(existing) = self.enums.find_by_name(name) {
-            return self.create_type(HirType::Enum(existing));
+        if let Some(existing) = self.storage.enums.find_by_name(name) {
+            return self.storage.insert_type(HirType::Enum(existing));
         }
-        let id = self.enums.insert(name, variants);
-        let id = self.create_type(HirType::Enum(id));
-        self.names.insert(name, id);
+        let id = self.storage.enums.insert(name, variants);
+        let id = self.storage.insert_type(HirType::Enum(id));
+        self.registry.register(name, id);
         id
     }
 
     ///Returns the name of the enum associated with the given `id`.
     pub fn get_enum_name(&self, id: DedupPoolId<EnumType>) -> SymbolPointer {
-        self.enums[id].name
+        self.storage.get_enum_name(id)
     }
 
     ///Returns the variants of the enum associated with the given `id`, in
     ///declaration order.
     pub fn get_enum_variants(&self, id: DedupPoolId<EnumType>) -> &[EnumVariantType] {
-        &self.enums[id].variants
+        self.storage.get_enum_variants(id)
     }
 
     ///Finds the variant with the given `name` on the enum associated with `id`.
@@ -154,9 +150,7 @@ impl TypesContext {
         id: DedupPoolId<EnumType>,
         name: SymbolPointer,
     ) -> Option<usize> {
-        self.get_enum_variants(id)
-            .iter()
-            .position(|variant| variant.name == name)
+        self.storage.find_enum_variant(id, name)
     }
 
     pub fn create_component_type(
@@ -165,9 +159,9 @@ impl TypesContext {
         properties: Vec<(SymbolPointer, DedupPoolId<HirType>)>,
         children: Vec<DedupPoolId<ComponentType>>,
     ) -> DedupPoolId<HirType> {
-        let (comp_ty, _) = self.components.insert(name, properties, children);
-        let id = self.create_type(HirType::Component(comp_ty));
-        self.names.insert(name, id);
+        let (comp_ty, _) = self.storage.components.insert(name, properties, children);
+        let id = self.storage.insert_type(HirType::Component(comp_ty));
+        self.registry.register(name, id);
         id
     }
 
@@ -176,13 +170,16 @@ impl TypesContext {
         name: SymbolPointer,
         args: Vec<DedupPoolId<HirType>>,
     ) -> DedupPoolId<HirType> {
-        let metadata = self.styles.insert_at_metadata(StyleMetadata { name });
-        let style_id = self.styles.insert_at_styles(StyleType {
+        let metadata = self
+            .storage
+            .styles
+            .insert_at_metadata(StyleMetadata { name });
+        let style_id = self.storage.styles.insert_at_styles(StyleType {
             args: args.into(),
             metadata,
         });
-        let id = self.create_type(HirType::Style(style_id));
-        self.names.insert(name, id);
+        let id = self.storage.insert_type(HirType::Style(style_id));
+        self.registry.register(name, id);
         id
     }
 
@@ -190,53 +187,28 @@ impl TypesContext {
         &self,
         comp: DedupPoolId<ComponentType>,
     ) -> &ComponentDefinition {
-        let meta = self.components[comp].metadata;
-        &self.components[meta]
+        self.storage.get_component_definition(comp)
     }
 
     pub fn create_alias_type(&self, name: SymbolPointer, ty: HirType) -> DedupPoolId<HirType> {
-        let id = self.create_type(ty);
-        self.names.insert(name, id);
+        let id = self.storage.insert_type(ty);
+        self.registry.register(name, id);
         id
     }
 
     ///Inserts the provided `ty` to have the provided `name`
     pub fn create_type(&self, ty: HirType) -> DedupPoolId<HirType> {
-        self.types.insert(ty)
+        self.storage.insert_type(ty)
     }
 
     ///Returns the inner object from the provided `ty`, returns None if the type is not a object
     pub fn get_object(&self, ty: DedupPoolId<HirType>) -> Option<DedupPoolId<HirType>> {
-        let mut visited = HashSet::new();
-        let mut current = ty;
-        loop {
-            if !visited.insert(current) {
-                return None;
-            }
-
-            match self[current] {
-                HirType::Struct { .. } => return Some(current),
-                HirType::Reference { rf, .. } => current = rf,
-                _ => return None,
-            }
-        }
+        self.storage.get_object(ty)
     }
 
     ///Returns the inner component from the provided `ty`, returns None if the type is not a object
     pub fn get_component(&self, ty: &DedupPoolId<HirType>) -> Option<DedupPoolId<HirType>> {
-        let mut visited = HashSet::new();
-        let mut current = *ty;
-        loop {
-            if !visited.insert(current) {
-                return None;
-            }
-
-            match self[current] {
-                HirType::Component { .. } => return Some(current),
-                HirType::Reference { rf, .. } => current = rf,
-                _ => return None,
-            }
-        }
+        self.storage.get_component(ty)
     }
 
     ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
@@ -246,10 +218,7 @@ impl TypesContext {
         name: SymbolPointer,
         id: DeclarationId<HirFunctionDeclaration>,
     ) {
-        if !self.methods.contains_key(&ty) {
-            self.methods.insert(ty, DashMap::new());
-        }
-        self.methods.get(&ty).unwrap().insert(name, id);
+        self.methods.create_method(ty, name, id);
     }
 
     /// Register an external method's return type without creating a declaration entry.
@@ -259,7 +228,8 @@ impl TypesContext {
         name: SymbolPointer,
         return_type: DedupPoolId<HirType>,
     ) {
-        self.external_methods.insert((parent_ty, name), return_type);
+        self.methods
+            .register_external_method(parent_ty, name, return_type);
     }
 
     /// Returns the return type of an external method on `parent_ty` with the given `name`.
@@ -268,9 +238,7 @@ impl TypesContext {
         parent_ty: &DedupPoolId<HirType>,
         name: SymbolPointer,
     ) -> Option<DedupPoolId<HirType>> {
-        self.external_methods
-            .get(&(*parent_ty, name))
-            .map(|ret| *ret.value())
+        self.methods.get_method_return_type(parent_ty, name)
     }
 
     ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
@@ -278,110 +246,46 @@ impl TypesContext {
         &self,
         ty: DedupPoolId<HirType>,
     ) -> Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)> {
-        if let Some(methos_map) = self.methods.get(&ty) {
-            let mut out = Vec::with_capacity(methos_map.len());
-            for entry in methos_map.iter() {
-                let (key, value) = entry.pair();
-                out.push((*key, *value));
-            }
-            out
-        } else {
-            Vec::new()
-        }
+        self.methods.get_methods_of(ty)
     }
 
     pub fn get_style_name(&self, s: DedupPoolId<StyleType>) -> SymbolPointer {
-        let metadata = self.styles[s].metadata;
-        self.styles.index(metadata).name
+        self.storage.get_style_name(s)
     }
 
     ///Retrieves the DedupPoolId<HirType> of the provided `name` on the currentContext
     pub fn get_id_of_name(&self, name: &SymbolPointer) -> Option<DedupPoolId<HirType>> {
-        self.names.get(name).map(|v| *v.value())
+        self.registry.get_id_of_name(name)
     }
     pub fn get_struct_name(&self, s: DedupPoolId<StructType>) -> SymbolPointer {
-        let metadata = self.structs[s].metadata;
-        self.structs[metadata].name
+        self.storage.get_struct_name(s)
     }
     pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[Visible<SymbolPointer>] {
-        let metadata = self.structs[s].metadata;
-        &self.structs[metadata].fields
+        self.storage.get_struct_fields(s)
     }
 
     pub fn get_struct_field_types(&self, s: DedupPoolId<StructType>) -> &[DedupPoolId<HirType>] {
-        &self.structs[s].fields
+        self.storage.get_struct_field_types(s)
     }
 
     pub fn get_struct_signature(
         &self,
         s: DedupPoolId<StructType>,
     ) -> Vec<(&Visible<SymbolPointer>, &DedupPoolId<HirType>)> {
-        self.get_struct_fields(s)
-            .iter()
-            .zip(&self.structs[s].fields)
-            .collect()
-    }
-
-    /// Returns the [`DedupPoolId<HirType>`] of the given variable, if it has been registered.
-    pub fn get_variable(&self, id: &VariableId) -> Option<DedupPoolId<HirType>> {
-        self.variables.get(id).map(|v| *v.value())
+        self.storage.get_struct_signature(s)
     }
 
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
     pub fn get_type_from_ref(
         &self,
         ref_ty: DedupPoolId<HirType>,
-        span: &Span,
+        span: &common::Span,
     ) -> Result<DedupPoolId<HirType>> {
-        let mut visited = HashSet::new();
-        let mut current = ref_ty;
-        loop {
-            match self[current] {
-                HirType::Reference { rf, .. } => {
-                    if !visited.insert(current) {
-                        return Err(HIRError::recursive(current, *span));
-                    }
-                    current = rf;
-                }
-                _ => return Ok(current),
-            }
-        }
+        self.storage.get_type_from_ref(ref_ty, span)
     }
 
     pub fn is_cyclic(&self, ty: DedupPoolId<HirType>) -> bool {
-        let mut set = HashSet::new();
-        let mut queue = VecDeque::new();
-        queue.push_back(ty);
-        while let Some(ty) = queue.pop_front() {
-            if !set.insert(ty) {
-                return true;
-            }
-
-            match self[ty] {
-                HirType::Reference { rf, .. } => {
-                    queue.push_back(rf);
-                }
-                HirType::Struct(id) => {
-                    for field in &self[id].fields {
-                        queue.push_back(*field);
-                    }
-                }
-                HirType::Tuple(id) => {
-                    for field in &self[id].fields {
-                        queue.push_back(*field);
-                    }
-                }
-                HirType::Enum(id) => {
-                    for variant in &self[id].variants {
-                        for field in &variant.payload {
-                            queue.push_back(*field);
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        false
+        self.storage.is_cyclic(ty)
     }
 
     /// Mark a type as external. Also traverses `Reference` wrappers to mark
@@ -418,15 +322,13 @@ impl TypesContext {
 }
 
 macro_rules! impl_index {
-    ($($ty:ident => |$this:ident, $idx:ident| $body:expr),* $(,)?) => {
+    ($($ty:ident),* $(,)?) => {
         $(
             impl Index<DedupPoolId<$ty>> for TypesContext {
                 type Output = $ty;
 
                 fn index(&self, index: DedupPoolId<$ty>) -> &Self::Output {
-                    let $this = self;
-                    let $idx = index;
-                    $body
+                    self.storage.index(index)
                 }
             }
         )*
@@ -434,22 +336,13 @@ macro_rules! impl_index {
 }
 
 impl_index!(
-    HirType => | this,
-    idx | this.types.get(idx),
-    StructType => | this,
-    idx | &this.structs[idx],
-    StructDefinition => | this,
-    idx | &this.structs[idx],
-    TupleType => | this,
-    idx | &this.structs[idx],
-    EnumType => | this,
-    idx | &this.enums[idx],
-    ComponentType => | this,
-    idx | &this.components[idx],
-    ComponentDefinition => |this,
-    idx | &this.components[idx],
-    FunctionType => | this,
-    idx | &this.functions[idx],
-    StyleType => | this,
-    idx | &this.styles[idx]
+    HirType,
+    StructType,
+    StructDefinition,
+    TupleType,
+    EnumType,
+    ComponentType,
+    ComponentDefinition,
+    FunctionType,
+    StyleType
 );

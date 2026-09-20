@@ -53,7 +53,7 @@ impl OwnershipAnalysis {
             _ => return None,
         };
 
-        let place_id = hir.places.insert(place);
+        let place_id = hir.store.places.insert(place);
         self.expression_places.insert(expr_id, place_id);
         Some(place_id)
     }

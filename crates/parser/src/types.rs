@@ -1,9 +1,5 @@
 use super::Parser;
-use crate::error::ParseError;
-use crate::{
-    ASTExpression, AliasDeclaration, ExpectedContent, SymbolPointer, Type, TypeParamScope,
-    TypedName,
-};
+use crate::{ASTExpression, AliasDeclaration, SymbolPointer, Type, TypeParamScope, TypedName};
 use crate::{Result, ast::GenericIdentifier};
 use common::pool::DedupPoolId;
 use common::{Span, Spanned, VisibilityModifier};
@@ -96,14 +92,9 @@ impl Parser<'_> {
             return Ok((name.data, Vec::new()));
         }
         self.expect(&TokenKind::Lt)?;
-        let mut generics = Vec::new();
-        while self.peek()?.kind != TokenKind::Gt {
-            let name = self.expect_identifier()?;
-            if self.peek()?.kind == TokenKind::Comma {
-                self.eat()?;
-            }
-            generics.push(name.data);
-        }
+        let generics = self.parse_separated(TokenKind::Gt, TokenKind::Comma, true, |parser| {
+            Ok(parser.expect_identifier()?.data)
+        })?;
         self.expect(&TokenKind::Gt)?;
 
         Ok((name.data, generics))
@@ -205,24 +196,11 @@ impl Parser<'_> {
             }
             TokenKind::LParen => {
                 self.eat()?;
-                let mut types = smallvec![];
-                loop {
-                    types.push(self.parse_type(type_params)?);
-                    match self.peek()?.kind {
-                        TokenKind::Comma => {
-                            self.eat()?;
-                        }
-                        TokenKind::RParen => break,
-                        _ => {
-                            return Err(ParseError::UnexpectedToken(
-                                self.eat()?,
-                                ExpectedContent::Raw(
-                                    "Was expecting ',' or ')' in tuple type".into(),
-                                ),
-                            ));
-                        }
-                    }
-                }
+                let types: SmallVec<[Spanned<DedupPoolId<Type>>; 2]> = self
+                    .parse_separated(TokenKind::RParen, TokenKind::Comma, false, |parser| {
+                        parser.parse_type(type_params)
+                    })?
+                    .into();
                 let span = start_span.merge_with(self.eat()?.span);
                 let ty = if types.len() == 1 {
                     (types[0] as Spanned<DedupPoolId<Type>>).data

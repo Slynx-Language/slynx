@@ -14,7 +14,7 @@ impl SlynxIR {
 
     pub fn create_struct(&mut self, name: &str) -> IRTypeId {
         let name = self.strings.intern(name);
-        self.create_empty_struct(name).0
+        self.types.create_empty_struct(name).0
     }
 
     /// Creates a named struct with the given `fields` and `flags`.
@@ -34,7 +34,7 @@ impl SlynxIR {
     /// Creates a new empty union with the given `name` and returns its type ID.
     pub fn create_union(&mut self, name: &str) -> IRTypeId {
         let name = self.strings.intern(name);
-        self.create_empty_union(name).0
+        self.types.create_empty_union(name).0
     }
 
     /// Creates a named union with the given `variants` and `flags`.
@@ -67,7 +67,7 @@ impl SlynxIR {
 
     pub fn create_component(&mut self, name: &str) -> IRPointer<Component, 1> {
         let name = self.strings.intern(name);
-        let (type_id, _) = self.create_empty_component(name);
+        let (type_id, _) = self.types.create_empty_component(name);
         let component = Component::new(type_id, IRPointer::null());
         let ptr = self.components.len();
         self.components.push(component);

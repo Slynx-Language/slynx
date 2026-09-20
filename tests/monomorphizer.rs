@@ -42,7 +42,7 @@ fn deduplicates_identical_instantiations() {
 
     // Both `identity<int>` call sites must share a single specialization.
     let mut specialized = 0;
-    for file in hir.files.iter() {
+    for file in hir.store.files.iter() {
         for declaration in file.declarations.declarations.functions.iter() {
             if hir.get_name(declaration.name).starts_with("identity_") {
                 specialized += 1;
@@ -79,7 +79,7 @@ fn mangles_multiple_generic_parameters() {
     );
 
     let mut names = Vec::new();
-    for file in hir.files.iter() {
+    for file in hir.store.files.iter() {
         for declaration in file.declarations.declarations.functions.iter() {
             names.push(hir.get_name(declaration.name).to_string());
         }
@@ -123,7 +123,7 @@ fn instantiates_nested_generic_calls() {
 
     let mut wrap_specializations = 0;
     let mut identity_specializations = 0;
-    for file in hir.files.iter() {
+    for file in hir.store.files.iter() {
         for declaration in file.declarations.declarations.functions.iter() {
             let name = hir.get_name(declaration.name);
             if name.starts_with("wrap_") {

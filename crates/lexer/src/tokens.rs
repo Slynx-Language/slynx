@@ -14,7 +14,7 @@ pub enum TokenKind {
     // Comments (skip)
     #[regex(r"//[^\n]*", logos::skip, allow_greedy = true)]
     #[regex(r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/", logos::skip)]
-    CommonComent,
+    CommonComment,
     #[token("@")]
     At,
     // Keywords

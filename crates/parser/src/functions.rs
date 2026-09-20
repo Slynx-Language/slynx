@@ -10,17 +10,9 @@ use common::{Span, Spanned};
 impl Parser<'_> {
     ///Parses the arguments of a function. It parses until the `)` of the function args.
     pub fn parse_args(&mut self, type_params: TypeParamScope) -> Result<Vec<Spanned<TypedName>>> {
-        let mut names = Vec::new();
-        while !matches!(self.peek()?.kind, TokenKind::RParen) {
-            names.push(self.parse_typedname(type_params)?);
-            if matches!(self.peek()?.kind, TokenKind::RParen) {
-                break;
-            } else {
-                self.expect(&TokenKind::Comma)?;
-            }
-        }
-
-        Ok(names)
+        self.parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
+            parser.parse_typedname(type_params)
+        })
     }
 
     ///Parses a function. The provided `span` is the initial span for the 'func' keyword.
@@ -81,7 +73,7 @@ impl Parser<'_> {
                     .span
                     .merge_with(self.expect(&TokenKind::SemiColon)?.span);
                 let body = vec![Spanned::new(
-                    self.intern_statment(ASTStatement::Expression(expr)),
+                    self.intern_statement(ASTStatement::Expression(expr)),
                     end,
                 )];
                 Ok(FuncDeclaration {
@@ -121,13 +113,10 @@ impl Parser<'_> {
                     body,
                 })
             }
-            _ => Err(ParseError::UnexpectedToken(
+            _ => self.unexpected_with(
+                "Instead was expecting function body, which initializes with '->' or '{'",
                 current,
-                ExpectedContent::Raw(
-                    "Instead was expecting function body, which initializes with '->' or '{'"
-                        .to_string(),
-                ),
-            )),
+            ),
         }
     }
 }

@@ -2,10 +2,8 @@ use module_loader::FileId;
 use slynx_parser::TypeContext;
 
 use crate::{
-    DeclarationId, HirStylesheetDeclaration, Result, SymbolPointer,
-    builders::HirQueueBuilder,
-    context::HirSymbol,
-    id::{AnyDeclarationId, AnyLocalDeclarationId},
+    DeclarationId, HirStylesheetDeclaration, Result, SymbolPointer, builders::HirQueueBuilder,
+    context::HirSymbol, id::AnyLocalDeclarationId,
 };
 
 impl<'a> HirQueueBuilder<'a> {
@@ -39,7 +37,7 @@ impl<'a> HirQueueBuilder<'a> {
             })
             .collect();
         let args = args?;
-        let ty = self.hir.types_module.create_style_type(name, args);
+        let ty = self.hir.types.create_style_type(name, args);
 
         let id = {
             let decl = HirStylesheetDeclaration {
@@ -53,7 +51,7 @@ impl<'a> HirQueueBuilder<'a> {
                 external: false,
                 attributes: Vec::new(),
             };
-            let file = self.hir.get_or_create_file(file_id);
+            let file = self.hir.store.get_or_create_file(file_id);
             let id = file.create_stylesheet(decl);
             self.hir
                 .symbols_registry
@@ -61,17 +59,11 @@ impl<'a> HirQueueBuilder<'a> {
             id
         };
 
-        let decl_id = AnyDeclarationId::new(file_id, AnyLocalDeclarationId::Style(id.local_id));
-        let attrs =
-            super::attributes::process_attributes(self.hir, &stylesheet.attributes, decl_id);
-        if !attrs.is_empty() {
-            self.hir
-                .get_file_mut(file_id)
-                .declarations
-                .styles
-                .get_mut(id.local_id)
-                .attributes = attrs;
-        }
+        self.attach_attributes(
+            file_id,
+            AnyLocalDeclarationId::Style(id.local_id),
+            &stylesheet.attributes,
+        )?;
 
         Ok(id)
     }

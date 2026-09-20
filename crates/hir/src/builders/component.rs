@@ -9,8 +9,9 @@ use crate::{
         HirQueueBuilder, PendantComponent,
         expression::{ExpressionBuilder, ExpressionDescriptor},
     },
+    components::ComponentExpressionDescriptor,
     context::HirSymbol,
-    id::{AnyDeclarationId, AnyLocalDeclarationId, OwnerId},
+    id::{AnyLocalDeclarationId, OwnerId},
 };
 
 pub struct ComponentBuildResult {
@@ -117,23 +118,17 @@ impl<'a> HirQueueBuilder<'a> {
                     visibility: component.visibility,
                     attributes: Vec::new(),
                 };
-                let file = self.hir.get_or_create_file(node.entry);
+                let file = self.hir.store.get_or_create_file(node.entry);
                 Ok(file.create_component(decl))
             },
         )?;
 
         // Process attributes after the declaration is registered
-        let decl_id =
-            AnyDeclarationId::new(id.file_id, AnyLocalDeclarationId::Component(id.local_id));
-        let attrs = super::attributes::process_attributes(self.hir, &component.attributes, decl_id);
-        if !attrs.is_empty() {
-            self.hir
-                .get_file_mut(id.file_id)
-                .declarations
-                .components
-                .get_mut(id.local_id)
-                .attributes = attrs;
-        }
+        self.attach_attributes(
+            id.file_id,
+            AnyLocalDeclarationId::Component(id.local_id),
+            &component.attributes,
+        )?;
 
         self.components.send(PendantComponent {
             owner: id,
@@ -196,9 +191,14 @@ impl ComponentBuilder {
                     prop_index += 1;
                 }
                 ComponentMemberKind::Child(c) => {
-                    let expr = self
-                        .builder
-                        .build_component_expression(queue, &c.data, c.span, &context)?;
+                    let expr = self.builder.build_component_expression(
+                        queue,
+                        ComponentExpressionDescriptor {
+                            component: &c.data,
+                            span: c.span,
+                            context: &context,
+                        },
+                    )?;
                     decls.push(ComponentMemberDeclaration::Child(expr));
                 }
             }

@@ -79,12 +79,12 @@ pub(crate) fn substitute_type(
 ) -> Result<DedupPoolId<HirType>> {
     match hir.view(ty).raw() {
         HirType::GenericParam { index, .. } => Ok(subst.get(index).copied().unwrap_or(ty)),
-        HirType::Array(inner, len) => {
-            Ok(hir.create_type(HirType::Array(substitute_type(hir, *inner, subst)?, *len)))
-        }
-        HirType::Vector(inner) => {
-            Ok(hir.create_type(HirType::Vector(substitute_type(hir, *inner, subst)?)))
-        }
+        HirType::Array(inner, len) => Ok(hir
+            .types
+            .create_type(HirType::Array(substitute_type(hir, *inner, subst)?, *len))),
+        HirType::Vector(inner) => Ok(hir
+            .types
+            .create_type(HirType::Vector(substitute_type(hir, *inner, subst)?))),
         HirType::Function(function) => {
             let function_view = hir.view(*function);
             let args = function_view
@@ -93,7 +93,7 @@ pub(crate) fn substitute_type(
                 .map(|arg| substitute_type(hir, *arg, subst))
                 .collect::<Result<Vec<_>>>()?;
             let ret = substitute_type(hir, function_view.return_type(), subst)?;
-            Ok(hir.create_function_type(args, ret))
+            Ok(hir.types.create_function_type(args, ret))
         }
         HirType::Tuple(tuple) => {
             let tuple_view = hir.view(*tuple);
@@ -102,7 +102,7 @@ pub(crate) fn substitute_type(
                 .iter()
                 .map(|field| substitute_type(hir, *field, subst))
                 .collect::<Result<Vec<_>>>()?;
-            Ok(hir.create_tuple_type(fields))
+            Ok(hir.types.create_tuple_type(fields))
         }
         HirType::Reference { rf, generics } => {
             let new_rf = substitute_type(hir, *rf, subst)?;
@@ -115,14 +115,14 @@ pub(crate) fn substitute_type(
                     *slot = substitute_type(hir, *slot, subst)?;
                 }
             }
-            Ok(hir.create_type(HirType::Reference {
+            Ok(hir.types.create_type(HirType::Reference {
                 rf: new_rf,
                 generics: new_generics,
             }))
         }
         HirType::Nullable(inner) => {
             let new_inner = substitute_type(hir, *inner, subst)?;
-            Ok(hir.create_type(HirType::Nullable(new_inner)))
+            Ok(hir.types.create_type(HirType::Nullable(new_inner)))
         }
         HirType::Enum(e) => {
             let enum_view = hir.view(*e);
@@ -142,9 +142,9 @@ pub(crate) fn substitute_type(
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
-            Ok(hir.create_enum_type(enum_view.name(), variants))
+            Ok(hir.types.create_enum_type(enum_view.name(), variants))
         }
-        other => Ok(hir.create_type(other.clone())),
+        other => Ok(hir.types.create_type(other.clone())),
     }
 }
 

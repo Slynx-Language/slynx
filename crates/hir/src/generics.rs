@@ -118,7 +118,8 @@ impl GenericTypeArguments {
     /// arguments, preserving unresolved (null) slots in the same positions they
     /// occupy in the mapping.
     pub fn finish_ref(&self, hir: &SlynxHir, rf: DedupPoolId<HirType>) -> DedupPoolId<HirType> {
-        hir.create_type(HirType::new_generic_ref(rf, self.slots.clone()))
+        hir.types
+            .create_type(HirType::new_generic_ref(rf, self.slots.clone()))
     }
 
     /// Consumes the mapping into its raw slot list, indexed by parameter
@@ -145,15 +146,15 @@ pub fn substitute_types(
         HirType::GenericParam { index, .. } => generics.get(*index as usize).copied().unwrap_or(ty),
         HirType::Array(inner, len) => {
             let inner = substitute_types(hir, generics, *inner);
-            hir.create_type(HirType::Array(inner, *len))
+            hir.types.create_type(HirType::Array(inner, *len))
         }
         HirType::Vector(inner) => {
             let inner = substitute_types(hir, generics, *inner);
-            hir.create_type(HirType::Vector(inner))
+            hir.types.create_type(HirType::Vector(inner))
         }
         HirType::Nullable(inner) => {
             let inner = substitute_types(hir, generics, *inner);
-            hir.create_type(HirType::Nullable(inner))
+            hir.types.create_type(HirType::Nullable(inner))
         }
         HirType::Tuple(tuple) => {
             let fields = hir
@@ -162,7 +163,7 @@ pub fn substitute_types(
                 .iter()
                 .map(|field| substitute_types(hir, generics, *field))
                 .collect::<Vec<_>>();
-            hir.create_tuple_type(fields)
+            hir.types.create_tuple_type(fields)
         }
         HirType::Function(function) => {
             let function_view = hir.view(*function);
@@ -172,7 +173,7 @@ pub fn substitute_types(
                 .map(|arg| substitute_types(hir, generics, *arg))
                 .collect::<Vec<_>>();
             let ret = substitute_types(hir, generics, function_view.return_type());
-            hir.create_function_type(args, ret)
+            hir.types.create_function_type(args, ret)
         }
         HirType::Reference {
             rf,
@@ -185,7 +186,7 @@ pub fn substitute_types(
                     *slot = substitute_types(hir, generics, *slot);
                 }
             }
-            hir.create_type(HirType::Reference {
+            hir.types.create_type(HirType::Reference {
                 rf,
                 generics: new_generics,
             })

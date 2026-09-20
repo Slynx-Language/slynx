@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use common::{
     Span, Spanned,
     pool::{DedupPoolId, PoolId},
@@ -83,7 +81,7 @@ impl ExpressionBuilder {
             } else {
                 HirType::ImutableRef(ty)
             };
-            queue.hir.create_type(ty)
+            queue.hir.types.create_type(ty)
         };
         let able_to_mutate = expression_viewer.is_able_to_mutability(&self.variables);
         let out = HirExpression {
@@ -105,7 +103,7 @@ impl ExpressionBuilder {
                 hir_expression.span,
             )),
             _ => {
-                let out = queue.hir.insert_expression(out);
+                let out = queue.hir.store.insert_expression(out);
                 Ok(hir_expression.span.make_spanned(out))
             }
         }
@@ -121,11 +119,11 @@ impl ExpressionBuilder {
             None => {
                 return Err(HIRError::couldnt_infer(span));
             }
-            Some(ty) if let HirType::Nullable(_) = queue.hir.deref()[ty] => ty,
+            Some(ty) if let HirType::Nullable(_) = queue.hir.types[ty] => ty,
             Some(ty) => {
                 return Err(HIRError::unexpected_type(
                     ty,
-                    queue.hir.create_type(HirType::Nullable(ty)),
+                    queue.hir.types.create_type(HirType::Nullable(ty)),
                     span,
                 ));
             }
@@ -138,7 +136,7 @@ impl ExpressionBuilder {
 
     pub(super) fn build_bool(&self, queue: &HirQueueBuilder, value: bool) -> HirExpression {
         HirExpression {
-            ty: queue.hir.create_type(HirType::Bool),
+            ty: queue.hir.types.create_type(HirType::Bool),
             kind: if value {
                 HirExpressionKind::True
             } else {

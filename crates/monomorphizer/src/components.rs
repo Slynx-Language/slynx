@@ -13,13 +13,13 @@ use common::{
 };
 use slynx_hir::{
     ComponentMemberDeclaration, ComponentType, HIRError, HirComponentDeclaration, HirType, Result,
-    SlynxHir, SymbolPointer,
+    SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 
 use crate::{
     Monomorphizer,
-    types::{MonomorphizationKey, Substitution, mangle_name, substitute_type},
+    types::{Substitution, substitute_type},
 };
 
 impl Monomorphizer {
@@ -53,7 +53,7 @@ impl Monomorphizer {
         let name = hir.intern_name(hir.view(comp_id).name());
 
         let Some((template_file, template_local)) =
-            self.find_component_declaration_by_name(hir, name)
+            self.find_declaration_by_name(hir, name, |pool| &pool.components, |d| d.name)
         else {
             unreachable!("Every generic component type must have a HirComponentDeclaration")
         };
@@ -77,63 +77,55 @@ impl Monomorphizer {
             .copied()
             .filter(|slot| !slot.is_null())
             .collect();
-        if template_generics.len() != args.len() {
-            return Err(HIRError::generic_arity_mismatch(
-                name,
-                template_generics.len(),
-                args.len(),
-                span,
-            ));
-        }
 
-        let key: MonomorphizationKey = (template_any, args.clone().into());
-        if let Some(cached) = self.cache.get(&key) {
-            let AnyLocalDeclarationId::Component(local_id) = cached.local_id else {
-                unreachable!("A monomorphized component target must be a component")
-            };
-            return Ok(hir
-                .get_file(cached.file_id)
-                .declarations
-                .declarations
-                .components[local_id]
-                .ty);
-        }
-        if self.in_progress.contains(&key) {
-            return Err(HIRError::cyclic_monomorphization(name, args, span));
-        }
-        self.in_progress.insert(key.clone());
+        self.specialize(
+            hir,
+            name,
+            template_any,
+            template_generics.len(),
+            args,
+            span,
+            |hir, cached| {
+                let AnyLocalDeclarationId::Component(local_id) = cached.local_id else {
+                    unreachable!("A monomorphized component target must be a component")
+                };
+                hir.get_file(cached.file_id)
+                    .declarations
+                    .declarations
+                    .components[local_id]
+                    .ty
+            },
+            |monomorphizer, hir, subst, mangled_symbol, _| {
+                let specialized_ty =
+                    monomorphizer.rebuild_component_type(hir, comp_id, subst, span)?;
 
-        let subst = Substitution::new(&args);
-        let specialized_ty = self.rebuild_component_type(hir, comp_id, &subst, span)?;
+                let new_members =
+                    monomorphizer.build_component_members(hir, &template_members, subst)?;
 
-        let mangled_name = mangle_name(hir, name, &args);
-        let mangled_symbol = hir.intern_name(&mangled_name);
-        let new_members = self.build_component_members(hir, &template_members, &subst)?;
+                let specialized_local = {
+                    let file = hir.get_file_mut(template_file);
+                    file.declarations
+                        .declarations
+                        .components
+                        .insert(HirComponentDeclaration {
+                            name: mangled_symbol,
+                            generics: Vec::new(),
+                            props: new_members,
+                            ty: specialized_ty,
+                            visibility,
+                            attributes: Vec::new(),
+                        })
+                };
 
-        let specialized_local = {
-            let file = hir.get_file_mut(template_file);
-            file.declarations
-                .declarations
-                .components
-                .insert(HirComponentDeclaration {
-                    name: mangled_symbol,
-                    generics: Vec::new(),
-                    props: new_members,
-                    ty: specialized_ty,
-                    visibility,
-                    attributes: Vec::new(),
-                })
-        };
-        let specialized = AnyDeclarationId::new(
-            template_file,
-            AnyLocalDeclarationId::Component(specialized_local),
-        );
-
-        self.cache.insert(key.clone(), specialized);
-        self.in_progress.remove(&key);
-        self.dead_code.insert(template_any);
-
-        Ok(specialized_ty)
+                Ok((
+                    AnyDeclarationId::new(
+                        template_file,
+                        AnyLocalDeclarationId::Component(specialized_local),
+                    ),
+                    specialized_ty,
+                ))
+            },
+        )
     }
 
     ///Rebuilds a component type with `subst` applied to its property types and
@@ -176,7 +168,7 @@ impl Monomorphizer {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(hir.create_component_type(name, properties, children))
+        Ok(hir.types.create_component_type(name, properties, children))
     }
 
     ///Rebuilds the member list of a component declaration, substituting the
@@ -239,54 +231,5 @@ impl Monomorphizer {
             .get_mut(local_id)
             .props = new_members;
         Ok(())
-    }
-
-    ///Finds the `HirComponentDeclaration` with the given `name` in any file.
-    fn find_component_declaration_by_name(
-        &self,
-        hir: &SlynxHir,
-        name: SymbolPointer,
-    ) -> Option<(module_loader::FileId, PoolId<HirComponentDeclaration>)> {
-        for file in hir.files.iter() {
-            for (id, declaration) in file.declarations.declarations.components.iter().with_ids() {
-                if declaration.name == name {
-                    return Some((file.file, id));
-                }
-            }
-        }
-        None
-    }
-
-    ///Neutralizes every generic component template and marks it as dead.
-    pub(crate) fn neutralize_generic_components(
-        &mut self,
-        hir: &SlynxHir,
-        files: &[module_loader::FileId],
-        void_ty: DedupPoolId<HirType>,
-    ) {
-        for file_id in files {
-            let generic_ids: Vec<PoolId<HirComponentDeclaration>> = {
-                let file = hir.get_file(*file_id);
-                file.declarations
-                    .declarations
-                    .components
-                    .iter()
-                    .with_ids()
-                    .filter(|(_, declaration)| !declaration.generics.is_empty())
-                    .map(|(id, _)| id)
-                    .collect()
-            };
-
-            for local_id in generic_ids {
-                let mut file = hir.get_file_mut(*file_id);
-                let declaration = file.declarations.declarations.components.get_mut(local_id);
-                declaration.props = Vec::new();
-                declaration.ty = void_ty;
-                self.dead_code.insert(AnyDeclarationId::new(
-                    *file_id,
-                    AnyLocalDeclarationId::Component(local_id),
-                ));
-            }
-        }
     }
 }

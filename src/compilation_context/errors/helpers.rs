@@ -138,7 +138,19 @@ pub fn suggestions_from_lexer(err: &LexerError) -> Vec<SlynxSuggestion> {
 /// this function converts a [`ParseError`] into a [`Vec<SlynxSuggestion>`]
 pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
     match &err {
-        ParseError::UnexpectedToken(_, _) => vec![],
+        ParseError::UnexpectedToken(token, expected) => {
+            let expected = match expected {
+                slynx_parser::ExpectedContent::Token(kind) => format!("a '{kind:?}' token"),
+                slynx_parser::ExpectedContent::Raw(raw) => raw.clone(),
+                slynx_parser::ExpectedContent::ParsingContext(_) => {
+                    "the parser to be in a valid context".to_string()
+                }
+            };
+            vec![SlynxSuggestion::UnexpectedToken(
+                format!("{:?}", token.kind),
+                expected,
+            )]
+        }
         _ => vec![],
     }
 }
@@ -160,7 +172,7 @@ pub fn suggestions_from_source(err: &SourceError) -> Vec<SlynxSuggestion> {
     match err.kind() {
         SourceErrorKind::Lexing(lex_err) => suggestions_from_lexer(lex_err),
         SourceErrorKind::Parsing(parse_err) => suggestions_from_parser(parse_err),
-        SourceErrorKind::InexsitantSource(_, _, _) => vec![],
+        SourceErrorKind::InexistantSource(_, _, _) => vec![],
     }
 }
 

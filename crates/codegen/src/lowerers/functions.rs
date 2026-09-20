@@ -1,10 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
 use common::{Spanned, pool::PoolId};
-use slynx_hir::{HirStatement, SlynxHir, VariableId};
-use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, SlynxIR, Value};
+use slynx_hir::{HirStatement, VariableId};
+use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, Label, SlynxIR, Value};
 
-use crate::{Codegen, CodegenError, TypeId};
+use crate::{CodegenError, TypeId, lowerers::LoweringState};
 
 /// Per-function state during HIR-to-IR lowering.
 pub struct FunctionContext<'a> {
@@ -26,6 +26,12 @@ impl<'a> FunctionContext<'a> {
 
     pub fn add_variable(&mut self, id: VariableId, value: Value) {
         self.args.push((id, value));
+    }
+
+    /// Switches the active block, propagating errors from the IR builder
+    /// instead of panicking on corrupt builder state.
+    pub fn block(&mut self, label: IRPointer<Label, 1>) -> Result<(), CodegenError> {
+        self.switch_to_block(label).map_err(CodegenError::from)
     }
 
     pub fn ir(&mut self) -> &mut SlynxIR {
@@ -52,37 +58,22 @@ impl<'a> DerefMut for FunctionContext<'a> {
     }
 }
 
-impl Codegen {
+impl<'a> LoweringState<'a> {
     fn map_function_type(
         &mut self,
         func_ty: TypeId,
-        hir: &SlynxHir,
         ir: &mut SlynxIR,
     ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
-        let (args, return_type) = {
-            let view = hir.view(func_ty);
-            let Some(viewer) = view.is_function() else {
-                unreachable!("Initialize function should initialize with the type of a function");
-            };
-            (viewer.arguments().to_vec(), viewer.return_type())
+        let Some(viewer) = self.hir.view(func_ty).is_function() else {
+            unreachable!("Initialize function should initialize with the type of a function");
         };
+        let (args, return_type) = (viewer.arguments().to_vec(), viewer.return_type());
         let args = args
             .iter()
-            .map(|v| self.get_or_create_ir_type(v, hir, ir))
+            .map(|v| self.types.get_or_create_ir_type(*v, ir))
             .collect::<Result<Vec<_>, CodegenError>>()?;
-        let return_type = self.get_or_create_ir_type(&return_type, hir, ir)?;
+        let return_type = self.types.get_or_create_ir_type(return_type, ir)?;
         Ok((args, return_type))
-    }
-
-    pub(crate) fn map_function_arguments<'a>(
-        &mut self,
-        context: &mut FunctionContext<'a>,
-        args: &[VariableId],
-    ) {
-        let arg_values = context.arguments().to_vec();
-        for (variable, value) in args.iter().zip(arg_values) {
-            context.add_variable(*variable, value);
-        }
     }
 
     pub(crate) fn initialize_function(
@@ -91,35 +82,35 @@ impl Codegen {
         func_ty: TypeId,
         statements: &[Spanned<PoolId<HirStatement>>],
         args: &[VariableId],
-        hir: &SlynxHir,
         ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
-        let (arg_types, return_type) = self.map_function_type(func_ty, hir, ir)?;
+        let (arg_types, return_type) = self.map_function_type(func_ty, ir)?;
         let builder = ir.build_function(fptr);
         let mut context = FunctionContext::new(builder);
 
         // Switch to entry block
         let entry = context.create_label("entry");
-        context.switch_to_block(entry).unwrap();
+        context.block(entry)?;
 
-        context.set_function_type(arg_types, return_type);
-        // Emit function arg instructions and set the function type
+        // Emit function arg instructions and set the function type. The arg
+        // values returned here are the single source for the parameter slots.
+        let arg_values = context.set_function_type(arg_types, return_type).to_vec();
+        for (variable, value) in args.iter().zip(arg_values) {
+            context.add_variable(*variable, value);
+        }
 
-        self.map_function_arguments(&mut context, args);
-
-        self.lower_body(&mut context, hir, statements)?;
+        self.lower_body(&mut context, statements)?;
         context.finish();
         Ok(())
     }
 
-    fn lower_body<'a>(
+    fn lower_body<'b>(
         &mut self,
-        ctx: &mut FunctionContext<'a>,
-        hir: &SlynxHir,
+        ctx: &mut FunctionContext<'b>,
         statements: &[Spanned<PoolId<HirStatement>>],
     ) -> Result<(), CodegenError> {
         for (idx, statement) in statements.iter().enumerate() {
-            if let Some(value) = self.lower_statement(*statement, hir, ctx)?
+            if let Some(value) = self.lower_statement(*statement, ctx)?
                 && idx == statements.len() - 1
             {
                 ctx.ret(value);

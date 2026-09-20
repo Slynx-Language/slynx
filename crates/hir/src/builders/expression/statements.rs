@@ -16,7 +16,7 @@ impl ExpressionBuilder {
         context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirStatement>>> {
         let (data, span) = self.build_statement_data(queue, statement, context)?;
-        let id = queue.hir.insert_statement(data);
+        let id = queue.hir.store.insert_statement(data);
         Ok(span.make_spanned(id))
     }
 
@@ -72,7 +72,7 @@ impl ExpressionBuilder {
                     matches!(stmt, ASTStatement::MutableVar { .. }),
                     ty,
                 );
-                queue.hir.variable_names.insert(varid, *name);
+                queue.hir.store.variable_names.insert(varid, *name);
 
                 HirStatement::Variable {
                     name: varid,
@@ -110,7 +110,7 @@ impl ExpressionBuilder {
                     queue,
                     ExpressionDescriptor {
                         target: *condition,
-                        expected: Some(queue.hir.create_type(HirType::Bool)),
+                        expected: Some(queue.hir.types.create_type(HirType::Bool)),
                         context,
                     },
                 )?;

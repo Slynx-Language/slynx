@@ -6,10 +6,10 @@ use crate::{
 
 impl HirViewer<'_, DedupPoolId<FunctionType>> {
     pub fn arguments(&self) -> &[DedupPoolId<HirType>] {
-        &self.hir.types_module[self.data].args
+        &self.hir.types[self.data].args
     }
     pub fn return_type(&self) -> DedupPoolId<HirType> {
-        self.hir.types_module[self.data].ret
+        self.hir.types[self.data].ret
     }
 }
 

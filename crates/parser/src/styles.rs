@@ -2,8 +2,8 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
-    ASTAttribute, ASTExpression, ExpectedContent, Parser, StyleBlock, StyleSheet,
-    StyleSheetStatement, StyleState, error::ParseError,
+    ASTAttribute, ASTExpression, Parser, StyleBlock, StyleSheet, StyleSheetStatement, StyleState,
+    error::ParseError,
 };
 
 impl Parser<'_> {
@@ -89,13 +89,13 @@ impl Parser<'_> {
         let styles_span = {
             let ident = self.expect_identifier()?;
             if ident.data != self.intern("styles") {
-                return Err(ParseError::UnexpectedToken(
+                return self.unexpected_with(
+                    "Was expecting 'styles'",
                     Token {
                         kind: TokenKind::Identifier(self.symbols.get_name(ident.data).to_string()),
                         span: ident.span,
                     },
-                    ExpectedContent::Raw("Was expecting 'styles'".to_string()),
-                ));
+                );
             }
             ident.span
         };
@@ -175,19 +175,9 @@ impl Parser<'_> {
         let (name, generics) = self.parse_generic_name()?;
 
         self.expect(&TokenKind::LParen)?;
-        let args = {
-            let mut out = Vec::new();
-            loop {
-                if let TokenKind::RParen = self.peek()?.kind {
-                    break out;
-                }
-                let arg = self.parse_typedname(&[])?;
-                out.push(arg);
-                if let TokenKind::Comma = self.peek()?.kind {
-                    self.eat()?;
-                }
-            }
-        };
+        let args = self.parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
+            parser.parse_typedname(&[])
+        })?;
 
         self.expect(&TokenKind::RParen)?;
         let usages = if let TokenKind::Identifier(ref name) = self.peek()?.kind

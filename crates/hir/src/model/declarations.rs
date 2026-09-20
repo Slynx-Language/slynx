@@ -178,7 +178,7 @@ pub struct HirEnumDeclaration {
 ///
 /// A specialized component like `Text` or `Div` with predefined behavior.
 #[derive(Debug, Clone)]
-#[repr(C)]
+
 pub enum ComponentMemberDeclaration {
     /// A property declaration with an optional default value.
     ///

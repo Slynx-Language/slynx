@@ -256,7 +256,7 @@ impl ExpressionBuilder {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let ty = queue.hir.create_type(HirType::Bool);
+        let ty = queue.hir.types.create_type(HirType::Bool);
         Ok(HirExpression {
             ty,
             kind: HirExpressionKind::Matches {
