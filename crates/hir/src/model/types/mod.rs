@@ -42,6 +42,7 @@
 //! - [`crate::hir::TypeId`] — Type identifiers
 //! - [`crate::hir::modules::TypesModule`] — Type management
 
+mod term;
 use crate::{
     SymbolPointer,
     context::{ComponentDefinition, StructDefinition, StyleMetadata},
@@ -186,11 +187,12 @@ pub struct FunctionType {
     pub(crate) ret: DedupPoolId<HirType>,
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq)]
-pub struct StyleType {
-    ///The arguments the stylesheet receives
-    pub(crate) args: SmallVec<[DedupPoolId<HirType>; 2]>,
-    pub(crate) metadata: DedupPoolId<StyleMetadata>,
+pub enum DescriptorId {
+    Tuple(DedupPoolId<TupleType>),
+    Function(DedupPoolId<FunctionType>),
+    Struct(DedupPoolId<StructType>),
+    Enum(DedupPoolId<EnumType>),
+    Component(DedupPoolId<ComponentType>),
 }
 
 /// The type system for the HIR.
@@ -263,12 +265,6 @@ pub struct StyleType {
 /// - [`crate::hir::model::ComponentProperty`] — Component property definitions
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum HirType {
-    Nullable(DedupPoolId<HirType>),
-    GenericParam {
-        index: u8,
-        name: SymbolPointer,
-    },
-
     Array(DedupPoolId<HirType>, usize),
     Vector(DedupPoolId<HirType>),
     /// A struct type with named fields.
@@ -388,8 +384,6 @@ pub enum HirType {
     /// let add_type = HirType::Function(function_type_id);
     /// ```
     Function(DedupPoolId<FunctionType>),
-    ///A Stylesheet definition
-    Style(DedupPoolId<StyleType>),
 
     /// A boolean type.
     ///

@@ -143,7 +143,6 @@ pub fn substitute_types(
     ty: DedupPoolId<HirType>,
 ) -> DedupPoolId<HirType> {
     match hir.view(ty).raw() {
-        HirType::GenericParam { index, .. } => generics.get(*index as usize).copied().unwrap_or(ty),
         HirType::Array(inner, len) => {
             let inner = substitute_types(hir, generics, *inner);
             hir.types.create_type(HirType::Array(inner, *len))
@@ -152,10 +151,7 @@ pub fn substitute_types(
             let inner = substitute_types(hir, generics, *inner);
             hir.types.create_type(HirType::Vector(inner))
         }
-        HirType::Nullable(inner) => {
-            let inner = substitute_types(hir, generics, *inner);
-            hir.types.create_type(HirType::Nullable(inner))
-        }
+
         HirType::Tuple(tuple) => {
             let fields = hir
                 .view(*tuple)
