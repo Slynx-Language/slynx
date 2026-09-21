@@ -299,8 +299,8 @@ impl HirNode<'_> {
                 {
                     return Ok((
                         self.entry,
-                        self.hir.types.create_type(HirType::Generic {
-                            index: target,
+                        self.hir.types.create_type(HirType::GenericParam {
+                            index: target as u8,
                             name: generic.identifier,
                         }),
                     ));

@@ -265,6 +265,10 @@ pub enum DescriptorId {
 /// - [`crate::hir::model::ComponentProperty`] — Component property definitions
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum HirType {
+    GenericParam {
+        index: u8,
+        name: SymbolPointer,
+    },
     Array(DedupPoolId<HirType>, usize),
     Vector(DedupPoolId<HirType>),
     /// A struct type with named fields.

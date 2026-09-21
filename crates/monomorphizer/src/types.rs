@@ -120,10 +120,7 @@ pub(crate) fn substitute_type(
                 generics: new_generics,
             }))
         }
-        HirType::Nullable(inner) => {
-            let new_inner = substitute_type(hir, *inner, subst)?;
-            Ok(hir.types.create_type(HirType::Nullable(new_inner)))
-        }
+
         HirType::Enum(e) => {
             let enum_view = hir.view(*e);
             let variants = enum_view
@@ -172,9 +169,7 @@ pub(crate) fn is_resolvable_reference(hir: &SlynxHir, ty: DedupPoolId<HirType>) 
 pub(crate) fn contains_generic_param(hir: &SlynxHir, ty: DedupPoolId<HirType>) -> bool {
     match hir.view(ty).raw() {
         HirType::GenericParam { .. } => true,
-        HirType::Array(inner, _) | HirType::Vector(inner) | HirType::Nullable(inner) => {
-            contains_generic_param(hir, *inner)
-        }
+        HirType::Array(inner, _) | HirType::Vector(inner) => contains_generic_param(hir, *inner),
         HirType::Function(function) => {
             let view = hir.view(*function);
             view.arguments()

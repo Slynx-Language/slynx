@@ -80,6 +80,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
                 self.hir.get_name(name).to_string()
             }
             HirType::Component(component) => self.new_with(component).name().to_string(),
+            HirType::GenericParam { name, .. } => self.hir.get_name(name).into(),
         }
     }
 

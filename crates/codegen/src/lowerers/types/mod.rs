@@ -110,17 +110,7 @@ impl<'a> TypeLowerer<'a> {
                 let ty = self.get_or_create_ir_type(*t, ir)?;
                 ir.create_vector(ty)
             }
-            HirType::Nullable(inner) => {
-                let name = self.nullable_inner_name(inner);
-                let inner_type = self.get_or_create_ir_type(*inner, ir)?;
-                let boolean = ir.types.bool_type();
-                //struct {T, bool}
-                ir.create_struct_full(
-                    &format!("Nullable{name}"),
-                    vec![inner_type, boolean],
-                    IRStructFlags::NULLABLE,
-                )
-            }
+
             HirType::ImutableRef(t) | HirType::MutableRef(t) => {
                 let ty = self.get_or_create_ir_type(*t, ir)?;
                 ir.types.pointer_type(ty)

@@ -405,11 +405,6 @@ impl Monomorphizer {
                     return Err(HIRError::not_implemented(alias.name, Span::default()));
                 }
             }
-            for style in file.declarations.declarations.styles.iter() {
-                if !style.generics.is_empty() {
-                    return Err(HIRError::not_implemented(style.name, Span::default()));
-                }
-            }
         }
         Ok(())
     }
@@ -486,10 +481,7 @@ impl Monomorphizer {
                     generics: new_generics,
                 }))
             }
-            HirType::Nullable(inner) => {
-                let new_inner = self.resolve_expression_type(hir, *inner, span)?;
-                Ok(hir.types.create_type(HirType::Nullable(new_inner)))
-            }
+
             other => Ok(hir.types.create_type(other.clone())),
         }
     }
@@ -576,8 +568,7 @@ impl Monomorphizer {
         let mut call_ty = node.ty;
 
         let kind = match node.kind.clone() {
-            HirExpressionKind::Null
-            | HirExpressionKind::Int(_)
+            HirExpressionKind::Int(_)
             | HirExpressionKind::StringLiteral(_)
             | HirExpressionKind::Float(_)
             | HirExpressionKind::True
