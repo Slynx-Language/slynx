@@ -1,5 +1,5 @@
 use common::{
-    Span, Spanned,
+    Spanned,
     pool::{DedupPoolId, PoolId},
 };
 use either::Either;

@@ -38,11 +38,7 @@ impl HirViewer<'_, AnyDeclarationId> {
                     .get_static(DeclarationId::new(file_id, local_id))
                     .name
             }
-            AnyLocalDeclarationId::Style(local_id) => {
-                self.hir
-                    .get_style(DeclarationId::new(file_id, local_id))
-                    .name
-            }
+
             AnyLocalDeclarationId::Enum(local_id) => {
                 self.hir.get_file(file_id).enums.get(local_id).name
             }

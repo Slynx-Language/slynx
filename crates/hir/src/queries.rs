@@ -56,7 +56,6 @@ impl SlynxHir<'_> {
             AnyLocalDeclarationId::Function(func) => file.functions.get(func).ty,
             AnyLocalDeclarationId::Object(obj) => file.objects.get(obj).ty,
             AnyLocalDeclarationId::Static(statik) => file.statik.get(statik).ty,
-            AnyLocalDeclarationId::Style(style) => file.styles.get(style).ty,
             AnyLocalDeclarationId::Enum(enun) => file.enums.get(enun).ty,
         }
     }
@@ -68,7 +67,6 @@ impl SlynxHir<'_> {
             AnyLocalDeclarationId::Component(component) => &file.components.get(component).generics,
             AnyLocalDeclarationId::Function(func) => &file.functions.get(func).generics,
             AnyLocalDeclarationId::Object(obj) => &file.objects.get(obj).generics,
-            AnyLocalDeclarationId::Style(style) => &file.styles.get(style).generics,
             AnyLocalDeclarationId::Enum(enun) => &file.enums.get(enun).generics,
             AnyLocalDeclarationId::Static(_) => {
                 unreachable!("An static should not contain generics")

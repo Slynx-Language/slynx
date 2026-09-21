@@ -5,7 +5,7 @@ use module_loader::FileId;
 
 use crate::{
     HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirExpression,
-    HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration,
+    HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration,
 };
 
 /// Shared trait for all HIR IDs
@@ -22,7 +22,6 @@ pub enum AnyLocalDeclarationId {
     Object(PoolId<HirObjectDeclaration>),
     Function(PoolId<HirFunctionDeclaration>),
     Component(PoolId<HirComponentDeclaration>),
-    Style(PoolId<HirStylesheetDeclaration>),
     Alias(PoolId<HirAliasDeclaration>),
     Static(PoolId<HirStaticDeclaration>),
     Enum(PoolId<HirEnumDeclaration>),
@@ -32,15 +31,6 @@ pub enum AnyLocalDeclarationId {
 pub struct AnyDeclarationId {
     pub file_id: FileId,
     pub local_id: AnyLocalDeclarationId,
-}
-
-impl From<DeclarationId<HirStylesheetDeclaration>> for AnyDeclarationId {
-    fn from(value: DeclarationId<HirStylesheetDeclaration>) -> Self {
-        AnyDeclarationId {
-            file_id: value.file_id,
-            local_id: AnyLocalDeclarationId::Style(value.local_id),
-        }
-    }
 }
 
 impl AnyDeclarationId {

@@ -30,8 +30,8 @@ use common::{
 use smallvec::SmallVec;
 
 use crate::{
-    DeclarationId, HirType, SymbolPointer, VariableId,
-    model::{HirComponentExpression, HirExpression, HirStatement, HirStyleStatement},
+    HirType, SymbolPointer, VariableId,
+    model::{HirComponentExpression, HirExpression, HirStatement},
 };
 
 /// A processed attribute on an HIR declaration.
@@ -55,14 +55,6 @@ pub enum HirAttributeKind {
     },
 }
 
-#[derive(Debug)]
-///A style usage. This contains an ID to another stylesheet, and the parameters used to generate before the actual style.
-pub struct HirStyleUsage {
-    /// The id of the style to use
-    pub style: DeclarationId<HirStylesheetDeclaration>,
-    ///The parameters to it
-    pub params: Vec<Spanned<PoolId<HirExpression>>>,
-}
 #[derive(Debug)]
 pub struct HirFunctionDeclaration {
     pub name: SymbolPointer,
@@ -110,19 +102,6 @@ pub struct HirComponentDeclaration {
     pub props: Vec<ComponentMemberDeclaration>,
     pub ty: DedupPoolId<HirType>,
     pub visibility: VisibilityModifier,
-    pub attributes: Vec<HirAttribute>,
-}
-
-#[derive(Debug)]
-pub struct HirStylesheetDeclaration {
-    pub name: SymbolPointer,
-    pub usages: Vec<HirStyleUsage>,
-    pub generics: Vec<SymbolPointer>,
-    pub args: SmallVec<[VariableId; 2]>,
-    pub statements: Vec<HirStyleStatement>,
-    pub ty: DedupPoolId<HirType>,
-    pub visibility: VisibilityModifier,
-    pub external: bool,
     pub attributes: Vec<HirAttribute>,
 }
 

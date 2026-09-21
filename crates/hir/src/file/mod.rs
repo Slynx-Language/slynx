@@ -9,7 +9,7 @@ use module_loader::FileId;
 
 use crate::{
     DeclarationId, HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration, SymbolPointer,
+    HirObjectDeclaration, HirStaticDeclaration, SymbolPointer,
     file::declarations::FileDeclarations,
 };
 
@@ -44,7 +44,6 @@ impl HirFile {
         create_object = insert_at_objects(HirObjectDeclaration),
         create_component = insert_at_components(HirComponentDeclaration),
         create_static = insert_at_statik(HirStaticDeclaration),
-        create_stylesheet = insert_at_styles(HirStylesheetDeclaration),
         create_enum = insert_at_enums(HirEnumDeclaration),
     );
 

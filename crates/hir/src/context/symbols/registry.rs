@@ -3,7 +3,7 @@ use module_loader::FileId;
 
 use crate::{
     DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
-    HirStylesheetDeclaration, SymbolPointer, id::AnyDeclarationId,
+    SymbolPointer, id::AnyDeclarationId,
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -40,7 +40,6 @@ pub struct SymbolRegistry {
     functions: DashMap<HirSymbol, DeclarationId<HirFunctionDeclaration>>,
     components: DashMap<HirSymbol, DeclarationId<HirComponentDeclaration>>,
     statics: DashMap<HirSymbol, DeclarationId<HirStaticDeclaration>>,
-    styles: DashMap<HirSymbol, DeclarationId<HirStylesheetDeclaration>>,
 
     // Estados de processamento
     hoisted: DashSet<HirSymbol>,
@@ -64,18 +63,9 @@ impl SymbolRegistry {
         self.components.get(&name).map(|v| *v.value())
     }
 
-    pub fn get_style(&self, name: HirSymbol) -> Option<DeclarationId<HirStylesheetDeclaration>> {
-        self.styles.get(&name).map(|v| *v.value())
-    }
-
-    pub fn register_style(&self, key: HirSymbol, id: DeclarationId<HirStylesheetDeclaration>) {
-        self.styles.insert(key, id);
-    }
-
     impl_get_or_insert!(
         function: HirFunctionDeclaration => functions,
         static: HirStaticDeclaration => statics,
-        style: HirStylesheetDeclaration => styles
     );
 
     /// Like `get_or_insert_function` but the closure can fail.

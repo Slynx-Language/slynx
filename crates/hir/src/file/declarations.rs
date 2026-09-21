@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, HirStylesheetDeclaration, HirType, SymbolPointer,
+    HirObjectDeclaration, HirStaticDeclaration, HirType, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
 };
 use common::{
@@ -19,7 +19,6 @@ pooled!(pub DeclarationsPool {
     pub objects: HirObjectDeclaration,
     pub functions: HirFunctionDeclaration,
     pub components: HirComponentDeclaration,
-    pub styles: HirStylesheetDeclaration,
     pub alias: HirAliasDeclaration,
     pub statik: HirStaticDeclaration,
     pub enums: HirEnumDeclaration,
@@ -31,7 +30,6 @@ impl Debug for DeclarationsPool {
             .field("objects", &self.objects)
             .field("functions", &self.functions)
             .field("components", &self.components)
-            .field("styles", &self.styles)
             .field("aliases", &self.alias)
             .field("statics", &self.statik)
             .finish()

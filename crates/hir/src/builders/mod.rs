@@ -512,7 +512,6 @@ impl<'a> HirQueueBuilder<'a> {
             AnyLocalDeclarationId::Component(local) => {
                 &mut pool.components.get_mut(local).attributes
             }
-            AnyLocalDeclarationId::Style(local) => &mut pool.styles.get_mut(local).attributes,
             AnyLocalDeclarationId::Static(local) => &mut pool.statik.get_mut(local).attributes,
             AnyLocalDeclarationId::Enum(local) => &mut pool.enums.get_mut(local).attributes,
             AnyLocalDeclarationId::Alias(_) => return Ok(()),
