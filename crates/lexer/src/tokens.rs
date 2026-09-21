@@ -56,8 +56,6 @@ pub enum TokenKind {
     Extern,
     #[token("return")]
     Return,
-    #[token("null")]
-    Null,
     #[token("matches")]
     Matches,
 
