@@ -28,15 +28,15 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
             HirType::MutableRef(ty) => format!("&mut {}", self.new_with(ty).name()),
 
             HirType::Str => "str".to_string(),
-            HirType::Reference { rf, generics } => {
+            HirType::Reference { rf, ref generics } => {
                 let name = self.new_with(rf).name();
                 let generics = {
                     let mut out = Vec::with_capacity(generics.len());
                     for generic in generics {
-                        if generic == DedupPoolId::new_null() {
+                        if *generic == DedupPoolId::new_null() {
                             break;
                         }
-                        let ty = self.new_with(generic).name();
+                        let ty = self.new_with(*generic).name();
                         out.push(ty);
                     }
                     out

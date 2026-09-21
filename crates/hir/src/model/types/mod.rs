@@ -41,8 +41,10 @@
 //! - [`ComponentProperty`] — Property of a component type
 //! - [`crate::hir::TypeId`] — Type identifiers
 //! - [`crate::hir::modules::TypesModule`] — Type management
-
-mod term;
+pub mod arrays;
+pub mod generic_component;
+pub mod term;
+pub mod vector;
 use crate::{
     SymbolPointer,
     context::{ComponentDefinition, StructDefinition},
@@ -187,9 +189,8 @@ pub struct FunctionType {
     pub(crate) ret: DedupPoolId<HirType>,
 }
 
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub enum DescriptorId {
-    Tuple(DedupPoolId<TupleType>),
-    Function(DedupPoolId<FunctionType>),
     Struct(DedupPoolId<StructType>),
     Enum(DedupPoolId<EnumType>),
     Component(DedupPoolId<ComponentType>),
@@ -366,7 +367,7 @@ pub enum HirType {
         /// Generic type parameters, if any.
         ///
         /// For example, in `Vec<int>`, this would contain `[int]`.
-        generics: [DedupPoolId<HirType>; 8],
+        generics: SmallVec<[DedupPoolId<HirType>; 2]>,
     },
 
     /// A function type.
@@ -471,12 +472,10 @@ impl HirType {
     /// let vec_int = HirType::new_generic_ref(vec_id, vec![int_id]);
     /// ```
     pub fn new_generic_ref(rf: DedupPoolId<HirType>, generics: Vec<DedupPoolId<HirType>>) -> Self {
-        assert!(generics.len() <= 8, "Slynx only supports up to 8 generics");
-        let mut arr = [DedupPoolId::new_null(); 8];
-        for (idx, generic) in generics.into_iter().enumerate() {
-            arr[idx] = generic;
+        Self::Reference {
+            rf,
+            generics: generics.into(),
         }
-        Self::Reference { rf, generics: arr }
     }
 
     /// Creates a new reference type without generics.

@@ -10,7 +10,7 @@ use common::{
 
 use crate::{
     ComponentType, EnumType, EnumVariantType, FunctionType, HIRError, HirType, Result, StructType,
-    SymbolPointer, TupleType, helpers::Visible,
+    SymbolPointer, TupleType, helpers::Visible, term::Term,
 };
 
 use super::{
@@ -31,10 +31,12 @@ pub struct TypeStorage {
     pub enums: EnumsPool,
     pub functions: DedupPool<FunctionType>,
     pub types: DedupPool<HirType>,
+    pub terms: DedupPool<Term>,
 }
 impl Default for TypeStorage {
     fn default() -> Self {
         Self {
+            terms: DedupPool::new(),
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
             enums: EnumsPool::default(),

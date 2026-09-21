@@ -176,7 +176,7 @@ pub fn substitute_types(
             generics: inner_generics,
         } => {
             let rf = substitute_types(hir, generics, *rf);
-            let mut new_generics = *inner_generics;
+            let mut new_generics = inner_generics.clone();
             for slot in &mut new_generics {
                 if !slot.is_null() {
                     *slot = substitute_types(hir, generics, *slot);

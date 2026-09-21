@@ -4,14 +4,19 @@ mod methods;
 mod registry;
 mod storage;
 mod structs;
-use std::ops::Index;
+use std::{ops::Index, sync::Arc};
 
 use common::pool::DedupPoolId;
 use dashmap::{DashMap, DashSet};
 
 use crate::{
-    ComponentType, DeclarationId, EnumType, EnumVariantType, FunctionType, HirFunctionDeclaration,
-    HirType, Result, StructType, SymbolPointer, TupleType, VariableId, helpers::Visible,
+    ComponentType, DeclarationId, DescriptorId, EnumType, EnumVariantType, FunctionType,
+    HirFunctionDeclaration, HirType, Result, StructType, SymbolPointer, TupleType, VariableId,
+    arrays::ArrayTerm,
+    generic_component::GenericComponentTerm,
+    helpers::Visible,
+    term::{PrimitiveType, Term, TermId, TermKind, TermNode, VarTerm},
+    vector::VectorTerm,
 };
 
 pub use components::ComponentDefinition;
@@ -294,6 +299,82 @@ impl TypesContext {
                 _ => return false,
             }
         }
+    }
+    pub fn create_term(&self, term: Term) -> TermId {
+        self.storage.terms.insert(term)
+    }
+    pub fn to_term(&self, ty: DedupPoolId<HirType>) -> TermId {
+        let term = match self.storage.types.get(ty) {
+            HirType::Bool => Term::new_type(TermNode::Primitive(PrimitiveType::boolean_type())),
+            HirType::Int => {
+                Term::new_type(TermNode::Primitive(PrimitiveType::Signed { bitsize: 32 }))
+            }
+            HirType::Float => Term::new_type(TermNode::Primitive(PrimitiveType::Float32)),
+            HirType::Str => Term::new_type(TermNode::Primitive(PrimitiveType::String)),
+            HirType::Void => Term::new_type(TermNode::Primitive(PrimitiveType::Void)),
+            HirType::GenericParam { name, index } => {
+                Term::new_type(TermNode::Var(VarTerm::new(*name, *index)))
+            }
+            HirType::Component(component) => {
+                Term::new_type(TermNode::Data(DescriptorId::Component(*component)))
+            }
+            HirType::Function(func) => {
+                let func = self.storage.functions.get(*func);
+                let args = func
+                    .args
+                    .iter()
+                    .map(|arg| self.to_term(*arg))
+                    .collect::<Vec<_>>();
+
+                Term::new_type(TermNode::Func {
+                    args,
+                    ret: self.to_term(func.ret),
+                })
+            }
+            HirType::Struct(strukt) => {
+                Term::new_type(TermNode::Data(DescriptorId::Struct(*strukt)))
+            }
+            HirType::Enum(enum_type) => {
+                Term::new_type(TermNode::Data(DescriptorId::Enum(*enum_type)))
+            }
+            HirType::Tuple(tuple) => Term::new_type(TermNode::Tuple {
+                fields: self.storage.structs[*tuple]
+                    .fields
+                    .iter()
+                    .map(|field| self.to_term(*field))
+                    .collect::<Vec<_>>(),
+            }),
+            HirType::ImutableRef(ref_type) => Term::new_type(TermNode::Ref {
+                mutable: false,
+                target: self.to_term(*ref_type),
+            }),
+            HirType::MutableRef(ref_type) => Term::new_type(TermNode::Ref {
+                mutable: true,
+                target: self.to_term(*ref_type),
+            }),
+            HirType::Reference { rf, generics } => Term::new_type(TermNode::Apply {
+                target: self.to_term(*rf),
+                args: generics.into_iter().map(|g| self.to_term(*g)).collect(),
+            }),
+            HirType::Array(ty, len) => {
+                let ty = self.to_term(*ty);
+                let arr = ArrayTerm::new(ty, *len);
+                Term::new_type(TermNode::Extension(Arc::new(arr)))
+            }
+            HirType::GenericComponent => {
+                Term::new_type(TermNode::Extension(Arc::new(GenericComponentTerm)))
+            }
+            HirType::Vector(ty) => {
+                let ty = self.to_term(*ty);
+                let term =
+                    self.create_term(Term::new_type(TermNode::Extension(Arc::new(VectorTerm))));
+                Term::new_type(TermNode::Apply {
+                    target: term,
+                    args: vec![ty],
+                })
+            }
+        };
+        self.create_term(term)
     }
 }
 
