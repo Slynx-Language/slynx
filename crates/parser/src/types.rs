@@ -262,14 +262,8 @@ impl Parser<'_> {
                 }
             }
         };
-        if self.peek()?.kind == TokenKind::Question {
-            let end = self.eat()?.span;
-            let span = ty.span.merge_with(end);
-            let ty = self.intern_type(Type::Nullable(ty.data));
-            Ok(span.make_spanned(ty))
-        } else {
-            Ok(ty)
-        }
+
+        Ok(ty)
     }
 
     ///Looks ahead without consuming to check whether the current identifier is a

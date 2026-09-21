@@ -20,7 +20,6 @@ pub enum Type {
     Plain(GenericIdentifier),
     Array(DedupPoolId<Type>, DedupPoolId<ASTExpression>),
     Vector(DedupPoolId<Type>),
-    Nullable(DedupPoolId<Type>),
     Reference(DedupPoolId<Type>),
     MutableReference(DedupPoolId<Type>),
 }
@@ -83,19 +82,6 @@ pub fn type_name(
                 generic_names
             ))
         )),
-        Type::Nullable(inner) => {
-            let inner_name = symbols.get_name(type_name(
-                types,
-                symbols,
-                expressions,
-                *inner,
-                generic_names,
-            ));
-            match types.get(*inner) {
-                Type::Array(_, _) | Type::Vector(_) => symbols.intern(&format!("({inner_name})?")),
-                _ => symbols.intern(&format!("{inner_name}?")),
-            }
-        }
     }
 }
 
