@@ -3,7 +3,6 @@ pub(crate) mod component;
 mod expression;
 mod function;
 mod structs;
-pub(crate) mod styles;
 mod work_channel;
 use std::{cell::RefCell, ops::Deref};
 
@@ -288,10 +287,24 @@ impl HirNode<'_> {
     ) -> Result<(FileId, DedupPoolId<HirType>)> {
         let real = self.modules.get_type(ty.data);
         match real {
-            Type::Plain(generic) if self_substitute.is_some() => {
-                Ok((self.entry, self_substitute.expect("guarded above")))
+            Type::Plain(generic) if let Some(substitute) = self_substitute => {
+                Ok((self.entry, substitute))
             }
             Type::Plain(generic) => {
+                if generic.generic.is_empty()
+                    && let Some(target) = context
+                        .generic_names
+                        .into_iter()
+                        .position(|name| *name == generic.identifier)
+                {
+                    return Ok((
+                        self.entry,
+                        self.hir.types.create_type(HirType::Generic {
+                            index: target,
+                            name: generic.identifier,
+                        }),
+                    ));
+                }
                 let (owner, ty) =
                     self.find_type_named_as(ty.span.make_spanned(generic.identifier), context)?;
                 if generic.generic.is_empty() {
@@ -352,26 +365,6 @@ impl HirNode<'_> {
                     self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
                 let ty = self.hir.types.create_type(HirType::MutableRef(ty));
                 Ok((id, ty))
-            }
-
-            Type::Nullable(nullable) => {
-                let (id, ty) = self.find_type_inner(
-                    ty.span.make_spanned(*nullable),
-                    context,
-                    self_substitute,
-                )?;
-                let ty = self.hir.types.create_type(HirType::Nullable(ty));
-                Ok((id, ty))
-            }
-            Type::Generic(index) if self_substitute.is_some() => {
-                panic!("Generics should not be handled. Cause i dont know how to handle them")
-            }
-            Type::Generic(index) => {
-                let ty = self.hir.types.create_type(HirType::GenericParam {
-                    index: *index,
-                    name: context.generic_names[*index as usize],
-                });
-                Ok((self.entry, ty))
             }
         }
     }

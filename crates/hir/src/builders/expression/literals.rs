@@ -109,31 +109,6 @@ impl ExpressionBuilder {
         }
     }
 
-    pub(super) fn build_null(
-        &self,
-        queue: &HirQueueBuilder,
-        span: Span,
-        expected: Option<DedupPoolId<HirType>>,
-    ) -> Result<HirExpression> {
-        let ty = match expected {
-            None => {
-                return Err(HIRError::couldnt_infer(span));
-            }
-            Some(ty) if let HirType::Nullable(_) = queue.hir.types[ty] => ty,
-            Some(ty) => {
-                return Err(HIRError::unexpected_type(
-                    ty,
-                    queue.hir.types.create_type(HirType::Nullable(ty)),
-                    span,
-                ));
-            }
-        };
-        Ok(HirExpression {
-            ty,
-            kind: HirExpressionKind::Null,
-        })
-    }
-
     pub(super) fn build_bool(&self, queue: &HirQueueBuilder, value: bool) -> HirExpression {
         HirExpression {
             ty: queue.hir.types.create_type(HirType::Bool),

@@ -3,7 +3,7 @@ use std::ops::Deref;
 use common::pool::DedupPoolId;
 
 use crate::{
-    ComponentType, EnumType, FunctionType, HirType, StructType, StyleType, TupleType,
+    ComponentType, EnumType, FunctionType, HirType, StructType, TupleType,
     helpers::views::HirViewer,
 };
 
@@ -47,8 +47,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
                     format!("{name}<{}>", generics.join(","))
                 }
             }
-            HirType::GenericParam { name, .. } => self.hir.get_name(name).to_string(),
-            HirType::Style(s) => self.new_with(s).name().to_string(),
+
             HirType::Struct(strukt) => {
                 let name = self.new_with(strukt).name();
                 self.hir.get_name(name).to_string()
@@ -81,14 +80,6 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
                 self.hir.get_name(name).to_string()
             }
             HirType::Component(component) => self.new_with(component).name().to_string(),
-        }
-    }
-
-    pub fn is_nullable(self) -> Option<DedupPoolId<HirType>> {
-        if let HirType::Nullable(inner) = self.hir.types[self.data] {
-            Some(inner)
-        } else {
-            None
         }
     }
 
@@ -142,13 +133,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
             None
         }
     }
-    pub fn is_style(self) -> Option<HirViewer<'a, DedupPoolId<StyleType>>> {
-        if let HirType::Style(s) = self.hir.types[self.data] {
-            Some(self.new_with(s))
-        } else {
-            None
-        }
-    }
+
     ///Makes a dereference for this type. Since a type can be a reference to another, what this function does is to retrieve the concrete type with no references at all
     pub fn dereference(self) -> HirViewer<'a, DedupPoolId<HirType>> {
         let mut data = self.data;
@@ -172,8 +157,7 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     ///
     pub fn concrete_type(self) -> HirViewer<'a, DedupPoolId<HirType>> {
         let mut data = self.data;
-        while let HirType::Nullable(rf)
-        | HirType::ImutableRef(rf)
+        while let HirType::ImutableRef(rf)
         | HirType::MutableRef(rf)
         | HirType::Reference { rf, .. } = self.hir.types[data]
         {

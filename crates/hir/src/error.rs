@@ -147,7 +147,7 @@ pub enum HIRErrorKind {
         ty: DedupPoolId<HirType>,
     },
     /// A call was made to a value that is not a function.
-    NotAFunction(SymbolPointer, HirType),
+    NotAFunction(SymbolPointer, DedupPoolId<HirType>),
     /// A function was called with the wrong number of arguments.
     InvalidFuncallArgLength {
         /// The name of the function that was called.
@@ -502,7 +502,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::NotAFunction`] error for a call to a non-function value.
-    pub fn not_a_func(func: SymbolPointer, ty: HirType, span: Span) -> Self {
+    pub fn not_a_func(func: SymbolPointer, ty: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::NotAFunction(func, ty),
             span,

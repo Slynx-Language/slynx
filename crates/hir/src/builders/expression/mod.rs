@@ -223,7 +223,7 @@ impl ExpressionBuilder {
                     },
                 );
             }
-            ASTExpression::Null => self.build_null(queue, target.span, expected)?,
+
             ASTExpression::IndexExpression(expr, range) => self.build_index(
                 queue,
                 IndexExpressionDescriptor {

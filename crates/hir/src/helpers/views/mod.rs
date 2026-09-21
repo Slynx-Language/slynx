@@ -4,7 +4,6 @@ mod declarations;
 mod expressions;
 mod functions;
 mod strukt;
-mod styles;
 mod types;
 
 pub struct HirViewer<'a, T> {

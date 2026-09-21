@@ -45,7 +45,7 @@
 mod term;
 use crate::{
     SymbolPointer,
-    context::{ComponentDefinition, StructDefinition, StyleMetadata},
+    context::{ComponentDefinition, StructDefinition},
 };
 
 use common::{VisibilityModifier, pool::DedupPoolId};

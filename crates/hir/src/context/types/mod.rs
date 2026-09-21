@@ -4,7 +4,6 @@ mod methods;
 mod registry;
 mod storage;
 mod structs;
-mod styles;
 use std::ops::Index;
 
 use common::pool::DedupPoolId;
@@ -12,7 +11,7 @@ use dashmap::{DashMap, DashSet};
 
 use crate::{
     ComponentType, DeclarationId, EnumType, EnumVariantType, FunctionType, HirFunctionDeclaration,
-    HirType, Result, StructType, StyleType, SymbolPointer, TupleType, VariableId, helpers::Visible,
+    HirType, Result, StructType, SymbolPointer, TupleType, VariableId, helpers::Visible,
 };
 
 pub use components::ComponentDefinition;
@@ -20,7 +19,6 @@ pub use methods::MethodTable;
 pub use registry::TypeRegistry;
 pub use storage::TypeStorage;
 pub use structs::StructDefinition;
-pub use styles::StyleMetadata;
 
 #[derive(Debug)]
 /// Manages all types in the HIR, including built-ins, user-defined types, and variables.
@@ -165,24 +163,6 @@ impl TypesContext {
         id
     }
 
-    pub fn create_style_type(
-        &self,
-        name: SymbolPointer,
-        args: Vec<DedupPoolId<HirType>>,
-    ) -> DedupPoolId<HirType> {
-        let metadata = self
-            .storage
-            .styles
-            .insert_at_metadata(StyleMetadata { name });
-        let style_id = self.storage.styles.insert_at_styles(StyleType {
-            args: args.into(),
-            metadata,
-        });
-        let id = self.storage.insert_type(HirType::Style(style_id));
-        self.registry.register(name, id);
-        id
-    }
-
     pub fn get_component_definition(
         &self,
         comp: DedupPoolId<ComponentType>,
@@ -247,10 +227,6 @@ impl TypesContext {
         ty: DedupPoolId<HirType>,
     ) -> Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)> {
         self.methods.get_methods_of(ty)
-    }
-
-    pub fn get_style_name(&self, s: DedupPoolId<StyleType>) -> SymbolPointer {
-        self.storage.get_style_name(s)
     }
 
     ///Retrieves the DedupPoolId<HirType> of the provided `name` on the currentContext
@@ -344,5 +320,4 @@ impl_index!(
     ComponentType,
     ComponentDefinition,
     FunctionType,
-    StyleType
 );

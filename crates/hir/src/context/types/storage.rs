@@ -10,14 +10,13 @@ use common::{
 
 use crate::{
     ComponentType, EnumType, EnumVariantType, FunctionType, HIRError, HirType, Result, StructType,
-    StyleType, SymbolPointer, TupleType, helpers::Visible,
+    SymbolPointer, TupleType, helpers::Visible,
 };
 
 use super::{
     components::{ComponentDefinition, ComponentsPool},
     enums::EnumsPool,
     structs::{StructDefinition, StructsPool},
-    styles::StylesPool,
 };
 
 #[derive(Debug)]
@@ -29,7 +28,6 @@ use super::{
 pub struct TypeStorage {
     pub structs: StructsPool,
     pub components: ComponentsPool,
-    pub styles: StylesPool,
     pub enums: EnumsPool,
     pub functions: DedupPool<FunctionType>,
     pub types: DedupPool<HirType>,
@@ -39,7 +37,6 @@ impl Default for TypeStorage {
         Self {
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
-            styles: StylesPool::default(),
             enums: EnumsPool::default(),
             functions: DedupPool::new(),
             types: DedupPool::new(),
@@ -125,10 +122,6 @@ impl TypeStorage {
         &self.components[meta]
     }
 
-    pub fn get_style_name(&self, s: DedupPoolId<StyleType>) -> SymbolPointer {
-        let metadata = self.styles[s].metadata;
-        self.styles.index(metadata).name
-    }
     pub fn get_struct_name(&self, s: DedupPoolId<StructType>) -> SymbolPointer {
         let metadata = self.structs[s].metadata;
         self.structs[metadata].name
@@ -235,5 +228,4 @@ impl_index!(
     ComponentType => |this, idx| &this.components[idx],
     ComponentDefinition => |this, idx| &this.components[idx],
     FunctionType => |this, idx| &this.functions[idx],
-    StyleType => |this, idx| &this.styles[idx]
 );
