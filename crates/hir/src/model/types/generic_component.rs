@@ -6,6 +6,13 @@ use crate::term::{ExtensionNode, TermId, TermKind};
 pub struct GenericComponentTerm;
 
 impl ExtensionNode for GenericComponentTerm {
+    fn map_children(
+        &self,
+        _: &mut dyn FnMut(TermId) -> TermId,
+    ) -> std::sync::Arc<dyn ExtensionNode> {
+        std::sync::Arc::new(GenericComponentTerm)
+    }
+
     fn children(&self) -> Vec<TermId> {
         vec![]
     }

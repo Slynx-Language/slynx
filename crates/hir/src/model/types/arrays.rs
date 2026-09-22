@@ -3,19 +3,18 @@ use std::hash::Hash;
 use crate::term::{ExtensionNode, TermId, TermKind};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct ArrayTerm {
-    ty: TermId,
-    length: usize,
-}
-impl ArrayTerm {
-    pub fn new(ty: TermId, length: usize) -> Self {
-        Self { ty, length }
-    }
-}
+pub struct ArrayTerm;
 
 impl ExtensionNode for ArrayTerm {
+    fn map_children(
+        &self,
+        _: &mut dyn FnMut(TermId) -> TermId,
+    ) -> std::sync::Arc<dyn ExtensionNode> {
+        std::sync::Arc::new(ArrayTerm)
+    }
+
     fn children(&self) -> Vec<TermId> {
-        vec![self.ty]
+        vec![]
     }
 
     fn kind(&self) -> TermKind {

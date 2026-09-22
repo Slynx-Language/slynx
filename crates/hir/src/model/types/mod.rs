@@ -44,6 +44,8 @@
 pub mod arrays;
 pub mod generic_component;
 pub mod term;
+#[cfg(test)]
+mod term_tests;
 pub mod vector;
 use crate::{
     SymbolPointer,

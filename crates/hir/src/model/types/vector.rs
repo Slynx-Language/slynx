@@ -6,6 +6,12 @@ use crate::term::{ExtensionNode, TermId, TermKind};
 pub struct VectorTerm;
 
 impl ExtensionNode for VectorTerm {
+    fn map_children(
+        &self,
+        _: &mut dyn FnMut(TermId) -> TermId,
+    ) -> std::sync::Arc<dyn ExtensionNode> {
+        std::sync::Arc::new(VectorTerm)
+    }
     fn children(&self) -> Vec<TermId> {
         vec![]
     }

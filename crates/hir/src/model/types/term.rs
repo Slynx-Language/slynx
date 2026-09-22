@@ -51,8 +51,14 @@ impl VarTerm {
     }
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum ConstantTerm {
+    Usize(usize),
+}
+
 #[derive(Debug, Clone)]
 pub enum TermNode {
+    Constant(ConstantTerm),
     ///Represents a primitive type on the language
     Primitive(PrimitiveType),
     ///Represents a var type on the language. In common terms, generic types
@@ -120,6 +126,7 @@ impl PartialEq for TermNode {
             (TermNode::Data(d1), TermNode::Data(d2)) => d1 == d2,
             (TermNode::Hole(h1), TermNode::Hole(h2)) => h1 == h2,
             (TermNode::Extension(e1), TermNode::Extension(e2)) => e1.dyn_eq(&**e2),
+            (TermNode::Constant(c1), TermNode::Constant(c2)) => c1 == c2,
             _ => false,
         }
     }
@@ -146,6 +153,7 @@ impl std::hash::Hash for TermNode {
             Self::Data(d) => d.hash(state),
             Self::Hole(h) => h.hash(state),
             Self::Extension(e) => e.dyn_hash(state),
+            Self::Constant(c) => c.hash(state),
         }
     }
 }
@@ -176,12 +184,45 @@ impl Term {
     pub fn new(node: TermNode, stage: TermStage, kind: TermKind) -> Self {
         Self { node, stage, kind }
     }
+
+    pub fn node(&self) -> &TermNode {
+        &self.node
+    }
+
+    pub fn children(&self) -> Vec<TermId> {
+        match &self.node {
+            TermNode::Apply { target, args } => {
+                let mut out = Vec::with_capacity(args.len() + 1);
+                out.push(*target);
+                out.extend(args);
+                out
+            }
+            TermNode::Tuple { fields } => fields.clone(),
+
+            TermNode::Func { args, ret } => {
+                let mut out = Vec::with_capacity(args.len() + 1);
+                out.extend(args);
+                out.push(*ret);
+                out
+            }
+            TermNode::Ref { target, .. } => vec![*target],
+            TermNode::Data(_)
+            | TermNode::Hole(_)
+            | TermNode::Primitive(_)
+            | TermNode::Var(_)
+            | TermNode::Constant(_) => {
+                vec![]
+            }
+            TermNode::Extension(ext) => ext.children(),
+        }
+    }
 }
 
 pub trait ExtensionNode: std::fmt::Debug + std::any::Any {
     fn children(&self) -> Vec<TermId>;
     fn kind(&self) -> TermKind;
     fn name(&self) -> &'static str;
+    fn map_children(&self, f: &mut dyn FnMut(TermId) -> TermId) -> Arc<dyn ExtensionNode>;
     fn dyn_eq(&self, other: &dyn ExtensionNode) -> bool;
     fn dyn_hash(&self, state: &mut dyn std::hash::Hasher);
     fn as_any(&self) -> &dyn std::any::Any;
