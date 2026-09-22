@@ -4,8 +4,24 @@ use common::pool::DedupPoolId;
 
 use crate::{
     ComponentType, EnumType, FunctionType, HirType, StructType, TupleType,
-    helpers::views::HirViewer,
+    helpers::views::HirViewer, term::PrimitiveType,
 };
+
+/// Canonical rendered name of a [`PrimitiveType`]. Shared by the `HirType`
+/// viewer and the `TermId` viewer so both produce the same diagnostic text
+/// (I11) without drifting.
+pub(crate) fn primitive_name(pt: &PrimitiveType) -> String {
+    match pt {
+        PrimitiveType::Unsigned { bitsize: 1 } => "bool".to_string(),
+        PrimitiveType::Unsigned { bitsize } => format!("uint{bitsize}"),
+        PrimitiveType::Signed { bitsize: 32 } => "int".to_string(),
+        PrimitiveType::Signed { bitsize } => format!("int{bitsize}"),
+        PrimitiveType::Float32 => "float32".to_string(),
+        PrimitiveType::Float64 => "float64".to_string(),
+        PrimitiveType::Void => "void".to_string(),
+        PrimitiveType::String => "str".to_string(),
+    }
+}
 
 impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     pub fn raw(&self) -> &HirType {
@@ -14,10 +30,11 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
 
     pub fn name(&self) -> String {
         match self.hir.types[self.dereference().data] {
-            HirType::Bool => "bool".to_string(),
-            HirType::Float => "float32".to_string(),
-            HirType::Int => "int".to_string(),
-            HirType::Void => "void".to_string(),
+            HirType::Bool => primitive_name(&PrimitiveType::boolean_type()),
+            HirType::Float => primitive_name(&PrimitiveType::Float32),
+            HirType::Int => primitive_name(&PrimitiveType::Signed { bitsize: 32 }),
+            HirType::Void => primitive_name(&PrimitiveType::Void),
+            HirType::Str => primitive_name(&PrimitiveType::String),
             HirType::GenericComponent => "anycomponent".to_string(),
 
             HirType::Array(ty, len) => {
@@ -27,7 +44,6 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
             HirType::ImutableRef(ty) => format!("&{}", self.new_with(ty).name()),
             HirType::MutableRef(ty) => format!("&mut {}", self.new_with(ty).name()),
 
-            HirType::Str => "str".to_string(),
             HirType::Reference { rf, ref generics } => {
                 let name = self.new_with(rf).name();
                 let generics = {
