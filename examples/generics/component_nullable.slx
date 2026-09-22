@@ -1,9 +1,10 @@
+import option using { Option };
 component Box<T> {
     pub prop item: T;
 }
 
 component Main {
-    Box<int?> {
+    Box<Option<int>> {
         item: 42
     }
 }

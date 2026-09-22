@@ -1,9 +1,10 @@
 // A nullable generic return type works: `identity<int>` is specialized to
 // `func(...) -> int?`.
-func identity<T>(x: T): T? {
-    x
+import option using {Option};
+func identity<T>(x: T): Option<T> {
+    Option.Some(x)
 }
 
-func main(): int? {
+func main(): Option<int> {
     identity<int>(42)
 }

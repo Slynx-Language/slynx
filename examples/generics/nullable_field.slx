@@ -2,11 +2,17 @@
 // retyping added for indexed generic fields (see generics-fix.md §4) reads the
 // field type from the specialized struct, so `data` becomes `int?` instead of a
 // leftover `T?`.
+import option using {Option};
+
 object Box<T> {
-    data: T?
+    data: Option<T>
 }
 
 func main(): int {
-    let b = Box<int>(data: 42);
-    b.data
+    let b = Box<int>(data: Option.Some(42));
+    if b.data matches Some(42) {
+        42
+    }else {
+        0
+    }
 }
