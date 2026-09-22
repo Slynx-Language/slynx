@@ -106,7 +106,7 @@ pub(crate) fn substitute_type(
         }
         HirType::Reference { rf, generics } => {
             let new_rf = substitute_type(hir, *rf, subst)?;
-            let mut new_generics = *generics;
+            let mut new_generics = generics.clone();
             for slot in &mut new_generics {
                 if !slot.is_null()
                     && let HirType::GenericParam { index, .. } = hir.view(*slot).raw()

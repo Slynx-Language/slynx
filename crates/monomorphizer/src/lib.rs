@@ -470,7 +470,7 @@ impl Monomorphizer {
             }
             HirType::Reference { rf, generics } => {
                 let new_rf = self.resolve_expression_type(hir, *rf, span)?;
-                let mut new_generics = *generics;
+                let mut new_generics = generics.clone();
                 for slot in &mut new_generics {
                     if !slot.is_null() {
                         *slot = self.resolve_expression_type(hir, *slot, span)?;
