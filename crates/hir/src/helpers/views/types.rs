@@ -147,15 +147,9 @@ impl<'a> HirViewer<'a, DedupPoolId<HirType>> {
     ///Returns the concrete type of this type. If this type is a reference type(a type that maps to another type), this function will find the concrete type, and if the concrete type is a reference(&T/&mut T), this function will retrieve T
     ///Its then different from [`dereference`] which will return the type by remapping it, but yet making &T/&mut T a possible return case, where this one gets the concrete T type being used. This is mainly useful for checks where
     ///you do wanna see the concrete type that is being dealed, even though its abstracted by something, such, as said above, &T.
-    ///Same thing to track nullable types.
     ///
-    ///```
-    ///let strukt_type = hir.create_struct_type();
-    ///let ty = hir.types.create_type(HirType::Nullable(strukt_type));
-    ///let type_view = type_view.concrete_type();
-    ///assert_eq!(type_view.data, strukt_type);
-    ///```
-    ///
+    ///As an example, for `&Point` this returns the view over `Point` itself, and
+    ///for a bare `Point` it returns the view over `Point` unchanged.
     pub fn concrete_type(self) -> HirViewer<'a, DedupPoolId<HirType>> {
         let mut data = self.data;
         while let HirType::ImutableRef(rf)
