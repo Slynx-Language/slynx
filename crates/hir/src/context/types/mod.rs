@@ -15,7 +15,7 @@ use crate::{
     arrays::ArrayTerm,
     generic_component::GenericComponentTerm,
     helpers::Visible,
-    term::{PrimitiveType, Term, TermId, TermKind, TermNode, VarTerm},
+    term::{ConstantTerm, PrimitiveType, Term, TermId, TermKind, TermNode, VarTerm},
     vector::VectorTerm,
 };
 
@@ -358,8 +358,15 @@ impl TypesContext {
             }),
             HirType::Array(ty, len) => {
                 let ty = self.to_term(*ty);
-                let arr = ArrayTerm::new(ty, *len);
-                Term::new_type(TermNode::Extension(Arc::new(arr)))
+                let arr = ArrayTerm;
+                let term = self.create_term(Term::new_type(TermNode::Extension(Arc::new(arr))));
+                let len = self.create_term(Term::new_type(TermNode::Constant(
+                    ConstantTerm::Usize(*len),
+                )));
+                Term::new_type(TermNode::Apply {
+                    target: term,
+                    args: vec![ty, len],
+                })
             }
             HirType::GenericComponent => {
                 Term::new_type(TermNode::Extension(Arc::new(GenericComponentTerm)))
