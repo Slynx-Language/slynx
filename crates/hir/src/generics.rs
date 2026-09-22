@@ -23,7 +23,11 @@
 use common::{Spanned, pool::DedupPoolId};
 use slynx_parser::{Type, TypeContext};
 
-use crate::{HirType, Result, SlynxHir, builders::HirNode};
+use crate::{
+    HirType, Result, SlynxHir,
+    builders::HirNode,
+    term::{Term, TermId, TermNode},
+};
 
 /// A mapping from a declaration's type-parameter index to a concrete type
 /// argument.
@@ -126,6 +130,62 @@ impl GenericTypeArguments {
     /// position (unresolved slots remain [`DedupPoolId::new_null`]).
     pub fn into_vec(self) -> Vec<DedupPoolId<HirType>> {
         self.slots
+    }
+}
+
+/// Replaces every [`TermNode::Var`] inside `ty` with the matching type
+/// argument from `generics` (indexed by parameter position), recursing through
+/// container types.
+pub fn substitute_terms(hir: &SlynxHir, generics: &[TermId], ty: TermId) -> TermId {
+    match hir.view(ty).raw().node() {
+        TermNode::Var(var) => generics[var.index as usize],
+        TermNode::Apply { target, args } => {
+            let target = substitute_terms(hir, generics, *target);
+            let mut new_args = Vec::with_capacity(args.len());
+            for arg in args {
+                let arg = substitute_terms(hir, generics, *arg);
+                new_args.push(arg);
+            }
+            hir.types.create_term(Term::new_type(TermNode::Apply {
+                target,
+                args: new_args,
+            }))
+        }
+        TermNode::Tuple { fields } => {
+            let mut new_fields = Vec::with_capacity(fields.len());
+            for field in fields {
+                let field = substitute_terms(hir, generics, *field);
+                new_fields.push(field);
+            }
+            hir.types
+                .create_term(Term::new_type(TermNode::Tuple { fields: new_fields }))
+        }
+        TermNode::Func { args, ret } => {
+            let mut new_args = Vec::with_capacity(args.len());
+            for arg in args {
+                let arg = substitute_terms(hir, generics, *arg);
+                new_args.push(arg);
+            }
+            let ret = substitute_terms(hir, generics, *ret);
+            hir.types.create_term(Term::new_type(TermNode::Func {
+                args: new_args,
+                ret,
+            }))
+        }
+        TermNode::Ref { mutable, target } => {
+            let target = substitute_terms(hir, generics, *target);
+            hir.types.create_term(Term::new_type(TermNode::Ref {
+                mutable: *mutable,
+                target,
+            }))
+        }
+        TermNode::Extension(ext) => {
+            let node = TermNode::Extension(
+                ext.map_children(&mut |child| substitute_terms(hir, generics, child)),
+            );
+            hir.types.create_term(Term::new_type(node))
+        }
+        _ => ty,
     }
 }
 
