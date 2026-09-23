@@ -38,10 +38,11 @@ use common::{
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationId, DeclarationsPool, HIRError, HirComponentExpression, HirExpression,
+    DeclarationId, DeclarationsPool, DescriptorId, HIRError, HirComponentExpression, HirExpression,
     HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result,
     SlynxHir, SymbolPointer, VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::{Term, TermNode},
 };
 
 use types::{
@@ -232,7 +233,7 @@ impl Monomorphizer {
         // `GenericParam`-typed signature, and mark it as dead.
         let void_ty = hir
             .types
-            .create_function_type(Vec::new(), hir.types.create_type(HirType::Void));
+            .create_function_type(Vec::new(), hir.types.create_type(Term::void_type()));
         self.neutralize_generic(
             hir,
             &files,
@@ -432,57 +433,51 @@ impl Monomorphizer {
             };
         }
 
-        match hir.view(ty).raw() {
-            HirType::ImutableRef(inner) => Ok(hir.types.create_type(HirType::ImutableRef(
-                self.resolve_expression_type(hir, *inner, span)?,
+        match hir.view(ty).raw().node() {
+            TermNode::Ref { mutable, target } => Ok(hir.types.create_type({
+                let expr_ty = self.resolve_expression_type(hir, *target, span)?;
+                if *mutable {
+                    Term::mutable_reference(expr_ty)
+                } else {
+                    Term::reference(expr_ty)
+                }
+            })),
+            TermNode::Extension(ext) => Ok(hir.types.create_type(Term::extension(
+                ext.try_map_children(&mut |id| self.resolve_expression_type(hir, id, span))?,
             ))),
-            HirType::MutableRef(inner) => Ok(hir.types.create_type(HirType::MutableRef(
-                self.resolve_expression_type(hir, *inner, span)?,
-            ))),
-            HirType::Array(inner, len) => Ok(hir.types.create_type(HirType::Array(
-                self.resolve_expression_type(hir, *inner, span)?,
-                *len,
-            ))),
-            HirType::Vector(inner) => Ok(hir.types.create_type(HirType::Vector(
-                self.resolve_expression_type(hir, *inner, span)?,
-            ))),
-            HirType::Function(function) => {
-                let function_view = hir.view(*function);
-                let args = function_view
-                    .arguments()
+
+            TermNode::Func { args, ret } => {
+                let args = args
                     .iter()
                     .map(|arg| self.resolve_expression_type(hir, *arg, span))
                     .collect::<Result<Vec<_>>>()?;
-                let ret = self.resolve_expression_type(hir, function_view.return_type(), span)?;
+                let ret = self.resolve_expression_type(hir, *ret, span)?;
                 Ok(hir.types.create_function_type(args, ret))
             }
-            HirType::Tuple(tuple) => {
-                let tuple_view = hir.view(*tuple);
-                let fields = tuple_view
-                    .fields()
+            TermNode::Tuple { fields } => {
+                let fields = fields
                     .iter()
                     .map(|field| self.resolve_expression_type(hir, *field, span))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(hir.types.create_tuple_type(fields))
             }
-            HirType::Component(component) => {
+            TermNode::Data(descriptor) if let DescriptorId::Component(component) = descriptor => {
                 self.rebuild_component_type(hir, *component, &Substitution::empty(), span)
             }
-            HirType::Reference { rf, generics } => {
-                let new_rf = self.resolve_expression_type(hir, *rf, span)?;
-                let mut new_generics = generics.clone();
+            TermNode::Apply { target, args } => {
+                let new_rf = self.resolve_expression_type(hir, *target, span)?;
+                let mut new_generics = args.clone();
                 for slot in &mut new_generics {
                     if !slot.is_null() {
                         *slot = self.resolve_expression_type(hir, *slot, span)?;
                     }
                 }
-                Ok(hir.types.create_type(HirType::Reference {
-                    rf: new_rf,
-                    generics: new_generics,
-                }))
+                Ok(hir
+                    .types
+                    .create_type(Term::application(new_rf, new_generics)))
             }
 
-            other => Ok(hir.types.create_type(other.clone())),
+            _ => Ok(ty),
         }
     }
 

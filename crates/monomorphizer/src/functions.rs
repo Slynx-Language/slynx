@@ -113,9 +113,9 @@ impl Monomorphizer {
         let file = hir.get_file(id.file_id);
         let declaration = &file.declarations.declarations.functions[local_id];
         let view = hir.view(declaration.ty);
-        let function = view
+        let (_, return_type) = view
             .is_function()
             .expect("Function declaration should have a function type");
-        Ok(function.return_type())
+        Ok(return_type)
     }
 }

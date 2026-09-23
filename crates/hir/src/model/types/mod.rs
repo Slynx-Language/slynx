@@ -54,7 +54,6 @@ use crate::{
 };
 
 use common::{VisibilityModifier, pool::DedupPoolId};
-use module_loader::ASTBuiltin;
 use smallvec::SmallVec;
 
 /// A property of a component type.

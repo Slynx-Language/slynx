@@ -4,7 +4,7 @@ use common::pool::DedupPoolId;
 use module_loader::ASTBuiltin;
 
 use crate::{
-    ComponentType, DescriptorId, EnumType, StructType, SymbolPointer,
+    ComponentType, DescriptorId, EnumType, HIRError, Result, StructType, SymbolPointer,
     generic_component::GenericComponentTerm,
 };
 
@@ -185,6 +185,10 @@ impl Term {
         Self::new_type(TermNode::Extension(Arc::new(ext)))
     }
 
+    pub const fn extension(ext: Arc<dyn ExtensionNode>) -> Self {
+        Self::new_type(TermNode::Extension(ext))
+    }
+
     pub const fn application(target: TermId, args: Vec<TermId>) -> Self {
         Self::new_type(TermNode::Apply { target, args })
     }
@@ -341,6 +345,10 @@ pub trait ExtensionNode: std::fmt::Debug + std::any::Any {
     fn kind(&self) -> TermKind;
     fn name(&self) -> &'static str;
     fn map_children(&self, f: &mut dyn FnMut(TermId) -> TermId) -> Arc<dyn ExtensionNode>;
+    fn try_map_children(
+        &self,
+        f: &mut dyn FnMut(TermId) -> Result<TermId>,
+    ) -> Result<Arc<dyn ExtensionNode>>;
     fn dyn_eq(&self, other: &dyn ExtensionNode) -> bool;
     fn dyn_hash(&self, state: &mut dyn std::hash::Hasher);
     fn as_any(&self) -> &dyn std::any::Any;

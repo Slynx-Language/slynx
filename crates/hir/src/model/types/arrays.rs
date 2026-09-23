@@ -1,6 +1,9 @@
 use std::hash::Hash;
 
-use crate::term::{ExtensionNode, TermId, TermKind};
+use crate::{
+    Result,
+    term::{ExtensionNode, TermId, TermKind},
+};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ArrayTerm;
@@ -11,6 +14,13 @@ impl ExtensionNode for ArrayTerm {
         _: &mut dyn FnMut(TermId) -> TermId,
     ) -> std::sync::Arc<dyn ExtensionNode> {
         std::sync::Arc::new(ArrayTerm)
+    }
+
+    fn try_map_children(
+        &self,
+        _: &mut dyn FnMut(TermId) -> Result<TermId>,
+    ) -> Result<std::sync::Arc<dyn ExtensionNode>> {
+        Ok(std::sync::Arc::new(ArrayTerm))
     }
 
     fn children(&self) -> Vec<TermId> {

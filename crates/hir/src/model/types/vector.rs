@@ -12,6 +12,14 @@ impl ExtensionNode for VectorTerm {
     ) -> std::sync::Arc<dyn ExtensionNode> {
         std::sync::Arc::new(VectorTerm)
     }
+
+    fn try_map_children(
+        &self,
+        _: &mut dyn FnMut(TermId) -> crate::Result<TermId>,
+    ) -> crate::Result<std::sync::Arc<dyn ExtensionNode>> {
+        Ok(std::sync::Arc::new(VectorTerm))
+    }
+
     fn children(&self) -> Vec<TermId> {
         vec![]
     }

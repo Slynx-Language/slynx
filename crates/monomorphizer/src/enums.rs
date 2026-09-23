@@ -2,6 +2,7 @@ use common::{Span, pool::DedupPoolId};
 use slynx_hir::{
     EnumVariantType, HIRError, HirEnumDeclaration, HirType, Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::TermNode,
 };
 
 use crate::{Monomorphizer, types::substitute_type};
@@ -13,13 +14,13 @@ impl Monomorphizer {
         span: Span,
     ) -> Result<DedupPoolId<HirType>> {
         let view = hir.view(ty);
-        let HirType::Reference { rf, generics } = view.raw() else {
+        let TermNode::Apply { target, args } = view.raw().node() else {
             return Err(HIRError::not_an_enum(ty, span));
         };
-        let reference_view = hir.view(*rf);
+        let reference_view = hir.view(*target);
         let deref = reference_view.dereference();
         let Some(enum_view) = deref.is_enum() else {
-            return Err(HIRError::not_an_enum(*rf, span));
+            return Err(HIRError::not_an_enum(*target, span));
         };
         let name = enum_view.name();
         let Some((template_file, template_local)) =
@@ -40,7 +41,7 @@ impl Monomorphizer {
             )
         };
 
-        let args: Vec<DedupPoolId<HirType>> = generics
+        let args: Vec<DedupPoolId<HirType>> = args
             .iter()
             .copied()
             .filter(|slot| !slot.is_null())

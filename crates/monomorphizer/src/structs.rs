@@ -13,6 +13,7 @@ use common::{Span, pool::DedupPoolId};
 use slynx_hir::{
     HIRError, HirObjectDeclaration, HirType, Result, SlynxHir, Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::TermNode,
 };
 
 use crate::{Monomorphizer, types::substitute_type};
@@ -29,17 +30,17 @@ impl Monomorphizer {
         span: Span,
     ) -> Result<DedupPoolId<HirType>> {
         let ty_view = hir.view(ty);
-        let HirType::Reference { rf, generics } = ty_view.raw() else {
+        let TermNode::Apply { target, args } = ty_view.raw().node() else {
             unreachable!("resolve_object_target requires a Reference type")
         };
 
-        let rf_view = hir.view(*rf);
+        let rf_view = hir.view(*target);
         let deref = rf_view.dereference();
         let struct_view = deref.is_struct().ok_or_else(|| {
             HIRError::generic_arity_mismatch(
                 hir.intern_name(&deref.name()),
                 0,
-                generics.iter().filter(|slot| !slot.is_null()).count(),
+                args.iter().filter(|slot| !slot.is_null()).count(),
                 span,
             )
         })?;
@@ -63,7 +64,7 @@ impl Monomorphizer {
             )
         };
 
-        let args: Vec<DedupPoolId<HirType>> = generics
+        let args: Vec<DedupPoolId<HirType>> = args
             .iter()
             .copied()
             .filter(|slot| !slot.is_null())
