@@ -8,8 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use common::{FrontendSymbol, SymbolPointer};
 use slynx_hir::{
-    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
-    SlynxHir,
+    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::OwnershipAnalysis,
     term::TermNode,
@@ -106,8 +105,7 @@ impl<'a> LoweringState<'a> {
                 // declaration.ty is a Reference; also register the concrete
                 // Struct TypeId so tuple fields (which resolve through the
                 // Reference) can be found in get_or_create_ir_type.
-                if let TermNode::Apply { target, .. } =
-                    self.hir.view(declaration.ty).raw().node()
+                if let TermNode::Apply { target, .. } = self.hir.view(declaration.ty).raw().node()
                     && self.hir.view(*target).is_extension().is_none()
                 {
                     self.types.register_mapping(*target, obj);
