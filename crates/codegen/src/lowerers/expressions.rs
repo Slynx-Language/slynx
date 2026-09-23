@@ -1,6 +1,6 @@
 use common::{Operator, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType,
+    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
     SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::ExpressionUse,
