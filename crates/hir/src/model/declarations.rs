@@ -32,6 +32,7 @@ use smallvec::SmallVec;
 use crate::{
     HirType, SymbolPointer, VariableId,
     model::{HirComponentExpression, HirExpression, HirStatement},
+    term::TermId,
 };
 
 /// A processed attribute on an HIR declaration.
@@ -61,7 +62,7 @@ pub struct HirFunctionDeclaration {
     pub generics: Vec<SymbolPointer>,
     pub args: SmallVec<[VariableId; 2]>,
     pub statements: Vec<Spanned<PoolId<HirStatement>>>,
-    pub ty: DedupPoolId<HirType>,
+    pub ty: TermId,
     pub visibility: VisibilityModifier,
     pub external: bool,
     pub attributes: Vec<HirAttribute>,
@@ -72,7 +73,7 @@ pub struct HirFunctionDeclaration {
 pub struct HirObjectDeclaration {
     pub name: SymbolPointer,
     pub generics: Vec<SymbolPointer>,
-    pub ty: DedupPoolId<HirType>,
+    pub ty: TermId,
     pub visibility: VisibilityModifier,
     pub external: bool,
     pub attributes: Vec<HirAttribute>,
@@ -81,7 +82,7 @@ pub struct HirObjectDeclaration {
 #[derive(Debug)]
 pub struct HirStaticDeclaration {
     pub name: SymbolPointer,
-    pub ty: DedupPoolId<HirType>,
+    pub ty: TermId,
     pub visibility: VisibilityModifier,
     pub external: bool,
     pub attributes: Vec<HirAttribute>,
@@ -91,7 +92,7 @@ pub struct HirStaticDeclaration {
 pub struct HirAliasDeclaration {
     pub name: SymbolPointer,
     pub generics: Vec<SymbolPointer>,
-    pub ty: DedupPoolId<HirType>,
+    pub ty: TermId,
     pub visibility: VisibilityModifier,
 }
 
@@ -100,7 +101,7 @@ pub struct HirComponentDeclaration {
     pub name: SymbolPointer,
     pub generics: Vec<SymbolPointer>,
     pub props: Vec<ComponentMemberDeclaration>,
-    pub ty: DedupPoolId<HirType>,
+    pub ty: TermId,
     pub visibility: VisibilityModifier,
     pub attributes: Vec<HirAttribute>,
 }
@@ -109,7 +110,7 @@ pub struct HirComponentDeclaration {
 pub enum HirEnumVariantKind {
     Raw,
     Valued(Spanned<DedupPoolId<HirExpression>>),
-    Associated(SmallVec<[DedupPoolId<HirType>; 2]>), //Struct is associated but the names get turned into numeric fields, so it becomes ordered, an enum with variant A {thing: int, b: float} is the same as A(int,float)
+    Associated(SmallVec<[TermId; 2]>), //Struct is associated but the names get turned into numeric fields, so it becomes ordered, an enum with variant A {thing: int, b: float} is the same as A(int,float)
 }
 
 #[derive(Debug, Clone)]
@@ -125,7 +126,7 @@ pub struct HirEnumDeclaration {
     pub variants: Vec<Spanned<HirEnumVariant>>,
     pub visibility: VisibilityModifier,
     pub attributes: Vec<HirAttribute>,
-    pub ty: DedupPoolId<HirType>,
+    pub ty: TermId,
 }
 
 /// A member of a component declaration.

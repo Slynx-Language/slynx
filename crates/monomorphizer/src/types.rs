@@ -26,7 +26,7 @@ pub(crate) struct Substitution(HashMap<u8, TermId>);
 
 /// The key of a monomorphization: the generic template declaration together
 /// with the concrete type arguments supplied at a use site.
-pub(crate) type MonomorphizationKey = (AnyDeclarationId, SmallVec<[DedupPoolId<HirType>; 2]>);
+pub(crate) type MonomorphizationKey = (AnyDeclarationId, SmallVec<[TermId; 2]>);
 
 impl Substitution {
     ///Builds the substitution from a template's type-parameter list and the
@@ -57,11 +57,7 @@ impl Substitution {
 ///one `_<name>_<hash>` segment per concrete type argument, where the hash is
 ///computed structurally over the `HirType` value. The name stays unique per
 ///type-argument list while remaining human-readable.
-pub(crate) fn mangle_name(
-    hir: &SlynxHir,
-    name: SymbolPointer,
-    args: &[DedupPoolId<HirType>],
-) -> String {
+pub(crate) fn mangle_name(hir: &SlynxHir, name: SymbolPointer, args: &[TermId]) -> String {
     let base = hir.get_name(name);
     let mut out = String::with_capacity(base.len() + args.len() * 20);
     out.push_str(base);
@@ -139,12 +135,12 @@ pub(crate) fn substitute_type(hir: &SlynxHir, ty: TermId, subst: &Substitution) 
 ///Returns `true` if `ty` is a [`HirType::Reference`] carrying concrete type
 ///arguments (no unresolved generic parameter anywhere), and therefore a
 ///candidate for specialization by the struct/component modules.
-pub(crate) fn is_resolvable_reference(hir: &SlynxHir, ty: DedupPoolId<HirType>) -> bool {
+pub(crate) fn is_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool {
     let ty_view = hir.view(ty);
     let TermNode::Apply { args, .. } = ty_view.raw().node() else {
         return false;
     };
-    let concrete: Vec<DedupPoolId<HirType>> = args
+    let concrete: Vec<TermId> = args
         .iter()
         .filter(|slot| !slot.is_null())
         .copied()
@@ -157,7 +153,7 @@ pub(crate) fn is_resolvable_reference(hir: &SlynxHir, ty: DedupPoolId<HirType>) 
 
 ///Returns `true` if `ty` contains an unresolved [`HirType::GenericParam`]
 ///anywhere in its structure.
-pub(crate) fn contains_generic_param(hir: &SlynxHir, ty: DedupPoolId<HirType>) -> bool {
+pub(crate) fn contains_generic_param(hir: &SlynxHir, ty: TermId) -> bool {
     match hir.view(ty).raw().node() {
         TermNode::Var(_) => true,
         TermNode::Extension(ext) => ext
@@ -193,10 +189,10 @@ pub(crate) fn contains_generic_param(hir: &SlynxHir, ty: DedupPoolId<HirType>) -
 ///Returns `true` if `ty` contains a [`HirType::Reference`] with concrete type
 ///arguments that targets a generic struct or component — i.e. a type that
 ///`resolve_expression_type` would need to specialize.
-pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: DedupPoolId<HirType>) -> bool {
+pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool {
     match hir.view(ty).raw().node() {
         TermNode::Apply { args, target } => {
-            let concrete: Vec<DedupPoolId<HirType>> = args
+            let concrete: Vec<TermId> = args
                 .iter()
                 .filter(|slot| !slot.is_null())
                 .copied()

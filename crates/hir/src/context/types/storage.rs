@@ -1,6 +1,5 @@
 use std::{
     collections::{HashSet, VecDeque},
-    mem::take,
     ops::Index,
 };
 
@@ -10,10 +9,10 @@ use common::{
 };
 
 use crate::{
-    ComponentType, DescriptorId, EnumType, EnumVariantType, FunctionType, HIRError, HirType,
-    Result, StructType, SymbolPointer, TupleType,
+    ComponentType, DescriptorId, EnumType, EnumVariantType, HIRError, HirType, Result, StructType,
+    SymbolPointer, TupleType,
     helpers::Visible,
-    term::{Term, TermNode},
+    term::{Term, TermId, TermNode},
 };
 
 use super::{
@@ -47,22 +46,26 @@ impl Default for TypeStorage {
     }
 }
 impl TypeStorage {
-    /// Number of distinct types in the type pool.
+    ///Number of distinct types in the term pool.
     pub fn len(&self) -> usize {
-        self.types.len()
+        self.terms.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Inserts `ty` into the deduplicated type pool and returns its id.
-    pub fn insert_type(&self, ty: HirType) -> DedupPoolId<HirType> {
-        self.types.insert(ty)
+    /// Inserts `ty` into the deduplicated term pool and returns its id.
+    ///
+    /// `HirType` is an alias for `Term`, so a type id and a term id are one and
+    /// the same: both flow through the `terms` pool that every [`HirViewer`]
+    /// and `Index` read. The legacy `types` pool is being retired.
+    pub fn insert_type(&self, ty: HirType) -> TermId {
+        self.terms.insert(ty)
     }
 
     ///Returns the inner object from the provided `ty`, returns None if the type is not a object
-    pub fn get_object(&self, ty: DedupPoolId<HirType>) -> Option<DedupPoolId<HirType>> {
+    pub fn get_object(&self, ty: TermId) -> Option<TermId> {
         let mut visited = HashSet::new();
         let mut current = ty;
         loop {
@@ -81,7 +84,7 @@ impl TypeStorage {
     }
 
     ///Returns the inner component from the provided `ty`, returns None if the type is not a object
-    pub fn get_component(&self, ty: &DedupPoolId<HirType>) -> Option<DedupPoolId<HirType>> {
+    pub fn get_component(&self, ty: &TermId) -> Option<TermId> {
         let mut visited = HashSet::new();
         let mut current = *ty;
         loop {
@@ -138,14 +141,14 @@ impl TypeStorage {
         &self.structs[metadata].fields
     }
 
-    pub fn get_struct_field_types(&self, s: DedupPoolId<StructType>) -> &[DedupPoolId<HirType>] {
+    pub fn get_struct_field_types(&self, s: DedupPoolId<StructType>) -> &[TermId] {
         &self.structs[s].fields
     }
 
     pub fn get_struct_signature(
         &self,
         s: DedupPoolId<StructType>,
-    ) -> Vec<(&Visible<SymbolPointer>, &DedupPoolId<HirType>)> {
+    ) -> Vec<(&Visible<SymbolPointer>, &TermId)> {
         self.get_struct_fields(s)
             .iter()
             .zip(&self.structs[s].fields)
@@ -153,11 +156,7 @@ impl TypeStorage {
     }
 
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
-    pub fn get_type_from_ref(
-        &self,
-        ref_ty: DedupPoolId<HirType>,
-        span: &Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    pub fn get_type_from_ref(&self, ref_ty: TermId, span: &Span) -> Result<TermId> {
         let mut visited = HashSet::new();
         let mut current = ref_ty;
         loop {
@@ -173,7 +172,7 @@ impl TypeStorage {
         }
     }
 
-    pub fn is_cyclic(&self, ty: DedupPoolId<HirType>) -> bool {
+    pub fn is_cyclic(&self, ty: TermId) -> bool {
         let mut set = HashSet::new();
         let mut queue = VecDeque::new();
         queue.push_back(ty);
@@ -227,7 +226,7 @@ macro_rules! impl_index {
 }
 
 impl_index!(
-    HirType => |this, idx| this.types.get(idx),
+    HirType => |this, idx| this.terms.get(idx),
     StructType => |this, idx| &this.structs[idx],
     StructDefinition => |this, idx| &this.structs[idx],
     TupleType => |this, idx| &this.structs[idx],

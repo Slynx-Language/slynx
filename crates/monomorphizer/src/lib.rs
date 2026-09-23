@@ -42,7 +42,7 @@ use slynx_hir::{
     HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result,
     SlynxHir, SymbolPointer, VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
-    term::{Term, TermNode},
+    term::{Term, TermId, TermNode},
 };
 
 use types::{
@@ -68,8 +68,8 @@ type FunctionSnapshot = (
 ///   variable's real type once the call/object it came from was specialized.
 #[derive(Clone, Copy)]
 struct TrackedVariable {
-    original: DedupPoolId<HirType>,
-    rebuilt: DedupPoolId<HirType>,
+    original: TermId,
+    rebuilt: TermId,
 }
 
 /// A struct that handles all the monomorphization on the code.
@@ -300,7 +300,7 @@ impl Monomorphizer {
         name: SymbolPointer,
         template_any: AnyDeclarationId,
         generic_count: usize,
-        args: Vec<DedupPoolId<HirType>>,
+        args: Vec<TermId>,
         span: Span,
         from_cached: impl FnOnce(&SlynxHir, AnyDeclarationId) -> T,
         build: impl FnOnce(
@@ -367,11 +367,11 @@ impl Monomorphizer {
         &mut self,
         hir: &SlynxHir,
         files: &[FileId],
-        void_ty: DedupPoolId<HirType>,
+        void_ty: TermId,
         select: fn(&DeclarationsPool) -> &Pool<D>,
         select_mut: fn(&mut DeclarationsPool) -> &mut Pool<D>,
         is_generic: impl Fn(&D) -> bool,
-        mut neutralize: impl FnMut(&mut D, DedupPoolId<HirType>),
+        mut neutralize: impl FnMut(&mut D, TermId),
         to_any: fn(PoolId<D>) -> AnyLocalDeclarationId,
     ) {
         for file_id in files {
@@ -416,9 +416,9 @@ impl Monomorphizer {
     fn resolve_expression_type(
         &mut self,
         hir: &SlynxHir,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
         span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         if is_resolvable_reference(hir, ty) {
             let ty_view = hir.view(ty);
             let deref = ty_view.dereference();

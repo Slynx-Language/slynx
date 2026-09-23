@@ -1,6 +1,6 @@
 use common::pool::DedupPoolId;
 
-use crate::{ComponentType, HirType, SymbolPointer, helpers::HirViewer};
+use crate::{ComponentType, SymbolPointer, helpers::HirViewer, term::TermId};
 
 impl HirViewer<'_, DedupPoolId<ComponentType>> {
     pub fn name(&self) -> &str {
@@ -8,7 +8,7 @@ impl HirViewer<'_, DedupPoolId<ComponentType>> {
         let name = self.hir.types[metadata].name;
         self.hir.get_name(name)
     }
-    pub fn props(&self) -> &[DedupPoolId<HirType>] {
+    pub fn props(&self) -> &[TermId] {
         &self.hir.types[self.data].properties
     }
     pub fn prop_names(&self) -> &[SymbolPointer] {

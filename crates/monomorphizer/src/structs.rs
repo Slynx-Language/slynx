@@ -13,7 +13,7 @@ use common::{Span, pool::DedupPoolId};
 use slynx_hir::{
     HIRError, HirObjectDeclaration, HirType, Result, SlynxHir, Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
-    term::TermNode,
+    term::{TermId, TermNode},
 };
 
 use crate::{Monomorphizer, types::substitute_type};
@@ -26,9 +26,9 @@ impl Monomorphizer {
     pub(crate) fn resolve_object_target(
         &mut self,
         hir: &SlynxHir,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
         span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let ty_view = hir.view(ty);
         let TermNode::Apply { target, args } = ty_view.raw().node() else {
             unreachable!("resolve_object_target requires a Reference type")
@@ -64,7 +64,7 @@ impl Monomorphizer {
             )
         };
 
-        let args: Vec<DedupPoolId<HirType>> = args
+        let args: Vec<TermId> = args
             .iter()
             .copied()
             .filter(|slot| !slot.is_null())

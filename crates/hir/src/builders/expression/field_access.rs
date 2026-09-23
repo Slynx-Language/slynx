@@ -16,7 +16,7 @@ use crate::{
             literals::ReferenceExpressionDescriptor,
         },
     },
-    term::TermNode,
+    term::{TermId, TermNode},
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -32,7 +32,7 @@ pub struct FieldAccessDescriptor<'a> {
     ///The span of the access expression, used for error reporting
     pub span: Span,
     ///The expected type of the access, if known
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     ///The type context used to resolve types
     pub context: &'a TypeContext<'a>,
 }
@@ -84,7 +84,7 @@ impl ExpressionBuilder {
         &mut self,
         queue: &HirQueueBuilder,
         file_owner: FileId,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
         child: Spanned<DedupPoolId<ASTExpression>>,
         span: Span,
         context: &TypeContext,
@@ -249,7 +249,7 @@ impl ExpressionBuilder {
                         let field_ty = field_types[position];
                         let field_ty = match queue.hir.view(parent_ty).raw().node() {
                             TermNode::Apply { args: generics, .. } => {
-                                crate::generics::substitute_terms(queue.hir, generics, field_ty)
+                                crate::generics::substitute_terms(queue.hir, &generics, field_ty)
                             }
                             _ => field_ty,
                         };
@@ -280,7 +280,7 @@ impl ExpressionBuilder {
                         let field_ty = field_types[position];
                         let field_ty = match queue.hir.view(parent_ty).raw().node() {
                             TermNode::Apply { args: generics, .. } => {
-                                crate::generics::substitute_terms(queue.hir, generics, field_ty)
+                                crate::generics::substitute_terms(queue.hir, &generics, field_ty)
                             }
                             _ => field_ty,
                         };

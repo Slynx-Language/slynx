@@ -40,7 +40,7 @@ pub enum NotMutableReason {
 #[derive(Debug)]
 pub enum HIRErrorKind {
     ///Error that occurs when a type is used like an enum, but isn't
-    InvalidEnumUsage(DedupPoolId<HirType>),
+    InvalidEnumUsage(TermId),
 
     MethodNotFound(SymbolPointer),
     StaticMethodNotFound(SymbolPointer),
@@ -57,7 +57,7 @@ pub enum HIRErrorKind {
     EnumVariantNotAnInt(SymbolPointer),
 
     /// A `matches` expression's left-hand side is not an enum value.
-    MatchesOnNonEnum(DedupPoolId<HirType>),
+    MatchesOnNonEnum(TermId),
 
     /// The right-hand side of a `matches` expression is not a valid pattern
     /// (a bare variant name or a variant call).
@@ -72,15 +72,15 @@ pub enum HIRErrorKind {
     InvalidEnumRepresentation(SymbolPointer),
 
     UnexpectedType {
-        expected: DedupPoolId<HirType>,
-        received: DedupPoolId<HirType>,
+        expected: TermId,
+        received: TermId,
     },
     UnexpectedTerm {
         expected: TermId,
         received: TermId,
     },
     ///Invalid indexing error occurs when the expression being indexed cannot be indexed. So 5[12] cannot be indexed, which then gives this error
-    InvalidIndexing(DedupPoolId<HirType>),
+    InvalidIndexing(TermId),
     ///Couldnt infer is an error when the type of something could not be inferred
     CouldntInfer,
     NotAComponent(SymbolPointer),
@@ -100,12 +100,12 @@ pub enum HIRErrorKind {
     /// A field access was attempted on a type that does not support it.
     InvalidFieldAccessTarget {
         /// The type that was incorrectly accessed.
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     },
     /// A tuple index access was attempted on a non-tuple type.
     InvalidTupleAccessTarget {
         /// The type that was incorrectly accessed.
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     },
     /// A tuple was indexed out of bounds.
     InvalidTupleIndex {
@@ -130,7 +130,7 @@ pub enum HIRErrorKind {
     PropertyNotRecognized {
         /// The names of the unrecognized properties.
         prop_names: Vec<SymbolPointer>,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     },
     /// A property was accessed that exists but is not visible from the current context.
     PropertyNotVisible {
@@ -149,10 +149,10 @@ pub enum HIRErrorKind {
     /// A type definition is recursive without indirection, which is not allowed.
     RecursiveType {
         /// The type symbol that is recursive.
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     },
     /// A call was made to a value that is not a function.
-    NotAFunction(SymbolPointer, DedupPoolId<HirType>),
+    NotAFunction(SymbolPointer, TermId),
     /// A function was called with the wrong number of arguments.
     InvalidFuncallArgLength {
         /// The name of the function that was called.
@@ -221,7 +221,7 @@ pub enum HIRErrorKind {
         /// The name of the function whose instantiation cycles.
         func: SymbolPointer,
         /// The generic type arguments that keep growing.
-        args: Vec<DedupPoolId<HirType>>,
+        args: Vec<TermId>,
     },
     /// A construct that is not yet supported was encountered. The named
     /// declaration cannot be processed by the current implementation.
@@ -229,7 +229,7 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
-    pub fn not_an_enum(ty: DedupPoolId<HirType>, span: Span) -> Self {
+    pub fn not_an_enum(ty: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidEnumUsage(ty),
             span,
@@ -290,7 +290,7 @@ impl HIRError {
         }
     }
 
-    pub fn matches_on_non_enum(ty: DedupPoolId<HirType>, span: Span) -> Self {
+    pub fn matches_on_non_enum(ty: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::MatchesOnNonEnum(ty),
             span,
@@ -318,7 +318,7 @@ impl HIRError {
         }
     }
 
-    pub fn invalid_indexing(expr_type: DedupPoolId<HirType>, span: Span) -> Self {
+    pub fn invalid_indexing(expr_type: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidIndexing(expr_type),
             span,
@@ -331,11 +331,7 @@ impl HIRError {
             span,
         }
     }
-    pub fn unexpected_type(
-        received: DedupPoolId<HirType>,
-        expected: DedupPoolId<HirType>,
-        span: Span,
-    ) -> Self {
+    pub fn unexpected_type(received: TermId, expected: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::UnexpectedType { received, expected },
             span,
@@ -400,7 +396,7 @@ impl HIRError {
     }
     /// Creates a new [`HIRErrorKind::InvalidTupleAccessTarget`] error for accessing a non-tuple
     /// type as a tuple, where the given `span` is the span on the code that generated it.
-    pub fn invalid_tuple_target(target: DedupPoolId<HirType>, span: Span) -> Self {
+    pub fn invalid_tuple_target(target: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidTupleAccessTarget { ty: target },
             span,
@@ -421,7 +417,7 @@ impl HIRError {
     }
 
     /// Creates a [`HIRErrorKind::RecursiveType`] error for the given type symbol.
-    pub fn recursive(ty: DedupPoolId<HirType>, span: Span) -> Self {
+    pub fn recursive(ty: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::RecursiveType { ty },
             span,
@@ -449,7 +445,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::InvalidFieldAccessTarget`] for accessing a non-struct type as a struct.
-    pub fn not_a_struct(ty: DedupPoolId<HirType>, span: Span) -> Self {
+    pub fn not_a_struct(ty: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidFieldAccessTarget { ty },
             span,
@@ -463,7 +459,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::InvalidTupleAccessTarget`] for accessing a non-tuple type as a tuple.
-    pub fn not_a_tuple(ty: DedupPoolId<HirType>, span: Span) -> Self {
+    pub fn not_a_tuple(ty: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidTupleAccessTarget { ty },
             span,
@@ -484,11 +480,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::PropertyNotRecognized`] error listing the unrecognized property names.
-    pub fn property_unrecognized(
-        ty: DedupPoolId<HirType>,
-        names: Vec<SymbolPointer>,
-        span: Span,
-    ) -> Self {
+    pub fn property_unrecognized(ty: TermId, names: Vec<SymbolPointer>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::PropertyNotRecognized {
                 prop_names: names,
@@ -514,7 +506,7 @@ impl HIRError {
         }
     }
     /// Creates a [`HIRErrorKind::NotAFunction`] error for a call to a non-function value.
-    pub fn not_a_func(func: SymbolPointer, ty: DedupPoolId<HirType>, span: Span) -> Self {
+    pub fn not_a_func(func: SymbolPointer, ty: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::NotAFunction(func, ty),
             span,
@@ -572,11 +564,7 @@ impl HIRError {
     }
 
     /// Creates a [`HIRErrorKind::CyclicMonomorphization`] error.
-    pub fn cyclic_monomorphization(
-        func: SymbolPointer,
-        args: Vec<DedupPoolId<HirType>>,
-        span: Span,
-    ) -> Self {
+    pub fn cyclic_monomorphization(func: SymbolPointer, args: Vec<TermId>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::CyclicMonomorphization { func, args },
             span,

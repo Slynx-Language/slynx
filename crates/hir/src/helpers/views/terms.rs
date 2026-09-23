@@ -19,7 +19,7 @@ impl<'a> HirViewer<'a, TermId> {
     }
 
     ///Renders the term into the same diagnostic text produced by
-    ///`HirViewer<DedupPoolId<HirType>>::name()` (I11). It first unrolls
+    ///`HirViewer<TermId>::name()` (I11). It first unrolls
     ///reference chains (mirroring `dereference`) and then walks the term tree.
     pub fn name(&self) -> String {
         self.dereference().render_name()
@@ -28,14 +28,14 @@ impl<'a> HirViewer<'a, TermId> {
     ///Makes a dereference for this type. Since a type can be a reference to
     ///another, this unrolls `Apply` chains (the term form of
     ///`HirType::Reference`) until it lands on a non-reference node, mirroring
-    ///`HirViewer<DedupPoolId<HirType>>::dereference`. Array/Vector applications
+    ///`HirViewer<TermId>::dereference`. Array/Vector applications
     ///are not references and are left intact.
     pub fn dereference(self) -> HirViewer<'a, TermId> {
         let mut data = self.data;
         loop {
             match self.hir.types.storage.terms[data].node() {
                 TermNode::Apply { target, .. }
-                    if self.new_with(*target).is_extension().is_some() =>
+                    if self.new_with(*target).is_extension().is_none() =>
                 {
                     data = *target;
                 }

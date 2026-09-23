@@ -22,7 +22,7 @@ use crate::{
     context::HirSymbol,
     helpers::Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
-    term::Term,
+    term::{PrimitiveType, Term, TermId, TermNode},
     vector::VectorTerm,
 };
 use crossbeam_channel::select;
@@ -80,7 +80,7 @@ pub(crate) struct PendantFunction<'a> {
     context: TypeContext<'a>,
     body: &'a [Spanned<DedupPoolId<ASTStatement>>],
     argument_names: Vec<SymbolPointer>,
-    self_type: Option<DedupPoolId<HirType>>,
+    self_type: Option<TermId>,
 }
 
 pub(crate) struct PendantComponent<'a> {
@@ -119,7 +119,7 @@ impl HirNode<'_> {
         &self,
         name: Spanned<SymbolPointer>,
         context: &TypeContext,
-    ) -> Result<(FileId, DedupPoolId<HirType>)> {
+    ) -> Result<(FileId, TermId)> {
         if let Some(data) = self.modules.find_type(self.entry, name.data) {
             let id = match data.content {
                 ASTTypeKind::Builtin(builtin) => self.hir.types.create_type(builtin.into()),
@@ -190,11 +190,16 @@ impl HirNode<'_> {
                             representation.span.make_spanned(representation.data),
                             &TypeContext::new(&[]),
                         )?;
-                        if let None = self.hir.view(repr_ty).dereference().raw().is_unsigned() {
-                            return Err(HIRError::invalid_enum_representation(
-                                enum_name,
-                                representation.span,
-                            ));
+                        match self.hir.view(repr_ty).dereference().raw().node() {
+                            TermNode::Primitive(
+                                PrimitiveType::Signed { .. } | PrimitiveType::Unsigned { .. },
+                            ) => {}
+                            _ => {
+                                return Err(HIRError::invalid_enum_representation(
+                                    enum_name,
+                                    representation.span,
+                                ));
+                            }
                         }
                     }
                     // Discriminants walk the variants in declaration order.
@@ -271,7 +276,7 @@ impl HirNode<'_> {
         &self,
         ty: Spanned<DedupPoolId<Type>>,
         context: &TypeContext,
-    ) -> Result<(FileId, DedupPoolId<HirType>)> {
+    ) -> Result<(FileId, TermId)> {
         self.find_type_inner(ty, context, None)
     }
 
@@ -286,8 +291,8 @@ impl HirNode<'_> {
         &self,
         ty: Spanned<DedupPoolId<Type>>,
         context: &TypeContext,
-        self_substitute: Option<DedupPoolId<HirType>>,
-    ) -> Result<(FileId, DedupPoolId<HirType>)> {
+        self_substitute: Option<TermId>,
+    ) -> Result<(FileId, TermId)> {
         let real = self.modules.get_type(ty.data);
         match real {
             Type::Plain(generic) if let Some(substitute) = self_substitute => {
@@ -382,7 +387,7 @@ impl HirNode<'_> {
         }
     }
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
-    fn get_signature_of_function(&self, f: &FuncDeclaration) -> Result<DedupPoolId<HirType>> {
+    fn get_signature_of_function(&self, f: &FuncDeclaration) -> Result<TermId> {
         let context = TypeContext::new(&f.type_params);
         let ret = self.find_type(f.return_type, &context)?.1;
         let args = f
@@ -397,10 +402,7 @@ impl HirNode<'_> {
     }
 
     /// Pure computation of a component's signature type (no cycle detection).
-    fn compute_component_type(
-        &self,
-        component: &ComponentDeclaration,
-    ) -> Result<DedupPoolId<HirType>> {
+    fn compute_component_type(&self, component: &ComponentDeclaration) -> Result<TermId> {
         let context = TypeContext::new(&component.type_params);
         let (properties, children) = {
             let mut properties = Vec::with_capacity(component.members.len());
@@ -440,7 +442,7 @@ impl HirNode<'_> {
     pub(crate) fn resolve_component_signature(
         &self,
         component: &ComponentDeclaration,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let key = (self.entry, component.name);
 
         // Push onto cycle-detection stack

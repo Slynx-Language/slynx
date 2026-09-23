@@ -76,7 +76,7 @@ use smallvec::SmallVec;
 /// }
 /// ```
 #[derive(Debug, Clone)]
-pub struct ComponentProperty(VisibilityModifier, SymbolPointer, DedupPoolId<HirType>);
+pub struct ComponentProperty(VisibilityModifier, SymbolPointer, TermId);
 
 impl ComponentProperty {
     /// Creates a new component property.
@@ -90,11 +90,7 @@ impl ComponentProperty {
     /// # Returns
     ///
     /// A new [`ComponentProperty`] instance.
-    pub fn new(
-        visibility: VisibilityModifier,
-        name: SymbolPointer,
-        ty: DedupPoolId<HirType>,
-    ) -> Self {
+    pub fn new(visibility: VisibilityModifier, name: SymbolPointer, ty: TermId) -> Self {
         Self(visibility, name, ty)
     }
 
@@ -108,7 +104,7 @@ impl ComponentProperty {
     /// # Returns
     ///
     /// A new [`ComponentProperty`] with public visibility.
-    pub fn new_public(name: SymbolPointer, ty: DedupPoolId<HirType>) -> Self {
+    pub fn new_public(name: SymbolPointer, ty: TermId) -> Self {
         Self::new(VisibilityModifier::Public, name, ty)
     }
 
@@ -122,7 +118,7 @@ impl ComponentProperty {
     /// # Returns
     ///
     /// A new [`ComponentProperty`] with private visibility.
-    pub fn new_private(name: SymbolPointer, ty: DedupPoolId<HirType>) -> Self {
+    pub fn new_private(name: SymbolPointer, ty: TermId) -> Self {
         Self::new(VisibilityModifier::Private, name, ty)
     }
 
@@ -137,18 +133,18 @@ impl ComponentProperty {
     }
 
     /// Returns the property's type ID.
-    pub fn prop_type(&self) -> DedupPoolId<HirType> {
+    pub fn prop_type(&self) -> TermId {
         self.2
     }
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TupleType {
-    pub(crate) fields: Vec<DedupPoolId<HirType>>,
+    pub(crate) fields: Vec<TermId>,
 }
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct StructType {
-    pub(crate) fields: Vec<DedupPoolId<HirType>>,
+    pub(crate) fields: Vec<TermId>,
     pub(crate) metadata: DedupPoolId<StructDefinition>,
 }
 
@@ -180,15 +176,15 @@ pub struct EnumType {
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct ComponentType {
-    pub(crate) properties: Vec<DedupPoolId<HirType>>,
+    pub(crate) properties: Vec<TermId>,
     pub(crate) children: Vec<DedupPoolId<ComponentType>>,
     pub(crate) metadata: DedupPoolId<ComponentDefinition>,
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct FunctionType {
-    pub(crate) args: SmallVec<[DedupPoolId<HirType>; 2]>,
-    pub(crate) ret: DedupPoolId<HirType>,
+    pub(crate) args: SmallVec<[TermId; 2]>,
+    pub(crate) ret: TermId,
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]

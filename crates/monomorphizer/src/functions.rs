@@ -10,6 +10,7 @@ use common::{Span, pool::DedupPoolId};
 use slynx_hir::{
     DeclarationId, HirFunctionDeclaration, HirType, Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::TermId,
 };
 
 use crate::{Monomorphizer, types::substitute_type};
@@ -21,7 +22,7 @@ impl Monomorphizer {
         &mut self,
         hir: &SlynxHir,
         template: DeclarationId<HirFunctionDeclaration>,
-        args: Vec<DedupPoolId<HirType>>,
+        args: Vec<TermId>,
         span: Span,
     ) -> Result<AnyDeclarationId> {
         let template_any = AnyDeclarationId::new(
@@ -106,7 +107,7 @@ impl Monomorphizer {
         &self,
         hir: &SlynxHir,
         id: AnyDeclarationId,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let AnyLocalDeclarationId::Function(local_id) = id.local_id else {
             unreachable!("A monomorphized call target must be a function")
         };

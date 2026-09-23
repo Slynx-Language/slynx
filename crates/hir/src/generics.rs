@@ -40,7 +40,7 @@ use crate::{
 /// expressions — before resolving or substituting types against it.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct GenericTypeArguments {
-    slots: Vec<DedupPoolId<HirType>>,
+    slots: Vec<TermId>,
 }
 
 impl GenericTypeArguments {
@@ -51,7 +51,7 @@ impl GenericTypeArguments {
 
     /// Creates a mapping seeded from a pre-resolved list of explicit type
     /// arguments. `explicit` is indexed by generic-parameter position.
-    pub fn from_explicit(explicit: Vec<DedupPoolId<HirType>>) -> Self {
+    pub fn from_explicit(explicit: Vec<TermId>) -> Self {
         Self { slots: explicit }
     }
 
@@ -69,7 +69,7 @@ impl GenericTypeArguments {
     }
 
     /// The resolved argument for parameter `index`, if any.
-    pub fn get(&self, index: usize) -> Option<DedupPoolId<HirType>> {
+    pub fn get(&self, index: usize) -> Option<TermId> {
         self.slots.get(index).copied().filter(|ty| !ty.is_null())
     }
 
@@ -79,7 +79,7 @@ impl GenericTypeArguments {
     }
 
     /// Sets the argument for parameter `index`, growing the mapping as needed.
-    pub fn set(&mut self, index: usize, ty: DedupPoolId<HirType>) {
+    pub fn set(&mut self, index: usize, ty: TermId) {
         if self.slots.len() <= index {
             self.slots.resize(index + 1, DedupPoolId::new_null());
         }
@@ -91,7 +91,7 @@ impl GenericTypeArguments {
     ///
     /// This is the "explicit arguments win; otherwise infer" rule used when
     /// each parameter may receive an inferred value at most once.
-    pub fn try_set(&mut self, index: usize, ty: DedupPoolId<HirType>) -> bool {
+    pub fn try_set(&mut self, index: usize, ty: TermId) -> bool {
         if self.is_resolved(index) {
             false
         } else {
@@ -104,7 +104,7 @@ impl GenericTypeArguments {
     /// explicit type arguments, indexed by parameter position. Explicit
     /// arguments are only applied to parameters that were declared (see
     /// [`Self::reserve`]) and were not already resolved via inference.
-    pub fn merge_explicit(&mut self, explicit: &[DedupPoolId<HirType>]) {
+    pub fn merge_explicit(&mut self, explicit: &[TermId]) {
         for (index, ty) in explicit.iter().enumerate() {
             if index < self.arity() && !self.is_resolved(index) {
                 self.set(index, *ty);
@@ -114,21 +114,21 @@ impl GenericTypeArguments {
 
     /// Substitutes every generic parameter in `ty` with its argument from this
     /// mapping. Parameters with no resolved argument are left as-is.
-    pub fn substitute(&self, hir: &SlynxHir, ty: DedupPoolId<HirType>) -> DedupPoolId<HirType> {
+    pub fn substitute(&self, hir: &SlynxHir, ty: TermId) -> TermId {
         substitute_terms(hir, &self.slots, ty)
     }
 
     /// Builds a generic [`HirType::Reference`] to `rf` carrying the resolved
     /// arguments, preserving unresolved (null) slots in the same positions they
     /// occupy in the mapping.
-    pub fn finish_ref(&self, hir: &SlynxHir, rf: DedupPoolId<HirType>) -> DedupPoolId<HirType> {
+    pub fn finish_ref(&self, hir: &SlynxHir, rf: TermId) -> TermId {
         hir.types
             .create_type(Term::application(rf, self.slots.clone()))
     }
 
     /// Consumes the mapping into its raw slot list, indexed by parameter
     /// position (unresolved slots remain [`DedupPoolId::new_null`]).
-    pub fn into_vec(self) -> Vec<DedupPoolId<HirType>> {
+    pub fn into_vec(self) -> Vec<TermId> {
         self.slots
     }
 }
@@ -194,7 +194,7 @@ pub fn substitute_terms(hir: &SlynxHir, generics: &[TermId], ty: TermId) -> Term
 ///
 /// Used to size a generic reference when a declaration does not expose its
 /// declared parameter count directly.
-pub fn implied_arity(types: &[DedupPoolId<HirType>], hir: &SlynxHir) -> usize {
+pub fn implied_arity(types: &[TermId], hir: &SlynxHir) -> usize {
     types
         .iter()
         .filter_map(|ty| {
@@ -217,7 +217,7 @@ impl HirNode<'_> {
         &self,
         generics: &[Spanned<DedupPoolId<Type>>],
         context: &TypeContext,
-    ) -> Result<Vec<DedupPoolId<HirType>>> {
+    ) -> Result<Vec<TermId>> {
         generics
             .iter()
             .map(|ty| self.find_type(*ty, context).map(|(_, ty)| ty))

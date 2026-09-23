@@ -5,7 +5,7 @@ use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result,
     arrays::ArrayTerm,
     builders::HirQueueBuilder,
-    term::{Term, TermNode},
+    term::{PrimitiveType, Term, TermId, TermNode},
     vector::VectorTerm,
 };
 
@@ -22,7 +22,7 @@ pub enum SequenceKind {
 ///A descriptor used to generate tuple expressions. Such as `(1,"thing", variable)`
 pub struct TupleExpressionDescriptor<'a> {
     pub context: &'a TypeContext<'a>,
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     ///The fields expressions on the tuple
     pub fields: &'a [Spanned<DedupPoolId<ASTExpression>>],
 }
@@ -31,7 +31,7 @@ pub struct TupleExpressionDescriptor<'a> {
 pub struct TupleAccessDescriptor<'a> {
     ///The tuple expression
     pub tuple: Spanned<DedupPoolId<ASTExpression>>,
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     pub span: Span,
     ///The index being accessed on the given tuple expression
     pub index: usize,
@@ -43,7 +43,7 @@ pub struct IndexExpressionDescriptor<'a> {
     ///The expression we are indexing
     pub expr: Spanned<DedupPoolId<ASTExpression>>,
     pub range: &'a RangeType,
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     pub span: Span,
     pub context: &'a TypeContext<'a>,
 }
@@ -53,7 +53,7 @@ pub struct SequenceExpressionDescriptor<'a> {
     ///The initial values inside the sequence
     pub expressions: &'a [Spanned<DedupPoolId<ASTExpression>>],
     pub span: Span,
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     pub context: &'a TypeContext<'a>,
     ///If the sequence is either array or vector
     pub kind: SequenceKind,
@@ -194,8 +194,9 @@ impl ExpressionBuilder {
                 )?;
                 let viewer = queue.hir.view(index.data);
                 let ty_viewer = viewer.ty_viewer();
-                match ty_viewer.raw().is_unsigned() {
-                    Some(_) => {}
+                match ty_viewer.raw().node() {
+                    TermNode::Primitive(PrimitiveType::Signed { .. })
+                    | TermNode::Primitive(PrimitiveType::Unsigned { .. }) => {}
                     _ => {
                         return Err(HIRError::unexpected_type(
                             ty_viewer.data,
@@ -226,7 +227,7 @@ impl ExpressionBuilder {
     ) -> Result<HirExpression> {
         let mut exprs = Vec::with_capacity(expressions.len());
         let Some(first) = expressions.first() else {
-            let matches_expected = |ty: DedupPoolId<HirType>| {
+            let matches_expected = |ty: TermId| {
                 let viewer = queue.hir.view(ty);
                 match kind {
                     SequenceKind::Array => viewer.is_array().is_some(),
@@ -301,7 +302,7 @@ impl ExpressionBuilder {
                         .types
                         .create_type(Term::const_usize_type(final_length));
                     let ext = queue.hir.types.create_type(Term::extension_type(ArrayTerm));
-                    Term::application(ext, vec![ty])
+                    Term::application(ext, vec![ty, len])
                 })
             }
         };

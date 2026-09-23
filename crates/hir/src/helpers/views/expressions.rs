@@ -4,17 +4,17 @@ use common::pool::{DedupPoolId, PoolId};
 
 use crate::{
     HirExpression, HirExpressionKind, HirType, VariableId, builders::VariableInfo,
-    helpers::HirViewer,
+    helpers::HirViewer, term::TermId,
 };
 
 impl HirViewer<'_, PoolId<HirExpression>> {
     pub fn raw(&self) -> &HirExpression {
         &self.hir[self.data]
     }
-    pub fn ty(&self) -> DedupPoolId<HirType> {
+    pub fn ty(&self) -> TermId {
         self.hir[self.data].ty
     }
-    pub fn ty_viewer(&self) -> HirViewer<'_, DedupPoolId<HirType>> {
+    pub fn ty_viewer(&self) -> HirViewer<'_, TermId> {
         self.new_with(self.ty())
     }
     pub fn is_able_to_mutability(&self, vars: &HashMap<VariableId, VariableInfo>) -> bool {

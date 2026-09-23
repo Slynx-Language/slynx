@@ -4,16 +4,14 @@ use slynx_parser::{Type, TypeContext};
 
 use crate::{
     DeclarationId, DescriptorId, HIRError, HirFunctionDeclaration, HirNode, HirQueueBuilder,
-    HirType, PendantFunction, Result, SymbolPointer, context::HirSymbol, term::TermNode,
+    HirType, PendantFunction, Result, SymbolPointer,
+    context::HirSymbol,
+    term::{TermId, TermNode},
 };
 
 impl<'a> HirNode<'a> {
     ///Finds the 'Self' type of a struct based on the 'ty'. In case this is just a copy/paste of the given `ty` that will replace every occurrence of 'Self' to the given `selfty`. If `ty` is simply 'A', then it just returns 'selfty', if its &A, then '&selfty', and so on.
-    pub fn find_self_type(
-        &self,
-        ty: DedupPoolId<Type>,
-        selfty: DedupPoolId<HirType>,
-    ) -> DedupPoolId<HirType> {
+    pub fn find_self_type(&self, ty: DedupPoolId<Type>, selfty: TermId) -> TermId {
         // Delegates to the single shared Type → HIR-type walker (`HirNode::find_type_inner`)
         // with `Self` substituted, so wrapper types like `&Self` fork from
         // `find_type` instead of re-implementing the traversal.
@@ -35,7 +33,7 @@ impl<'a> HirQueueBuilder<'a> {
     pub(crate) fn resolve_method(
         &self,
         file_id: FileId,
-        struct_ty: DedupPoolId<HirType>,
+        struct_ty: TermId,
         method_name: SymbolPointer,
         span: Span,
     ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {

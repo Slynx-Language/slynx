@@ -3,7 +3,9 @@ use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::HirQueueBuilder, generics::GenericTypeArguments, term::Term,
+    builders::HirQueueBuilder,
+    generics::GenericTypeArguments,
+    term::{Term, TermId},
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -15,7 +17,7 @@ pub struct EnumVariantDescriptor<'a> {
 
 pub struct EnumExpressionDescriptor<'a> {
     ///A reference to the enum's HIR type id.
-    pub enum_type: DedupPoolId<HirType>,
+    pub enum_type: TermId,
     pub variant: EnumVariantDescriptor<'a>,
     ///The generic type parameters passed when creating this enum expression. Such as 'Option.Some<int>(65);' explicitly provides [int]
     pub generics: &'a [Spanned<DedupPoolId<Type>>],
@@ -32,7 +34,7 @@ impl ExpressionBuilder {
         &self,
         queue: &HirQueueBuilder,
         name: SymbolPointer,
-    ) -> Option<(DedupPoolId<HirType>, usize)> {
+    ) -> Option<(TermId, usize)> {
         let (owner, enum_id, variant_index) = queue.modules.find_enum_variant(name, self.file())?;
         let node = queue.get_node(owner);
         let enum_decl = queue.modules.get_entry(owner).enums().get(enum_id);

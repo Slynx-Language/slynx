@@ -35,7 +35,7 @@
 
 use crate::{
     HirType, SlynxHir, VariableId,
-    term::{PrimitiveType, Term},
+    term::{PrimitiveType, Term, TermId},
 };
 
 mod analysis;
@@ -81,7 +81,7 @@ pub enum OwnershipErrorKind {
 }
 
 /// Check if a type is Copy (can be implicitly duplicated).
-pub fn is_copy_type(hir: &SlynxHir, ty: common::pool::DedupPoolId<HirType>) -> bool {
+pub fn is_copy_type(hir: &SlynxHir, ty: TermId) -> bool {
     let ty = &hir.types[ty];
     ty.is_unsigned().is_some()
         || ty.is_signed().is_some()

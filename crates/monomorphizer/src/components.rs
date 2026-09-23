@@ -15,7 +15,7 @@ use slynx_hir::{
     ComponentMemberDeclaration, ComponentType, DescriptorId, HIRError, HirComponentDeclaration,
     HirType, Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
-    term::TermNode,
+    term::{TermId, TermNode},
 };
 
 use crate::{
@@ -31,9 +31,9 @@ impl Monomorphizer {
     pub(crate) fn resolve_component_target(
         &mut self,
         hir: &SlynxHir,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
         span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let ty_view = hir.view(ty);
         let TermNode::Apply { target, args } = ty_view.raw().node() else {
             unreachable!("resolve_component_target requires a Reference type")
@@ -73,7 +73,7 @@ impl Monomorphizer {
             )
         };
 
-        let args: Vec<DedupPoolId<HirType>> = args
+        let args: Vec<TermId> = args
             .iter()
             .copied()
             .filter(|slot| !slot.is_null())
@@ -138,7 +138,7 @@ impl Monomorphizer {
         comp_ty: DedupPoolId<ComponentType>,
         subst: &Substitution,
         span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let view = hir.view(comp_ty);
         let name = hir.intern_name(view.name());
 

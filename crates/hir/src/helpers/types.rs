@@ -1,10 +1,8 @@
-use common::pool::DedupPoolId;
-
-use crate::{SlynxHir, VariableId, model::HirType};
+use crate::{SlynxHir, VariableId, term::TermId};
 
 impl<'a> SlynxHir<'a> {
-    /// Returns the [`DedupPoolId<HirType>`] of the given variable, if it exists.
-    pub fn get_variable_type(&self, ty: VariableId) -> Option<DedupPoolId<HirType>> {
+    /// Returns the [`TermId`] of the given variable, if it exists.
+    pub fn get_variable_type(&self, ty: VariableId) -> Option<TermId> {
         self.types.get_variable(&ty)
     }
 }

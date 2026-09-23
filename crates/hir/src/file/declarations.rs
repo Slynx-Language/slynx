@@ -5,11 +5,12 @@ use std::{
 
 use crate::{
     HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, HirType, SymbolPointer,
+    HirObjectDeclaration, HirStaticDeclaration, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::TermId,
 };
 use common::{
-    pool::{DedupPoolId, Pool, PoolId},
+    pool::{Pool, PoolId},
     pooled,
 };
 use dashmap::DashMap;
@@ -41,7 +42,7 @@ impl Debug for DeclarationsPool {
 #[derive(Default, Debug)]
 pub struct FileDeclarations {
     pub declarations: DeclarationsPool,
-    import_aliases: DashMap<SymbolPointer, (AnyDeclarationId, DedupPoolId<HirType>)>,
+    import_aliases: DashMap<SymbolPointer, (AnyDeclarationId, TermId)>,
 }
 
 impl FileDeclarations {
@@ -60,7 +61,7 @@ impl FileDeclarations {
         alias: SymbolPointer,
         original_file: FileId,
         original_local: AnyLocalDeclarationId,
-        original_ty: DedupPoolId<HirType>,
+        original_ty: TermId,
     ) {
         self.import_aliases.insert(
             alias,
@@ -72,10 +73,7 @@ impl FileDeclarations {
     }
 
     /// If `name` is an import alias, returns the original declaration data.
-    pub fn get_import_alias(
-        &self,
-        name: &SymbolPointer,
-    ) -> Option<(AnyDeclarationId, DedupPoolId<HirType>)> {
+    pub fn get_import_alias(&self, name: &SymbolPointer) -> Option<(AnyDeclarationId, TermId)> {
         self.import_aliases.get(name).map(|value| *value.value())
     }
 }

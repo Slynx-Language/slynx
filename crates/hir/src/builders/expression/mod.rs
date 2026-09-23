@@ -28,7 +28,7 @@ use crate::{
     },
     context::ScopeContext,
     id::OwnerId,
-    term::{Term, TermNode},
+    term::{Term, TermId, TermNode},
 };
 
 pub mod calls;
@@ -50,7 +50,7 @@ pub struct ExpressionDescriptor<'a> {
     ///The AST expression to build
     pub target: Spanned<DedupPoolId<ASTExpression>>,
     ///The expected type of the expression, if known
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     ///The type context used to resolve types
     pub context: &'a TypeContext<'a>,
 }
@@ -64,7 +64,7 @@ pub(crate) struct ExpressionBuildResult {
 #[derive(Debug)]
 pub struct VariableInfo {
     pub name: SymbolPointer,
-    pub type_id: DedupPoolId<HirType>,
+    pub type_id: TermId,
     pub mutable: bool,
 }
 
@@ -91,11 +91,11 @@ impl DerefMut for VariablesManager {
 pub(crate) struct ExpressionBuilder {
     pub(crate) target: OwnerId,
     pub(crate) variables: VariablesManager,
-    pub(crate) self_type: Option<DedupPoolId<HirType>>,
+    pub(crate) self_type: Option<TermId>,
 }
 
 impl ExpressionBuilder {
-    pub fn new(owner: OwnerId, self_type: Option<DedupPoolId<HirType>>) -> Self {
+    pub fn new(owner: OwnerId, self_type: Option<TermId>) -> Self {
         Self {
             target: owner,
             variables: VariablesManager::default(),
@@ -124,7 +124,7 @@ impl ExpressionBuilder {
         name: SymbolPointer,
         id: VariableId,
         mutable: bool,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     ) {
         self.variables.scope.create_name(name, id, mutable);
         self.variables.insert(
@@ -141,7 +141,7 @@ impl ExpressionBuilder {
         &mut self,
         name: SymbolPointer,
         mutable: bool,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     ) -> VariableId {
         let id = VariableId::new(self.target, self.variables.scope.variable_count() as u16);
         self.create_mapped_variable(name, id, mutable, ty);

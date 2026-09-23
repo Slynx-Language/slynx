@@ -20,7 +20,7 @@ pub struct ObjectDescriptor<'a> {
     ///The span of the object literal, used for error reporting
     pub span: Span,
     ///The expected type of the object, if known
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     ///The type context used to resolve types
     pub context: &'a TypeContext<'a>,
 }

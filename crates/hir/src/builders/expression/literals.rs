@@ -9,7 +9,7 @@ use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
     builders::HirQueueBuilder,
     error::NotMutableReason,
-    term::{Term, TermNode},
+    term::{Term, TermId, TermNode},
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -29,7 +29,7 @@ pub struct DereferenceExpressionDescriptor<'a> {
     ///The context of the types to this expression
     pub context: &'a TypeContext<'a>,
     ///The expected type of the dereference, if any. If some, and the generated type does not match, an error will be returned.
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
 }
 
 impl ExpressionBuilder {
@@ -48,13 +48,13 @@ impl ExpressionBuilder {
         )?;
         let expr_ty = queue.hir.view(build_expr.data).ty();
         let expr_ty = match queue.hir.view(expr_ty).raw().node() {
-            TermNode::Ref { target, .. } => *target,
+            TermNode::Ref { target, .. } => target,
             _ => {
                 return Err(HIRError::invalid_deref(descriptor.target.span));
             }
         };
         Ok(HirExpression {
-            ty: expr_ty,
+            ty: *expr_ty,
             kind: HirExpressionKind::Deref(build_expr),
         })
     }
@@ -124,7 +124,7 @@ impl ExpressionBuilder {
     }
 
     pub(super) fn build_int_literal(&self, queue: &HirQueueBuilder, value: i32) -> HirExpression {
-        queue.hir.create_int_expression(value, 0)
+        queue.hir.create_int_expression(value, 32)
     }
 
     pub(super) fn build_float_literal(&self, queue: &HirQueueBuilder, value: f32) -> HirExpression {

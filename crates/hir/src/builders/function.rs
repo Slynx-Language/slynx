@@ -14,7 +14,7 @@ use crate::{
     },
     context::HirSymbol,
     id::{AnyLocalDeclarationId, OwnerId},
-    term::Term,
+    term::{Term, TermId},
 };
 
 pub struct HirFunctionBuilder {
@@ -96,10 +96,7 @@ impl<'a> HirQueueBuilder<'a> {
 }
 
 impl HirFunctionBuilder {
-    pub fn new(
-        target: DeclarationId<HirFunctionDeclaration>,
-        self_type: Option<DedupPoolId<HirType>>,
-    ) -> Self {
+    pub fn new(target: DeclarationId<HirFunctionDeclaration>, self_type: Option<TermId>) -> Self {
         Self {
             target,
             builder: ExpressionBuilder::new(OwnerId::Function(target), self_type),

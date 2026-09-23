@@ -2,8 +2,9 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, ASTStatement, TypeContext};
 
 use crate::{
-    HirExpression, HirExpressionKind, HirStatement, HirType, Result, builders::HirQueueBuilder,
-    term::Term,
+    HirExpression, HirExpressionKind, HirStatement, HirType, Result,
+    builders::HirQueueBuilder,
+    term::{Term, TermId},
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -19,7 +20,7 @@ pub struct IfExpressionDescriptor<'a> {
     ///The span of the if expression, used for error reporting
     pub span: Span,
     ///The expected type of the if expression, if known
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     ///The type context used to resolve types
     pub context: &'a TypeContext<'a>,
 }

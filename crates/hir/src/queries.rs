@@ -8,7 +8,7 @@ use crate::{
     context::HirSymbol,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
-    term::TermNode,
+    term::{TermId, TermNode},
 };
 
 impl SlynxHir<'_> {
@@ -50,7 +50,7 @@ impl SlynxHir<'_> {
         self.store.get_file_mut(id)
     }
 
-    pub fn get_declaration_type(&self, id: AnyDeclarationId) -> DedupPoolId<HirType> {
+    pub fn get_declaration_type(&self, id: AnyDeclarationId) -> TermId {
         let file = self.store.get_or_create_file(id.file_id);
         match id.local_id {
             AnyLocalDeclarationId::Alias(alias) => file.alias.get(alias).ty,
@@ -77,11 +77,7 @@ impl SlynxHir<'_> {
         .to_vec()
     }
 
-    pub fn type_of_intrinsic(
-        &self,
-        name: SymbolPointer,
-        span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    pub fn type_of_intrinsic(&self, name: SymbolPointer, span: Span) -> Result<TermId> {
         let id = self.store.lang_items.get(name, span)?;
         Ok(self.get_declaration_type(id))
     }
@@ -89,7 +85,7 @@ impl SlynxHir<'_> {
     /// Recursively flattens a HIR type to its primitive components.
     /// A struct `Color { inner: int }` flattens to `[int]`.
     /// A struct `Border { color: Color, width: int, radius: int }` flattens to `[int, int, int]`.
-    pub fn flatten_type(&self, ty: DedupPoolId<HirType>) -> Vec<DedupPoolId<HirType>> {
+    pub fn flatten_type(&self, ty: TermId) -> Vec<TermId> {
         match &self.types[ty].node() {
             TermNode::Primitive(_) => vec![ty],
             TermNode::Data(strukt) if let DescriptorId::Struct(strukt) = strukt => self

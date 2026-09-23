@@ -1,7 +1,7 @@
 use crate::{
     HirType, SlynxHir, SymbolPointer,
     model::{HirExpression, HirExpressionKind},
-    term::Term,
+    term::{Term, TermId},
 };
 use common::{
     Operator, Spanned,
@@ -18,10 +18,10 @@ impl<'a> SlynxHir<'a> {
     }
 
     /// Creates an int expression that must be inferred.
-    pub(crate) fn create_int_expression(&self, i: i32, _bitlen: u8) -> HirExpression {
+    pub(crate) fn create_int_expression(&self, i: i32, bitlen: u8) -> HirExpression {
         HirExpression {
             kind: HirExpressionKind::Int(i),
-            ty: self.types.create_type(Term::signed_integer_type(32)),
+            ty: self.types.create_type(Term::signed_integer_type(bitlen)),
         }
     }
 
@@ -38,7 +38,7 @@ impl<'a> SlynxHir<'a> {
         left: Spanned<PoolId<HirExpression>>,
         right: Spanned<PoolId<HirExpression>>,
         operator: Operator,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     ) -> HirExpression {
         HirExpression {
             kind: HirExpressionKind::Binary {

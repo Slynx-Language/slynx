@@ -4,6 +4,7 @@ use crate::{
     DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, HirType, StructType,
     SymbolPointer, TupleType,
     helpers::{HirViewer, Visible},
+    term::TermId,
 };
 
 impl HirViewer<'_, DedupPoolId<StructType>> {
@@ -15,11 +16,11 @@ impl HirViewer<'_, DedupPoolId<StructType>> {
         self.hir.types.get_struct_fields(self.data)
     }
 
-    pub fn field_types(&self) -> &[DedupPoolId<HirType>] {
+    pub fn field_types(&self) -> &[TermId] {
         self.hir.types.get_struct_field_types(self.data)
     }
 
-    pub fn signature(&self) -> Vec<(&Visible<SymbolPointer>, &DedupPoolId<HirType>)> {
+    pub fn signature(&self) -> Vec<(&Visible<SymbolPointer>, &TermId)> {
         self.hir.types.get_struct_signature(self.data)
     }
     pub fn methods(&self) -> &[Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>] {
@@ -47,7 +48,7 @@ impl HirViewer<'_, DedupPoolId<StructType>> {
 }
 
 impl HirViewer<'_, DedupPoolId<TupleType>> {
-    pub fn fields(&self) -> &[DedupPoolId<HirType>] {
+    pub fn fields(&self) -> &[TermId] {
         &self.hir.types[self.data].fields
     }
 }
