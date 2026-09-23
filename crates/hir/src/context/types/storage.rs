@@ -23,7 +23,7 @@ use super::{
 
 #[derive(Debug)]
 /// Owns the deduplicated pools that store every HIR type shape — structs,
-/// components, styles, enums, functions, tuples and the raw `HirType` tags.
+/// components, enums, functions, tuples and the raw `HirType` tags.
 ///
 /// This is pure storage: it has no concept of names ([`super::registry::TypeRegistry`]
 /// maps names to type ids) and no notion of methods ([`super::methods::MethodTable`]).

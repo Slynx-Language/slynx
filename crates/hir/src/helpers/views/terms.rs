@@ -63,6 +63,14 @@ impl<'a> HirViewer<'a, TermId> {
         self.new_with(data)
     }
 
+    pub fn is_application(self) -> Option<HirViewer<'a, (TermId, &'a Vec<TermId>)>> {
+        if let TermNode::Apply { target, args } = self.raw().node() {
+            Some(self.new_with((*target, args)))
+        } else {
+            None
+        }
+    }
+
     pub fn is_array(self) -> Option<(TermId, usize)> {
         if let TermNode::Apply { target, args } = self.raw().node()
             && let Some(true) = self
