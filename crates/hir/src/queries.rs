@@ -1,9 +1,9 @@
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, DescriptorId, HirFunctionDeclaration, HirType, Result, SlynxHir, SymbolPointer,
+    DeclarationId, DescriptorId, HirFunctionDeclaration, Result, SlynxHir, SymbolPointer,
     VariableId,
     context::HirSymbol,
     helpers::HirViewer,

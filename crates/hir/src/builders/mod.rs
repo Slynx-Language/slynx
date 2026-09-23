@@ -14,7 +14,7 @@ use common::{
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, EnumVariantType, HIRError,
     HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
-    HirStatement, HirStaticDeclaration, HirType, Result, SlynxHir, SymbolPointer, VariableId,
+    HirStatement, HirStaticDeclaration, Result, SlynxHir, SymbolPointer, VariableId,
     arrays::ArrayTerm,
     builders::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, work_channel::WorkChannel,

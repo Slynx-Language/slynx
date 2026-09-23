@@ -1,9 +1,9 @@
-use common::{FrontendSymbol, SymbolPointer, pool::DedupPoolId};
+use common::{FrontendSymbol, SymbolPointer};
 use dashmap::mapref::one::MappedRef;
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirType, VariableId,
+    DeclarationId, HirFunctionDeclaration, VariableId,
     file::HirFile,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},

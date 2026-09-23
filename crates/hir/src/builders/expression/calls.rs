@@ -5,8 +5,8 @@ use common::{
 use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
-    DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirType,
-    Result, builders::HirQueueBuilder, generics::GenericTypeArguments,
+    DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration, Result,
+    builders::HirQueueBuilder, generics::GenericTypeArguments,
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};

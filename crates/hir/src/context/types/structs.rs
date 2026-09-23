@@ -6,8 +6,8 @@ use common::{
 };
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirType, StructType, SymbolPointer, TupleType,
-    helpers::Visible, term::TermId,
+    DeclarationId, HirFunctionDeclaration, StructType, SymbolPointer, TupleType, helpers::Visible,
+    term::TermId,
 };
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

@@ -6,9 +6,9 @@
 //! concrete, mangled `HirFunctionDeclaration` whose signature and body have
 //! every generic parameter substituted.
 
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 use slynx_hir::{
-    DeclarationId, HirFunctionDeclaration, HirType, Result, SlynxHir,
+    DeclarationId, HirFunctionDeclaration, Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::TermId,
 };

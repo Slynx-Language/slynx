@@ -33,14 +33,14 @@ use std::collections::{HashMap, HashSet};
 
 use common::{
     Span, Spanned,
-    pool::{DedupPoolId, Pool, PoolId},
+    pool::{Pool, PoolId},
 };
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
     DeclarationId, DeclarationsPool, DescriptorId, HIRError, HirComponentExpression, HirExpression,
-    HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result,
-    SlynxHir, SymbolPointer, VariableId,
+    HirExpressionKind, HirFunctionDeclaration, HirStatement, PropertyExpression, Result, SlynxHir,
+    SymbolPointer, VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::{Term, TermId, TermNode},
 };
@@ -429,7 +429,11 @@ impl Monomorphizer {
             } else if deref.is_enum().is_some() {
                 self.resolve_enum_target(hir, ty, span)
             } else {
-                unreachable!("Resolvable references only target structs, components, or enums")
+                unreachable!(
+                    "Resolvable references only target structs, components, or enums. Type: '{:?}' '{}'",
+                    deref.data(),
+                    deref.name()
+                )
             };
         }
 

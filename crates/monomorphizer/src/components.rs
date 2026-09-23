@@ -13,7 +13,7 @@ use common::{
 };
 use slynx_hir::{
     ComponentMemberDeclaration, ComponentType, DescriptorId, HIRError, HirComponentDeclaration,
-    HirType, Result, SlynxHir,
+    Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::{TermId, TermNode},
 };

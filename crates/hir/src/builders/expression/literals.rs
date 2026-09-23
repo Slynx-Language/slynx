@@ -6,7 +6,7 @@ use either::Either;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
+    HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
     builders::HirQueueBuilder,
     error::NotMutableReason,
     term::{Term, TermId, TermNode},

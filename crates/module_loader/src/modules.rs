@@ -128,17 +128,26 @@ impl<'a> Modules<'a> {
         }
         for import in module.imports().iter() {
             for usage in &import.usages {
-                let target = if let Some(name) = usage.alias {
-                    name
+                let visible = if let Some(alias) = usage.alias {
+                    alias
                 } else {
                     usage.content_name
                 };
+                // Only search the imported module when it actually exposes the
+                // name we are looking for. Otherwise any unresolved identifier
+                // in a file that imports something would wrongly resolve to the
+                // first imported symbol.
+                if visible != name {
+                    continue;
+                }
                 let original = self.recreate_pathbuf(module.id, &import.path);
                 let file = self
                     .paths
                     .get(&original)
                     .expect("Expected original path to properly map to some file");
-                if let Some(func) = self.find_in_modules(target, *file, finder) {
+                // Look the symbol up under its real name inside the imported
+                // module so aliased imports (`using {X as Y}`) still resolve.
+                if let Some(func) = self.find_in_modules(usage.content_name, *file, finder) {
                     return Some(func);
                 };
             }

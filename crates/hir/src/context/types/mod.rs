@@ -4,19 +4,16 @@ mod methods;
 mod registry;
 mod storage;
 mod structs;
-use std::{ops::Index, sync::Arc};
+use std::ops::Index;
 
 use common::pool::DedupPoolId;
 use dashmap::{DashMap, DashSet};
 
 use crate::{
-    ComponentType, DeclarationId, DescriptorId, EnumType, EnumVariantType, FunctionType,
-    HirFunctionDeclaration, HirType, Result, StructType, SymbolPointer, TupleType, VariableId,
-    arrays::ArrayTerm,
-    generic_component::GenericComponentTerm,
+    ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, HirType,
+    Result, StructType, SymbolPointer, TupleType, VariableId,
     helpers::Visible,
-    term::{ConstantTerm, ExtensionNode, PrimitiveType, Term, TermId, TermKind, TermNode, VarTerm},
-    vector::VectorTerm,
+    term::{ExtensionNode, Term, TermId, TermNode},
 };
 
 pub use components::ComponentDefinition;

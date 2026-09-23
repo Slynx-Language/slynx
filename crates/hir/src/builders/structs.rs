@@ -4,7 +4,7 @@ use slynx_parser::{Type, TypeContext};
 
 use crate::{
     DeclarationId, DescriptorId, HIRError, HirFunctionDeclaration, HirNode, HirQueueBuilder,
-    HirType, PendantFunction, Result, SymbolPointer,
+    PendantFunction, Result, SymbolPointer,
     context::HirSymbol,
     term::{TermId, TermNode},
 };

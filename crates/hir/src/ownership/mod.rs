@@ -34,8 +34,8 @@
 //! All other types (structs, tuples, arrays, etc.) are Move-only.
 
 use crate::{
-    HirType, SlynxHir, VariableId,
-    term::{PrimitiveType, Term, TermId},
+    SlynxHir, VariableId,
+    term::{PrimitiveType, TermId},
 };
 
 mod analysis;

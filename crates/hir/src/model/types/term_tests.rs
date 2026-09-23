@@ -5,7 +5,6 @@ use std::{
 };
 
 use common::pool::DedupPool;
-use module_loader::ASTBuiltin;
 
 use crate::{
     arrays::ArrayTerm,
@@ -50,8 +49,6 @@ fn collapse_parity() {
     let ctx = TypesContext::new();
     let int_id = ctx.storage.insert_type(Term::signed_integer_type(32));
     let int_again = ctx.storage.insert_type(Term::signed_integer_type(32));
-    let float_id = ctx.storage.insert_type(Term::float32_type());
-    let bool_id = ctx.storage.insert_type(Term::boolean_type());
 
     assert_eq!(
         int_id, int_again,

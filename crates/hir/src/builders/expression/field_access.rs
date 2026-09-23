@@ -7,7 +7,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    DescriptorId, HIRError, HirExpression, HirExpressionKind, HirType, Result,
+    DescriptorId, HIRError, HirExpression, HirExpressionKind, Result,
     builders::{
         HirQueueBuilder,
         expression::{

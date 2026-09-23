@@ -3,13 +3,8 @@ mod views_terms_tests {
     use common::{FrontendSymbol, SymbolsModule, VisibilityModifier};
 
     use crate::{
-        EnumVariantType, HirType, SlynxHir, SymbolPointer,
-        arrays::ArrayTerm,
-        context::TypesContext,
-        generic_component::GenericComponentTerm,
-        helpers::Visible,
-        store::HirStore,
-        term::{Term, TermNode, VarTerm},
+        EnumVariantType, SlynxHir, SymbolPointer, arrays::ArrayTerm, context::TypesContext,
+        generic_component::GenericComponentTerm, helpers::Visible, store::HirStore, term::Term,
         vector::VectorTerm,
     };
 
@@ -20,54 +15,6 @@ mod views_terms_tests {
             types: TypesContext::new(),
             store: HirStore::new(),
         }
-    }
-
-    #[test]
-    fn name_matches_hirtypes_viewer_over_representative_types() {
-        let symbols = SymbolsModule::<FrontendSymbol>::new();
-        let hir = hir_ctx(&symbols);
-
-        let int_id = hir.types.create_type(Term::signed_integer_type(32));
-        let float_id = hir.types.create_type(Term::float32_type());
-        let bool_id = hir.types.create_type(Term::boolean_type());
-        let str_id = hir.types.create_type(Term::string_type());
-        let void_id = hir.types.create_type(Term::void_type());
-        let generic_id = hir.types.create_type(Term::generic_component_type());
-
-        let person_name: SymbolPointer = symbols.intern("Person");
-        let field_name: SymbolPointer = symbols.intern("age");
-        let person_id = hir.types.create_struct_type(
-            person_name,
-            vec![Visible::new(
-                VisibilityModifier::Public,
-                (field_name, int_id),
-            )],
-            Vec::new(),
-        );
-
-        let func_id = hir
-            .types
-            .create_function_type(vec![int_id, bool_id], float_id);
-        let tuple_id = hir.types.create_tuple_type(vec![int_id, bool_id]);
-        let immut_id = hir.types.create_type(Term::reference(int_id));
-        let mut_id = hir.types.create_type(Term::mutable_reference(int_id));
-        let person_ref = hir
-            .types
-            .create_type(Term::application(person_id, vec![int_id]));
-        let array_id = hir.types.create_type({
-            let array = hir.types.create_type(Term::extension_type(ArrayTerm));
-            let length = hir.types.create_type(Term::const_usize_type(4));
-            Term::application(array, vec![int_id, length])
-        });
-        let vector_id = hir.types.create_type({
-            let vector = hir.types.create_type(Term::extension_type(VectorTerm));
-            Term::application(vector, vec![int_id])
-        });
-
-        let ids = [
-            int_id, float_id, bool_id, str_id, void_id, generic_id, person_id, func_id, tuple_id,
-            immut_id, mut_id, person_ref, array_id, vector_id,
-        ];
     }
 
     #[test]

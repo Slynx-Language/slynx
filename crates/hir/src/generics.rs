@@ -24,7 +24,7 @@ use common::{Spanned, pool::DedupPoolId};
 use slynx_parser::{Type, TypeContext};
 
 use crate::{
-    HirType, Result, SlynxHir,
+    Result, SlynxHir,
     builders::HirNode,
     term::{Term, TermId, TermNode},
 };

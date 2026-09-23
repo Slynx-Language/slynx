@@ -1,6 +1,6 @@
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 use slynx_hir::{
-    EnumVariantType, HIRError, HirEnumDeclaration, HirType, Result, SlynxHir,
+    EnumVariantType, HIRError, HirEnumDeclaration, Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::{TermId, TermNode},
 };

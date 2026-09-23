@@ -1,8 +1,8 @@
 use common::{VisibilityModifier, pool::DedupPoolId};
 
 use crate::{
-    DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, HirType, StructType,
-    SymbolPointer, TupleType,
+    DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, StructType, SymbolPointer,
+    TupleType,
     helpers::{HirViewer, Visible},
     term::TermId,
 };

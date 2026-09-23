@@ -4,7 +4,6 @@ use crate::{ComponentId, SymbolPointer, model::HirExpression, term::TermId};
 
 use common::Span;
 use module_loader::FileId;
-use thiserror::Error;
 
 /// A temporary component key used during signature resolution.
 /// (FileId, SymbolPointer) identifies a component before its ComponentId is created.

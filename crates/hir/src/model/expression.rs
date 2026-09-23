@@ -65,14 +65,11 @@
 //! - [`crate::hir::implementation::expression::resolve_expr`] — Expression resolution
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, HirType, SymbolPointer,
-    VariableId, model::HirStatement, term::TermId,
+    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, SymbolPointer, VariableId,
+    model::HirStatement, term::TermId,
 };
 
-use common::{
-    Operator, Spanned,
-    pool::{DedupPoolId, PoolId},
-};
+use common::{Operator, Spanned, pool::PoolId};
 use ordered_float::OrderedFloat;
 
 /// A property assignment within a component construction expression.

@@ -2,7 +2,7 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, ASTStatement, TypeContext};
 
 use crate::{
-    HirExpression, HirExpressionKind, HirStatement, HirType, Result,
+    HirExpression, HirExpressionKind, HirStatement, Result,
     builders::HirQueueBuilder,
     term::{Term, TermId},
 };

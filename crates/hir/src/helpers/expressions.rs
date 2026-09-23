@@ -1,12 +1,9 @@
 use crate::{
-    HirType, SlynxHir, SymbolPointer,
+    SlynxHir, SymbolPointer,
     model::{HirExpression, HirExpressionKind},
     term::{Term, TermId},
 };
-use common::{
-    Operator, Spanned,
-    pool::{DedupPoolId, PoolId},
-};
+use common::{Operator, Spanned, pool::PoolId};
 
 impl<'a> SlynxHir<'a> {
     /// Creates a string literal expression.

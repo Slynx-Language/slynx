@@ -4,7 +4,7 @@ use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_parser::{NamedExpr, Type, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirType, Result,
+    HIRError, HirExpression, HirExpressionKind, Result,
     builders::HirQueueBuilder,
     term::{TermId, TermNode},
 };

@@ -4,7 +4,7 @@ use common::{
 };
 use slynx_parser::{ASTStatement, TypeContext};
 
-use crate::{HirStatement, HirType, Result, builders::HirQueueBuilder, term::Term};
+use crate::{HirStatement, Result, builders::HirQueueBuilder, term::Term};
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
 

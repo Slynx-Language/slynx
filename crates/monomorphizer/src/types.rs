@@ -11,9 +11,8 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use common::pool::DedupPoolId;
 use slynx_hir::{
-    DescriptorId, EnumVariantType, HirType, Result, SlynxHir, SymbolPointer,
+    DescriptorId, EnumVariantType, Result, SlynxHir, SymbolPointer,
     id::AnyDeclarationId,
     term::{Term, TermId, TermNode, VarTerm},
 };
@@ -46,10 +45,6 @@ impl Substitution {
 
     fn get(&self, index: &u8) -> Option<TermId> {
         self.0.get(index).cloned()
-    }
-
-    fn contains_key(&self, index: &u8) -> bool {
-        self.0.contains_key(index)
     }
 }
 
@@ -132,9 +127,10 @@ pub(crate) fn substitute_type(hir: &SlynxHir, ty: TermId, subst: &Substitution) 
     }
 }
 
-///Returns `true` if `ty` is a [`HirType::Reference`] carrying concrete type
-///arguments (no unresolved generic parameter anywhere), and therefore a
-///candidate for specialization by the struct/component modules.
+///Returns `true` if `ty` is a type application carrying concrete type arguments
+///(no unresolved generic parameter anywhere) that targets a generic struct,
+///component, or enum — and therefore a candidate for specialization by the
+///struct/component modules.
 pub(crate) fn is_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool {
     let ty_view = hir.view(ty);
     let TermNode::Apply { args, .. } = ty_view.raw().node() else {
@@ -145,10 +141,20 @@ pub(crate) fn is_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool {
         .filter(|slot| !slot.is_null())
         .copied()
         .collect();
-    !concrete.is_empty()
-        && concrete
+    if concrete.is_empty()
+        || !concrete
             .iter()
             .all(|slot| !contains_generic_param(hir, *slot))
+    {
+        return false;
+    }
+    // The application must specialize a generic struct, component, or enum.
+    // Collection applications (`Vector<T>`, `Array<T, N>`) are `Apply` terms over
+    // built-in extensions and must be handled by the generic `Apply` arm instead:
+    // the specialization paths only accept structs, components, and enums, and
+    // would otherwise hit `unreachable!` in `resolve_expression_type`.
+    let deref = ty_view.dereference();
+    deref.is_struct().is_some() || deref.is_component().is_some() || deref.is_enum().is_some()
 }
 
 ///Returns `true` if `ty` contains an unresolved [`HirType::GenericParam`]

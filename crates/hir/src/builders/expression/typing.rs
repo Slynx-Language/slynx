@@ -1,9 +1,9 @@
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 
 use crate::{
-    HIRError, HirType, Result,
+    HIRError, Result,
     builders::HirQueueBuilder,
-    term::{Term, TermId, TermNode},
+    term::{TermId, TermNode},
 };
 
 use super::ExpressionBuilder;

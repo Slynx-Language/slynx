@@ -6,7 +6,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTStatement, FuncDeclaration, TypeContext};
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, HirType, Result, SymbolPointer,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result, SymbolPointer,
     VariableId,
     builders::{
         HirQueueBuilder, PendantFunction,

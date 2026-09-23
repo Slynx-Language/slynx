@@ -30,7 +30,7 @@ use common::{
 use smallvec::SmallVec;
 
 use crate::{
-    HirType, SymbolPointer, VariableId,
+    SymbolPointer, VariableId,
     model::{HirComponentExpression, HirExpression, HirStatement},
     term::TermId,
 };

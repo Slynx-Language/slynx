@@ -5,7 +5,7 @@ use common::{
     pool::{DedupPool, DedupPoolId},
 };
 
-use crate::{ComponentType, HirType, SymbolPointer, term::TermId};
+use crate::{ComponentType, SymbolPointer, term::TermId};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ComponentDefinition {

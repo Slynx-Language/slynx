@@ -4,7 +4,7 @@ use common::pool::DedupPoolId;
 use module_loader::ASTBuiltin;
 
 use crate::{
-    ComponentType, DescriptorId, EnumType, HIRError, Result, StructType, SymbolPointer,
+    ComponentType, DescriptorId, EnumType, Result, StructType, SymbolPointer,
     generic_component::GenericComponentTerm,
 };
 

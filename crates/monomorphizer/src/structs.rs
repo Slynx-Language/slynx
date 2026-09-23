@@ -9,9 +9,9 @@
 //! Generic struct methods are not specialized: the specialized struct is
 //! created with an empty method table (see the extension guide).
 
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 use slynx_hir::{
-    HIRError, HirObjectDeclaration, HirType, Result, SlynxHir, Visible,
+    HIRError, HirObjectDeclaration, Result, SlynxHir, Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::{TermId, TermNode},
 };
