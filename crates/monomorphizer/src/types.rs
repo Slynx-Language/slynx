@@ -102,7 +102,7 @@ pub(crate) fn substitute_type(hir: &SlynxHir, ty: TermId, subst: &Substitution) 
             })))
         }
 
-        TermNode::Data(data) if let DescriptorId::Enum(data) = data => {
+        TermNode::Data(DescriptorId::Enum(data)) => {
             let enum_view = hir.view(*data);
             let variants = enum_view
                 .variants()
@@ -179,7 +179,7 @@ pub(crate) fn contains_generic_param(hir: &SlynxHir, ty: TermId) -> bool {
                     .iter()
                     .any(|slot| !slot.is_null() && contains_generic_param(hir, *slot))
         }
-        TermNode::Data(descriptor) if let DescriptorId::Enum(enum_id) = descriptor => {
+        TermNode::Data(DescriptorId::Enum(enum_id)) => {
             hir.view(*enum_id).variants().iter().any(|variant| {
                 variant
                     .payload
@@ -235,7 +235,7 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool 
         TermNode::Tuple { fields } => fields
             .iter()
             .any(|field| contains_resolvable_reference(hir, *field)),
-        TermNode::Data(component) if let DescriptorId::Component(component) = component => {
+        TermNode::Data(DescriptorId::Component(component)) => {
             let view = hir.view(*component);
             view.props()
                 .iter()

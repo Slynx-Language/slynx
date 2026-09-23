@@ -88,7 +88,7 @@ impl SlynxHir<'_> {
     pub fn flatten_type(&self, ty: TermId) -> Vec<TermId> {
         match &self.types[ty].node() {
             TermNode::Primitive(_) => vec![ty],
-            TermNode::Data(strukt) if let DescriptorId::Struct(strukt) = strukt => self
+            TermNode::Data(DescriptorId::Struct(strukt)) => self
                 .view(*strukt)
                 .field_types()
                 .iter()

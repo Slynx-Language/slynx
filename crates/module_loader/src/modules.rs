@@ -6,7 +6,7 @@ use common::{
 };
 use slynx_parser::{
     ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration, EnumDeclaration,
-    ObjectDeclaration, StaticDeclaration, Type, TypeContext,
+    ObjectDeclaration, StaticDeclaration, Type,
 };
 
 use crate::{FileId, SourceLoader, SourceNode};
@@ -102,17 +102,12 @@ impl<'a> Modules<'a> {
         }
     }
 
-    pub fn type_name(
-        &self,
-        ty: DedupPoolId<Type>,
-        context: &TypeContext<'_>,
-    ) -> SymbolPointer<FrontendSymbol> {
+    pub fn type_name(&self, ty: DedupPoolId<Type>) -> SymbolPointer<FrontendSymbol> {
         slynx_parser::type_name(
             self.loader.types,
             self.loader.symbols,
             self.loader.expressions,
             ty,
-            context.generic_names,
         )
     }
 

@@ -227,7 +227,7 @@ impl HIRError {
     pub fn new(err: impl Into<HIRErrorKind>, span: Span) -> Self {
         Self {
             kind: err.into(),
-            span: span,
+            span,
             backtrace: Backtrace::capture(),
         }
     }

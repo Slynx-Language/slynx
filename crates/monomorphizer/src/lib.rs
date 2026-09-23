@@ -465,7 +465,7 @@ impl Monomorphizer {
                     .collect::<Result<Vec<_>>>()?;
                 Ok(hir.types.create_tuple_type(fields))
             }
-            TermNode::Data(descriptor) if let DescriptorId::Component(component) = descriptor => {
+            TermNode::Data(DescriptorId::Component(component)) => {
                 self.rebuild_component_type(hir, *component, &Substitution::empty(), span)
             }
             TermNode::Apply { target, args } => {

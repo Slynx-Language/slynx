@@ -158,7 +158,7 @@ impl ExpressionBuilder {
                 if let TermNode::Ref { mutable: true, .. } =
                     queue.hir.view(expr.data).ty_viewer().raw().node() =>
             {
-                return Ok(());
+                Ok(())
             }
             HirExpressionKind::Identifier(ident)
                 if self

@@ -38,7 +38,7 @@ impl<'a> HirQueueBuilder<'a> {
         span: Span,
     ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
         let struct_id = match self.hir.types[struct_ty].node() {
-            TermNode::Data(descriptor) if let DescriptorId::Struct(id) = descriptor => *id,
+            TermNode::Data(DescriptorId::Struct(id)) => *id,
             _ => return Err(HIRError::not_a_struct(struct_ty, span)),
         };
         let struct_name = self.hir.types.get_struct_name(struct_id);

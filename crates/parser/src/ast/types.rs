@@ -37,33 +37,19 @@ pub fn type_name(
     symbols: &SymbolsModule<FrontendSymbol>,
     expressions: &DedupPool<ASTExpression>,
     ty: DedupPoolId<Type>,
-    generic_names: &[SymbolPointer],
 ) -> SymbolPointer {
     match &types[ty] {
         Type::Reference(inner) => {
-            let name = symbols.get_name(type_name(
-                types,
-                symbols,
-                expressions,
-                *inner,
-                generic_names,
-            ));
+            let name = symbols.get_name(type_name(types, symbols, expressions, *inner));
             symbols.intern(&format!("&{}", name))
         }
         Type::MutableReference(inner) => {
-            let name = symbols.get_name(type_name(
-                types,
-                symbols,
-                expressions,
-                *inner,
-                generic_names,
-            ));
+            let name = symbols.get_name(type_name(types, symbols, expressions, *inner));
             symbols.intern(&format!("&mut {}", name))
         }
         Type::Plain(gi) => gi.identifier,
         Type::Array(arr, len) => {
-            let name =
-                symbols.get_name(type_name(types, symbols, expressions, *arr, generic_names));
+            let name = symbols.get_name(type_name(types, symbols, expressions, *arr));
             let len = match expressions.get(*len) {
                 ASTExpression::IntLiteral(int) => int.to_string(),
                 _ => unimplemented!(
@@ -74,13 +60,7 @@ pub fn type_name(
         }
         Type::Vector(inner) => symbols.intern(&format!(
             "[]{}",
-            symbols.get_name(type_name(
-                types,
-                symbols,
-                expressions,
-                *inner,
-                generic_names
-            ))
+            symbols.get_name(type_name(types, symbols, expressions, *inner))
         )),
     }
 }

@@ -170,13 +170,10 @@ impl ExpressionBuilder {
             match &queue.hir.types[expr_type].node() {
                 TermNode::Var(_) => expr_type,
                 TermNode::Apply { target, args }
-                    if let TermNode::Extension(e) = queue.hir.types[*target].node() =>
+                    if let TermNode::Extension(e) = queue.hir.types[*target].node()
+                        && (e.dyn_eq(&ArrayTerm) || e.dyn_eq(&VectorTerm)) =>
                 {
-                    if e.dyn_eq(&ArrayTerm) || e.dyn_eq(&VectorTerm) {
-                        args[0]
-                    } else {
-                        return Err(HIRError::invalid_indexing(expr_type, span));
-                    }
+                    args[0]
                 }
 
                 _ => return Err(HIRError::invalid_indexing(expr_type, span)),

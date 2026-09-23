@@ -13,10 +13,6 @@ enum TypeMutability {
 }
 
 impl Parser<'_> {
-    pub fn type_name(&self, ty: DedupPoolId<Type>, type_params: &[SymbolPointer]) -> SymbolPointer {
-        crate::type_name(self.types, self.symbols, self.expressions, ty, type_params)
-    }
-
     ///Represents the type of 'Self' on a method call
     pub fn self_type(&self) -> DedupPoolId<Type> {
         self.intern_type(Type::Plain(GenericIdentifier {

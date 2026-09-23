@@ -97,28 +97,22 @@ impl<'a> HirViewer<'a, TermId> {
     }
 
     pub fn is_struct(self) -> Option<HirViewer<'a, DedupPoolId<StructType>>> {
-        if let TermNode::Data(descriptor) = self.raw().node() {
-            if let DescriptorId::Struct(target) = descriptor {
-                return Some(self.new_with(*target));
-            }
+        if let TermNode::Data(DescriptorId::Struct(target)) = self.raw().node() {
+            return Some(self.new_with(*target));
         }
         None
     }
 
     pub fn is_enum(self) -> Option<HirViewer<'a, DedupPoolId<EnumType>>> {
-        if let TermNode::Data(descriptor) = self.raw().node() {
-            if let DescriptorId::Enum(target) = descriptor {
-                return Some(self.new_with(*target));
-            }
+        if let TermNode::Data(DescriptorId::Enum(target)) = self.raw().node() {
+            return Some(self.new_with(*target));
         }
         None
     }
 
     pub fn is_component(self) -> Option<HirViewer<'a, DedupPoolId<ComponentType>>> {
-        if let TermNode::Data(descriptor) = self.raw().node() {
-            if let DescriptorId::Component(target) = descriptor {
-                return Some(self.new_with(*target));
-            }
+        if let TermNode::Data(DescriptorId::Component(target)) = self.raw().node() {
+            return Some(self.new_with(*target));
         }
         None
     }

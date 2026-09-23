@@ -302,7 +302,7 @@ impl HirNode<'_> {
                 if generic.generic.is_empty()
                     && let Some(target) = context
                         .generic_names
-                        .into_iter()
+                        .iter()
                         .position(|name| *name == generic.identifier)
                 {
                     return Ok((
@@ -424,7 +424,7 @@ impl HirNode<'_> {
                         if let Some(view) = view.is_component() {
                             components.push(view.data);
                         } else {
-                            let name = self.type_name(c.data.name.data, &TypeContext::new(&[]));
+                            let name = self.type_name(c.data.name.data);
                             return Err(HIRError::not_a_component(name, c.span));
                         };
                     }

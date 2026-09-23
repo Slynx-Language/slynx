@@ -41,7 +41,7 @@ impl Monomorphizer {
         let ty_view = hir.view(*target);
         let deref = ty_view.dereference();
         let comp_id = match deref.raw().node() {
-            TermNode::Data(descriptor) if let DescriptorId::Component(c) = descriptor => *c,
+            TermNode::Data(DescriptorId::Component(c)) => *c,
             _ => {
                 return Err(HIRError::generic_arity_mismatch(
                     hir.intern_name("<non-component>"),

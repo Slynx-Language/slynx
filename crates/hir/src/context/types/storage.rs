@@ -74,7 +74,7 @@ impl TypeStorage {
             }
 
             match self[current].node() {
-                TermNode::Data(descriptor) if let DescriptorId::Struct(_) = descriptor => {
+                TermNode::Data(DescriptorId::Struct(_)) => {
                     return Some(current);
                 }
                 TermNode::Apply { target, .. } => current = *target,
@@ -93,7 +93,7 @@ impl TypeStorage {
             }
 
             match self[current].node() {
-                TermNode::Data(descriptor) if let DescriptorId::Component(_) = descriptor => {
+                TermNode::Data(DescriptorId::Component(_)) => {
                     return Some(current);
                 }
                 TermNode::Apply { target, .. } => current = *target,
@@ -190,12 +190,12 @@ impl TypeStorage {
                         queue.push_back(*field);
                     }
                 }
-                TermNode::Data(descriptor) if let DescriptorId::Struct(descriptor) = descriptor => {
+                TermNode::Data(DescriptorId::Struct(descriptor)) => {
                     for field in &self[*descriptor].fields {
                         queue.push_back(*field);
                     }
                 }
-                TermNode::Data(descriptor) if let DescriptorId::Enum(descriptor) = descriptor => {
+                TermNode::Data(DescriptorId::Enum(descriptor)) => {
                     for variant in &self[*descriptor].variants {
                         for field in &variant.payload {
                             queue.push_back(*field);

@@ -142,16 +142,13 @@ impl ExpressionBuilder {
                     args: arguments,
                 },
                 TermNode::Data(DescriptorId::Enum(e)),
-            ) if let Some((id, _)) =
-                queue
-                    .hir
-                    .view(*e)
-                    .variants()
-                    .iter()
-                    .enumerate()
-                    .find(|(_, variant)| {
-                        variant.name == queue.type_name(name.data, &TypeContext::EMPTY)
-                    }) =>
+            ) if let Some((id, _)) = queue
+                .hir
+                .view(*e)
+                .variants()
+                .iter()
+                .enumerate()
+                .find(|(_, variant)| variant.name == queue.type_name(name.data)) =>
             {
                 let generics = {
                     let plain = queue.get_plain_type(*name);
@@ -172,12 +169,8 @@ impl ExpressionBuilder {
                 )
             }
             (ASTExpression::FunctionCall { name, args }, _)
-                if let Some(method) = queue.resolve_method(
-                    file_owner,
-                    ty,
-                    queue.type_name(**name, &TypeContext::EMPTY),
-                    span,
-                )? =>
+                if let Some(method) =
+                    queue.resolve_method(file_owner, ty, queue.type_name(**name), span)? =>
             {
                 let generics = {
                     let plain = queue.get_plain_type(*name);
@@ -249,7 +242,7 @@ impl ExpressionBuilder {
                         let field_ty = field_types[position];
                         let field_ty = match queue.hir.view(parent_ty).raw().node() {
                             TermNode::Apply { args: generics, .. } => {
-                                crate::generics::substitute_terms(queue.hir, &generics, field_ty)
+                                crate::generics::substitute_terms(queue.hir, generics, field_ty)
                             }
                             _ => field_ty,
                         };
@@ -280,7 +273,7 @@ impl ExpressionBuilder {
                         let field_ty = field_types[position];
                         let field_ty = match queue.hir.view(parent_ty).raw().node() {
                             TermNode::Apply { args: generics, .. } => {
-                                crate::generics::substitute_terms(queue.hir, &generics, field_ty)
+                                crate::generics::substitute_terms(queue.hir, generics, field_ty)
                             }
                             _ => field_ty,
                         };
@@ -307,7 +300,7 @@ impl ExpressionBuilder {
                 }
             }
             ASTExpression::FunctionCall { name, args } => {
-                let name_sym = queue.type_name(name.data, &TypeContext::EMPTY);
+                let name_sym = queue.type_name(name.data);
                 let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
                 let parent_ty = parent_type_view.dereference();
                 match parent_ty.is_struct() {
