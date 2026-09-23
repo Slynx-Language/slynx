@@ -10,8 +10,8 @@ use common::pool::DedupPoolId;
 use dashmap::{DashMap, DashSet};
 
 use crate::{
-    ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, HirType,
-    Result, StructType, SymbolPointer, TupleType, VariableId,
+    ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, Result,
+    StructType, SymbolPointer, TupleType, VariableId,
     helpers::Visible,
     term::{ExtensionNode, Term, TermId, TermNode},
 };
@@ -159,7 +159,7 @@ impl TypesContext {
         self.storage.get_component_definition(comp)
     }
 
-    pub fn create_alias_type(&self, name: SymbolPointer, ty: HirType) -> TermId {
+    pub fn create_alias_type(&self, name: SymbolPointer, ty: Term) -> TermId {
         let id = self.storage.insert_type(ty);
         self.registry.register(name, id);
         id
@@ -171,7 +171,7 @@ impl TypesContext {
     }
 
     ///Inserts the provided `ty` to have the provided `name`
-    pub fn create_type(&self, ty: HirType) -> TermId {
+    pub fn create_type(&self, ty: Term) -> TermId {
         self.storage.insert_type(ty)
     }
 
@@ -305,7 +305,7 @@ macro_rules! impl_index {
 }
 
 impl_index!(
-    HirType,
+    Term,
     StructType,
     StructDefinition,
     TupleType,

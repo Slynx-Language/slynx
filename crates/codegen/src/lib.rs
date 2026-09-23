@@ -1,10 +1,9 @@
 mod error;
 mod lowerers;
 
-use common::pool::DedupPoolId;
-use slynx_hir::HirType;
+use slynx_hir::term::TermId;
 
 pub use error::*;
 pub use lowerers::{EnumLayout, LoweringState, TypeLowerer};
 
-pub type TypeId = DedupPoolId<HirType>;
+pub type TypeId = TermId;

@@ -50,7 +50,7 @@ pub mod vector;
 use crate::{
     SymbolPointer,
     context::{ComponentDefinition, StructDefinition},
-    term::{Term, TermId},
+    term::TermId,
 };
 
 use common::{VisibilityModifier, pool::DedupPoolId};
@@ -193,5 +193,3 @@ pub enum DescriptorId {
     Enum(DedupPoolId<EnumType>),
     Component(DedupPoolId<ComponentType>),
 }
-
-pub type HirType = Term;

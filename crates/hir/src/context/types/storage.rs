@@ -9,7 +9,7 @@ use common::{
 };
 
 use crate::{
-    ComponentType, DescriptorId, EnumType, EnumVariantType, HIRError, HirType, Result, StructType,
+    ComponentType, DescriptorId, EnumType, EnumVariantType, HIRError, Result, StructType,
     SymbolPointer, TupleType,
     helpers::Visible,
     term::{Term, TermId, TermNode},
@@ -31,7 +31,6 @@ pub struct TypeStorage {
     pub structs: StructsPool,
     pub components: ComponentsPool,
     pub enums: EnumsPool,
-    pub types: DedupPool<HirType>,
     pub terms: DedupPool<Term>,
 }
 impl Default for TypeStorage {
@@ -41,7 +40,6 @@ impl Default for TypeStorage {
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
             enums: EnumsPool::default(),
-            types: DedupPool::new(),
         }
     }
 }
@@ -60,7 +58,7 @@ impl TypeStorage {
     /// `HirType` is an alias for `Term`, so a type id and a term id are one and
     /// the same: both flow through the `terms` pool that every [`HirViewer`]
     /// and `Index` read. The legacy `types` pool is being retired.
-    pub fn insert_type(&self, ty: HirType) -> TermId {
+    pub fn insert_type(&self, ty: Term) -> TermId {
         self.terms.insert(ty)
     }
 
@@ -226,7 +224,7 @@ macro_rules! impl_index {
 }
 
 impl_index!(
-    HirType => |this, idx| this.terms.get(idx),
+    Term => |this, idx| this.terms.get(idx),
     StructType => |this, idx| &this.structs[idx],
     StructDefinition => |this, idx| &this.structs[idx],
     TupleType => |this, idx| &this.structs[idx],
