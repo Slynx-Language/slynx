@@ -7,7 +7,9 @@ use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::HirQueueBuilder, error::NotMutableReason,
+    builders::HirQueueBuilder,
+    error::NotMutableReason,
+    term::{Term, TermNode},
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -45,8 +47,8 @@ impl ExpressionBuilder {
             },
         )?;
         let expr_ty = queue.hir.view(build_expr.data).ty();
-        let expr_ty = match queue.hir.view(expr_ty).raw() {
-            HirType::ImutableRef(inner) | HirType::MutableRef(inner) => *inner,
+        let expr_ty = match queue.hir.view(expr_ty).raw().node() {
+            TermNode::Ref { target, .. } => *target,
             _ => {
                 return Err(HIRError::invalid_deref(descriptor.target.span));
             }
@@ -77,9 +79,9 @@ impl ExpressionBuilder {
         let final_type = {
             let ty = expression_viewer.ty();
             let ty = if descriptor.mutable {
-                HirType::MutableRef(ty)
+                Term::mutable_reference(ty)
             } else {
-                HirType::ImutableRef(ty)
+                Term::reference(ty)
             };
             queue.hir.types.create_type(ty)
         };
@@ -110,8 +112,9 @@ impl ExpressionBuilder {
     }
 
     pub(super) fn build_bool(&self, queue: &HirQueueBuilder, value: bool) -> HirExpression {
+        let ty = queue.hir.types.create_type(Term::boolean_type());
         HirExpression {
-            ty: queue.hir.types.create_type(HirType::Bool),
+            ty,
             kind: if value {
                 HirExpressionKind::True
             } else {

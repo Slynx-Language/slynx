@@ -1,6 +1,7 @@
 use crate::{
     HirType, SlynxHir, SymbolPointer,
     model::{HirExpression, HirExpressionKind},
+    term::Term,
 };
 use common::{
     Operator, Spanned,
@@ -11,7 +12,7 @@ impl<'a> SlynxHir<'a> {
     /// Creates a string literal expression.
     pub(crate) fn create_strliteral_expression(&self, s: SymbolPointer) -> HirExpression {
         HirExpression {
-            ty: self.types.create_type(HirType::Str),
+            ty: self.types.create_type(Term::string_type()),
             kind: HirExpressionKind::StringLiteral(s),
         }
     }
@@ -20,7 +21,7 @@ impl<'a> SlynxHir<'a> {
     pub(crate) fn create_int_expression(&self, i: i32, _bitlen: u8) -> HirExpression {
         HirExpression {
             kind: HirExpressionKind::Int(i),
-            ty: self.types.create_type(HirType::Int),
+            ty: self.types.create_type(Term::signed_integer_type(32)),
         }
     }
 
@@ -28,7 +29,7 @@ impl<'a> SlynxHir<'a> {
     pub(crate) fn create_float_expression(&self, float: f32) -> HirExpression {
         HirExpression {
             kind: HirExpressionKind::Float(float.into()),
-            ty: self.types.create_type(HirType::Float),
+            ty: self.types.create_type(Term::float32_type()),
         }
     }
     /// Creates a binary expression.

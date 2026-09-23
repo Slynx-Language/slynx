@@ -15,7 +15,7 @@ use crate::{
     arrays::ArrayTerm,
     generic_component::GenericComponentTerm,
     helpers::Visible,
-    term::{ConstantTerm, PrimitiveType, Term, TermId, TermKind, TermNode, VarTerm},
+    term::{ConstantTerm, ExtensionNode, PrimitiveType, Term, TermId, TermKind, TermNode, VarTerm},
     vector::VectorTerm,
 };
 
@@ -89,17 +89,12 @@ impl TypesContext {
         args: Vec<DedupPoolId<HirType>>,
         ret: DedupPoolId<HirType>,
     ) -> DedupPoolId<HirType> {
-        let fid = self.storage.functions.insert(FunctionType {
-            args: args.into(),
-            ret,
-        });
-        self.storage.insert_type(HirType::Function(fid))
+        self.storage.insert_type(Term::function_type(args, ret))
     }
 
     /// Creates a new tuple type with the given field types and returns its [`TypeId`].
     pub fn create_tuple_type(&self, fields: Vec<DedupPoolId<HirType>>) -> DedupPoolId<HirType> {
-        let tuple = self.storage.structs.insert_at_tuples(TupleType { fields });
-        self.storage.insert_type(HirType::Tuple(tuple))
+        self.storage.insert_type(Term::tuple_type(fields))
     }
 
     pub fn create_struct_type(
@@ -109,7 +104,7 @@ impl TypesContext {
         methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
     ) -> DedupPoolId<HirType> {
         let (id, _) = self.storage.structs.insert(name, fields, methods);
-        let id = self.storage.insert_type(HirType::Struct(id));
+        let id = self.storage.insert_type(Term::struct_type(id));
         self.registry.register(name, id);
         id
     }
@@ -128,10 +123,10 @@ impl TypesContext {
         variants: Vec<EnumVariantType>,
     ) -> DedupPoolId<HirType> {
         if let Some(existing) = self.storage.enums.find_by_name(name) {
-            return self.storage.insert_type(HirType::Enum(existing));
+            return self.storage.insert_type(Term::enum_type(existing));
         }
         let id = self.storage.enums.insert(name, variants);
-        let id = self.storage.insert_type(HirType::Enum(id));
+        let id = self.storage.insert_type(Term::enum_type(id));
         self.registry.register(name, id);
         id
     }
@@ -163,7 +158,7 @@ impl TypesContext {
         children: Vec<DedupPoolId<ComponentType>>,
     ) -> DedupPoolId<HirType> {
         let (comp_ty, _) = self.storage.components.insert(name, properties, children);
-        let id = self.storage.insert_type(HirType::Component(comp_ty));
+        let id = self.storage.insert_type(Term::component_type(comp_ty));
         self.registry.register(name, id);
         id
     }
@@ -179,6 +174,11 @@ impl TypesContext {
         let id = self.storage.insert_type(ty);
         self.registry.register(name, id);
         id
+    }
+
+    ///Creates a new extension type from the provided `ext`
+    pub fn create_extension_type<Ext: ExtensionNode>(&self, ext: Ext) -> TermId {
+        self.create_type(Term::extension_type(ext))
     }
 
     ///Inserts the provided `ty` to have the provided `name`
@@ -274,9 +274,9 @@ impl TypesContext {
     pub fn mark_external(&self, ty: DedupPoolId<HirType>) {
         self.externals.insert(ty);
         let mut current = ty;
-        while let HirType::Reference { rf, .. } = self[current] {
-            self.externals.insert(rf);
-            current = rf;
+        while let TermNode::Apply { target, .. } = self[current].node() {
+            self.externals.insert(*target);
+            current = *target;
         }
     }
 
@@ -289,12 +289,12 @@ impl TypesContext {
 
         let mut current = *ty;
         loop {
-            match self[current] {
-                HirType::Reference { rf, .. } => {
-                    if self.externals.contains(&rf) {
+            match self[current].node() {
+                TermNode::Apply { target, .. } => {
+                    if self.externals.contains(target) {
                         return true;
                     }
-                    current = rf;
+                    current = *target;
                 }
                 _ => return false,
             }
@@ -302,86 +302,6 @@ impl TypesContext {
     }
     pub fn create_term(&self, term: Term) -> TermId {
         self.storage.terms.insert(term)
-    }
-    pub fn to_term(&self, ty: DedupPoolId<HirType>) -> TermId {
-        let term = match self.storage.types.get(ty) {
-            HirType::Bool => Term::new_type(TermNode::Primitive(PrimitiveType::boolean_type())),
-            HirType::Int => {
-                Term::new_type(TermNode::Primitive(PrimitiveType::Signed { bitsize: 32 }))
-            }
-            HirType::Float => Term::new_type(TermNode::Primitive(PrimitiveType::Float32)),
-            HirType::Str => Term::new_type(TermNode::Primitive(PrimitiveType::String)),
-            HirType::Void => Term::new_type(TermNode::Primitive(PrimitiveType::Void)),
-            HirType::GenericParam { name, index } => {
-                Term::new_type(TermNode::Var(VarTerm::new(*name, *index)))
-            }
-            HirType::Component(component) => {
-                Term::new_type(TermNode::Data(DescriptorId::Component(*component)))
-            }
-            HirType::Function(func) => {
-                let func = self.storage.functions.get(*func);
-                let args = func
-                    .args
-                    .iter()
-                    .map(|arg| self.to_term(*arg))
-                    .collect::<Vec<_>>();
-
-                Term::new_type(TermNode::Func {
-                    args,
-                    ret: self.to_term(func.ret),
-                })
-            }
-            HirType::Struct(strukt) => {
-                Term::new_type(TermNode::Data(DescriptorId::Struct(*strukt)))
-            }
-            HirType::Enum(enum_type) => {
-                Term::new_type(TermNode::Data(DescriptorId::Enum(*enum_type)))
-            }
-            HirType::Tuple(tuple) => Term::new_type(TermNode::Tuple {
-                fields: self.storage.structs[*tuple]
-                    .fields
-                    .iter()
-                    .map(|field| self.to_term(*field))
-                    .collect::<Vec<_>>(),
-            }),
-            HirType::ImutableRef(ref_type) => Term::new_type(TermNode::Ref {
-                mutable: false,
-                target: self.to_term(*ref_type),
-            }),
-            HirType::MutableRef(ref_type) => Term::new_type(TermNode::Ref {
-                mutable: true,
-                target: self.to_term(*ref_type),
-            }),
-            HirType::Reference { rf, generics } => Term::new_type(TermNode::Apply {
-                target: self.to_term(*rf),
-                args: generics.into_iter().map(|g| self.to_term(*g)).collect(),
-            }),
-            HirType::Array(ty, len) => {
-                let ty = self.to_term(*ty);
-                let arr = ArrayTerm;
-                let term = self.create_term(Term::new_type(TermNode::Extension(Arc::new(arr))));
-                let len = self.create_term(Term::new_type(TermNode::Constant(
-                    ConstantTerm::Usize(*len),
-                )));
-                Term::new_type(TermNode::Apply {
-                    target: term,
-                    args: vec![ty, len],
-                })
-            }
-            HirType::GenericComponent => {
-                Term::new_type(TermNode::Extension(Arc::new(GenericComponentTerm)))
-            }
-            HirType::Vector(ty) => {
-                let ty = self.to_term(*ty);
-                let term =
-                    self.create_term(Term::new_type(TermNode::Extension(Arc::new(VectorTerm))));
-                Term::new_type(TermNode::Apply {
-                    target: term,
-                    args: vec![ty],
-                })
-            }
-        };
-        self.create_term(term)
     }
 }
 
@@ -407,5 +327,4 @@ impl_index!(
     EnumType,
     ComponentType,
     ComponentDefinition,
-    FunctionType,
 );

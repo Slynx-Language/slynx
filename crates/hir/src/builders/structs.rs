@@ -3,8 +3,8 @@ use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{Type, TypeContext};
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirNode, HirQueueBuilder, HirType,
-    PendantFunction, Result, SymbolPointer, context::HirSymbol,
+    DeclarationId, DescriptorId, HIRError, HirFunctionDeclaration, HirNode, HirQueueBuilder,
+    HirType, PendantFunction, Result, SymbolPointer, context::HirSymbol, term::TermNode,
 };
 
 impl<'a> HirNode<'a> {
@@ -39,8 +39,8 @@ impl<'a> HirQueueBuilder<'a> {
         method_name: SymbolPointer,
         span: Span,
     ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
-        let struct_id = match self.hir.types[struct_ty] {
-            HirType::Struct(id) => id,
+        let struct_id = match self.hir.types[struct_ty].node() {
+            TermNode::Data(descriptor) if let DescriptorId::Struct(id) = descriptor => *id,
             _ => return Err(HIRError::not_a_struct(struct_ty, span)),
         };
         let struct_name = self.hir.types.get_struct_name(struct_id);

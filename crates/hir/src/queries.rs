@@ -3,10 +3,12 @@ use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirType, Result, SlynxHir, SymbolPointer, VariableId,
+    DeclarationId, DescriptorId, HirFunctionDeclaration, HirType, Result, SlynxHir, SymbolPointer,
+    VariableId,
     context::HirSymbol,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::TermNode,
 };
 
 impl SlynxHir<'_> {
@@ -88,15 +90,15 @@ impl SlynxHir<'_> {
     /// A struct `Color { inner: int }` flattens to `[int]`.
     /// A struct `Border { color: Color, width: int, radius: int }` flattens to `[int, int, int]`.
     pub fn flatten_type(&self, ty: DedupPoolId<HirType>) -> Vec<DedupPoolId<HirType>> {
-        match &self.types[ty] {
-            HirType::Int | HirType::Float | HirType::Bool | HirType::Str => vec![ty],
-            HirType::Struct(strukt) => self
+        match &self.types[ty].node() {
+            TermNode::Primitive(_) => vec![ty],
+            TermNode::Data(strukt) if let DescriptorId::Struct(strukt) = strukt => self
                 .view(*strukt)
                 .field_types()
                 .iter()
                 .flat_map(|f| self.flatten_type(*f))
                 .collect(),
-            HirType::Reference { rf, .. } => self.flatten_type(*rf),
+            TermNode::Apply { target, .. } => self.flatten_type(*target),
             _ => vec![ty],
         }
     }

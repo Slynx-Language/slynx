@@ -1,6 +1,7 @@
 use crate::{
     ComponentId, SymbolPointer,
     model::{HirExpression, HirType},
+    term::TermId,
 };
 
 use common::{Span, pool::DedupPoolId};
@@ -73,6 +74,10 @@ pub enum HIRErrorKind {
     UnexpectedType {
         expected: DedupPoolId<HirType>,
         received: DedupPoolId<HirType>,
+    },
+    UnexpectedTerm {
+        expected: TermId,
+        received: TermId,
     },
     ///Invalid indexing error occurs when the expression being indexed cannot be indexed. So 5[12] cannot be indexed, which then gives this error
     InvalidIndexing(DedupPoolId<HirType>),
@@ -316,6 +321,13 @@ impl HIRError {
     pub fn invalid_indexing(expr_type: DedupPoolId<HirType>, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::InvalidIndexing(expr_type),
+            span,
+        }
+    }
+
+    pub fn unexpected_terms(received: TermId, expected: TermId, span: Span) -> Self {
+        Self {
+            kind: HIRErrorKind::UnexpectedTerm { received, expected },
             span,
         }
     }
@@ -641,6 +653,9 @@ impl std::fmt::Display for HIRError {
             ),
             HIRErrorKind::UnexpectedType { .. } => {
                 write!(f, "Received mismatched types")
+            }
+            HIRErrorKind::UnexpectedTerm { .. } => {
+                write!(f, "Received mismatched terms")
             }
             HIRErrorKind::InvalidIndexing(_) => write!(
                 f,

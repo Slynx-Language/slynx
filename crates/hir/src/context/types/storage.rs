@@ -1,5 +1,6 @@
 use std::{
     collections::{HashSet, VecDeque},
+    mem::take,
     ops::Index,
 };
 
@@ -9,8 +10,10 @@ use common::{
 };
 
 use crate::{
-    ComponentType, EnumType, EnumVariantType, FunctionType, HIRError, HirType, Result, StructType,
-    SymbolPointer, TupleType, helpers::Visible, term::Term,
+    ComponentType, DescriptorId, EnumType, EnumVariantType, FunctionType, HIRError, HirType,
+    Result, StructType, SymbolPointer, TupleType,
+    helpers::Visible,
+    term::{Term, TermNode},
 };
 
 use super::{
@@ -29,7 +32,6 @@ pub struct TypeStorage {
     pub structs: StructsPool,
     pub components: ComponentsPool,
     pub enums: EnumsPool,
-    pub functions: DedupPool<FunctionType>,
     pub types: DedupPool<HirType>,
     pub terms: DedupPool<Term>,
 }
@@ -40,7 +42,6 @@ impl Default for TypeStorage {
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
             enums: EnumsPool::default(),
-            functions: DedupPool::new(),
             types: DedupPool::new(),
         }
     }
@@ -69,9 +70,11 @@ impl TypeStorage {
                 return None;
             }
 
-            match self[current] {
-                HirType::Struct { .. } => return Some(current),
-                HirType::Reference { rf, .. } => current = rf,
+            match self[current].node() {
+                TermNode::Data(descriptor) if let DescriptorId::Struct(_) = descriptor => {
+                    return Some(current);
+                }
+                TermNode::Apply { target, .. } => current = *target,
                 _ => return None,
             }
         }
@@ -86,9 +89,11 @@ impl TypeStorage {
                 return None;
             }
 
-            match self[current] {
-                HirType::Component { .. } => return Some(current),
-                HirType::Reference { rf, .. } => current = rf,
+            match self[current].node() {
+                TermNode::Data(descriptor) if let DescriptorId::Component(_) = descriptor => {
+                    return Some(current);
+                }
+                TermNode::Apply { target, .. } => current = *target,
                 _ => return None,
             }
         }
@@ -156,12 +161,12 @@ impl TypeStorage {
         let mut visited = HashSet::new();
         let mut current = ref_ty;
         loop {
-            match self[current] {
-                HirType::Reference { rf, .. } => {
+            match self[current].node() {
+                TermNode::Apply { target, .. } => {
                     if !visited.insert(current) {
                         return Err(HIRError::recursive(current, *span));
                     }
-                    current = rf;
+                    current = *target;
                 }
                 _ => return Ok(current),
             }
@@ -177,22 +182,22 @@ impl TypeStorage {
                 return true;
             }
 
-            match self[ty] {
-                HirType::Reference { rf, .. } => {
-                    queue.push_back(rf);
+            match self[ty].node() {
+                TermNode::Apply { target, .. } => {
+                    queue.push_back(*target);
                 }
-                HirType::Struct(id) => {
-                    for field in &self[id].fields {
+                TermNode::Tuple { fields } => {
+                    for field in fields {
                         queue.push_back(*field);
                     }
                 }
-                HirType::Tuple(id) => {
-                    for field in &self[id].fields {
+                TermNode::Data(descriptor) if let DescriptorId::Struct(descriptor) = descriptor => {
+                    for field in &self[*descriptor].fields {
                         queue.push_back(*field);
                     }
                 }
-                HirType::Enum(id) => {
-                    for variant in &self[id].variants {
+                TermNode::Data(descriptor) if let DescriptorId::Enum(descriptor) = descriptor => {
+                    for variant in &self[*descriptor].variants {
                         for field in &variant.payload {
                             queue.push_back(*field);
                         }
@@ -229,5 +234,4 @@ impl_index!(
     EnumType => |this, idx| &this.enums[idx],
     ComponentType => |this, idx| &this.components[idx],
     ComponentDefinition => |this, idx| &this.components[idx],
-    FunctionType => |this, idx| &this.functions[idx],
 );

@@ -7,7 +7,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirType, Result,
+    DescriptorId, HIRError, HirExpression, HirExpressionKind, HirType, Result,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -16,6 +16,7 @@ use crate::{
             literals::ReferenceExpressionDescriptor,
         },
     },
+    term::TermNode,
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -91,7 +92,7 @@ impl ExpressionBuilder {
         let ty_view = queue.hir.view(ty);
         let ty_deref = ty_view.dereference();
         let raw_ty = ty_deref.raw();
-        let expr = match (queue.get_expr(child.data), raw_ty) {
+        let expr = match (queue.get_expr(child.data), raw_ty.node()) {
             (
                 ASTExpression::FieldAccess {
                     parent: inner_parent,
@@ -103,7 +104,7 @@ impl ExpressionBuilder {
                     self.build_type_access(queue, file_owner, ty, *inner_parent, span, context)?;
                 return self.build_field_access_impl(queue, parent, *inner_field, span, context);
             }
-            (ASTExpression::Identifier(name), HirType::Enum(e))
+            (ASTExpression::Identifier(name), TermNode::Data(DescriptorId::Enum(e)))
                 if let Some(variant_id) = queue.hir.view(*e).find_variant(*name) =>
             {
                 let enum_viewer = queue.hir.view(*e);
@@ -140,7 +141,7 @@ impl ExpressionBuilder {
                     name,
                     args: arguments,
                 },
-                HirType::Enum(e),
+                TermNode::Data(DescriptorId::Enum(e)),
             ) if let Some((id, _)) =
                 queue
                     .hir
@@ -246,9 +247,9 @@ impl ExpressionBuilder {
                             })?;
 
                         let field_ty = field_types[position];
-                        let field_ty = match queue.hir.view(parent_ty).raw() {
-                            HirType::Reference { generics, .. } => {
-                                crate::generics::substitute_types(queue.hir, generics, field_ty)
+                        let field_ty = match queue.hir.view(parent_ty).raw().node() {
+                            TermNode::Apply { args: generics, .. } => {
+                                crate::generics::substitute_terms(queue.hir, generics, field_ty)
                             }
                             _ => field_ty,
                         };
@@ -277,9 +278,9 @@ impl ExpressionBuilder {
                             })?;
 
                         let field_ty = field_types[position];
-                        let field_ty = match queue.hir.view(parent_ty).raw() {
-                            HirType::Reference { generics, .. } => {
-                                crate::generics::substitute_types(queue.hir, generics, field_ty)
+                        let field_ty = match queue.hir.view(parent_ty).raw().node() {
+                            TermNode::Apply { args: generics, .. } => {
+                                crate::generics::substitute_terms(queue.hir, generics, field_ty)
                             }
                             _ => field_ty,
                         };
@@ -340,17 +341,14 @@ impl ExpressionBuilder {
                             let func_view = queue.hir.view(func_id);
                             let first_arg = match func_view.get_argument_type(0) {
                                 Some(ty)
-                                    if let HirType::ImutableRef(_) | HirType::MutableRef(_) =
-                                        queue.hir.view(ty).raw() =>
+                                    if let TermNode::Ref { mutable, .. } =
+                                        queue.hir.view(ty).raw().node() =>
                                 {
                                     self.build_reference_expression(
                                         queue,
                                         ReferenceExpressionDescriptor {
                                             target: Either::Right(parent),
-                                            mutable: matches!(
-                                                queue.hir.view(ty).raw(),
-                                                HirType::MutableRef(_)
-                                            ),
+                                            mutable: *mutable,
                                             context,
                                         },
                                     )?

@@ -2,7 +2,11 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, RangeType, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirType, Result, builders::HirQueueBuilder,
+    HIRError, HirExpression, HirExpressionKind, HirType, Result,
+    arrays::ArrayTerm,
+    builders::HirQueueBuilder,
+    term::{Term, TermNode},
+    vector::VectorTerm,
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -70,9 +74,9 @@ impl ExpressionBuilder {
 
         for (idx, field) in fields.iter().enumerate() {
             let field_type = if let Some(expected) = expected
-                && let Some(tuple) = queue.hir.view(expected).is_tuple()
+                && let Some(fields) = queue.hir.view(expected).is_tuple()
             {
-                Some(tuple.fields()[idx])
+                Some(fields[idx])
             } else {
                 None
             };
@@ -120,9 +124,8 @@ impl ExpressionBuilder {
                 let ty = resolved.data;
                 return Err(HIRError::not_a_tuple(ty, span));
             }
-            Some(tuple_view) => {
+            Some(fields) => {
                 let field_index = index;
-                let fields = tuple_view.fields();
                 if field_index >= fields.len() {
                     return Err(HIRError::invalid_tuple_index(
                         field_index,
@@ -164,10 +167,18 @@ impl ExpressionBuilder {
         )?;
         let after_index_type = {
             let expr_type = queue.hir[expr.data].ty;
-            match &queue.hir.types[expr_type] {
-                HirType::Vector(t) => *t,
-                HirType::Array(t, _) => *t,
-                HirType::GenericParam { .. } => expr_type,
+            match &queue.hir.types[expr_type].node() {
+                TermNode::Var(_) => expr_type,
+                TermNode::Apply { target, args }
+                    if let TermNode::Extension(e) = queue.hir.types[*target].node() =>
+                {
+                    if e.dyn_eq(&ArrayTerm) || e.dyn_eq(&VectorTerm) {
+                        args[0]
+                    } else {
+                        return Err(HIRError::invalid_indexing(expr_type, span));
+                    }
+                }
+
                 _ => return Err(HIRError::invalid_indexing(expr_type, span)),
             }
         };
@@ -183,12 +194,12 @@ impl ExpressionBuilder {
                 )?;
                 let viewer = queue.hir.view(index.data);
                 let ty_viewer = viewer.ty_viewer();
-                match ty_viewer.raw() {
-                    HirType::Int => {}
+                match ty_viewer.raw().is_unsigned() {
+                    Some(_) => {}
                     _ => {
                         return Err(HIRError::unexpected_type(
                             ty_viewer.data,
-                            queue.hir.types.create_type(HirType::Int),
+                            queue.hir.types.create_type(Term::unsigned_integer_type(32)),
                             index.span,
                         ));
                     }
@@ -250,7 +261,7 @@ impl ExpressionBuilder {
         )?;
         let ty = queue.hir[expr.data].ty;
         if let Some(expected) = inner_type {
-            self.unify_types(queue, ty, expected, span)?;
+            self.unify_terms(queue, ty, expected, span)?;
         }
         exprs.push(expr);
         for expr in &expressions[1..] {
@@ -265,7 +276,13 @@ impl ExpressionBuilder {
             exprs.push(expr);
         }
         let final_type = match kind {
-            SequenceKind::Vector => queue.hir.types.create_type(HirType::Vector(ty)),
+            SequenceKind::Vector => queue.hir.types.create_type({
+                let ext = queue
+                    .hir
+                    .types
+                    .create_type(Term::extension_type(VectorTerm));
+                Term::application(ext, vec![ty])
+            }),
             SequenceKind::Array => {
                 let final_length = expected_len.unwrap_or(exprs.len());
                 if let Some(expected_len) = expected_len
@@ -277,10 +294,15 @@ impl ExpressionBuilder {
                         span,
                     ));
                 }
-                queue
-                    .hir
-                    .types
-                    .create_type(HirType::Array(ty, final_length))
+
+                queue.hir.types.create_type({
+                    let len = queue
+                        .hir
+                        .types
+                        .create_type(Term::const_usize_type(final_length));
+                    let ext = queue.hir.types.create_type(Term::extension_type(ArrayTerm));
+                    Term::application(ext, vec![ty])
+                })
             }
         };
         Ok(HirExpression {

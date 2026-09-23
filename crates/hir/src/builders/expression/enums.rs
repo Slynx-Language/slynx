@@ -3,7 +3,7 @@ use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
     HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::HirQueueBuilder, generics::GenericTypeArguments,
+    builders::HirQueueBuilder, generics::GenericTypeArguments, term::Term,
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -82,9 +82,10 @@ impl ExpressionBuilder {
 
         let mut arguments = Vec::new();
         for (arg_index, arg_type) in variant.payload.iter().enumerate() {
-            let (expected_type, generic_index) = match queue.hir.view(*arg_type).raw() {
-                HirType::GenericParam { index, .. } => {
-                    let index = *index as usize;
+            let (expected_type, generic_index) = match queue.hir.view(*arg_type).raw().is_var_type()
+            {
+                Some(term) => {
+                    let index = term.index as usize;
                     let expected = explicit.get(index).copied().or_else(|| generics.get(index));
                     (expected, Some(index))
                 }
@@ -161,8 +162,8 @@ impl ExpressionBuilder {
             .iter()
             .zip(&variant.payload)
             .map(|(arg, ty)| {
-                let expected = match queue.hir.view(*ty).raw() {
-                    HirType::GenericParam { index, .. } => generics.get(*index as usize),
+                let expected = match queue.hir.view(*ty).raw().is_var_type() {
+                    Some(term) => generics.get(term.index as usize),
                     _ => Some(*ty),
                 };
                 let expr = self.build_expression(
@@ -173,8 +174,8 @@ impl ExpressionBuilder {
                         context,
                     },
                 )?;
-                if let HirType::GenericParam { index, .. } = queue.hir.view(*ty).raw() {
-                    generics.set(*index as usize, queue.hir.view(expr.data).ty());
+                if let Some(v) = queue.hir.view(*ty).raw().is_var_type() {
+                    generics.set(v.index as usize, queue.hir.view(expr.data).ty());
                 }
                 Ok(expr)
             })
@@ -256,7 +257,7 @@ impl ExpressionBuilder {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let ty = queue.hir.types.create_type(HirType::Bool);
+        let ty = queue.hir.types.create_type(Term::boolean_type());
         Ok(HirExpression {
             ty,
             kind: HirExpressionKind::Matches {

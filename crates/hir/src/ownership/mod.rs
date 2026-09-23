@@ -33,7 +33,10 @@
 //!
 //! All other types (structs, tuples, arrays, etc.) are Move-only.
 
-use crate::{HirType, SlynxHir, VariableId};
+use crate::{
+    HirType, SlynxHir, VariableId,
+    term::{PrimitiveType, Term},
+};
 
 mod analysis;
 mod place;
@@ -79,8 +82,10 @@ pub enum OwnershipErrorKind {
 
 /// Check if a type is Copy (can be implicitly duplicated).
 pub fn is_copy_type(hir: &SlynxHir, ty: common::pool::DedupPoolId<HirType>) -> bool {
-    matches!(
-        hir.types[ty],
-        HirType::Int | HirType::Float | HirType::Bool | HirType::Str
-    )
+    let ty = &hir.types[ty];
+    ty.is_unsigned().is_some()
+        || ty.is_signed().is_some()
+        || ty.is_primitive() == Some(PrimitiveType::Float32)
+        || ty.is_primitive() == Some(PrimitiveType::Float64)
+        || ty.is_primitive() == Some(PrimitiveType::Void)
 }

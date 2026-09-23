@@ -55,7 +55,7 @@ impl HirViewer<'_, DeclarationId<HirFunctionDeclaration>> {
         self.ty()
             .is_function()
             .expect("Expected Function to have a function type")
-            .arguments()
+            .0
             .get(arg as usize)
             .cloned()
     }
@@ -64,7 +64,7 @@ impl HirViewer<'_, DeclarationId<HirFunctionDeclaration>> {
         self.ty()
             .is_function()
             .expect("Expected Function to have a function type")
-            .return_type()
+            .1
     }
 
     pub fn ty(&self) -> HirViewer<'_, DedupPoolId<HirType>> {

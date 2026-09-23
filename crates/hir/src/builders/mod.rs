@@ -15,12 +15,15 @@ use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, EnumVariantType, HIRError,
     HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
     HirStatement, HirStaticDeclaration, HirType, Result, SlynxHir, SymbolPointer, VariableId,
+    arrays::ArrayTerm,
     builders::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, work_channel::WorkChannel,
     },
     context::HirSymbol,
     helpers::Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::Term,
+    vector::VectorTerm,
 };
 use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
@@ -187,7 +190,7 @@ impl HirNode<'_> {
                             representation.span.make_spanned(representation.data),
                             &TypeContext::new(&[]),
                         )?;
-                        if !matches!(self.hir.view(repr_ty).dereference().raw(), HirType::Int) {
+                        if let None = self.hir.view(repr_ty).dereference().raw().is_unsigned() {
                             return Err(HIRError::invalid_enum_representation(
                                 enum_name,
                                 representation.span,
@@ -299,10 +302,9 @@ impl HirNode<'_> {
                 {
                     return Ok((
                         self.entry,
-                        self.hir.types.create_type(HirType::GenericParam {
-                            index: target as u8,
-                            name: generic.identifier,
-                        }),
+                        self.hir
+                            .types
+                            .create_type(Term::new_variable_type(target as u8, generic.identifier)),
                     ));
                 }
                 let (owner, ty) =
@@ -331,9 +333,7 @@ impl HirNode<'_> {
                     .collect::<Result<Vec<_>>>()?;
                 Ok((
                     owner,
-                    self.hir
-                        .types
-                        .create_type(HirType::new_generic_ref(ty, args)),
+                    self.hir.types.create_type(Term::application(ty, args)),
                 ))
             }
             Type::Array(t, len) => {
@@ -345,25 +345,38 @@ impl HirNode<'_> {
                         "Array length can only be used as integers at the moment. It is idealized to be used in comptime in the future"
                     ),
                 };
-                let ty = self.hir.types.create_type(HirType::Array(ty, len));
+                let array = self.hir.types.create_extension_type(ArrayTerm);
+                let len = self
+                    .hir
+                    .types
+                    .create_type(Term::const_usize_type(len as usize));
+                let ty = self
+                    .hir
+                    .types
+                    .create_type(Term::application(array, vec![ty, len]));
                 Ok((id, ty))
             }
             Type::Vector(t) => {
                 let (id, ty) =
                     self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let ty = self.hir.types.create_type(HirType::Vector(ty));
+                let array = self.hir.types.create_extension_type(VectorTerm);
+                let ty = self
+                    .hir
+                    .types
+                    .create_type(Term::application(array, vec![ty]));
                 Ok((id, ty))
             }
             Type::Reference(t) => {
                 let (id, ty) =
                     self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let ty = self.hir.types.create_type(HirType::ImutableRef(ty));
+
+                let ty = self.hir.types.create_type(Term::reference(ty));
                 Ok((id, ty))
             }
             Type::MutableReference(t) => {
                 let (id, ty) =
                     self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let ty = self.hir.types.create_type(HirType::MutableRef(ty));
+                let ty = self.hir.types.create_type(Term::mutable_reference(ty));
                 Ok((id, ty))
             }
         }

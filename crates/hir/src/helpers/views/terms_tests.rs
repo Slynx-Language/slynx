@@ -3,9 +3,14 @@ mod views_terms_tests {
     use common::{FrontendSymbol, SymbolsModule, VisibilityModifier};
 
     use crate::{
-        EnumVariantType, HirType, SlynxHir, SymbolPointer, arrays::ArrayTerm,
-        context::TypesContext, generic_component::GenericComponentTerm, helpers::Visible,
-        store::HirStore, vector::VectorTerm,
+        EnumVariantType, HirType, SlynxHir, SymbolPointer,
+        arrays::ArrayTerm,
+        context::TypesContext,
+        generic_component::GenericComponentTerm,
+        helpers::Visible,
+        store::HirStore,
+        term::{Term, TermNode, VarTerm},
+        vector::VectorTerm,
     };
 
     fn hir_ctx<'a>(symbols: &'a SymbolsModule<FrontendSymbol>) -> SlynxHir<'a> {
@@ -22,12 +27,12 @@ mod views_terms_tests {
         let symbols = SymbolsModule::<FrontendSymbol>::new();
         let hir = hir_ctx(&symbols);
 
-        let int_id = hir.types.create_type(HirType::Int);
-        let float_id = hir.types.create_type(HirType::Float);
-        let bool_id = hir.types.create_type(HirType::Bool);
-        let str_id = hir.types.create_type(HirType::Str);
-        let void_id = hir.types.create_type(HirType::Void);
-        let generic_id = hir.types.create_type(HirType::GenericComponent);
+        let int_id = hir.types.create_type(Term::signed_integer_type(32));
+        let float_id = hir.types.create_type(Term::float32_type());
+        let bool_id = hir.types.create_type(Term::boolean_type());
+        let str_id = hir.types.create_type(Term::string_type());
+        let void_id = hir.types.create_type(Term::void_type());
+        let generic_id = hir.types.create_type(Term::generic_component_type());
 
         let person_name: SymbolPointer = symbols.intern("Person");
         let field_name: SymbolPointer = symbols.intern("age");
@@ -44,28 +49,25 @@ mod views_terms_tests {
             .types
             .create_function_type(vec![int_id, bool_id], float_id);
         let tuple_id = hir.types.create_tuple_type(vec![int_id, bool_id]);
-        let immut_id = hir.types.create_type(HirType::ImutableRef(int_id));
-        let mut_id = hir.types.create_type(HirType::MutableRef(int_id));
+        let immut_id = hir.types.create_type(Term::reference(int_id));
+        let mut_id = hir.types.create_type(Term::mutable_reference(int_id));
         let person_ref = hir
             .types
-            .create_type(HirType::new_generic_ref(person_id, vec![int_id]));
-        let array_id = hir.types.create_type(HirType::Array(int_id, 4));
-        let vector_id = hir.types.create_type(HirType::Vector(int_id));
+            .create_type(Term::application(person_id, vec![int_id]));
+        let array_id = hir.types.create_type({
+            let array = hir.types.create_type(Term::extension_type(ArrayTerm));
+            let length = hir.types.create_type(Term::const_usize_type(4));
+            Term::application(array, vec![int_id, length])
+        });
+        let vector_id = hir.types.create_type({
+            let vector = hir.types.create_type(Term::extension_type(VectorTerm));
+            Term::application(vector, vec![int_id])
+        });
 
         let ids = [
             int_id, float_id, bool_id, str_id, void_id, generic_id, person_id, func_id, tuple_id,
             immut_id, mut_id, person_ref, array_id, vector_id,
         ];
-
-        for id in ids {
-            let term = hir.types.to_term(id);
-            let hir_name = hir.view(id).name();
-            let term_name = hir.view(term).name();
-            assert_eq!(
-                hir_name, term_name,
-                "name parity (I11) broken for type {id:?} ({term:?})"
-            );
-        }
     }
 
     #[test]
@@ -73,14 +75,21 @@ mod views_terms_tests {
         let symbols = SymbolsModule::<FrontendSymbol>::new();
         let hir = hir_ctx(&symbols);
 
-        let int_id = hir.types.create_type(HirType::Int);
-        let bool_id = hir.types.create_type(HirType::Bool);
-        let float_id = hir.types.create_type(HirType::Float);
-        let str_id = hir.types.create_type(HirType::Str);
-        let void_id = hir.types.create_type(HirType::Void);
-        let generic_id = hir.types.create_type(HirType::GenericComponent);
-        let array_id = hir.types.create_type(HirType::Array(int_id, 4));
-        let vector_id = hir.types.create_type(HirType::Vector(int_id));
+        let int_id = hir.types.create_type(Term::signed_integer_type(32));
+        let bool_id = hir.types.create_type(Term::boolean_type());
+        let float_id = hir.types.create_type(Term::float32_type());
+        let str_id = hir.types.create_type(Term::string_type());
+        let void_id = hir.types.create_type(Term::void_type());
+        let generic_id = hir.types.create_type(Term::generic_component_type());
+        let array_id = hir.types.create_type({
+            let array = hir.types.create_type(Term::extension_type(ArrayTerm));
+            let length = hir.types.create_type(Term::const_usize_type(4));
+            Term::application(array, vec![int_id, length])
+        });
+        let vector_id = hir.types.create_type({
+            let vector = hir.types.create_type(Term::extension_type(VectorTerm));
+            Term::application(vector, vec![int_id])
+        });
         let tuple_id = hir.types.create_tuple_type(vec![int_id, bool_id]);
         let func_id = hir
             .types
@@ -100,8 +109,7 @@ mod views_terms_tests {
         ];
 
         for (id, expected) in cases {
-            let term = hir.types.to_term(id);
-            assert_eq!(hir.view(term).name(), expected, "term name for {expected}");
+            assert_eq!(hir.view(id).name(), expected, "term name for {expected}");
         }
     }
 
@@ -110,87 +118,86 @@ mod views_terms_tests {
         let symbols = SymbolsModule::<FrontendSymbol>::new();
         let hir = hir_ctx(&symbols);
 
-        let int_id = hir.types.create_type(HirType::Int);
-        let bool_id = hir.types.create_type(HirType::Bool);
+        let int_id = hir.types.create_type(Term::signed_integer_type(32));
+        let bool_id = hir.types.create_type(Term::boolean_type());
 
-        let int_term = hir.types.to_term(int_id);
-        let bool_term = hir.types.to_term(bool_id);
-        let float_id = hir.types.create_type(HirType::Float);
-        let float_term = hir.types.to_term(float_id);
-
-        // Array: Apply(target = Array ext, args = [elem, len constant]).
-        let array = hir.view(
-            hir.types
-                .to_term(hir.types.create_type(HirType::Array(int_id, 4))),
-        );
-        let array_children = { array.children() };
-        assert_eq!(array_children.len(), 3);
-        assert!(
-            hir.view(array_children[0])
-                .is_extension()
-                .map(|ext| ext.dyn_eq(&ArrayTerm))
-                .is_some()
-        );
-        assert_eq!(array.is_array(), Some((int_term, 4)));
-        assert_eq!(array.is_vector(), None);
-
+        let float_id = hir.types.create_type(Term::float32_type());
+        {
+            let array = hir.view({
+                let length = hir.types.create_type(Term::const_usize_type(4));
+                let array = hir.types.create_type(Term::extension_type(ArrayTerm));
+                hir.types
+                    .create_type(Term::application(array, vec![int_id, length]))
+            });
+            let array_children = { array.children() };
+            assert_eq!(array_children.len(), 3);
+            assert!(
+                hir.view(array_children[0])
+                    .is_extension()
+                    .map(|ext| ext.dyn_eq(&ArrayTerm))
+                    .is_some()
+            );
+            assert_eq!(array.is_array(), Some((int_id, 4)));
+            assert_eq!(array.is_vector(), None);
+        }
         // Vector: Apply(target = Vector ext, args = [elem]).
-        let vector = hir.view(
-            hir.types
-                .to_term(hir.types.create_type(HirType::Vector(int_id))),
-        );
-        let vector_children = vector.children();
-        assert!(
-            hir.view(vector_children[0])
-                .is_extension()
-                .map(|ext| ext.dyn_eq(&VectorTerm))
-                .is_some()
-        );
-        assert_eq!(vector.children(), vec![vector_children[0], int_term]);
-        assert_eq!(vector.is_vector(), Some(int_term));
-        assert_eq!(vector.is_array(), None);
+        {
+            let vector_term = hir.types.create_type(Term::extension_type(VectorTerm));
+            let vector = hir.view({
+                hir.types
+                    .create_type(Term::application(vector_term, vec![int_id]))
+            });
+            let vector_children = vector.children();
+            assert!(
+                hir.view(vector_children[0])
+                    .is_extension()
+                    .map(|ext| ext.dyn_eq(&VectorTerm))
+                    .is_some()
+            );
+            assert_eq!(vector.children(), vec![vector_term, int_id]); //cause its an application, it's got vector term, and int
+            assert_eq!(vector.is_vector(), Some(int_id));
+            assert_eq!(vector.is_array(), None);
+        }
 
         // Func: children = args + ret.
-        let func = hir.view(
-            hir.types.to_term(
+
+        {
+            let func = hir.view(
                 hir.types
                     .create_function_type(vec![int_id, bool_id], float_id),
-            ),
-        );
-        assert_eq!(
-            func.is_function(),
-            Some((vec![int_term, bool_term], float_term))
-        );
-        assert_eq!(func.children(), vec![int_term, bool_term, float_term]);
+            );
+            assert!(func.is_function().is_some());
+            let (args, ret) = func.is_function().unwrap();
+            assert_eq!(args, &vec![int_id, bool_id]);
+            assert_eq!(ret, float_id);
+            assert_eq!(func.children(), vec![int_id, bool_id, float_id]);
+        }
 
-        // Tuple: children = fields.
-        let tuple = hir.view(
-            hir.types
-                .to_term(hir.types.create_tuple_type(vec![int_id, bool_id])),
-        );
-        assert_eq!(tuple.children(), vec![int_term, bool_term]);
+        {
+            // Tuple: children = fields.
+            let tuple = hir.view(hir.types.create_tuple_type(vec![int_id, bool_id]));
+            assert_eq!(tuple.children(), vec![int_id, bool_id]);
+        }
 
-        // Ref: children = target.
-        let immut = hir.view(
-            hir.types
-                .to_term(hir.types.create_type(HirType::ImutableRef(int_id))),
-        );
-        assert_eq!(immut.children(), vec![int_term]);
-        assert_eq!(immut.is_imutable_ref(), Some(int_term));
-        assert!(immut.is_ref());
+        {
+            // Ref: children = target.
+            let immut = hir.view(hir.types.create_type(Term::mutable_reference(int_id)));
+            assert_eq!(immut.children(), vec![int_id]);
+            assert_eq!(immut.is_imutable_ref(), Some(int_id));
+            assert!(immut.is_ref());
+        }
 
-        // GenericComponent extension has no children and is not a ref.
-        let gc = hir.view(
-            hir.types
-                .to_term(hir.types.create_type(HirType::GenericComponent)),
-        );
-        assert_eq!(
-            gc.is_extension()
-                .map(|ext| ext.dyn_eq(&GenericComponentTerm))
-                .is_some(),
-            true
-        );
-        assert!(gc.children().is_empty());
+        {
+            // GenericComponent extension has no children and is not a ref.
+            let gc = hir.view(hir.types.create_type(Term::generic_component_type()));
+            assert_eq!(
+                gc.is_extension()
+                    .map(|ext| ext.dyn_eq(&GenericComponentTerm))
+                    .is_some(),
+                true
+            );
+            assert!(gc.children().is_empty());
+        }
     }
 
     #[test]
@@ -198,7 +205,7 @@ mod views_terms_tests {
         let symbols = SymbolsModule::<FrontendSymbol>::new();
         let hir = hir_ctx(&symbols);
 
-        let int_id = hir.types.create_type(HirType::Int);
+        let int_id = hir.types.create_type(Term::signed_integer_type(32));
 
         let person_name: SymbolPointer = symbols.intern("Person");
         let field_name: SymbolPointer = symbols.intern("age");
@@ -224,23 +231,21 @@ mod views_terms_tests {
         let label_name: SymbolPointer = symbols.intern("Label");
         let component_id = hir.types.create_component_type(label_name, vec![], vec![]);
 
-        let person_term = hir.view(hir.types.to_term(person_id));
+        let person_term = hir.view(person_id);
         assert!(person_term.is_struct().is_some());
         assert!(person_term.is_enum().is_none());
 
-        let enum_term = hir.view(hir.types.to_term(enum_id));
+        let enum_term = hir.view(enum_id);
         assert!(enum_term.is_enum().is_some());
         assert!(enum_term.is_component().is_none());
 
-        let component_term = hir.view(hir.types.to_term(component_id));
+        let component_term = hir.view(component_id);
         assert!(component_term.is_component().is_some());
 
-        let generic_term = hir.view(hir.types.to_term(hir.types.create_type(
-            HirType::GenericParam {
-                index: 0,
-                name: symbols.intern("T"),
-            },
-        )));
+        let generic_term = hir.view(
+            hir.types
+                .create_type(Term::var_type(0, symbols.intern("T"))),
+        );
         assert!(generic_term.is_generic().is_some());
         assert_eq!(generic_term.name(), "T");
     }
@@ -250,13 +255,9 @@ mod views_terms_tests {
         let symbols = SymbolsModule::<FrontendSymbol>::new();
         let hir = hir_ctx(&symbols);
 
-        let int_id = hir.types.create_type(HirType::Int);
-        let int_term = hir.types.to_term(int_id);
+        let int_term = hir.types.create_type(Term::signed_integer_type(32));
 
-        let mutref = hir.view(
-            hir.types
-                .to_term(hir.types.create_type(HirType::MutableRef(int_id))),
-        );
+        let mutref = hir.view(hir.types.create_type(Term::mutable_reference(int_term)));
         assert_eq!(mutref.is_mutable_ref(), Some(int_term));
         assert!(mutref.is_ref());
     }

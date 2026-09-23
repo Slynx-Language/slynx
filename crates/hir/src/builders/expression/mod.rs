@@ -28,6 +28,7 @@ use crate::{
     },
     context::ScopeContext,
     id::OwnerId,
+    term::{Term, TermNode},
 };
 
 pub mod calls;
@@ -154,23 +155,26 @@ impl ExpressionBuilder {
     ) -> Result<()> {
         let expression = &queue.hir[expr.data];
         match expression.kind {
-            HirExpressionKind::Identifier(ident) => {
-                if let HirType::MutableRef(_) = queue.hir.view(expr.data).ty_viewer().raw() {
-                    return Ok(());
-                }
+            HirExpressionKind::Identifier(_)
+                if let TermNode::Ref { mutable: true, .. } =
+                    queue.hir.view(expr.data).ty_viewer().raw().node() =>
+            {
+                return Ok(());
+            }
+            HirExpressionKind::Identifier(ident)
                 if self
                     .variables
                     .variables
                     .get(&ident)
-                    .is_some_and(|info| info.mutable)
-                {
-                    Ok(())
-                } else {
-                    let name = self.variable_name(ident).expect(
+                    .is_some_and(|info| info.mutable) =>
+            {
+                Ok(())
+            }
+            HirExpressionKind::Identifier(ident) => {
+                let name = self.variable_name(ident).expect(
                         "name of variable should be visible. Something is creating a variable on function builders, but for some reason not defining them on the builder names",
                     );
-                    Err(HIRError::invalid_variable_write(name, expr.span))
-                }
+                Err(HIRError::invalid_variable_write(name, expr.span))
             }
 
             HirExpressionKind::FieldAccess { expr, .. } => {
@@ -290,9 +294,9 @@ impl ExpressionBuilder {
                 )?;
                 let lhs_ty = queue.hir.view(lhs.data).ty();
                 let rhs_ty = queue.hir.view(rhs.data).ty();
-                let ty = self.unify_types(queue, lhs_ty, rhs_ty, target.span)?;
+                let ty = self.unify_terms(queue, lhs_ty, rhs_ty, target.span)?;
                 let ty = if op.is_logical() {
-                    queue.hir.types.create_type(HirType::Bool)
+                    queue.hir.types.create_type(Term::boolean_type())
                 } else {
                     ty
                 };

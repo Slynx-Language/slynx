@@ -14,6 +14,7 @@ use crate::{
     },
     context::HirSymbol,
     id::{AnyLocalDeclarationId, OwnerId},
+    term::Term,
 };
 
 pub struct HirFunctionBuilder {
@@ -154,7 +155,7 @@ impl HirFunctionBuilder {
         let func_view = queue.hir.view(self.target);
         if !func_view.raw_declaration().external
             && !contains_return
-            && func_view.return_type() != queue.hir.types.create_type(HirType::Void)
+            && func_view.return_type() != queue.hir.types.create_type(Term::void_type())
         {
             Err(HIRError::missing_return(func_view.raw_declaration().span))
         } else {

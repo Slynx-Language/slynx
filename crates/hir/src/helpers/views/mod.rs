@@ -7,7 +7,6 @@ mod strukt;
 mod terms;
 #[cfg(test)]
 mod terms_tests;
-mod types;
 
 pub struct HirViewer<'a, T> {
     pub(crate) hir: &'a SlynxHir<'a>,

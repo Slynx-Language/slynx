@@ -162,11 +162,11 @@ impl OwnershipAnalysis {
             HirExpressionKind::FunctionCall { args, name, .. } => {
                 let ty = hir.get_file(name.file_id)[name.local_id].ty;
                 let viewer = hir.view(ty);
-                let ty_viewer = viewer
+                let (arguments, _) = viewer
                     .is_function()
                     .expect("View of the type of a function should be a function type");
 
-                for (arg, param) in args.iter().zip(ty_viewer.arguments()) {
+                for (arg, param) in args.iter().zip(arguments) {
                     if hir.view(*param).is_ref() {
                         self.analyze_expression_read(hir, arg, state);
                     } else {

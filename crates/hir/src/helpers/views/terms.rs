@@ -1,15 +1,16 @@
 use std::{fmt, sync::Arc};
 
+use common::pool::DedupPoolId;
+
 use crate::{
-    DescriptorId, HirViewer,
+    ComponentType, DescriptorId, EnumType, HirViewer, StructType,
     arrays::ArrayTerm,
-    helpers::views::types::primitive_name,
     term::{ConstantTerm, ExtensionNode, Term, TermId, TermNode, VarTerm},
     vector::VectorTerm,
 };
 
 impl<'a> HirViewer<'a, TermId> {
-    pub fn raw(&self) -> &Term {
+    pub fn raw(&self) -> &'a Term {
         self.hir.types.storage.terms.get(self.data)
     }
 
@@ -88,36 +89,43 @@ impl<'a> HirViewer<'a, TermId> {
         None
     }
 
-    pub fn is_function(self) -> Option<(Vec<TermId>, TermId)> {
+    pub fn is_function(self) -> Option<(&'a [TermId], TermId)> {
         if let TermNode::Func { args, ret } = self.raw().node() {
-            return Some((args.clone(), *ret));
+            return Some((args, *ret));
         }
         None
     }
 
-    pub fn is_struct(self) -> Option<DescriptorId> {
+    pub fn is_struct(self) -> Option<HirViewer<'a, DedupPoolId<StructType>>> {
         if let TermNode::Data(descriptor) = self.raw().node() {
-            if matches!(descriptor, DescriptorId::Struct(_)) {
-                return Some(descriptor.clone());
+            if let DescriptorId::Struct(target) = descriptor {
+                return Some(self.new_with(*target));
             }
         }
         None
     }
 
-    pub fn is_enum(self) -> Option<DescriptorId> {
+    pub fn is_enum(self) -> Option<HirViewer<'a, DedupPoolId<EnumType>>> {
         if let TermNode::Data(descriptor) = self.raw().node() {
-            if matches!(descriptor, DescriptorId::Enum(_)) {
-                return Some(descriptor.clone());
+            if let DescriptorId::Enum(target) = descriptor {
+                return Some(self.new_with(*target));
             }
         }
         None
     }
 
-    pub fn is_component(self) -> Option<DescriptorId> {
+    pub fn is_component(self) -> Option<HirViewer<'a, DedupPoolId<ComponentType>>> {
         if let TermNode::Data(descriptor) = self.raw().node() {
-            if matches!(descriptor, DescriptorId::Component(_)) {
-                return Some(descriptor.clone());
+            if let DescriptorId::Component(target) = descriptor {
+                return Some(self.new_with(*target));
             }
+        }
+        None
+    }
+
+    pub fn is_tuple(self) -> Option<&'a [TermId]> {
+        if let TermNode::Tuple { fields } = self.raw().node() {
+            return Some(fields);
         }
         None
     }
@@ -165,7 +173,7 @@ impl<'a> HirViewer<'a, TermId> {
     fn render_name(self) -> String {
         let term = self.raw();
         match term.node() {
-            TermNode::Primitive(pt) => primitive_name(pt),
+            TermNode::Primitive(pt) => format!("{:?}", pt),
             TermNode::Var(var) => self.hir.get_name(var.name).into(),
             TermNode::Data(descriptor) => match descriptor {
                 DescriptorId::Struct(s) => {

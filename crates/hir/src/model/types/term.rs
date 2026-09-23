@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
 use common::pool::DedupPoolId;
+use module_loader::ASTBuiltin;
 
-use crate::{DescriptorId, SymbolPointer};
+use crate::{
+    ComponentType, DescriptorId, EnumType, StructType, SymbolPointer,
+    generic_component::GenericComponentTerm,
+};
 
 pub type TermId = DedupPoolId<Term>;
 pub type HoleId = DedupPoolId<()>;
@@ -173,19 +177,133 @@ pub struct Term {
 }
 
 impl Term {
-    pub fn new_type(node: TermNode) -> Self {
+    pub const fn const_usize_type(size: usize) -> Self {
+        Self::new_type(TermNode::Constant(ConstantTerm::Usize(size)))
+    }
+
+    pub fn extension_type<Ext: ExtensionNode>(ext: Ext) -> Self {
+        Self::new_type(TermNode::Extension(Arc::new(ext)))
+    }
+
+    pub const fn application(target: TermId, args: Vec<TermId>) -> Self {
+        Self::new_type(TermNode::Apply { target, args })
+    }
+
+    pub const fn reference(target: TermId) -> Self {
+        Self::new_type(TermNode::Ref {
+            mutable: false,
+            target,
+        })
+    }
+
+    pub const fn mutable_reference(target: TermId) -> Self {
+        Self::new_type(TermNode::Ref {
+            mutable: true,
+            target,
+        })
+    }
+
+    pub const fn component_type(component: DedupPoolId<ComponentType>) -> Self {
+        Self::new_type(TermNode::Data(DescriptorId::Component(component)))
+    }
+    pub const fn enum_type(enumt: DedupPoolId<EnumType>) -> Self {
+        Self::new_type(TermNode::Data(DescriptorId::Enum(enumt)))
+    }
+    pub const fn struct_type(strukt: DedupPoolId<StructType>) -> Self {
+        Self::new_type(TermNode::Data(DescriptorId::Struct(strukt)))
+    }
+    pub fn generic_component_type() -> Self {
+        Self::extension_type(GenericComponentTerm)
+    }
+
+    pub const fn var_type(index: u8, name: SymbolPointer) -> Self {
+        Self::new_type(TermNode::Var(VarTerm { index, name }))
+    }
+
+    pub const fn string_type() -> Self {
+        Self::new_type(TermNode::Primitive(PrimitiveType::String))
+    }
+
+    pub const fn float32_type() -> Self {
+        Self::new_type(TermNode::Primitive(PrimitiveType::Float32))
+    }
+
+    pub const fn float64_type() -> Self {
+        Self::new_type(TermNode::Primitive(PrimitiveType::Float64))
+    }
+
+    pub const fn signed_integer_type(bitsize: u8) -> Self {
+        Self::new_type(TermNode::Primitive(PrimitiveType::Signed { bitsize }))
+    }
+
+    pub const fn unsigned_integer_type(bitsize: u8) -> Self {
+        Self::new_type(TermNode::Primitive(PrimitiveType::Unsigned { bitsize }))
+    }
+
+    pub const fn boolean_type() -> Self {
+        Self::unsigned_integer_type(1)
+    }
+
+    pub const fn void_type() -> Self {
+        Self::new_type(TermNode::Primitive(PrimitiveType::Void))
+    }
+    pub const fn tuple_type(fields: Vec<TermId>) -> Self {
+        Self::new_type(TermNode::Tuple { fields })
+    }
+    pub const fn function_type(args: Vec<TermId>, ret: TermId) -> Self {
+        Self::new_type(TermNode::Func { args, ret })
+    }
+
+    ///Creates a new variable type term
+    pub const fn new_variable_type(index: u8, name: SymbolPointer) -> Self {
+        Self::new_type(TermNode::Var(VarTerm { index, name }))
+    }
+
+    pub const fn new_type(node: TermNode) -> Self {
         Self::new(node, TermStage::Runtime, TermKind::Type)
     }
 
-    pub fn new_runtime(node: TermNode, kind: TermKind) -> Self {
+    pub const fn new_runtime(node: TermNode, kind: TermKind) -> Self {
         Self::new(node, TermStage::Runtime, kind)
     }
 
-    pub fn new(node: TermNode, stage: TermStage, kind: TermKind) -> Self {
+    pub const fn new(node: TermNode, stage: TermStage, kind: TermKind) -> Self {
         Self { node, stage, kind }
     }
+}
 
-    pub fn node(&self) -> &TermNode {
+impl Term {
+    /// Returns the bit size of this term, if it represents an unsigned integer type.
+    pub fn is_unsigned(&self) -> Option<u8> {
+        if let TermNode::Primitive(PrimitiveType::Unsigned { bitsize }) = self.node() {
+            Some(*bitsize)
+        } else {
+            None
+        }
+    }
+
+    pub fn is_signed(&self) -> Option<u8> {
+        if let TermNode::Primitive(PrimitiveType::Signed { bitsize }) = self.node() {
+            Some(*bitsize)
+        } else {
+            None
+        }
+    }
+    pub fn is_primitive(&self) -> Option<PrimitiveType> {
+        if let TermNode::Primitive(p) = self.node() {
+            Some(p.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn is_var_type(&self) -> Option<&VarTerm> {
+        match self.node() {
+            TermNode::Var(term) => Some(term),
+            _ => None,
+        }
+    }
+    pub const fn node(&self) -> &TermNode {
         &self.node
     }
 
@@ -231,5 +349,19 @@ pub trait ExtensionNode: std::fmt::Debug + std::any::Any {
 impl std::hash::Hash for dyn ExtensionNode {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.dyn_hash(state);
+    }
+}
+impl From<ASTBuiltin> for Term {
+    fn from(value: ASTBuiltin) -> Self {
+        match value {
+            ASTBuiltin::Boolean => Self::boolean_type(),
+            ASTBuiltin::F16 | ASTBuiltin::F32 => Self::float32_type(),
+            ASTBuiltin::F64 => Self::float64_type(),
+            ASTBuiltin::Int(n) => Self::signed_integer_type(n),
+            ASTBuiltin::Uint(n) => Self::unsigned_integer_type(n),
+            ASTBuiltin::Void => Self::void_type(),
+            ASTBuiltin::Str => Self::string_type(),
+            ASTBuiltin::AnyComponent => Self::generic_component_type(),
+        }
     }
 }
