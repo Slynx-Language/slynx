@@ -26,7 +26,7 @@ impl ExpressionBuilder {
             (a, b) if a.data == b.data => Ok(a.data),
             (a, b) if let TermNode::Var { .. } = a.raw().node() => Ok(b.data),
             (b, a) if let TermNode::Var { .. } = a.raw().node() => Ok(b.data),
-            (received, expected) => Err(HIRError::unexpected_terms(
+            (received, expected) => Err(HIRError::unexpected_type(
                 received.data,
                 expected.data,
                 span,

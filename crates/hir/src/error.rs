@@ -1,10 +1,6 @@
-use crate::{
-    ComponentId, SymbolPointer,
-    model::{HirExpression, HirType},
-    term::TermId,
-};
+use crate::{ComponentId, SymbolPointer, model::HirExpression, term::TermId};
 
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 use module_loader::FileId;
 
 /// A temporary component key used during signature resolution.
@@ -72,10 +68,6 @@ pub enum HIRErrorKind {
     InvalidEnumRepresentation(SymbolPointer),
 
     UnexpectedType {
-        expected: TermId,
-        received: TermId,
-    },
-    UnexpectedTerm {
         expected: TermId,
         received: TermId,
     },
@@ -325,12 +317,6 @@ impl HIRError {
         }
     }
 
-    pub fn unexpected_terms(received: TermId, expected: TermId, span: Span) -> Self {
-        Self {
-            kind: HIRErrorKind::UnexpectedTerm { received, expected },
-            span,
-        }
-    }
     pub fn unexpected_type(received: TermId, expected: TermId, span: Span) -> Self {
         Self {
             kind: HIRErrorKind::UnexpectedType { received, expected },
@@ -642,9 +628,7 @@ impl std::fmt::Display for HIRError {
             HIRErrorKind::UnexpectedType { .. } => {
                 write!(f, "Received mismatched types")
             }
-            HIRErrorKind::UnexpectedTerm { .. } => {
-                write!(f, "Received mismatched terms")
-            }
+
             HIRErrorKind::InvalidIndexing(_) => write!(
                 f,
                 "The given expression cannot be indexed because it is not an array nor vector"

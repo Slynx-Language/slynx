@@ -79,6 +79,7 @@ impl SlynxContext {
                     "Received an incorrect type. Expected {expected_name} instead, received type {received_name}"
                 )
             }
+
             HIRErrorKind::InvalidIndexing(ty) => {
                 format!(
                     "Expression cannot be indexed. Type is '{}', instead expected an array/vector type.",
