@@ -3,7 +3,6 @@ pub(crate) mod component;
 mod expression;
 mod function;
 mod structs;
-pub(crate) mod styles;
 mod work_channel;
 use std::{cell::RefCell, ops::Deref};
 
@@ -15,13 +14,16 @@ use common::{
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, EnumVariantType, HIRError,
     HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
-    HirStatement, HirStaticDeclaration, HirType, Result, SlynxHir, SymbolPointer, VariableId,
+    HirStatement, HirStaticDeclaration, Result, SlynxHir, SymbolPointer, VariableId,
+    arrays::ArrayTerm,
     builders::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, work_channel::WorkChannel,
     },
     context::HirSymbol,
     helpers::Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::{PrimitiveType, Term, TermId, TermNode},
+    vector::VectorTerm,
 };
 use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
@@ -78,7 +80,7 @@ pub(crate) struct PendantFunction<'a> {
     context: TypeContext<'a>,
     body: &'a [Spanned<DedupPoolId<ASTStatement>>],
     argument_names: Vec<SymbolPointer>,
-    self_type: Option<DedupPoolId<HirType>>,
+    self_type: Option<TermId>,
 }
 
 pub(crate) struct PendantComponent<'a> {
@@ -117,7 +119,7 @@ impl HirNode<'_> {
         &self,
         name: Spanned<SymbolPointer>,
         context: &TypeContext,
-    ) -> Result<(FileId, DedupPoolId<HirType>)> {
+    ) -> Result<(FileId, TermId)> {
         if let Some(data) = self.modules.find_type(self.entry, name.data) {
             let id = match data.content {
                 ASTTypeKind::Builtin(builtin) => self.hir.types.create_type(builtin.into()),
@@ -188,11 +190,16 @@ impl HirNode<'_> {
                             representation.span.make_spanned(representation.data),
                             &TypeContext::new(&[]),
                         )?;
-                        if !matches!(self.hir.view(repr_ty).dereference().raw(), HirType::Int) {
-                            return Err(HIRError::invalid_enum_representation(
-                                enum_name,
-                                representation.span,
-                            ));
+                        match self.hir.view(repr_ty).dereference().raw().node() {
+                            TermNode::Primitive(
+                                PrimitiveType::Signed { .. } | PrimitiveType::Unsigned { .. },
+                            ) => {}
+                            _ => {
+                                return Err(HIRError::invalid_enum_representation(
+                                    enum_name,
+                                    representation.span,
+                                ));
+                            }
                         }
                     }
                     // Discriminants walk the variants in declaration order.
@@ -269,7 +276,7 @@ impl HirNode<'_> {
         &self,
         ty: Spanned<DedupPoolId<Type>>,
         context: &TypeContext,
-    ) -> Result<(FileId, DedupPoolId<HirType>)> {
+    ) -> Result<(FileId, TermId)> {
         self.find_type_inner(ty, context, None)
     }
 
@@ -284,14 +291,27 @@ impl HirNode<'_> {
         &self,
         ty: Spanned<DedupPoolId<Type>>,
         context: &TypeContext,
-        self_substitute: Option<DedupPoolId<HirType>>,
-    ) -> Result<(FileId, DedupPoolId<HirType>)> {
+        self_substitute: Option<TermId>,
+    ) -> Result<(FileId, TermId)> {
         let real = self.modules.get_type(ty.data);
         match real {
-            Type::Plain(generic) if self_substitute.is_some() => {
-                Ok((self.entry, self_substitute.expect("guarded above")))
+            Type::Plain(generic) if let Some(substitute) = self_substitute => {
+                Ok((self.entry, substitute))
             }
             Type::Plain(generic) => {
+                if generic.generic.is_empty()
+                    && let Some(target) = context
+                        .generic_names
+                        .iter()
+                        .position(|name| *name == generic.identifier)
+                {
+                    return Ok((
+                        self.entry,
+                        self.hir
+                            .types
+                            .create_type(Term::new_variable_type(target as u8, generic.identifier)),
+                    ));
+                }
                 let (owner, ty) =
                     self.find_type_named_as(ty.span.make_spanned(generic.identifier), context)?;
                 if generic.generic.is_empty() {
@@ -318,9 +338,7 @@ impl HirNode<'_> {
                     .collect::<Result<Vec<_>>>()?;
                 Ok((
                     owner,
-                    self.hir
-                        .types
-                        .create_type(HirType::new_generic_ref(ty, args)),
+                    self.hir.types.create_type(Term::application(ty, args)),
                 ))
             }
             Type::Array(t, len) => {
@@ -332,51 +350,44 @@ impl HirNode<'_> {
                         "Array length can only be used as integers at the moment. It is idealized to be used in comptime in the future"
                     ),
                 };
-                let ty = self.hir.types.create_type(HirType::Array(ty, len));
+                let array = self.hir.types.create_extension_type(ArrayTerm);
+                let len = self
+                    .hir
+                    .types
+                    .create_type(Term::const_usize_type(len as usize));
+                let ty = self
+                    .hir
+                    .types
+                    .create_type(Term::application(array, vec![ty, len]));
                 Ok((id, ty))
             }
             Type::Vector(t) => {
                 let (id, ty) =
                     self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let ty = self.hir.types.create_type(HirType::Vector(ty));
+                let array = self.hir.types.create_extension_type(VectorTerm);
+                let ty = self
+                    .hir
+                    .types
+                    .create_type(Term::application(array, vec![ty]));
                 Ok((id, ty))
             }
             Type::Reference(t) => {
                 let (id, ty) =
                     self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let ty = self.hir.types.create_type(HirType::ImutableRef(ty));
+
+                let ty = self.hir.types.create_type(Term::reference(ty));
                 Ok((id, ty))
             }
             Type::MutableReference(t) => {
                 let (id, ty) =
                     self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let ty = self.hir.types.create_type(HirType::MutableRef(ty));
+                let ty = self.hir.types.create_type(Term::mutable_reference(ty));
                 Ok((id, ty))
-            }
-
-            Type::Nullable(nullable) => {
-                let (id, ty) = self.find_type_inner(
-                    ty.span.make_spanned(*nullable),
-                    context,
-                    self_substitute,
-                )?;
-                let ty = self.hir.types.create_type(HirType::Nullable(ty));
-                Ok((id, ty))
-            }
-            Type::Generic(index) if self_substitute.is_some() => {
-                panic!("Generics should not be handled. Cause i dont know how to handle them")
-            }
-            Type::Generic(index) => {
-                let ty = self.hir.types.create_type(HirType::GenericParam {
-                    index: *index,
-                    name: context.generic_names[*index as usize],
-                });
-                Ok((self.entry, ty))
             }
         }
     }
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
-    fn get_signature_of_function(&self, f: &FuncDeclaration) -> Result<DedupPoolId<HirType>> {
+    fn get_signature_of_function(&self, f: &FuncDeclaration) -> Result<TermId> {
         let context = TypeContext::new(&f.type_params);
         let ret = self.find_type(f.return_type, &context)?.1;
         let args = f
@@ -391,10 +402,7 @@ impl HirNode<'_> {
     }
 
     /// Pure computation of a component's signature type (no cycle detection).
-    fn compute_component_type(
-        &self,
-        component: &ComponentDeclaration,
-    ) -> Result<DedupPoolId<HirType>> {
+    fn compute_component_type(&self, component: &ComponentDeclaration) -> Result<TermId> {
         let context = TypeContext::new(&component.type_params);
         let (properties, children) = {
             let mut properties = Vec::with_capacity(component.members.len());
@@ -416,7 +424,7 @@ impl HirNode<'_> {
                         if let Some(view) = view.is_component() {
                             components.push(view.data);
                         } else {
-                            let name = self.type_name(c.data.name.data, &TypeContext::new(&[]));
+                            let name = self.type_name(c.data.name.data);
                             return Err(HIRError::not_a_component(name, c.span));
                         };
                     }
@@ -434,7 +442,7 @@ impl HirNode<'_> {
     pub(crate) fn resolve_component_signature(
         &self,
         component: &ComponentDeclaration,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let key = (self.entry, component.name);
 
         // Push onto cycle-detection stack
@@ -519,7 +527,6 @@ impl<'a> HirQueueBuilder<'a> {
             AnyLocalDeclarationId::Component(local) => {
                 &mut pool.components.get_mut(local).attributes
             }
-            AnyLocalDeclarationId::Style(local) => &mut pool.styles.get_mut(local).attributes,
             AnyLocalDeclarationId::Static(local) => &mut pool.statik.get_mut(local).attributes,
             AnyLocalDeclarationId::Enum(local) => &mut pool.enums.get_mut(local).attributes,
             AnyLocalDeclarationId::Alias(_) => return Ok(()),

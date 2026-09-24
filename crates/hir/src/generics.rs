@@ -23,7 +23,11 @@
 use common::{Spanned, pool::DedupPoolId};
 use slynx_parser::{Type, TypeContext};
 
-use crate::{HirType, Result, SlynxHir, builders::HirNode};
+use crate::{
+    Result, SlynxHir,
+    builders::HirNode,
+    term::{Term, TermId, TermNode},
+};
 
 /// A mapping from a declaration's type-parameter index to a concrete type
 /// argument.
@@ -36,7 +40,7 @@ use crate::{HirType, Result, SlynxHir, builders::HirNode};
 /// expressions — before resolving or substituting types against it.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct GenericTypeArguments {
-    slots: Vec<DedupPoolId<HirType>>,
+    slots: Vec<TermId>,
 }
 
 impl GenericTypeArguments {
@@ -47,7 +51,7 @@ impl GenericTypeArguments {
 
     /// Creates a mapping seeded from a pre-resolved list of explicit type
     /// arguments. `explicit` is indexed by generic-parameter position.
-    pub fn from_explicit(explicit: Vec<DedupPoolId<HirType>>) -> Self {
+    pub fn from_explicit(explicit: Vec<TermId>) -> Self {
         Self { slots: explicit }
     }
 
@@ -65,7 +69,7 @@ impl GenericTypeArguments {
     }
 
     /// The resolved argument for parameter `index`, if any.
-    pub fn get(&self, index: usize) -> Option<DedupPoolId<HirType>> {
+    pub fn get(&self, index: usize) -> Option<TermId> {
         self.slots.get(index).copied().filter(|ty| !ty.is_null())
     }
 
@@ -75,7 +79,7 @@ impl GenericTypeArguments {
     }
 
     /// Sets the argument for parameter `index`, growing the mapping as needed.
-    pub fn set(&mut self, index: usize, ty: DedupPoolId<HirType>) {
+    pub fn set(&mut self, index: usize, ty: TermId) {
         if self.slots.len() <= index {
             self.slots.resize(index + 1, DedupPoolId::new_null());
         }
@@ -87,7 +91,7 @@ impl GenericTypeArguments {
     ///
     /// This is the "explicit arguments win; otherwise infer" rule used when
     /// each parameter may receive an inferred value at most once.
-    pub fn try_set(&mut self, index: usize, ty: DedupPoolId<HirType>) -> bool {
+    pub fn try_set(&mut self, index: usize, ty: TermId) -> bool {
         if self.is_resolved(index) {
             false
         } else {
@@ -100,7 +104,7 @@ impl GenericTypeArguments {
     /// explicit type arguments, indexed by parameter position. Explicit
     /// arguments are only applied to parameters that were declared (see
     /// [`Self::reserve`]) and were not already resolved via inference.
-    pub fn merge_explicit(&mut self, explicit: &[DedupPoolId<HirType>]) {
+    pub fn merge_explicit(&mut self, explicit: &[TermId]) {
         for (index, ty) in explicit.iter().enumerate() {
             if index < self.arity() && !self.is_resolved(index) {
                 self.set(index, *ty);
@@ -110,86 +114,76 @@ impl GenericTypeArguments {
 
     /// Substitutes every generic parameter in `ty` with its argument from this
     /// mapping. Parameters with no resolved argument are left as-is.
-    pub fn substitute(&self, hir: &SlynxHir, ty: DedupPoolId<HirType>) -> DedupPoolId<HirType> {
-        substitute_types(hir, &self.slots, ty)
+    pub fn substitute(&self, hir: &SlynxHir, ty: TermId) -> TermId {
+        substitute_terms(hir, &self.slots, ty)
     }
 
     /// Builds a generic [`HirType::Reference`] to `rf` carrying the resolved
     /// arguments, preserving unresolved (null) slots in the same positions they
     /// occupy in the mapping.
-    pub fn finish_ref(&self, hir: &SlynxHir, rf: DedupPoolId<HirType>) -> DedupPoolId<HirType> {
+    pub fn finish_ref(&self, hir: &SlynxHir, rf: TermId) -> TermId {
         hir.types
-            .create_type(HirType::new_generic_ref(rf, self.slots.clone()))
+            .create_type(Term::application(rf, self.slots.clone()))
     }
 
     /// Consumes the mapping into its raw slot list, indexed by parameter
     /// position (unresolved slots remain [`DedupPoolId::new_null`]).
-    pub fn into_vec(self) -> Vec<DedupPoolId<HirType>> {
+    pub fn into_vec(self) -> Vec<TermId> {
         self.slots
     }
 }
 
-/// Replaces every [`HirType::GenericParam`] inside `ty` with the matching type
+/// Replaces every [`TermNode::Var`] inside `ty` with the matching type
 /// argument from `generics` (indexed by parameter position), recursing through
 /// container types.
-///
-/// This is the substitution half of the generic pipeline: given a concrete
-/// generic reference (e.g. `Container<int>`), it concretizes a type that still
-/// mentions the reference's type parameters (e.g. accessing `Container<T>`'s
-/// `T`-typed field yields `int` instead of a leftover `GenericParam`).
-pub fn substitute_types(
-    hir: &SlynxHir,
-    generics: &[DedupPoolId<HirType>],
-    ty: DedupPoolId<HirType>,
-) -> DedupPoolId<HirType> {
-    match hir.view(ty).raw() {
-        HirType::GenericParam { index, .. } => generics.get(*index as usize).copied().unwrap_or(ty),
-        HirType::Array(inner, len) => {
-            let inner = substitute_types(hir, generics, *inner);
-            hir.types.create_type(HirType::Array(inner, *len))
-        }
-        HirType::Vector(inner) => {
-            let inner = substitute_types(hir, generics, *inner);
-            hir.types.create_type(HirType::Vector(inner))
-        }
-        HirType::Nullable(inner) => {
-            let inner = substitute_types(hir, generics, *inner);
-            hir.types.create_type(HirType::Nullable(inner))
-        }
-        HirType::Tuple(tuple) => {
-            let fields = hir
-                .view(*tuple)
-                .fields()
-                .iter()
-                .map(|field| substitute_types(hir, generics, *field))
-                .collect::<Vec<_>>();
-            hir.types.create_tuple_type(fields)
-        }
-        HirType::Function(function) => {
-            let function_view = hir.view(*function);
-            let args = function_view
-                .arguments()
-                .iter()
-                .map(|arg| substitute_types(hir, generics, *arg))
-                .collect::<Vec<_>>();
-            let ret = substitute_types(hir, generics, function_view.return_type());
-            hir.types.create_function_type(args, ret)
-        }
-        HirType::Reference {
-            rf,
-            generics: inner_generics,
-        } => {
-            let rf = substitute_types(hir, generics, *rf);
-            let mut new_generics = *inner_generics;
-            for slot in &mut new_generics {
-                if !slot.is_null() {
-                    *slot = substitute_types(hir, generics, *slot);
-                }
+pub fn substitute_terms(hir: &SlynxHir, generics: &[TermId], ty: TermId) -> TermId {
+    match hir.view(ty).raw().node() {
+        TermNode::Var(var) => generics[var.index as usize],
+        TermNode::Apply { target, args } => {
+            let target = substitute_terms(hir, generics, *target);
+            let mut new_args = Vec::with_capacity(args.len());
+            for arg in args {
+                let arg = substitute_terms(hir, generics, *arg);
+                new_args.push(arg);
             }
-            hir.types.create_type(HirType::Reference {
-                rf,
-                generics: new_generics,
-            })
+            hir.types.create_term(Term::new_type(TermNode::Apply {
+                target,
+                args: new_args,
+            }))
+        }
+        TermNode::Tuple { fields } => {
+            let mut new_fields = Vec::with_capacity(fields.len());
+            for field in fields {
+                let field = substitute_terms(hir, generics, *field);
+                new_fields.push(field);
+            }
+            hir.types
+                .create_term(Term::new_type(TermNode::Tuple { fields: new_fields }))
+        }
+        TermNode::Func { args, ret } => {
+            let mut new_args = Vec::with_capacity(args.len());
+            for arg in args {
+                let arg = substitute_terms(hir, generics, *arg);
+                new_args.push(arg);
+            }
+            let ret = substitute_terms(hir, generics, *ret);
+            hir.types.create_term(Term::new_type(TermNode::Func {
+                args: new_args,
+                ret,
+            }))
+        }
+        TermNode::Ref { mutable, target } => {
+            let target = substitute_terms(hir, generics, *target);
+            hir.types.create_term(Term::new_type(TermNode::Ref {
+                mutable: *mutable,
+                target,
+            }))
+        }
+        TermNode::Extension(ext) => {
+            let node = TermNode::Extension(
+                ext.map_children(&mut |child| substitute_terms(hir, generics, child)),
+            );
+            hir.types.create_term(Term::new_type(node))
         }
         _ => ty,
     }
@@ -200,12 +194,14 @@ pub fn substitute_types(
 ///
 /// Used to size a generic reference when a declaration does not expose its
 /// declared parameter count directly.
-pub fn implied_arity(types: &[DedupPoolId<HirType>], hir: &SlynxHir) -> usize {
+pub fn implied_arity(types: &[TermId], hir: &SlynxHir) -> usize {
     types
         .iter()
-        .filter_map(|ty| match hir.view(*ty).raw() {
-            HirType::GenericParam { index, .. } => Some(*index as usize + 1),
-            _ => None,
+        .filter_map(|ty| {
+            hir.view(*ty)
+                .raw()
+                .is_var_type()
+                .map(|var| var.index as usize)
         })
         .max()
         .unwrap_or(0)
@@ -221,7 +217,7 @@ impl HirNode<'_> {
         &self,
         generics: &[Spanned<DedupPoolId<Type>>],
         context: &TypeContext,
-    ) -> Result<Vec<DedupPoolId<HirType>>> {
+    ) -> Result<Vec<TermId>> {
         generics
             .iter()
             .map(|ty| self.find_type(*ty, context).map(|(_, ty)| ty))

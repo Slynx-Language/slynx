@@ -2,8 +2,10 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::HirQueueBuilder, generics::GenericTypeArguments,
+    HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
+    builders::HirQueueBuilder,
+    generics::GenericTypeArguments,
+    term::{Term, TermId},
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -15,7 +17,7 @@ pub struct EnumVariantDescriptor<'a> {
 
 pub struct EnumExpressionDescriptor<'a> {
     ///A reference to the enum's HIR type id.
-    pub enum_type: DedupPoolId<HirType>,
+    pub enum_type: TermId,
     pub variant: EnumVariantDescriptor<'a>,
     ///The generic type parameters passed when creating this enum expression. Such as 'Option.Some<int>(65);' explicitly provides [int]
     pub generics: &'a [Spanned<DedupPoolId<Type>>],
@@ -32,7 +34,7 @@ impl ExpressionBuilder {
         &self,
         queue: &HirQueueBuilder,
         name: SymbolPointer,
-    ) -> Option<(DedupPoolId<HirType>, usize)> {
+    ) -> Option<(TermId, usize)> {
         let (owner, enum_id, variant_index) = queue.modules.find_enum_variant(name, self.file())?;
         let node = queue.get_node(owner);
         let enum_decl = queue.modules.get_entry(owner).enums().get(enum_id);
@@ -82,9 +84,10 @@ impl ExpressionBuilder {
 
         let mut arguments = Vec::new();
         for (arg_index, arg_type) in variant.payload.iter().enumerate() {
-            let (expected_type, generic_index) = match queue.hir.view(*arg_type).raw() {
-                HirType::GenericParam { index, .. } => {
-                    let index = *index as usize;
+            let (expected_type, generic_index) = match queue.hir.view(*arg_type).raw().is_var_type()
+            {
+                Some(term) => {
+                    let index = term.index as usize;
                     let expected = explicit.get(index).copied().or_else(|| generics.get(index));
                     (expected, Some(index))
                 }
@@ -161,8 +164,8 @@ impl ExpressionBuilder {
             .iter()
             .zip(&variant.payload)
             .map(|(arg, ty)| {
-                let expected = match queue.hir.view(*ty).raw() {
-                    HirType::GenericParam { index, .. } => generics.get(*index as usize),
+                let expected = match queue.hir.view(*ty).raw().is_var_type() {
+                    Some(term) => generics.get(term.index as usize),
                     _ => Some(*ty),
                 };
                 let expr = self.build_expression(
@@ -173,8 +176,8 @@ impl ExpressionBuilder {
                         context,
                     },
                 )?;
-                if let HirType::GenericParam { index, .. } = queue.hir.view(*ty).raw() {
-                    generics.set(*index as usize, queue.hir.view(expr.data).ty());
+                if let Some(v) = queue.hir.view(*ty).raw().is_var_type() {
+                    generics.set(v.index as usize, queue.hir.view(expr.data).ty());
                 }
                 Ok(expr)
             })
@@ -256,7 +259,7 @@ impl ExpressionBuilder {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let ty = queue.hir.types.create_type(HirType::Bool);
+        let ty = queue.hir.types.create_type(Term::boolean_type());
         Ok(HirExpression {
             ty,
             kind: HirExpressionKind::Matches {

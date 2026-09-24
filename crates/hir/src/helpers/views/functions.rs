@@ -1,17 +1,6 @@
-use common::pool::DedupPoolId;
-
 use crate::{
-    DeclarationId, FunctionType, HirFunctionDeclaration, HirType, SymbolPointer, helpers::HirViewer,
+    DeclarationId, HirFunctionDeclaration, SymbolPointer, helpers::HirViewer, term::TermId,
 };
-
-impl HirViewer<'_, DedupPoolId<FunctionType>> {
-    pub fn arguments(&self) -> &[DedupPoolId<HirType>] {
-        &self.hir.types[self.data].args
-    }
-    pub fn return_type(&self) -> DedupPoolId<HirType> {
-        self.hir.types[self.data].ret
-    }
-}
 
 impl HirViewer<'_, DeclarationId<HirFunctionDeclaration>> {
     pub fn name(&self) -> SymbolPointer {
@@ -27,15 +16,12 @@ impl HirViewer<'_, DeclarationId<HirFunctionDeclaration>> {
     pub fn generic_count(&self) -> usize {
         self.hir.get_function(self.data).generics.len()
     }
-    pub fn type_viewer(&self) -> HirViewer<'_, DedupPoolId<FunctionType>> {
+
+    pub fn type_viewer(&self) -> (&[TermId], TermId) {
         let ty = self.hir.get_function(self.data).ty;
         let viewer = self.hir.view(ty);
-        if let Some(func_viewer) = viewer.is_function() {
-            let data = func_viewer.data;
-            HirViewer {
-                hir: self.hir,
-                data,
-            }
+        if let Some((args, ret)) = viewer.is_function() {
+            (args, ret)
         } else {
             panic!("Type of function is not HirType::Function. internal error during hir creation");
         }

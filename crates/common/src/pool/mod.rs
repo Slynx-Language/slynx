@@ -48,13 +48,7 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
 
     ///Gets the data that originated the given `id`
     pub fn get(&self, id: DedupPoolId<T>) -> &T {
-        self.inner.get(id.as_raw() as usize).unwrap_or_else(|| {
-            panic!(
-                "Expected to retrieve data from pool id originated from insert (id={} count={})",
-                id.as_raw(),
-                self.inner.count()
-            )
-        })
+        unsafe { self.inner.get_unchecked(id.as_raw() as usize) }
     }
 
     pub fn len(&self) -> usize {
@@ -72,9 +66,7 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
     /// mutation (e.g. structs dedup'd by name) and never re-`insert` a value
     /// that expects to be dedup'd on the mutated fields.
     pub fn get_mut(&mut self, id: DedupPoolId<T>) -> &mut T {
-        self.inner
-            .get_mut(id.as_raw() as usize)
-            .expect("Expected to retrieve data from pool id originated from insert")
+        unsafe { self.inner.get_unchecked_mut(id.as_raw() as usize) }
     }
 
     ///Iterates over all values stored on this pool, yielding their `id` and a reference to the data
@@ -99,9 +91,7 @@ impl<T> Pool<T> {
 
     ///Gets the data that originated the given `id`
     pub fn get(&self, id: PoolId<T>) -> &T {
-        self.inner
-            .get(id.as_raw() as usize)
-            .expect("Expected to retrieve data from pool id originated from insert")
+        unsafe { self.inner.get_unchecked(id.as_raw() as usize) }
     }
     pub fn iter<'a>(&'a self) -> PoolIterator<'a, T> {
         PoolIterator {
@@ -111,9 +101,7 @@ impl<T> Pool<T> {
     }
     ///Gets the data that originated the given `id`
     pub fn get_mut(&mut self, id: PoolId<T>) -> &mut T {
-        self.inner
-            .get_mut(id.as_raw() as usize)
-            .expect("Expected to retrieve data from pool id originated from insert")
+        unsafe { self.inner.get_unchecked_mut(id.as_raw() as usize) }
     }
 }
 impl<T> Index<PoolId<T>> for Pool<T> {

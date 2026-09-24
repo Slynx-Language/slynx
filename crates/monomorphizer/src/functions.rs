@@ -6,10 +6,11 @@
 //! concrete, mangled `HirFunctionDeclaration` whose signature and body have
 //! every generic parameter substituted.
 
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 use slynx_hir::{
-    DeclarationId, HirFunctionDeclaration, HirType, Result, SlynxHir,
+    DeclarationId, HirFunctionDeclaration, Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::TermId,
 };
 
 use crate::{Monomorphizer, types::substitute_type};
@@ -21,7 +22,7 @@ impl Monomorphizer {
         &mut self,
         hir: &SlynxHir,
         template: DeclarationId<HirFunctionDeclaration>,
-        args: Vec<DedupPoolId<HirType>>,
+        args: Vec<TermId>,
         span: Span,
     ) -> Result<AnyDeclarationId> {
         let template_any = AnyDeclarationId::new(
@@ -106,16 +107,16 @@ impl Monomorphizer {
         &self,
         hir: &SlynxHir,
         id: AnyDeclarationId,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let AnyLocalDeclarationId::Function(local_id) = id.local_id else {
             unreachable!("A monomorphized call target must be a function")
         };
         let file = hir.get_file(id.file_id);
         let declaration = &file.declarations.declarations.functions[local_id];
         let view = hir.view(declaration.ty);
-        let function = view
+        let (_, return_type) = view
             .is_function()
             .expect("Function declaration should have a function type");
-        Ok(function.return_type())
+        Ok(return_type)
     }
 }

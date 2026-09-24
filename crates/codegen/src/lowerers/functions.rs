@@ -64,10 +64,9 @@ impl<'a> LoweringState<'a> {
         func_ty: TypeId,
         ir: &mut SlynxIR,
     ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
-        let Some(viewer) = self.hir.view(func_ty).is_function() else {
+        let Some((args, return_type)) = self.hir.view(func_ty).is_function() else {
             unreachable!("Initialize function should initialize with the type of a function");
         };
-        let (args, return_type) = (viewer.arguments().to_vec(), viewer.return_type());
         let args = args
             .iter()
             .map(|v| self.types.get_or_create_ir_type(*v, ir))

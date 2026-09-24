@@ -12,8 +12,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirStatement, HirType, Result, SymbolPointer,
-    VariableId,
+    HIRError, HirExpression, HirExpressionKind, HirStatement, Result, SymbolPointer, VariableId,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -28,6 +27,7 @@ use crate::{
     },
     context::ScopeContext,
     id::OwnerId,
+    term::{Term, TermId, TermNode},
 };
 
 pub mod calls;
@@ -49,7 +49,7 @@ pub struct ExpressionDescriptor<'a> {
     ///The AST expression to build
     pub target: Spanned<DedupPoolId<ASTExpression>>,
     ///The expected type of the expression, if known
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     ///The type context used to resolve types
     pub context: &'a TypeContext<'a>,
 }
@@ -63,7 +63,7 @@ pub(crate) struct ExpressionBuildResult {
 #[derive(Debug)]
 pub struct VariableInfo {
     pub name: SymbolPointer,
-    pub type_id: DedupPoolId<HirType>,
+    pub type_id: TermId,
     pub mutable: bool,
 }
 
@@ -90,11 +90,11 @@ impl DerefMut for VariablesManager {
 pub(crate) struct ExpressionBuilder {
     pub(crate) target: OwnerId,
     pub(crate) variables: VariablesManager,
-    pub(crate) self_type: Option<DedupPoolId<HirType>>,
+    pub(crate) self_type: Option<TermId>,
 }
 
 impl ExpressionBuilder {
-    pub fn new(owner: OwnerId, self_type: Option<DedupPoolId<HirType>>) -> Self {
+    pub fn new(owner: OwnerId, self_type: Option<TermId>) -> Self {
         Self {
             target: owner,
             variables: VariablesManager::default(),
@@ -123,7 +123,7 @@ impl ExpressionBuilder {
         name: SymbolPointer,
         id: VariableId,
         mutable: bool,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     ) {
         self.variables.scope.create_name(name, id, mutable);
         self.variables.insert(
@@ -140,7 +140,7 @@ impl ExpressionBuilder {
         &mut self,
         name: SymbolPointer,
         mutable: bool,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
     ) -> VariableId {
         let id = VariableId::new(self.target, self.variables.scope.variable_count() as u16);
         self.create_mapped_variable(name, id, mutable, ty);
@@ -154,23 +154,26 @@ impl ExpressionBuilder {
     ) -> Result<()> {
         let expression = &queue.hir[expr.data];
         match expression.kind {
-            HirExpressionKind::Identifier(ident) => {
-                if let HirType::MutableRef(_) = queue.hir.view(expr.data).ty_viewer().raw() {
-                    return Ok(());
-                }
+            HirExpressionKind::Identifier(_)
+                if let TermNode::Ref { mutable: true, .. } =
+                    queue.hir.view(expr.data).ty_viewer().raw().node() =>
+            {
+                Ok(())
+            }
+            HirExpressionKind::Identifier(ident)
                 if self
                     .variables
                     .variables
                     .get(&ident)
-                    .is_some_and(|info| info.mutable)
-                {
-                    Ok(())
-                } else {
-                    let name = self.variable_name(ident).expect(
+                    .is_some_and(|info| info.mutable) =>
+            {
+                Ok(())
+            }
+            HirExpressionKind::Identifier(ident) => {
+                let name = self.variable_name(ident).expect(
                         "name of variable should be visible. Something is creating a variable on function builders, but for some reason not defining them on the builder names",
                     );
-                    Err(HIRError::invalid_variable_write(name, expr.span))
-                }
+                Err(HIRError::invalid_variable_write(name, expr.span))
             }
 
             HirExpressionKind::FieldAccess { expr, .. } => {
@@ -223,7 +226,7 @@ impl ExpressionBuilder {
                     },
                 );
             }
-            ASTExpression::Null => self.build_null(queue, target.span, expected)?,
+
             ASTExpression::IndexExpression(expr, range) => self.build_index(
                 queue,
                 IndexExpressionDescriptor {
@@ -290,9 +293,9 @@ impl ExpressionBuilder {
                 )?;
                 let lhs_ty = queue.hir.view(lhs.data).ty();
                 let rhs_ty = queue.hir.view(rhs.data).ty();
-                let ty = self.unify_types(queue, lhs_ty, rhs_ty, target.span)?;
+                let ty = self.unify_terms(queue, lhs_ty, rhs_ty, target.span)?;
                 let ty = if op.is_logical() {
-                    queue.hir.types.create_type(HirType::Bool)
+                    queue.hir.types.create_type(Term::boolean_type())
                 } else {
                     ty
                 };

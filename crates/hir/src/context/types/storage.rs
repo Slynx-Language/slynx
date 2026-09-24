@@ -9,60 +9,61 @@ use common::{
 };
 
 use crate::{
-    ComponentType, EnumType, EnumVariantType, FunctionType, HIRError, HirType, Result, StructType,
-    StyleType, SymbolPointer, TupleType, helpers::Visible,
+    ComponentType, DescriptorId, EnumType, EnumVariantType, HIRError, Result, StructType,
+    SymbolPointer, TupleType,
+    helpers::Visible,
+    term::{Term, TermId, TermNode},
 };
 
 use super::{
     components::{ComponentDefinition, ComponentsPool},
     enums::EnumsPool,
     structs::{StructDefinition, StructsPool},
-    styles::StylesPool,
 };
 
 #[derive(Debug)]
 /// Owns the deduplicated pools that store every HIR type shape — structs,
-/// components, styles, enums, functions, tuples and the raw `HirType` tags.
+/// components, enums, functions, tuples and the raw `HirType` tags.
 ///
 /// This is pure storage: it has no concept of names ([`super::registry::TypeRegistry`]
 /// maps names to type ids) and no notion of methods ([`super::methods::MethodTable`]).
 pub struct TypeStorage {
     pub structs: StructsPool,
     pub components: ComponentsPool,
-    pub styles: StylesPool,
     pub enums: EnumsPool,
-    pub functions: DedupPool<FunctionType>,
-    pub types: DedupPool<HirType>,
+    pub terms: DedupPool<Term>,
 }
 impl Default for TypeStorage {
     fn default() -> Self {
         Self {
+            terms: DedupPool::new(),
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
-            styles: StylesPool::default(),
             enums: EnumsPool::default(),
-            functions: DedupPool::new(),
-            types: DedupPool::new(),
         }
     }
 }
 impl TypeStorage {
-    /// Number of distinct types in the type pool.
+    ///Number of distinct types in the term pool.
     pub fn len(&self) -> usize {
-        self.types.len()
+        self.terms.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Inserts `ty` into the deduplicated type pool and returns its id.
-    pub fn insert_type(&self, ty: HirType) -> DedupPoolId<HirType> {
-        self.types.insert(ty)
+    /// Inserts `ty` into the deduplicated term pool and returns its id.
+    ///
+    /// `HirType` is an alias for `Term`, so a type id and a term id are one and
+    /// the same: both flow through the `terms` pool that every [`HirViewer`]
+    /// and `Index` read. The legacy `types` pool is being retired.
+    pub fn insert_type(&self, ty: Term) -> TermId {
+        self.terms.insert(ty)
     }
 
     ///Returns the inner object from the provided `ty`, returns None if the type is not a object
-    pub fn get_object(&self, ty: DedupPoolId<HirType>) -> Option<DedupPoolId<HirType>> {
+    pub fn get_object(&self, ty: TermId) -> Option<TermId> {
         let mut visited = HashSet::new();
         let mut current = ty;
         loop {
@@ -70,16 +71,18 @@ impl TypeStorage {
                 return None;
             }
 
-            match self[current] {
-                HirType::Struct { .. } => return Some(current),
-                HirType::Reference { rf, .. } => current = rf,
+            match self[current].node() {
+                TermNode::Data(DescriptorId::Struct(_)) => {
+                    return Some(current);
+                }
+                TermNode::Apply { target, .. } => current = *target,
                 _ => return None,
             }
         }
     }
 
     ///Returns the inner component from the provided `ty`, returns None if the type is not a object
-    pub fn get_component(&self, ty: &DedupPoolId<HirType>) -> Option<DedupPoolId<HirType>> {
+    pub fn get_component(&self, ty: &TermId) -> Option<TermId> {
         let mut visited = HashSet::new();
         let mut current = *ty;
         loop {
@@ -87,9 +90,11 @@ impl TypeStorage {
                 return None;
             }
 
-            match self[current] {
-                HirType::Component { .. } => return Some(current),
-                HirType::Reference { rf, .. } => current = rf,
+            match self[current].node() {
+                TermNode::Data(DescriptorId::Component(_)) => {
+                    return Some(current);
+                }
+                TermNode::Apply { target, .. } => current = *target,
                 _ => return None,
             }
         }
@@ -125,10 +130,6 @@ impl TypeStorage {
         &self.components[meta]
     }
 
-    pub fn get_style_name(&self, s: DedupPoolId<StyleType>) -> SymbolPointer {
-        let metadata = self.styles[s].metadata;
-        self.styles.index(metadata).name
-    }
     pub fn get_struct_name(&self, s: DedupPoolId<StructType>) -> SymbolPointer {
         let metadata = self.structs[s].metadata;
         self.structs[metadata].name
@@ -138,14 +139,14 @@ impl TypeStorage {
         &self.structs[metadata].fields
     }
 
-    pub fn get_struct_field_types(&self, s: DedupPoolId<StructType>) -> &[DedupPoolId<HirType>] {
+    pub fn get_struct_field_types(&self, s: DedupPoolId<StructType>) -> &[TermId] {
         &self.structs[s].fields
     }
 
     pub fn get_struct_signature(
         &self,
         s: DedupPoolId<StructType>,
-    ) -> Vec<(&Visible<SymbolPointer>, &DedupPoolId<HirType>)> {
+    ) -> Vec<(&Visible<SymbolPointer>, &TermId)> {
         self.get_struct_fields(s)
             .iter()
             .zip(&self.structs[s].fields)
@@ -153,27 +154,23 @@ impl TypeStorage {
     }
 
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
-    pub fn get_type_from_ref(
-        &self,
-        ref_ty: DedupPoolId<HirType>,
-        span: &Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    pub fn get_type_from_ref(&self, ref_ty: TermId, span: &Span) -> Result<TermId> {
         let mut visited = HashSet::new();
         let mut current = ref_ty;
         loop {
-            match self[current] {
-                HirType::Reference { rf, .. } => {
+            match self[current].node() {
+                TermNode::Apply { target, .. } => {
                     if !visited.insert(current) {
                         return Err(HIRError::recursive(current, *span));
                     }
-                    current = rf;
+                    current = *target;
                 }
                 _ => return Ok(current),
             }
         }
     }
 
-    pub fn is_cyclic(&self, ty: DedupPoolId<HirType>) -> bool {
+    pub fn is_cyclic(&self, ty: TermId) -> bool {
         let mut set = HashSet::new();
         let mut queue = VecDeque::new();
         queue.push_back(ty);
@@ -182,22 +179,22 @@ impl TypeStorage {
                 return true;
             }
 
-            match self[ty] {
-                HirType::Reference { rf, .. } => {
-                    queue.push_back(rf);
+            match self[ty].node() {
+                TermNode::Apply { target, .. } => {
+                    queue.push_back(*target);
                 }
-                HirType::Struct(id) => {
-                    for field in &self[id].fields {
+                TermNode::Tuple { fields } => {
+                    for field in fields {
                         queue.push_back(*field);
                     }
                 }
-                HirType::Tuple(id) => {
-                    for field in &self[id].fields {
+                TermNode::Data(DescriptorId::Struct(descriptor)) => {
+                    for field in &self[*descriptor].fields {
                         queue.push_back(*field);
                     }
                 }
-                HirType::Enum(id) => {
-                    for variant in &self[id].variants {
+                TermNode::Data(DescriptorId::Enum(descriptor)) => {
+                    for variant in &self[*descriptor].variants {
                         for field in &variant.payload {
                             queue.push_back(*field);
                         }
@@ -227,13 +224,11 @@ macro_rules! impl_index {
 }
 
 impl_index!(
-    HirType => |this, idx| this.types.get(idx),
+    Term => |this, idx| this.terms.get(idx),
     StructType => |this, idx| &this.structs[idx],
     StructDefinition => |this, idx| &this.structs[idx],
     TupleType => |this, idx| &this.structs[idx],
     EnumType => |this, idx| &this.enums[idx],
     ComponentType => |this, idx| &this.components[idx],
     ComponentDefinition => |this, idx| &this.components[idx],
-    FunctionType => |this, idx| &this.functions[idx],
-    StyleType => |this, idx| &this.styles[idx]
 );

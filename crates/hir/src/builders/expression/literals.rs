@@ -1,13 +1,15 @@
 use common::{
-    Span, Spanned,
+    Spanned,
     pool::{DedupPoolId, PoolId},
 };
 use either::Either;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirType, Result, SymbolPointer,
-    builders::HirQueueBuilder, error::NotMutableReason,
+    HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
+    builders::HirQueueBuilder,
+    error::NotMutableReason,
+    term::{Term, TermId, TermNode},
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -27,7 +29,7 @@ pub struct DereferenceExpressionDescriptor<'a> {
     ///The context of the types to this expression
     pub context: &'a TypeContext<'a>,
     ///The expected type of the dereference, if any. If some, and the generated type does not match, an error will be returned.
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
 }
 
 impl ExpressionBuilder {
@@ -45,14 +47,14 @@ impl ExpressionBuilder {
             },
         )?;
         let expr_ty = queue.hir.view(build_expr.data).ty();
-        let expr_ty = match queue.hir.view(expr_ty).raw() {
-            HirType::ImutableRef(inner) | HirType::MutableRef(inner) => *inner,
+        let expr_ty = match queue.hir.view(expr_ty).raw().node() {
+            TermNode::Ref { target, .. } => target,
             _ => {
                 return Err(HIRError::invalid_deref(descriptor.target.span));
             }
         };
         Ok(HirExpression {
-            ty: expr_ty,
+            ty: *expr_ty,
             kind: HirExpressionKind::Deref(build_expr),
         })
     }
@@ -77,9 +79,9 @@ impl ExpressionBuilder {
         let final_type = {
             let ty = expression_viewer.ty();
             let ty = if descriptor.mutable {
-                HirType::MutableRef(ty)
+                Term::mutable_reference(ty)
             } else {
-                HirType::ImutableRef(ty)
+                Term::reference(ty)
             };
             queue.hir.types.create_type(ty)
         };
@@ -109,34 +111,10 @@ impl ExpressionBuilder {
         }
     }
 
-    pub(super) fn build_null(
-        &self,
-        queue: &HirQueueBuilder,
-        span: Span,
-        expected: Option<DedupPoolId<HirType>>,
-    ) -> Result<HirExpression> {
-        let ty = match expected {
-            None => {
-                return Err(HIRError::couldnt_infer(span));
-            }
-            Some(ty) if let HirType::Nullable(_) = queue.hir.types[ty] => ty,
-            Some(ty) => {
-                return Err(HIRError::unexpected_type(
-                    ty,
-                    queue.hir.types.create_type(HirType::Nullable(ty)),
-                    span,
-                ));
-            }
-        };
-        Ok(HirExpression {
-            ty,
-            kind: HirExpressionKind::Null,
-        })
-    }
-
     pub(super) fn build_bool(&self, queue: &HirQueueBuilder, value: bool) -> HirExpression {
+        let ty = queue.hir.types.create_type(Term::boolean_type());
         HirExpression {
-            ty: queue.hir.types.create_type(HirType::Bool),
+            ty,
             kind: if value {
                 HirExpressionKind::True
             } else {
@@ -146,7 +124,7 @@ impl ExpressionBuilder {
     }
 
     pub(super) fn build_int_literal(&self, queue: &HirQueueBuilder, value: i32) -> HirExpression {
-        queue.hir.create_int_expression(value, 0)
+        queue.hir.create_int_expression(value, 32)
     }
 
     pub(super) fn build_float_literal(&self, queue: &HirQueueBuilder, value: f32) -> HirExpression {

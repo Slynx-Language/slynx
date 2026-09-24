@@ -1,6 +1,6 @@
 use common::{Operator, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType,
+    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
     SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::ExpressionUse,
@@ -281,13 +281,7 @@ impl<'a> LoweringState<'a> {
                     .get_or_create_ir_type(expression.ty, context.ir())?;
                 context.emit(Opcode::Ref, smallvec![inner], ty)
             }
-            HirExpressionKind::Null => {
-                let HirType::Nullable(inner) = self.hir.types[expression.ty].clone() else {
-                    unreachable!("Type of null should be a nullable");
-                };
-                let inner_ty = self.types.get_or_create_ir_type(inner, context.ir())?;
-                context.emit(Opcode::Zeroed, smallvec![], inner_ty)
-            }
+
             HirExpressionKind::ArrayIndex(arr, index) => {
                 let index = self.lower_expression(*index, context)?;
                 let arr = self.lower_expression(*arr, context)?;
@@ -393,19 +387,8 @@ impl<'a> LoweringState<'a> {
                 args,
             } => self.lower_matches(value, *variant, args, context)?,
         };
-        if let HirType::Nullable(_) = &self.hir.types[expression.ty] {
-            let bool_ty = context.ir().types.bool_type();
-            let bool_value = context.emit_const(
-                Operand::Bool(matches!(expression.kind, HirExpressionKind::Null)),
-                bool_ty,
-            );
-            let nullable_type = self
-                .types
-                .get_or_create_ir_type(expression.ty, context.ir())?; //since its nullable, its certain for it to be an struct at this moment, so we can emit it like so
-            Ok(context.emit(Opcode::Struct, smallvec![value, bool_value], nullable_type))
-        } else {
-            Ok(value)
-        }
+
+        Ok(value)
     }
 
     fn lower_matches(

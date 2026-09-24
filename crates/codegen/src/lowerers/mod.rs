@@ -8,10 +8,10 @@ use std::collections::{HashMap, HashSet};
 
 use common::{FrontendSymbol, SymbolPointer};
 use slynx_hir::{
-    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration, HirType,
-    SlynxHir,
+    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::OwnershipAnalysis,
+    term::TermNode,
 };
 use slynx_ir::{
     Component, Function, GlobalValue, IRPointer, IRStorage, IRTypeId, InitValue, SlynxIR,
@@ -105,8 +105,10 @@ impl<'a> LoweringState<'a> {
                 // declaration.ty is a Reference; also register the concrete
                 // Struct TypeId so tuple fields (which resolve through the
                 // Reference) can be found in get_or_create_ir_type.
-                if let HirType::Reference { rf, .. } = &self.hir.types[declaration.ty] {
-                    self.types.register_mapping(*rf, obj);
+                if let TermNode::Apply { target, .. } = self.hir.view(declaration.ty).raw().node()
+                    && self.hir.view(*target).is_extension().is_none()
+                {
+                    self.types.register_mapping(*target, obj);
                 }
             }
             for (id, declaration) in file.declarations.functions.iter().with_ids() {

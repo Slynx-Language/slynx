@@ -1,5 +1,4 @@
-use common::pool::DedupPoolId;
-use slynx_hir::HirType;
+use slynx_hir::term::TermId;
 use slynx_ir::IRType;
 
 use crate::{CodegenError, lowerers::TypeLowerer};
@@ -7,7 +6,7 @@ use crate::{CodegenError, lowerers::TypeLowerer};
 impl<'a> TypeLowerer<'a> {
     pub(crate) fn insert_object_fields_for(
         &mut self,
-        decl: DedupPoolId<HirType>,
+        decl: TermId,
         ir: &mut slynx_ir::SlynxIR,
     ) -> Result<(), CodegenError> {
         let obj_handle = self

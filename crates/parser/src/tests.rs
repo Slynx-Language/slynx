@@ -1,6 +1,7 @@
 use common::pool::{DedupPool, PoolId};
 use common::{FrontendSymbol, Operator, SymbolsModule};
 use slynx_lexer::Lexer;
+use smallvec::smallvec;
 
 use crate::ast::GenericIdentifier;
 use crate::{ASTExpression, ASTStatement, Parser, Program, Type};
@@ -36,23 +37,51 @@ fn generic_function_declaration_maps_params_to_indices() {
     assert_eq!(symbols.get_name(param), "T");
 
     let arg = &func.args[0].data;
+    let generic_type = Type::Plain(GenericIdentifier {
+        generic: smallvec![],
+        identifier: symbols.intern("T"),
+    });
     assert_eq!(symbols.get_name(arg.name.data), "x");
-    assert_eq!(types[arg.kind.data], Type::Generic(0));
+    assert_eq!(types[arg.kind.data], generic_type);
 
-    assert_eq!(types[func.return_type.data], Type::Generic(0));
+    assert_eq!(types[func.return_type.data], generic_type);
 }
 
 #[test]
 fn generic_function_with_multiple_params() {
-    let (program, _, types, _, _) =
+    let (program, symbols, types, _, _) =
         parse_program("func transform<T, T1, T2>(x: T, y: T1, z: T2): T1 { return y; }");
 
     let func = &program.func().get(PoolId::new(0));
     assert_eq!(func.type_params.len(), 3);
-    assert_eq!(types[func.args[0].data.kind.data], Type::Generic(0));
-    assert_eq!(types[func.args[1].data.kind.data], Type::Generic(1));
-    assert_eq!(types[func.args[2].data.kind.data], Type::Generic(2));
-    assert_eq!(types[func.return_type.data], Type::Generic(1));
+    assert_eq!(
+        types[func.args[0].data.kind.data],
+        Type::Plain(GenericIdentifier {
+            generic: smallvec![],
+            identifier: symbols.intern("T")
+        })
+    );
+    assert_eq!(
+        types[func.args[1].data.kind.data],
+        Type::Plain(GenericIdentifier {
+            generic: smallvec![],
+            identifier: symbols.intern("T1")
+        })
+    );
+    assert_eq!(
+        types[func.args[2].data.kind.data],
+        Type::Plain(GenericIdentifier {
+            generic: smallvec![],
+            identifier: symbols.intern("T2")
+        })
+    );
+    assert_eq!(
+        types[func.return_type.data],
+        Type::Plain(GenericIdentifier {
+            generic: smallvec![],
+            identifier: symbols.intern("T1")
+        })
+    );
 }
 
 #[test]
@@ -175,7 +204,13 @@ fn generic_call_inside_generic_body_uses_indices() {
     };
     assert_eq!(symbols.get_name(*identifier), "inner");
     assert_eq!(generic.len(), 1);
-    assert_eq!(types[generic[0].data], Type::Generic(0));
+    assert_eq!(
+        types[generic[0].data],
+        Type::Plain(GenericIdentifier {
+            generic: smallvec![],
+            identifier: symbols.intern("T"),
+        })
+    );
 }
 
 #[test]

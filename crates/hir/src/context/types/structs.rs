@@ -6,8 +6,8 @@ use common::{
 };
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirType, StructType, SymbolPointer, TupleType,
-    helpers::Visible,
+    DeclarationId, HirFunctionDeclaration, StructType, SymbolPointer, TupleType, helpers::Visible,
+    term::TermId,
 };
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -27,7 +27,7 @@ impl StructsPool {
     pub fn insert(
         &self,
         name: SymbolPointer,
-        fields: Vec<Visible<(SymbolPointer, DedupPoolId<HirType>)>>,
+        fields: Vec<Visible<(SymbolPointer, TermId)>>,
         methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
     ) -> (DedupPoolId<StructType>, DedupPoolId<StructDefinition>) {
         let (names, types) = fields

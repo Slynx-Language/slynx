@@ -5,7 +5,7 @@ use common::{
     pool::{DedupPool, DedupPoolId},
 };
 
-use crate::{ComponentType, HirType, SymbolPointer};
+use crate::{ComponentType, SymbolPointer, term::TermId};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ComponentDefinition {
@@ -22,7 +22,7 @@ impl ComponentsPool {
     pub fn insert(
         &self,
         name: SymbolPointer,
-        properties: Vec<(SymbolPointer, DedupPoolId<HirType>)>,
+        properties: Vec<(SymbolPointer, TermId)>,
         children: Vec<DedupPoolId<ComponentType>>,
     ) -> (DedupPoolId<ComponentType>, DedupPoolId<ComponentDefinition>) {
         let (names, properties) = properties.into_iter().unzip();

@@ -32,7 +32,6 @@ pub enum RangeType {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ASTExpression {
-    Null,
     IntLiteral(i32),
     StringLiteral(SymbolPointer),
     FloatLiteral(OrderedFloat<f32>),

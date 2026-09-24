@@ -20,11 +20,6 @@ pub enum Type {
     Plain(GenericIdentifier),
     Array(DedupPoolId<Type>, DedupPoolId<ASTExpression>),
     Vector(DedupPoolId<Type>),
-    Nullable(DedupPoolId<Type>),
-    ///A reference to the i-th type parameter of the enclosing generic declaration.
-    ///For example, in `func A<T>(arg: T): T`, both the `arg` type and the return
-    ///type are represented as `Generic(0)`.
-    Generic(u8),
     Reference(DedupPoolId<Type>),
     MutableReference(DedupPoolId<Type>),
 }
@@ -42,33 +37,19 @@ pub fn type_name(
     symbols: &SymbolsModule<FrontendSymbol>,
     expressions: &DedupPool<ASTExpression>,
     ty: DedupPoolId<Type>,
-    generic_names: &[SymbolPointer],
 ) -> SymbolPointer {
     match &types[ty] {
         Type::Reference(inner) => {
-            let name = symbols.get_name(type_name(
-                types,
-                symbols,
-                expressions,
-                *inner,
-                generic_names,
-            ));
+            let name = symbols.get_name(type_name(types, symbols, expressions, *inner));
             symbols.intern(&format!("&{}", name))
         }
         Type::MutableReference(inner) => {
-            let name = symbols.get_name(type_name(
-                types,
-                symbols,
-                expressions,
-                *inner,
-                generic_names,
-            ));
+            let name = symbols.get_name(type_name(types, symbols, expressions, *inner));
             symbols.intern(&format!("&mut {}", name))
         }
         Type::Plain(gi) => gi.identifier,
         Type::Array(arr, len) => {
-            let name =
-                symbols.get_name(type_name(types, symbols, expressions, *arr, generic_names));
+            let name = symbols.get_name(type_name(types, symbols, expressions, *arr));
             let len = match expressions.get(*len) {
                 ASTExpression::IntLiteral(int) => int.to_string(),
                 _ => unimplemented!(
@@ -79,28 +60,8 @@ pub fn type_name(
         }
         Type::Vector(inner) => symbols.intern(&format!(
             "[]{}",
-            symbols.get_name(type_name(
-                types,
-                symbols,
-                expressions,
-                *inner,
-                generic_names
-            ))
+            symbols.get_name(type_name(types, symbols, expressions, *inner))
         )),
-        Type::Nullable(inner) => {
-            let inner_name = symbols.get_name(type_name(
-                types,
-                symbols,
-                expressions,
-                *inner,
-                generic_names,
-            ));
-            match types.get(*inner) {
-                Type::Array(_, _) | Type::Vector(_) => symbols.intern(&format!("({inner_name})?")),
-                _ => symbols.intern(&format!("{inner_name}?")),
-            }
-        }
-        Type::Generic(index) => generic_names[*index as usize],
     }
 }
 

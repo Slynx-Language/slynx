@@ -4,8 +4,9 @@ mod declarations;
 mod expressions;
 mod functions;
 mod strukt;
-mod styles;
-mod types;
+mod terms;
+#[cfg(test)]
+mod terms_tests;
 
 pub struct HirViewer<'a, T> {
     pub(crate) hir: &'a SlynxHir<'a>,

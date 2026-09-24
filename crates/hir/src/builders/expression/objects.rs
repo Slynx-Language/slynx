@@ -4,7 +4,9 @@ use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_parser::{NamedExpr, Type, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirType, Result, builders::HirQueueBuilder,
+    HIRError, HirExpression, HirExpressionKind, Result,
+    builders::HirQueueBuilder,
+    term::{TermId, TermNode},
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -18,7 +20,7 @@ pub struct ObjectDescriptor<'a> {
     ///The span of the object literal, used for error reporting
     pub span: Span,
     ///The expected type of the object, if known
-    pub expected: Option<DedupPoolId<HirType>>,
+    pub expected: Option<TermId>,
     ///The type context used to resolve types
     pub context: &'a TypeContext<'a>,
 }
@@ -50,30 +52,19 @@ impl ExpressionBuilder {
             .is_struct()
             .expect("Expected name to generate a struct type");
 
-        // A generic object literal written without explicit type
-        // arguments (`Wrapper(data: 5)`) resolves to the raw template
-        // struct type, leaving its fields as `GenericParam`s. When the
-        // expected type is a concrete reference to the same struct,
-        // adopt it so the template's generic fields resolve against the
-        // type arguments.
-        let ty = match ty_view.raw() {
-            HirType::Reference { .. } => ty,
-            _ => match expected {
-                Some(expected_ty)
-                    if queue.hir.view(expected_ty).dereference().data == deref.data
-                        && matches!(
-                            queue.hir.view(expected_ty).raw(),
-                            HirType::Reference { .. }
-                        ) =>
-                {
-                    expected_ty
-                }
-                _ => ty,
-            },
+        let ty = match ty_view.raw().node() {
+            TermNode::Apply { .. } => ty,
+            _ if let Some(expected) = expected
+                && queue.hir.view(expected).dereference().data() == deref.data()
+                && let TermNode::Apply { .. } = queue.hir.view(expected).raw().node() =>
+            {
+                expected
+            }
+            _ => ty,
         };
         let ty_view = queue.hir.view(ty);
-        let generics: &[DedupPoolId<HirType>] = match ty_view.raw() {
-            HirType::Reference { generics, .. } => generics.as_slice(),
+        let generics: &[TermId] = match ty_view.raw().node() {
+            TermNode::Apply { args, .. } => args.as_slice(),
             _ => &[],
         };
 
@@ -115,7 +106,7 @@ impl ExpressionBuilder {
                             .get(&fieldname)
                             .expect("Field name should've been added into type names");
 
-                        let field_ty = crate::generics::substitute_types(
+                        let field_ty = crate::generics::substitute_terms(
                             queue.hir,
                             generics,
                             obj.field_types()[*idx],

@@ -12,9 +12,10 @@ use common::{
     pool::{DedupPoolId, PoolId},
 };
 use slynx_hir::{
-    ComponentMemberDeclaration, ComponentType, HIRError, HirComponentDeclaration, HirType, Result,
-    SlynxHir,
+    ComponentMemberDeclaration, ComponentType, DescriptorId, HIRError, HirComponentDeclaration,
+    Result, SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::{TermId, TermNode},
 };
 
 use crate::{
@@ -30,22 +31,22 @@ impl Monomorphizer {
     pub(crate) fn resolve_component_target(
         &mut self,
         hir: &SlynxHir,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
         span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let ty_view = hir.view(ty);
-        let HirType::Reference { rf, generics } = ty_view.raw() else {
+        let TermNode::Apply { target, args } = ty_view.raw().node() else {
             unreachable!("resolve_component_target requires a Reference type")
         };
-        let ty_view = hir.view(*rf);
+        let ty_view = hir.view(*target);
         let deref = ty_view.dereference();
-        let comp_id = match deref.raw() {
-            HirType::Component(id) => *id,
+        let comp_id = match deref.raw().node() {
+            TermNode::Data(DescriptorId::Component(c)) => *c,
             _ => {
                 return Err(HIRError::generic_arity_mismatch(
                     hir.intern_name("<non-component>"),
                     0,
-                    generics.iter().filter(|slot| !slot.is_null()).count(),
+                    args.iter().filter(|slot| !slot.is_null()).count(),
                     span,
                 ));
             }
@@ -72,7 +73,7 @@ impl Monomorphizer {
             )
         };
 
-        let args: Vec<DedupPoolId<HirType>> = generics
+        let args: Vec<TermId> = args
             .iter()
             .copied()
             .filter(|slot| !slot.is_null())
@@ -137,7 +138,7 @@ impl Monomorphizer {
         comp_ty: DedupPoolId<ComponentType>,
         subst: &Substitution,
         span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let view = hir.view(comp_ty);
         let name = hir.intern_name(view.name());
 
@@ -161,10 +162,13 @@ impl Monomorphizer {
             .map(|child| {
                 let child_ty = self.rebuild_component_type(hir, *child, subst, span)?;
                 let child_view = hir.view(child_ty);
-                let HirType::Component(child_id) = child_view.raw() else {
+                if let TermNode::Data(descriptor) = child_view.raw().node()
+                    && let DescriptorId::Component(child) = descriptor
+                {
+                    Ok(*child)
+                } else {
                     unreachable!("rebuild_component_type must yield a component type")
-                };
-                Ok(*child_id)
+                }
             })
             .collect::<Result<Vec<_>>>()?;
 

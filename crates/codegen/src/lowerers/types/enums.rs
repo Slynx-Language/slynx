@@ -1,5 +1,4 @@
-use common::pool::DedupPoolId;
-use slynx_hir::HirType;
+use slynx_hir::term::TermId;
 use slynx_ir::{IRType, IRTypeId};
 
 use crate::{
@@ -29,7 +28,7 @@ impl<'a> TypeLowerer<'a> {
     ///pass and the on-demand path in `get_or_create_ir_type` can share it.
     pub(crate) fn insert_enum_fields_for(
         &mut self,
-        decl: DedupPoolId<HirType>,
+        decl: TermId,
         ir: &mut slynx_ir::SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
         let key = self.hir.view(decl).dereference().data();

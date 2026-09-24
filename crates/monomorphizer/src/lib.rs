@@ -33,15 +33,16 @@ use std::collections::{HashMap, HashSet};
 
 use common::{
     Span, Spanned,
-    pool::{DedupPoolId, Pool, PoolId},
+    pool::{Pool, PoolId},
 };
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationId, DeclarationsPool, HIRError, HirComponentExpression, HirExpression,
-    HirExpressionKind, HirFunctionDeclaration, HirStatement, HirType, PropertyExpression, Result,
-    SlynxHir, SymbolPointer, VariableId,
+    DeclarationId, DeclarationsPool, DescriptorId, HIRError, HirComponentExpression, HirExpression,
+    HirExpressionKind, HirFunctionDeclaration, HirStatement, PropertyExpression, Result, SlynxHir,
+    SymbolPointer, VariableId,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::{Term, TermId, TermNode},
 };
 
 use types::{
@@ -67,8 +68,8 @@ type FunctionSnapshot = (
 ///   variable's real type once the call/object it came from was specialized.
 #[derive(Clone, Copy)]
 struct TrackedVariable {
-    original: DedupPoolId<HirType>,
-    rebuilt: DedupPoolId<HirType>,
+    original: TermId,
+    rebuilt: TermId,
 }
 
 /// A struct that handles all the monomorphization on the code.
@@ -232,7 +233,7 @@ impl Monomorphizer {
         // `GenericParam`-typed signature, and mark it as dead.
         let void_ty = hir
             .types
-            .create_function_type(Vec::new(), hir.types.create_type(HirType::Void));
+            .create_function_type(Vec::new(), hir.types.create_type(Term::void_type()));
         self.neutralize_generic(
             hir,
             &files,
@@ -299,7 +300,7 @@ impl Monomorphizer {
         name: SymbolPointer,
         template_any: AnyDeclarationId,
         generic_count: usize,
-        args: Vec<DedupPoolId<HirType>>,
+        args: Vec<TermId>,
         span: Span,
         from_cached: impl FnOnce(&SlynxHir, AnyDeclarationId) -> T,
         build: impl FnOnce(
@@ -366,11 +367,11 @@ impl Monomorphizer {
         &mut self,
         hir: &SlynxHir,
         files: &[FileId],
-        void_ty: DedupPoolId<HirType>,
+        void_ty: TermId,
         select: fn(&DeclarationsPool) -> &Pool<D>,
         select_mut: fn(&mut DeclarationsPool) -> &mut Pool<D>,
         is_generic: impl Fn(&D) -> bool,
-        mut neutralize: impl FnMut(&mut D, DedupPoolId<HirType>),
+        mut neutralize: impl FnMut(&mut D, TermId),
         to_any: fn(PoolId<D>) -> AnyLocalDeclarationId,
     ) {
         for file_id in files {
@@ -405,11 +406,6 @@ impl Monomorphizer {
                     return Err(HIRError::not_implemented(alias.name, Span::default()));
                 }
             }
-            for style in file.declarations.declarations.styles.iter() {
-                if !style.generics.is_empty() {
-                    return Err(HIRError::not_implemented(style.name, Span::default()));
-                }
-            }
         }
         Ok(())
     }
@@ -420,9 +416,9 @@ impl Monomorphizer {
     fn resolve_expression_type(
         &mut self,
         hir: &SlynxHir,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
         span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         if is_resolvable_reference(hir, ty) {
             let ty_view = hir.view(ty);
             let deref = ty_view.dereference();
@@ -433,64 +429,59 @@ impl Monomorphizer {
             } else if deref.is_enum().is_some() {
                 self.resolve_enum_target(hir, ty, span)
             } else {
-                unreachable!("Resolvable references only target structs, components, or enums")
+                unreachable!(
+                    "Resolvable references only target structs, components, or enums. Type: '{:?}' '{}'",
+                    deref.data(),
+                    deref.name()
+                )
             };
         }
 
-        match hir.view(ty).raw() {
-            HirType::ImutableRef(inner) => Ok(hir.types.create_type(HirType::ImutableRef(
-                self.resolve_expression_type(hir, *inner, span)?,
+        match hir.view(ty).raw().node() {
+            TermNode::Ref { mutable, target } => Ok(hir.types.create_type({
+                let expr_ty = self.resolve_expression_type(hir, *target, span)?;
+                if *mutable {
+                    Term::mutable_reference(expr_ty)
+                } else {
+                    Term::reference(expr_ty)
+                }
+            })),
+            TermNode::Extension(ext) => Ok(hir.types.create_type(Term::extension(
+                ext.try_map_children(&mut |id| self.resolve_expression_type(hir, id, span))?,
             ))),
-            HirType::MutableRef(inner) => Ok(hir.types.create_type(HirType::MutableRef(
-                self.resolve_expression_type(hir, *inner, span)?,
-            ))),
-            HirType::Array(inner, len) => Ok(hir.types.create_type(HirType::Array(
-                self.resolve_expression_type(hir, *inner, span)?,
-                *len,
-            ))),
-            HirType::Vector(inner) => Ok(hir.types.create_type(HirType::Vector(
-                self.resolve_expression_type(hir, *inner, span)?,
-            ))),
-            HirType::Function(function) => {
-                let function_view = hir.view(*function);
-                let args = function_view
-                    .arguments()
+
+            TermNode::Func { args, ret } => {
+                let args = args
                     .iter()
                     .map(|arg| self.resolve_expression_type(hir, *arg, span))
                     .collect::<Result<Vec<_>>>()?;
-                let ret = self.resolve_expression_type(hir, function_view.return_type(), span)?;
+                let ret = self.resolve_expression_type(hir, *ret, span)?;
                 Ok(hir.types.create_function_type(args, ret))
             }
-            HirType::Tuple(tuple) => {
-                let tuple_view = hir.view(*tuple);
-                let fields = tuple_view
-                    .fields()
+            TermNode::Tuple { fields } => {
+                let fields = fields
                     .iter()
                     .map(|field| self.resolve_expression_type(hir, *field, span))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(hir.types.create_tuple_type(fields))
             }
-            HirType::Component(component) => {
+            TermNode::Data(DescriptorId::Component(component)) => {
                 self.rebuild_component_type(hir, *component, &Substitution::empty(), span)
             }
-            HirType::Reference { rf, generics } => {
-                let new_rf = self.resolve_expression_type(hir, *rf, span)?;
-                let mut new_generics = *generics;
+            TermNode::Apply { target, args } => {
+                let new_rf = self.resolve_expression_type(hir, *target, span)?;
+                let mut new_generics = args.clone();
                 for slot in &mut new_generics {
                     if !slot.is_null() {
                         *slot = self.resolve_expression_type(hir, *slot, span)?;
                     }
                 }
-                Ok(hir.types.create_type(HirType::Reference {
-                    rf: new_rf,
-                    generics: new_generics,
-                }))
+                Ok(hir
+                    .types
+                    .create_type(Term::application(new_rf, new_generics)))
             }
-            HirType::Nullable(inner) => {
-                let new_inner = self.resolve_expression_type(hir, *inner, span)?;
-                Ok(hir.types.create_type(HirType::Nullable(new_inner)))
-            }
-            other => Ok(hir.types.create_type(other.clone())),
+
+            _ => Ok(ty),
         }
     }
 
@@ -576,8 +567,7 @@ impl Monomorphizer {
         let mut call_ty = node.ty;
 
         let kind = match node.kind.clone() {
-            HirExpressionKind::Null
-            | HirExpressionKind::Int(_)
+            HirExpressionKind::Int(_)
             | HirExpressionKind::StringLiteral(_)
             | HirExpressionKind::Float(_)
             | HirExpressionKind::True

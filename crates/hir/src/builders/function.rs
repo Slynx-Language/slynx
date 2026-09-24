@@ -6,7 +6,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTStatement, FuncDeclaration, TypeContext};
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, HirType, Result, SymbolPointer,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result, SymbolPointer,
     VariableId,
     builders::{
         HirQueueBuilder, PendantFunction,
@@ -14,6 +14,7 @@ use crate::{
     },
     context::HirSymbol,
     id::{AnyLocalDeclarationId, OwnerId},
+    term::{Term, TermId},
 };
 
 pub struct HirFunctionBuilder {
@@ -95,10 +96,7 @@ impl<'a> HirQueueBuilder<'a> {
 }
 
 impl HirFunctionBuilder {
-    pub fn new(
-        target: DeclarationId<HirFunctionDeclaration>,
-        self_type: Option<DedupPoolId<HirType>>,
-    ) -> Self {
+    pub fn new(target: DeclarationId<HirFunctionDeclaration>, self_type: Option<TermId>) -> Self {
         Self {
             target,
             builder: ExpressionBuilder::new(OwnerId::Function(target), self_type),
@@ -154,7 +152,7 @@ impl HirFunctionBuilder {
         let func_view = queue.hir.view(self.target);
         if !func_view.raw_declaration().external
             && !contains_return
-            && func_view.return_type() != queue.hir.types.create_type(HirType::Void)
+            && func_view.return_type() != queue.hir.types.create_type(Term::void_type())
         {
             Err(HIRError::missing_return(func_view.raw_declaration().span))
         } else {

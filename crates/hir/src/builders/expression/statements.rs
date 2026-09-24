@@ -4,7 +4,7 @@ use common::{
 };
 use slynx_parser::{ASTStatement, TypeContext};
 
-use crate::{HirStatement, HirType, Result, builders::HirQueueBuilder};
+use crate::{HirStatement, Result, builders::HirQueueBuilder, term::Term};
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
 
@@ -66,7 +66,7 @@ impl ExpressionBuilder {
                 } else {
                     exprty
                 };
-                let ty = self.unify_types(queue, exprty, expected_type, statement.span)?;
+                let ty = self.unify_terms(queue, exprty, expected_type, statement.span)?;
                 let varid = self.create_variable(
                     *name,
                     matches!(stmt, ASTStatement::MutableVar { .. }),
@@ -97,7 +97,7 @@ impl ExpressionBuilder {
                         context,
                     },
                 )?;
-                self.unify_types(
+                self.unify_terms(
                     queue,
                     queue.hir.view(rhs.data).ty(),
                     queue.hir.view(lhs.data).ty(),
@@ -110,7 +110,7 @@ impl ExpressionBuilder {
                     queue,
                     ExpressionDescriptor {
                         target: *condition,
-                        expected: Some(queue.hir.types.create_type(HirType::Bool)),
+                        expected: Some(queue.hir.types.create_type(Term::boolean_type())),
                         context,
                     },
                 )?;

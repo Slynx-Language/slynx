@@ -18,9 +18,9 @@ crossbeam-channel = "0.5.15"
 ordered-float = "5.3.0"
 bitflags = "2.13.1"
 either = "1.18.0"
+thiserror = "2.0.20"
 
 [dependencies]
-clap={ version = "4.5.52", features = ["derive"] }
 
 color-eyre.workspace=true
 common.workspace=true
@@ -34,6 +34,7 @@ module_loader.path="./crates/module_loader"
 slynx-monomorphizer.path="./crates/monomorphizer"
 slynx-ir.path="./crates/ir"
 slynx-codegen.path="./crates/codegen"
+
 
 
 

@@ -2,9 +2,12 @@ mod enums;
 mod structs;
 use std::collections::HashMap;
 
-use common::pool::{DedupPoolId, PoolId};
-use slynx_hir::{HirExpression, HirType, SlynxHir};
-use slynx_ir::{IRStructFlags, IRTypeId, SlynxIR};
+use common::pool::PoolId;
+use slynx_hir::{
+    DescriptorId, HirExpression, SlynxHir,
+    term::{PrimitiveType, TermId, TermNode},
+};
+use slynx_ir::{IRTypeId, SlynxIR};
 
 use crate::{CodegenError, TypeId};
 
@@ -38,7 +41,7 @@ pub struct TypeLowerer<'a> {
     hir: &'a SlynxHir<'a>,
     /// IR layouts for enum types.
     enum_layouts: HashMap<TypeId, EnumLayout>,
-    types: HashMap<DedupPoolId<HirType>, IRTypeId>,
+    types: HashMap<TermId, IRTypeId>,
 }
 
 impl<'a> TypeLowerer<'a> {
@@ -47,20 +50,6 @@ impl<'a> TypeLowerer<'a> {
             hir,
             enum_layouts: HashMap::new(),
             types: HashMap::new(),
-        }
-    }
-
-    ///Generates a type name for use inside a Nullable struct name. Nested
-    ///containers are encoded recursively so the produced name carries no
-    ///special characters (e.g. `[4][]int` -> `ArrayVectorint4`).
-    fn nullable_inner_name(&self, ty: &DedupPoolId<HirType>) -> String {
-        let view = self.hir.view(*ty);
-        if let Some(vec_inner) = view.is_vector() {
-            format!("Vector{}", self.nullable_inner_name(&vec_inner))
-        } else if let Some((arr_inner, len)) = view.is_array() {
-            format!("Array{}{}", self.nullable_inner_name(&arr_inner), len)
-        } else {
-            view.name()
         }
     }
 
@@ -83,50 +72,46 @@ impl<'a> TypeLowerer<'a> {
         ty: TypeId,
         ir: &mut SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
-        let view = self.hir.view(ty);
-        let out = match view.dereference().raw() {
-            HirType::Int => ir.types.int_type(),
-            HirType::Float => ir.types.float_type(),
-            HirType::Bool => ir.types.bool_type(),
-            HirType::Void => ir.types.void_type(),
-            HirType::Str => ir.types.str_type(),
-            HirType::GenericComponent => ir.types.generic_component_type(),
+        // `dereference` unrolls named-type references (the term form of the
+        // old `HirType::Reference`) while leaving arrays, vectors and raw
+        // `Ref`s intact, mirroring the classic `get_or_create_ir_type` that
+        // matched on `view.dereference().raw()`.
+        let deref = self.hir.view(ty).dereference();
+        let out = match deref.raw().node() {
+            TermNode::Primitive(PrimitiveType::Signed { .. }) => ir.types.int_type(),
+            TermNode::Primitive(PrimitiveType::Unsigned { bitsize: 1 }) => ir.types.bool_type(),
+            TermNode::Primitive(PrimitiveType::Unsigned { .. }) => ir.types.int_type(),
+            TermNode::Primitive(PrimitiveType::Float32 | PrimitiveType::Float64) => {
+                ir.types.float_type()
+            }
+            TermNode::Primitive(PrimitiveType::Void) => ir.types.void_type(),
+            TermNode::Primitive(PrimitiveType::String) => ir.types.str_type(),
+            TermNode::Extension(_) => ir.types.generic_component_type(),
             _ if let Some(mapped) = self.get_mapped_type(&ty) => mapped,
-            _ if let Some(viewer) = view.is_tuple() => {
+            _ if let Some(fields) = deref.is_tuple() => {
                 let ir_fields = {
-                    let mut out = Vec::with_capacity(viewer.fields().len());
-                    for field in viewer.fields() {
+                    let mut out = Vec::with_capacity(fields.len());
+                    for field in fields {
                         out.push(self.get_or_create_ir_type(*field, ir)?);
                     }
                     out
                 };
                 ir.types.create_or_get_tuple(ir_fields)
             }
-            HirType::Array(t, len) => {
-                let ty = self.get_or_create_ir_type(*t, ir)?;
-                ir.create_array(ty, *len)
+            _ if let Some((elem, len)) = deref.is_array() => {
+                let elem_ty = self.get_or_create_ir_type(elem, ir)?;
+                ir.create_array(elem_ty, len)
             }
-            HirType::Vector(t) => {
-                let ty = self.get_or_create_ir_type(*t, ir)?;
-                ir.create_vector(ty)
+            _ if let Some(elem) = deref.is_vector() => {
+                let elem_ty = self.get_or_create_ir_type(elem, ir)?;
+                ir.create_vector(elem_ty)
             }
-            HirType::Nullable(inner) => {
-                let name = self.nullable_inner_name(inner);
-                let inner_type = self.get_or_create_ir_type(*inner, ir)?;
-                let boolean = ir.types.bool_type();
-                //struct {T, bool}
-                ir.create_struct_full(
-                    &format!("Nullable{name}"),
-                    vec![inner_type, boolean],
-                    IRStructFlags::NULLABLE,
-                )
+            _ if let Some(target) = deref.is_imutable_ref().or_else(|| deref.is_mutable_ref()) => {
+                let target_ty = self.get_or_create_ir_type(target, ir)?;
+                ir.types.pointer_type(target_ty)
             }
-            HirType::ImutableRef(t) | HirType::MutableRef(t) => {
-                let ty = self.get_or_create_ir_type(*t, ir)?;
-                ir.types.pointer_type(ty)
-            }
-            HirType::Enum(_) => {
-                let key = view.dereference().data();
+            TermNode::Data(DescriptorId::Enum(_)) => {
+                let key = deref.data();
                 // Layout materialization lives in one place:
                 // `insert_enum_fields_for` registers the struct fields, the
                 // payload union and the `EnumLayout` together (idempotently),

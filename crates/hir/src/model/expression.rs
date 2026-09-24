@@ -10,7 +10,7 @@
 //! In the HIR, every expression has:
 //!
 //! - A unique [`ExpressionId`] for identification
-//! - A [`DedupPoolId<HirType>`] representing its type
+//! - A [`TermId`] representing its type
 //! - A [`HirExpressionKind`] describing what kind of expression it is
 //! - A source [`Span`] for error reporting
 //!
@@ -65,14 +65,11 @@
 //! - [`crate::hir::implementation::expression::resolve_expr`] — Expression resolution
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, HirType, SymbolPointer,
-    VariableId, model::HirStatement,
+    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, SymbolPointer, VariableId,
+    model::HirStatement, term::TermId,
 };
 
-use common::{
-    Operator, Spanned,
-    pool::{DedupPoolId, PoolId},
-};
+use common::{Operator, Spanned, pool::PoolId};
 use ordered_float::OrderedFloat;
 
 /// A property assignment within a component construction expression.
@@ -107,7 +104,7 @@ impl PropertyExpression {
 #[derive(Debug, Clone)]
 pub struct HirComponentExpression {
     /// The type of the component.
-    pub name: DedupPoolId<HirType>,
+    pub name: TermId,
     /// The properties of this component
     pub properties: Vec<PropertyExpression>,
     /// The children of this component
@@ -166,7 +163,7 @@ pub enum HirPlace {
 /// # Fields
 ///
 /// - `id` — A unique identifier for this expression
-/// - `ty` — The expression's type, as a [`DedupPoolId<HirType>`]
+/// - `ty` — The expression's type, as a [`TermId`]
 /// - `kind` — What kind of expression this is (literal, binary, call, etc.)
 /// - `span` — The source location of this expression
 ///
@@ -212,7 +209,7 @@ pub struct HirExpression {
     /// - The special `Infer` type, indicating the type should be inferred
     ///
     /// This field is used during type checking to ensure type correctness.
-    pub ty: DedupPoolId<HirType>,
+    pub ty: TermId,
 
     /// The kind of expression this is.
     ///
@@ -343,7 +340,6 @@ pub enum HirExpressionKind {
 
     True,
     False,
-    Null,
 
     /// A tuple expression.
     ///
@@ -446,7 +442,7 @@ pub enum HirExpressionKind {
     /// - `fields` — Field value expressions in declaration order
     Object {
         /// The object's type ID.
-        name: DedupPoolId<HirType>,
+        name: TermId,
 
         /// Field value expressions, in declaration order.
         fields: Vec<Spanned<PoolId<HirExpression>>>,
@@ -513,7 +509,7 @@ pub enum HirExpressionKind {
         /// type id. Inside a generic function body, an argument may still be a
         /// [`HirType::GenericParam`] id (e.g. `identity<T>(x)`); it is resolved
         /// to a concrete type during monomorphization.
-        generics: Vec<DedupPoolId<HirType>>,
+        generics: Vec<TermId>,
     },
 
     /// An enum variant construction expression.
@@ -541,7 +537,7 @@ pub enum HirExpressionKind {
     /// - `args` — Payload value expressions, in payload order
     Enum {
         /// The enum's type id.
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
         /// The index of the variant being constructed.
         variant: usize,
         /// Payload value expressions, in payload order.

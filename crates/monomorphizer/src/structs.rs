@@ -9,10 +9,11 @@
 //! Generic struct methods are not specialized: the specialized struct is
 //! created with an empty method table (see the extension guide).
 
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 use slynx_hir::{
-    HIRError, HirObjectDeclaration, HirType, Result, SlynxHir, Visible,
+    HIRError, HirObjectDeclaration, Result, SlynxHir, Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
+    term::{TermId, TermNode},
 };
 
 use crate::{Monomorphizer, types::substitute_type};
@@ -25,21 +26,21 @@ impl Monomorphizer {
     pub(crate) fn resolve_object_target(
         &mut self,
         hir: &SlynxHir,
-        ty: DedupPoolId<HirType>,
+        ty: TermId,
         span: Span,
-    ) -> Result<DedupPoolId<HirType>> {
+    ) -> Result<TermId> {
         let ty_view = hir.view(ty);
-        let HirType::Reference { rf, generics } = ty_view.raw() else {
+        let TermNode::Apply { target, args } = ty_view.raw().node() else {
             unreachable!("resolve_object_target requires a Reference type")
         };
 
-        let rf_view = hir.view(*rf);
+        let rf_view = hir.view(*target);
         let deref = rf_view.dereference();
         let struct_view = deref.is_struct().ok_or_else(|| {
             HIRError::generic_arity_mismatch(
                 hir.intern_name(&deref.name()),
                 0,
-                generics.iter().filter(|slot| !slot.is_null()).count(),
+                args.iter().filter(|slot| !slot.is_null()).count(),
                 span,
             )
         })?;
@@ -63,7 +64,7 @@ impl Monomorphizer {
             )
         };
 
-        let args: Vec<DedupPoolId<HirType>> = generics
+        let args: Vec<TermId> = args
             .iter()
             .copied()
             .filter(|slot| !slot.is_null())

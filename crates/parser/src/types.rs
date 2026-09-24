@@ -13,10 +13,6 @@ enum TypeMutability {
 }
 
 impl Parser<'_> {
-    pub fn type_name(&self, ty: DedupPoolId<Type>, type_params: &[SymbolPointer]) -> SymbolPointer {
-        crate::type_name(self.types, self.symbols, self.expressions, ty, type_params)
-    }
-
     ///Represents the type of 'Self' on a method call
     pub fn self_type(&self) -> DedupPoolId<Type> {
         self.intern_type(Type::Plain(GenericIdentifier {
@@ -71,17 +67,6 @@ impl Parser<'_> {
             name,
             target,
         })
-    }
-
-    ///Looks up the given identifier in the currently in-scope type parameters.
-    ///Returns the index of the type parameter, so that `T` in
-    ///`func A<T>(arg: T)` maps to `Generic(0)`.
-    fn generic_param_index(
-        &self,
-        type_params: &[SymbolPointer],
-        ident: SymbolPointer,
-    ) -> Option<usize> {
-        type_params.iter().position(|name| *name == ident)
     }
 
     ///Parsing a generic name means that it will parse a name which contains after it generics, such as func F<T,K,Q>(){}, this function will then be called to parse F<T,K,Q> which is the name of the
@@ -264,8 +249,6 @@ impl Parser<'_> {
                         identifier: ident.data,
                     }));
                     span.make_spanned(id)
-                } else if let Some(index) = self.generic_param_index(type_params, ident.data) {
-                    span.make_spanned(self.intern_type(Type::Generic(index as u8)))
                 } else {
                     let id = self.intern_type(Type::Plain(GenericIdentifier {
                         generic: smallvec![],
@@ -275,14 +258,8 @@ impl Parser<'_> {
                 }
             }
         };
-        if self.peek()?.kind == TokenKind::Question {
-            let end = self.eat()?.span;
-            let span = ty.span.merge_with(end);
-            let ty = self.intern_type(Type::Nullable(ty.data));
-            Ok(span.make_spanned(ty))
-        } else {
-            Ok(ty)
-        }
+
+        Ok(ty)
     }
 
     ///Looks ahead without consuming to check whether the current identifier is a
