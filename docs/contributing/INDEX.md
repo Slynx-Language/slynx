@@ -52,6 +52,8 @@ This helps contributors quickly navigate from documentation to code.
 | [`boostraping-components.md`](boostraping-components.md) | Bootstrapped components contract: context, slots, lifecycle |
 | [`string-interning.md`](string-interning.md) | Symbol interning strategy (`SymbolPointer`) |
 | [`main-goal.md`](main-goal.md) | Main goal of the language and its remaining features |
+| [`interfaces.md`](interfaces.md) | Interfaces feature: scope decisions, design (self-as-var, bounds, deferred calls, impl registry), required-vs-skipped analysis, and implementation steps |
+| [`extensible-core/INDEX.md`](extensible-core/INDEX.md) | Design study: a minimal moddable core where every feature (traits, HKT, typestate, effects, comptime, move semantics) is an installable extension |
 
 ## Conventions
 
