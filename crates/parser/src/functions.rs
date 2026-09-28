@@ -77,7 +77,7 @@ impl Parser<'_> {
                     end,
                 )];
                 Ok(FuncDeclaration {
-                    attributes: vec![],
+                    attributes,
                     visibility: Default::default(),
                     span: span.merge_with(end),
                     name,

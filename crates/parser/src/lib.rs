@@ -18,6 +18,7 @@ mod styles;
 mod types;
 pub use ast::*;
 pub use program::*;
+mod interfaces;
 
 #[cfg(test)]
 mod tests;

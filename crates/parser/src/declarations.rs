@@ -64,6 +64,12 @@ impl<'a> Parser<'a> {
             VisibilityModifier::Private
         };
         match &self.peek()?.kind {
+            TokenKind::Interface => {
+                let Token { span, .. } = self.eat()?;
+                let mut interface = self.parse_interface(span, attributes)?;
+                interface.visibility = visibility;
+                program.append_interfaces(interface);
+            }
             TokenKind::Import => {
                 let span = self.eat()?.span;
                 let import = self.parse_import(span)?;

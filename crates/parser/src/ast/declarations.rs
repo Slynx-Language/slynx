@@ -78,6 +78,33 @@ pub struct FuncDeclaration {
     pub span: Span,
     pub external: bool,
 }
+
+///An interface declaration. This represents interfaces declarations such as the following:
+///```
+///@myattribute
+///pub interface Name<T,K>: SuperInterface, AnotherSuper where K: As<Bytes> {
+/// func normalMethod(&self);
+/// func normalMethod2(&mut self) -> int;
+/// func owningMethod(self) {
+///     //also containing default implementation
+/// }
+/// func staticMethod() -> int {
+///     //static method with default implementation
+/// }
+/// func usingGenericMethod(&self, input: T) -> K;
+///}
+///```
+#[derive(Debug)]
+pub struct InterfaceDeclaration {
+    pub name: SymbolPointer,
+    pub type_args: Vec<SymbolPointer>,
+    pub methods: Vec<FuncDeclaration>,
+    pub super_interfaces: Vec<Spanned<DedupPoolId<Type>>>,
+    pub attributes: Vec<Spanned<ASTAttribute>>,
+    pub visibility: VisibilityModifier,
+    pub span: Span,
+}
+
 #[derive(Debug)]
 pub struct StyleSheet {
     ///The type parameters declared by this generic function. Each parameter is a
