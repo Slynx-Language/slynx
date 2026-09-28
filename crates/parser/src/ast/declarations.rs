@@ -104,6 +104,14 @@ pub struct InterfaceDeclaration {
     pub visibility: VisibilityModifier,
     pub span: Span,
 }
+#[derive(Debug)]
+pub struct ExtendDeclaration {
+    pub target: Spanned<DedupPoolId<Type>>,
+    pub type_args: Vec<SymbolPointer>,
+    pub methods: Vec<FuncDeclaration>,
+    pub attributes: Vec<Spanned<ASTAttribute>>,
+    pub span: Span,
+}
 
 #[derive(Debug)]
 pub struct StyleSheet {

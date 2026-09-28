@@ -1,6 +1,6 @@
 use crate::{
-    AliasDeclaration, ComponentDeclaration, EnumDeclaration, FileImport, FuncDeclaration,
-    InterfaceDeclaration, ObjectDeclaration, StaticDeclaration, StyleSheet,
+    AliasDeclaration, ComponentDeclaration, EnumDeclaration, ExtendDeclaration, FileImport,
+    FuncDeclaration, InterfaceDeclaration, ObjectDeclaration, StaticDeclaration, StyleSheet,
 };
 use common::pool::Pool;
 use paste::paste;
@@ -44,5 +44,6 @@ program! {
     style: StyleSheet,
     statics: StaticDeclaration,
     enums: EnumDeclaration,
-    interfaces: InterfaceDeclaration
+    interfaces: InterfaceDeclaration,
+    extensions: ExtendDeclaration,
 }

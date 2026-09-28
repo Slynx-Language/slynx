@@ -64,6 +64,11 @@ impl<'a> Parser<'a> {
             VisibilityModifier::Private
         };
         match &self.peek()?.kind {
+            TokenKind::Extend => {
+                let Token { span, .. } = self.eat()?;
+                let extend = self.parse_extend(span, attributes)?;
+                program.append_extensions(extend);
+            }
             TokenKind::Interface => {
                 let Token { span, .. } = self.eat()?;
                 let mut interface = self.parse_interface(span, attributes)?;

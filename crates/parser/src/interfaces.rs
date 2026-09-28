@@ -1,7 +1,9 @@
 use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
 
-use crate::{ASTAttribute, InterfaceDeclaration, Parser, Result, SymbolPointer, Type};
+use crate::{
+    ASTAttribute, ExtendDeclaration, InterfaceDeclaration, Parser, Result, SymbolPointer, Type,
+};
 
 impl Parser<'_> {
     fn parse_interface_requirements(
@@ -55,6 +57,48 @@ impl Parser<'_> {
             super_interfaces: requirements,
             attributes,
             visibility: VisibilityModifier::default(),
+            span: span.merge_with(end),
+        })
+    }
+
+    pub fn parse_extension_generics(&mut self) -> Result<Vec<SymbolPointer>> {
+        if self.peek()?.kind != TokenKind::Lt {
+            return Ok(Vec::new());
+        } else {
+            let mut out = Vec::new();
+            self.expect(&TokenKind::Lt)?;
+            while self.peek()?.kind != TokenKind::Gt {
+                out.push(self.expect_identifier()?.data);
+                if self.peek()?.kind == TokenKind::Gt {
+                    break;
+                }
+                self.expect(&TokenKind::Comma)?;
+            }
+            self.expect(&TokenKind::Gt)?;
+            Ok(out)
+        }
+    }
+
+    pub fn parse_extend(
+        &mut self,
+        span: Span,
+        attributes: Vec<Spanned<ASTAttribute>>,
+    ) -> Result<ExtendDeclaration> {
+        let generic_inputs = self.parse_extension_generics()?;
+        let target = self.parse_type(&generic_inputs)?;
+        self.expect(&TokenKind::RBrace)?;
+        let mut methods = Vec::new();
+        while self.peek()?.kind != TokenKind::RBrace {
+            let attributes = self.parse_attributes()?;
+            let span = self.peek()?.span;
+            methods.push(self.parse_func(span, attributes)?);
+        }
+        let end = self.expect(&TokenKind::RBrace)?.span;
+        Ok(ExtendDeclaration {
+            target,
+            type_args: generic_inputs,
+            methods,
+            attributes,
             span: span.merge_with(end),
         })
     }
