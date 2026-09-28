@@ -1,66 +1,23 @@
-use std::path::PathBuf;
 mod common;
 
+/// Compiles `examples/tupleAccess.syx` (a regression fixture: the tuple's
+/// first field is a concrete Struct TypeId, not a Reference), asserting the
+/// generated artifact is a `.sir` output.
 #[test]
 fn test_tuple_access() {
-    let context = slynx::SlynxContext::new(
-        PathBuf::from("examples/tupleAccess.syx"),
-        Some(common::STD_PATH.clone()),
-    )
-    .unwrap();
-    let output = context.compile().unwrap();
-
-    assert_eq!(
-        output
-            .output_path()
-            .extension()
-            .and_then(|ext| ext.to_str()),
-        Some("sir")
-    );
+    common::compile_ok_sir("examples/tupleAccess.syx");
 }
 
-/// Regression: tuple whose first field is a concrete Struct TypeId (not a Reference).
-/// Previously panicked with IRTypeNotRecognized(TypeId(7)).
-#[test]
-fn test_tuple_object_and_string() {
-    let context = slynx::SlynxContext::new(
-        PathBuf::from("examples/tupleAccess.syx"),
-        Some(common::STD_PATH.clone()),
-    )
-    .unwrap();
-    let output = context.compile().unwrap();
-    assert_eq!(
-        output.output_path().extension().and_then(|e| e.to_str()),
-        Some("sir")
-    );
-}
-
-/// Two objects of the same type inside a tuple.
+/// Compiles `examples/tupleTwoObjects.syx`, asserting the generated artifact is
+/// a `.sir` output.
 #[test]
 fn test_tuple_two_objects() {
-    let context = slynx::SlynxContext::new(
-        PathBuf::from("examples/tupleTwoObjects.syx"),
-        Some(common::STD_PATH.clone()),
-    )
-    .unwrap();
-    let output = context.compile().unwrap();
-    assert_eq!(
-        output.output_path().extension().and_then(|e| e.to_str()),
-        Some("sir")
-    );
+    common::compile_ok_sir("examples/tupleTwoObjects.syx");
 }
 
-/// Nested tuple containing an object: ((Person, str), int).
+/// Compiles `examples/tupleNestedObject.syx`, asserting the generated artifact
+/// is a `.sir` output.
 #[test]
 fn test_tuple_nested_object() {
-    let context = slynx::SlynxContext::new(
-        PathBuf::from("examples/tupleNestedObject.syx"),
-        Some(common::STD_PATH.clone()),
-    )
-    .unwrap();
-    let output = context.compile().unwrap();
-    assert_eq!(
-        output.output_path().extension().and_then(|e| e.to_str()),
-        Some("sir")
-    );
+    common::compile_ok_sir("examples/tupleNestedObject.syx");
 }

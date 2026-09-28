@@ -1,18 +1,11 @@
-use std::path::PathBuf;
 mod common;
+
+/// Regression test: assigning B into prop typed as A must fail type checking.
 #[test]
 fn test_component_type_mismatch_errors() {
-    // SavioCodes | 2026-02-28 14:26 (America/Sao_Paulo)
-    // Regression test: assigning B into prop typed as A must fail type checking.
-    let context = slynx::SlynxContext::new(
-        PathBuf::from("examples/componentTypeMismatch.syx"),
-        Some(common::STD_PATH.clone()),
-    )
-    .unwrap();
-
-    let result = context.compile();
+    let err = common::compile_fails("examples/componentTypeMismatch.syx");
     assert!(
-        result.is_err(),
+        !err.is_empty(),
         "Expected type checker to reject incompatible component assignment",
     );
 }

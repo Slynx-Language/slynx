@@ -1,20 +1,8 @@
-use std::path::PathBuf;
 mod common;
 
+/// Compiles `examples/booleans.syx` and asserts the generated artifact is a
+/// `.sir` output.
 #[test]
 fn test_variables() {
-    let context = slynx::SlynxContext::new(
-        PathBuf::from("examples/booleans.syx"),
-        Some(common::STD_PATH.clone()),
-    )
-    .unwrap();
-    let output = context.compile().unwrap();
-
-    assert_eq!(
-        output
-            .output_path()
-            .extension()
-            .and_then(|ext| ext.to_str()),
-        Some("sir")
-    );
+    common::compile_ok_sir("examples/booleans.syx");
 }

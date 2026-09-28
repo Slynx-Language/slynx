@@ -1,34 +1,28 @@
+mod common;
+
 use std::{
     fs,
-    path::PathBuf,
-    time::{SystemTime, UNIX_EPOCH},
+    path::{Path, PathBuf},
 };
-mod common;
 
 use slynx::{SlynxContext, compile_code};
 
-fn temp_case_dir(name: &str) -> PathBuf {
-    let mut path = std::env::temp_dir();
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock should be after unix epoch")
-        .as_nanos();
-    path.push(format!("slynx-{name}-{}-{nonce}", std::process::id()));
-    path
-}
-
-fn write_temp_source(case_dir: &PathBuf) -> PathBuf {
-    fs::create_dir_all(case_dir).expect("temp case dir should be created");
+fn temp_source_path(case: &str) -> PathBuf {
+    let case_dir = common::temp_dir(case);
     let source_path = case_dir.join("input.slynx");
     let source = fs::read_to_string("examples/booleans.syx").expect("fixture should exist");
     fs::write(&source_path, source).expect("temp source should be written");
     source_path
 }
 
+fn cleanup(path: &Path) {
+    fs::remove_dir_all(path.parent().expect("temp file should live in a case dir"))
+        .expect("temp case dir should be removed");
+}
+
 #[test]
 fn compile_returns_output_before_writing() {
-    let case_dir = temp_case_dir("compile-output");
-    let source_path = write_temp_source(&case_dir);
+    let source_path = temp_source_path("compile-output");
     let output_path = source_path.with_extension("sir");
 
     let context = SlynxContext::new(source_path, None).expect("context should be created");
@@ -40,13 +34,12 @@ fn compile_returns_output_before_writing() {
     output.write().expect("output should be written");
     assert!(output_path.exists());
 
-    fs::remove_dir_all(case_dir).expect("temp case dir should be removed");
+    cleanup(&output_path);
 }
 
 #[test]
 fn compile_code_still_writes_js_output() {
-    let case_dir = temp_case_dir("compile-code");
-    let source_path = write_temp_source(&case_dir);
+    let source_path = temp_source_path("compile-code");
     let output_path = source_path.with_extension("sir");
 
     compile_code(source_path, Some(common::STD_PATH.clone()))
@@ -59,13 +52,12 @@ fn compile_code_still_writes_js_output() {
             .is_empty()
     );
 
-    fs::remove_dir_all(case_dir).expect("temp case dir should be removed");
+    cleanup(&output_path);
 }
 
 #[test]
 fn build_stages_exposes_hir_and_ir_dumps_without_writing_files() {
-    let case_dir = temp_case_dir("build-stages");
-    let source_path = write_temp_source(&case_dir);
+    let source_path = temp_source_path("build-stages");
     let hir_path = source_path.with_extension("hir");
     let ir_path = source_path.with_extension("ir");
 
@@ -79,13 +71,12 @@ fn build_stages_exposes_hir_and_ir_dumps_without_writing_files() {
     assert!(!hir_path.exists());
     assert!(!ir_path.exists());
 
-    fs::remove_dir_all(case_dir).expect("temp case dir should be removed");
+    cleanup(&hir_path);
 }
 
 #[test]
 fn build_stages_can_write_hir_ir_and_sir_outputs() {
-    let case_dir = temp_case_dir("dump-files");
-    let source_path = write_temp_source(&case_dir);
+    let source_path = temp_source_path("dump-files");
 
     let ir_path = source_path.with_extension("ir");
     let sir_path = source_path.with_extension("sir");
@@ -106,5 +97,5 @@ fn build_stages_can_write_hir_ir_and_sir_outputs() {
         );
     }
 
-    fs::remove_dir_all(case_dir).expect("temp case dir should be removed");
+    cleanup(&ir_path);
 }
