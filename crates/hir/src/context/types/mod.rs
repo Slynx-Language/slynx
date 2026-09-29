@@ -10,9 +10,10 @@ use common::pool::DedupPoolId;
 use dashmap::{DashMap, DashSet};
 
 use crate::{
-    ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, Result,
-    StructType, SymbolPointer, TupleType, VariableId,
+    ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, InterfaceType,
+    Result, StructType, SymbolPointer, TupleType, VariableId,
     helpers::Visible,
+    interface::InterfaceTerm,
     term::{ExtensionNode, Term, TermId, TermNode},
 };
 
@@ -148,6 +149,27 @@ impl TypesContext {
     ) -> TermId {
         let (comp_ty, _) = self.storage.components.insert(name, properties, children);
         let id = self.storage.insert_type(Term::component_type(comp_ty));
+        self.registry.register(name, id);
+        id
+    }
+
+    pub fn create_interface_type(
+        &self,
+        name: SymbolPointer,
+        methods: Vec<(SymbolPointer, TermId)>,
+        generic_count: u8,
+        super_interfaces: Vec<TermId>,
+    ) -> TermId {
+        let interface_type = self.storage.interfaces.insert(InterfaceType {
+            name,
+            methods,
+            generic_count,
+            super_interfaces,
+        });
+        let interface = InterfaceTerm {
+            raw: interface_type,
+        };
+        let id = self.storage.insert_type(Term::extension_type(interface));
         self.registry.register(name, id);
         id
     }

@@ -86,6 +86,8 @@ impl Parser<'_> {
     ) -> Result<ExtendDeclaration> {
         let generic_inputs = self.parse_extension_generics()?;
         let target = self.parse_type(&generic_inputs)?;
+        self.expect(&TokenKind::Colon)?;
+        let target_interface = self.parse_type(&generic_inputs)?;
         self.expect(&TokenKind::RBrace)?;
         let mut methods = Vec::new();
         while self.peek()?.kind != TokenKind::RBrace {
@@ -96,6 +98,7 @@ impl Parser<'_> {
         let end = self.expect(&TokenKind::RBrace)?.span;
         Ok(ExtendDeclaration {
             target,
+            interface: target_interface,
             type_args: generic_inputs,
             methods,
             attributes,

@@ -43,6 +43,7 @@
 //! - [`crate::hir::modules::TypesModule`] — Type management
 pub mod arrays;
 pub mod generic_component;
+pub mod interface;
 pub mod term;
 #[cfg(test)]
 mod term_tests;
@@ -185,6 +186,15 @@ pub struct ComponentType {
 pub struct FunctionType {
     pub(crate) args: SmallVec<[TermId; 2]>,
     pub(crate) ret: TermId,
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub struct InterfaceType {
+    pub(crate) name: SymbolPointer,
+    pub(crate) super_interfaces: Vec<TermId>,
+    pub(crate) generic_count: u8,
+    ///The signature of the methods
+    pub methods: Vec<(SymbolPointer, TermId)>,
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]

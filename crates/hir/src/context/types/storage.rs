@@ -9,8 +9,8 @@ use common::{
 };
 
 use crate::{
-    ComponentType, DescriptorId, EnumType, EnumVariantType, HIRError, Result, StructType,
-    SymbolPointer, TupleType,
+    ComponentType, DescriptorId, EnumType, EnumVariantType, HIRError, InterfaceType, Result,
+    StructType, SymbolPointer, TupleType,
     helpers::Visible,
     term::{Term, TermId, TermNode},
 };
@@ -31,6 +31,7 @@ pub struct TypeStorage {
     pub structs: StructsPool,
     pub components: ComponentsPool,
     pub enums: EnumsPool,
+    pub interfaces: DedupPool<InterfaceType>,
     pub terms: DedupPool<Term>,
 }
 impl Default for TypeStorage {
@@ -39,6 +40,7 @@ impl Default for TypeStorage {
             terms: DedupPool::new(),
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
+            interfaces: DedupPool::new(),
             enums: EnumsPool::default(),
         }
     }
@@ -99,7 +101,10 @@ impl TypeStorage {
             }
         }
     }
-
+    ///Returns the name of the interface associated with the given `id`.
+    pub fn get_interface_name(&self, id: DedupPoolId<InterfaceType>) -> SymbolPointer {
+        self.interfaces[id].name
+    }
     ///Returns the name of the enum associated with the given `id`.
     pub fn get_enum_name(&self, id: DedupPoolId<EnumType>) -> SymbolPointer {
         self.enums[id].name
@@ -231,4 +236,5 @@ impl_index!(
     EnumType => |this, idx| &this.enums[idx],
     ComponentType => |this, idx| &this.components[idx],
     ComponentDefinition => |this, idx| &this.components[idx],
+    InterfaceType => |this, idx| &this.interfaces[idx],
 );

@@ -107,6 +107,7 @@ pub struct InterfaceDeclaration {
 #[derive(Debug)]
 pub struct ExtendDeclaration {
     pub target: Spanned<DedupPoolId<Type>>,
+    pub interface: Spanned<DedupPoolId<Type>>,
     pub type_args: Vec<SymbolPointer>,
     pub methods: Vec<FuncDeclaration>,
     pub attributes: Vec<Spanned<ASTAttribute>>,

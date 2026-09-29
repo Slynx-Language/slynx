@@ -55,8 +55,9 @@ impl ExpressionBuilder {
 
                 let mut counter = 0;
                 let aext_mapped = aext.try_map_children(&mut |child| {
+                    let out = self.unify_terms(queue, child, bchildren[counter], span);
                     counter += 1;
-                    self.unify_terms(queue, child, bchildren[counter], span)
+                    out
                 })?;
                 let term = Term::extension(aext_mapped);
                 let target = queue.hir.types.create_type(term);

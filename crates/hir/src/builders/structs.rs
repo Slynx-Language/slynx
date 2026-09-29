@@ -26,6 +26,15 @@ impl<'a> HirNode<'a> {
 }
 
 impl<'a> HirQueueBuilder<'a> {
+    pub(crate) fn resole_interface_method(
+        &self,
+        file_id: FileId,
+        ty: TermId,
+        method_name: SymbolPointer,
+        span: Span,
+    ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
+    }
+
     /// Lazily resolves a method on a struct type. Looks up the `ObjectDeclaration`
     /// from the AST, creates the function declaration, registers it as a method
     /// on the type, and enqueues the body for processing.

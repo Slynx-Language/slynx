@@ -6,7 +6,7 @@ use common::{
 };
 use slynx_parser::{
     ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration, EnumDeclaration,
-    ObjectDeclaration, StaticDeclaration, Type,
+    InterfaceDeclaration, ObjectDeclaration, StaticDeclaration, Type,
 };
 
 use crate::{FileId, SourceLoader, SourceNode};
@@ -34,6 +34,7 @@ pub enum ASTTypeKind {
     Component(PoolId<ComponentDeclaration>),
     Alias(PoolId<AliasDeclaration>),
     Enum(PoolId<EnumDeclaration>),
+    Interface(PoolId<InterfaceDeclaration>),
     Builtin(ASTBuiltin),
 }
 
@@ -161,6 +162,19 @@ impl<'a> Modules<'a> {
         })
     }
 
+    pub fn find_interface_declaration(
+        &self,
+        name: SymbolPointer<FrontendSymbol>,
+        module: FileId,
+    ) -> Option<(FileId, usize)> {
+        self.find_in_modules(name, module, &|module, name| {
+            module
+                .interfaces()
+                .iter()
+                .position(|interface| interface.name == name)
+        })
+    }
+
     ///Finds a static variable with the given name available in the given module. Returns the file that owns the static variable and a reference to it.
     pub fn find_static_declaration(
         &self,
@@ -235,6 +249,14 @@ impl<'a> Modules<'a> {
                 .find(|(_, enumer)| enumer.name == name)
             {
                 return Some(ASTTypeKind::Enum(id));
+            }
+            if let Some((id, _)) = module
+                .interfaces()
+                .iter()
+                .with_ids()
+                .find(|(_, interface)| interface.name == name)
+            {
+                return Some(ASTTypeKind::Interface(id));
             }
             None
         })

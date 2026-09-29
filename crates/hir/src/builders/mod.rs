@@ -2,12 +2,13 @@ pub(crate) mod attributes;
 pub(crate) mod component;
 mod expression;
 mod function;
+pub(crate) mod interfaces;
 mod structs;
 mod work_channel;
 use std::{cell::RefCell, ops::Deref};
 
 use common::{
-    Spanned,
+    Span, Spanned,
     pool::{DedupPoolId, PoolId},
 };
 
@@ -93,6 +94,7 @@ pub struct HirQueueBuilder<'a> {
     pub(crate) modules: &'a Modules<'a>,
     pub(crate) bodies: WorkChannel<PendantFunction<'a>>,
     pub(crate) statics: WorkChannel<()>,
+    pub(crate) interfaces: WorkChannel<()>,
     #[allow(clippy::type_complexity)]
     pub(crate) resolved_bodies: DashMap<
         DeclarationId<HirFunctionDeclaration>,
@@ -122,6 +124,32 @@ impl HirNode<'_> {
     ) -> Result<(FileId, TermId)> {
         if let Some(data) = self.modules.find_type(self.entry, name.data) {
             let id = match data.content {
+                ASTTypeKind::Interface(interface) => {
+                    let interface_declaration = self
+                        .modules
+                        .get_entry(data.owner)
+                        .interfaces()
+                        .get(interface);
+                    let methods = interface_declaration
+                        .methods
+                        .iter()
+                        .map(|method| {
+                            let method_signature = self.get_signature_of_function(method)?;
+                            Ok((method.name, method_signature))
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    let super_interfaces = interface_declaration
+                        .super_interfaces
+                        .iter()
+                        .map(|ty| self.find_type(*ty, context).map(|(_, term_id)| term_id))
+                        .collect::<Result<Vec<_>>>()?;
+                    self.hir.types.create_interface_type(
+                        name.data,
+                        methods,
+                        interface_declaration.type_args.len() as u8,
+                        super_interfaces,
+                    )
+                }
                 ASTTypeKind::Builtin(builtin) => self.hir.types.create_type(builtin.into()),
                 ASTTypeKind::Alias(alias) => {
                     let target = self.modules.get_entry(data.owner).alias().get(alias).target;
@@ -130,10 +158,6 @@ impl HirNode<'_> {
                 ASTTypeKind::Struct(s) => {
                     let s = self.modules.get_entry(data.owner).object().get(s);
                     let struct_name = s.name;
-                    // Fields are typed against the object's own type
-                    // parameters, not the referencing scope's, so a template
-                    // like `object Option<T> { value: T }` keeps its `T`
-                    // regardless of where `Option<int>` appears.
                     let struct_context = TypeContext::new(&s.type_params);
                     let fields = s
                         .fields
@@ -386,6 +410,41 @@ impl HirNode<'_> {
             }
         }
     }
+
+    fn get_interface_method_signature(&self, method: &FuncDeclaration) -> Result<TermId> {
+        let context = TypeContext::new(&method.type_params);
+        let self_sym = self.hir.intern_name("Self");
+        let self_term = self
+            .hir
+            .types
+            .create_type(Term::new_variable_type(0, self_sym));
+        let ret = self
+            .lower_with_self(method.return_type, &context, self_term)?
+            .1;
+        let args = method
+            .args
+            .iter()
+            .map(|f| {
+                self.lower_with_self(f.data.kind, &context, self_term)
+                    .map(|v| v.1)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(self.hir.types.create_function_type(args, ret))
+    }
+    fn lower_with_self(
+        &self,
+        ty: Spanned<DedupPoolId<Type>>,
+        context: &TypeContext,
+        self_term: TermId,
+    ) -> Result<(FileId, TermId)> {
+        let self_symbol = self.hir.intern_name("Self");
+        if self.modules.referenced_name(ty.data) == Some(self_symbol) {
+            self.find_type_inner(ty.span.make_spanned(ty.data), context, Some(self_term))
+        } else {
+            self.find_type(ty.span.make_spanned(ty.data), context)
+        }
+    }
+
     ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
     fn get_signature_of_function(&self, f: &FuncDeclaration) -> Result<TermId> {
         let context = TypeContext::new(&f.type_params);
@@ -475,6 +534,7 @@ impl<'a> HirQueueBuilder<'a> {
             bodies: WorkChannel::new(),
             statics: WorkChannel::new(),
             components: WorkChannel::new(),
+            interfaces: WorkChannel::new(),
             resolved_bodies: DashMap::new(),
             resolved_components: DashMap::new(),
             bodies_in_progress: DashSet::new(),
