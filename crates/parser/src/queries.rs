@@ -22,7 +22,9 @@ impl<'a> Parser<'a> {
     /// Consumes the next token from the input stream and returns it.
     /// If the end of the input stream is reached, it returns an error indicating that there
     pub fn eat(&mut self) -> Result<Token> {
-        self.stream.next().ok_or(ParseError::UnexpectedEndOfInput)
+        self.stream
+            .next()
+            .ok_or(ParseError::unexpected_end_of_input())
     }
 
     /// Peeks at the token at the specified index without consuming it.
@@ -31,7 +33,7 @@ impl<'a> Parser<'a> {
         self.stream
             .stream
             .get(idx)
-            .ok_or(ParseError::UnexpectedEndOfInput)
+            .ok_or(ParseError::unexpected_end_of_input())
     }
 
     /// Peeks at the next token without consuming it.
@@ -62,7 +64,7 @@ impl<'a> Parser<'a> {
     /// (which is consumed) and returns it as a `T`-typed failure. `msg` is the
     /// text explaining what was expected instead.
     pub fn unexpected<T>(&mut self, msg: impl Into<String>) -> Result<T> {
-        Err(ParseError::UnexpectedToken(
+        Err(ParseError::unexpected_token(
             self.eat()?,
             ExpectedContent::Raw(msg.into()),
         ))
@@ -72,7 +74,7 @@ impl<'a> Parser<'a> {
     /// `token` and returns it as a `T`-typed failure. `msg` is the text
     /// explaining what was expected instead.
     pub fn unexpected_with<T>(&mut self, msg: impl Into<String>, token: Token) -> Result<T> {
-        Err(ParseError::UnexpectedToken(
+        Err(ParseError::unexpected_token(
             token,
             ExpectedContent::Raw(msg.into()),
         ))

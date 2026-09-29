@@ -48,6 +48,7 @@ impl Parser<'_> {
             self.expect(&TokenKind::Colon)?;
         }
         let return_type = self.parse_type(&type_params)?;
+
         if flags.contains(ParserFlags::ONLY_SIGNATURES) {
             // Interface signatures are written without a trailing ';' in the
             // corpus and docs, but tolerate it if present.
@@ -116,7 +117,10 @@ impl Parser<'_> {
                 })
             }
             _ => self.unexpected_with(
-                "Instead was expecting function body, which initializes with '->' or '{'",
+                format!(
+                    "Instead was expecting function body, which initializes with '->' or '{{' {:?}",
+                    flags
+                ),
                 current,
             ),
         }

@@ -53,6 +53,7 @@ impl Parser<'_> {
                 Ok(arr_expression.span.merge_with(end).make_spanned(expr))
             }
             (TokenKind::Colon, _) => {
+                //parses [:expr]
                 self.eat()?;
                 let expr = self.parse_expression(type_params, ParserFlags::default())?;
                 let expr = self.intern_expression(ASTExpression::IndexExpression(
@@ -102,11 +103,7 @@ impl Parser<'_> {
                             arr_expression,
                             RangeType::NoRange(expr),
                         ));
-                        let bracket_span = self.expect(&TokenKind::RBracket)?.span;
-                        Ok(arr_expression
-                            .span
-                            .merge_with(bracket_span)
-                            .make_spanned(expr))
+                        Ok(arr_expression.span.make_spanned(expr))
                     }
                 }
             }

@@ -154,7 +154,7 @@ impl Parser<'_> {
                 });
                 Ok(Spanned::new(parent, span))
             }
-            _ => Err(ParseError::InvalidPostfix(self.eat()?.span)),
+            _ => Err(ParseError::invalid_postfix(self.eat()?.span)),
         }
     }
     /// Parses a primary expression, which can be a literal (integer, float, string, boolean), an identifier, a parenthesized expression, or a field access expression.

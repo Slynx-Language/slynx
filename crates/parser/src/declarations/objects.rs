@@ -37,6 +37,7 @@ impl<'a> Parser<'a> {
         &mut self,
         start: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
+        flags: ParserFlags,
     ) -> Result<ObjectDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
         self.expect(&TokenKind::LBrace)?;
@@ -47,7 +48,7 @@ impl<'a> Parser<'a> {
             let attributes = self.parse_attributes()?;
             if self.peek()?.kind == TokenKind::Func {
                 let start = self.eat()?.span;
-                methods.push(self.parse_method(start, attributes, ParserFlags::default())?);
+                methods.push(self.parse_method(start, attributes, flags)?);
                 if let TokenKind::Comma = self.peek()?.kind {
                     self.eat()?;
                 }

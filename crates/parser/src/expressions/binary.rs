@@ -1,7 +1,9 @@
 use common::{Operator, Spanned, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
 
-use crate::{ASTExpression, ParseError, Parser, Result, SymbolPointer, flags::ParserFlags};
+use crate::{
+    ASTExpression, ParseError, ParseErrorKind, Parser, Result, SymbolPointer, flags::ParserFlags,
+};
 impl<'a> Parser<'a> {
     /// Shared skeleton for the precedence cascade: parses a left-hand side with
     /// `lhs`, then folds consecutive `rhs` operands into a node as long as
@@ -26,7 +28,10 @@ impl<'a> Parser<'a> {
                 Ok(Some(op)) => op,
                 Ok(None) => break,
                 // The original loops stopped on end of input instead of failing.
-                Err(ParseError::UnexpectedEndOfInput) => break,
+                Err(ParseError {
+                    kind: ParseErrorKind::UnexpectedEndOfInput,
+                    ..
+                }) => break,
                 Err(err) => return Err(err),
             };
             let rhs = rhs(self, type_params)?;

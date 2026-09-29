@@ -155,7 +155,7 @@ impl Parser<'_> {
                 TokenKind::LBrace => {
                     break {
                         if exprs.is_empty() {
-                            Err(ParseError::NoStyleUsagesProvided)
+                            Err(ParseError::no_style_usages_provided())
                         } else {
                             Ok(exprs)
                         }

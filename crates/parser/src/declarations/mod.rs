@@ -90,7 +90,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Object => {
                 let Token { span, .. } = self.eat()?;
-                let mut object = self.parse_object(span, attributes)?;
+                let mut object = self.parse_object(span, attributes, flags)?;
                 object.external = external;
                 object.visibility = visibility;
                 program.append_object(object)
@@ -146,6 +146,7 @@ impl<'a> Parser<'a> {
                 self.eat()?;
                 break Ok(amount_parsed);
             }
+
             self.parse_declaration(program, true, ParserFlags::ONLY_SIGNATURES)?;
             amount_parsed += 1;
         }
