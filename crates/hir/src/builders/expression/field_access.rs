@@ -303,68 +303,82 @@ impl ExpressionBuilder {
                 let name_sym = queue.type_name(name.data);
                 let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
                 let parent_ty = parent_type_view.dereference();
-                match parent_ty.is_struct() {
-                    None => return Err(HIRError::not_a_struct(parent_ty.data, span)),
-                    Some(view) => {
-                        let func_id = if let Some(method) =
-                            view.method_named_as(name_sym, VisibilityModifier::Public)
-                        {
-                            Some(method)
-                        } else {
-                            queue.hir.types.methods.method_of(parent_ty.data, name_sym)
-                        };
-
-                        let func_id = match func_id {
-                            Some(id) => id,
-                            None if let Some(id) = queue.resolve_method(
-                                self.file(),
-                                parent_ty.data,
-                                name_sym,
-                                span,
-                            )? =>
-                            {
-                                id
-                            }
-                            _ => {
-                                return Err(HIRError::missing_properties(vec![name_sym], span));
-                            }
-                        };
-
-                        let prepend_args = {
-                            let func_view = queue.hir.view(func_id);
-                            let first_arg = match func_view.get_argument_type(0) {
-                                Some(ty)
-                                    if let TermNode::Ref { mutable, .. } =
-                                        queue.hir.view(ty).raw().node() =>
-                                {
-                                    self.build_reference_expression(
-                                        queue,
-                                        ReferenceExpressionDescriptor {
-                                            target: Either::Right(parent),
-                                            mutable: *mutable,
-                                            context,
-                                        },
-                                    )?
-                                }
-                                _ => parent,
-                            };
-                            [first_arg]
-                        };
-                        self.build_function_call(
-                            queue,
-                            FunctionCallDescriptor {
-                                target: FunctionTarget::Resolved {
-                                    target: func_id,
-                                    type_arguments: &queue.get_plain_type(*name).generic,
-                                },
-                                arguments: args,
-                                prepended_arguments: &prepend_args,
-                                span,
-                                context,
-                            },
-                        )?
+                // Inherent (object) methods take precedence over interface
+                // methods, mirroring how Rust resolves method calls. Anything
+                // that is not a struct (e.g. an enum instance, an array, a
+                // generic parameter placeholder) has no inherent methods.
+                let inherent = match parent_ty.is_struct() {
+                    Some(view) => view
+                        .method_named_as(name_sym, VisibilityModifier::Public)
+                        .or_else(|| queue.hir.types.methods.method_of(parent_ty.data, name_sym)),
+                    None => None,
+                };
+                let func_id = match inherent {
+                    Some(id) => id,
+                    None if let Some(id) =
+                        queue.resolve_method(self.file(), parent_ty.data, name_sym, span)? =>
+                    {
+                        id
                     }
-                }
+                    None => {
+                        // Interface implementations are registered against the
+                        // fully lowered concrete receiver type. Strip references
+                        // but preserve type applications such as `Option<int>`.
+                        let concrete_self = {
+                            let mut current = queue.hir[parent.data].ty;
+                            loop {
+                                match queue.hir.view(current).raw().node() {
+                                    TermNode::Ref { target, .. } => current = *target,
+                                    _ => break current,
+                                }
+                            }
+                        };
+                        let Some(id) = queue.resolve_interface_method_for_concrete(
+                            self.file(),
+                            concrete_self,
+                            name_sym,
+                            span,
+                        )?
+                        else {
+                            return Err(HIRError::missing_properties(vec![name_sym], span));
+                        };
+                        id
+                    }
+                };
+
+                let prepend_args = {
+                    let func_view = queue.hir.view(func_id);
+                    let first_arg = match func_view.get_argument_type(0) {
+                        Some(ty)
+                            if let TermNode::Ref { mutable, .. } =
+                                queue.hir.view(ty).raw().node() =>
+                        {
+                            self.build_reference_expression(
+                                queue,
+                                ReferenceExpressionDescriptor {
+                                    target: Either::Right(parent),
+                                    mutable: *mutable,
+                                    context,
+                                },
+                            )?
+                        }
+                        _ => parent,
+                    };
+                    [first_arg]
+                };
+                self.build_function_call(
+                    queue,
+                    FunctionCallDescriptor {
+                        target: FunctionTarget::Resolved {
+                            target: func_id,
+                            type_arguments: &queue.get_plain_type(*name).generic,
+                        },
+                        arguments: args,
+                        prepended_arguments: &prepend_args,
+                        span,
+                        context,
+                    },
+                )?
             }
             _ => return Err(HIRError::invalid_field_access(span)),
         };

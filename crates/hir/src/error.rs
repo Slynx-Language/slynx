@@ -43,6 +43,13 @@ pub enum HIRErrorKind {
 
     MethodNotFound(SymbolPointer),
     StaticMethodNotFound(SymbolPointer),
+    /// A concrete type implemented the same interface more than once (coherence).
+    DuplicateInterfaceImplementation {
+        /// The concrete type that was implemented twice.
+        ty: TermId,
+        /// The interface that was implemented more than once.
+        interface: TermId,
+    },
     InvalidTypeAccess,
     ExpressionNotMutable(NotMutableReason),
     InvalidDeref,
@@ -242,6 +249,17 @@ impl HIRError {
 
     pub fn static_method_not_found(name: SymbolPointer, span: Span) -> Self {
         Self::new(HIRErrorKind::StaticMethodNotFound(name), span)
+    }
+
+    pub fn duplicate_interface_implementation(
+        ty: TermId,
+        interface: TermId,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            HIRErrorKind::DuplicateInterfaceImplementation { ty, interface },
+            span,
+        )
     }
 
     pub fn invalid_type_access(span: Span) -> Self {
@@ -492,6 +510,9 @@ impl std::fmt::Display for HIRError {
             }
             HIRErrorKind::StaticMethodNotFound(_) => {
                 write!(f, "Static method not found")
+            }
+            HIRErrorKind::DuplicateInterfaceImplementation { .. } => {
+                write!(f, "Type implements the same interface more than once")
             }
             HIRErrorKind::InvalidTypeAccess => write!(f, "Invalid type access"),
             HIRErrorKind::ExpressionNotMutable(_) => write!(f, "Expression not mutable"),

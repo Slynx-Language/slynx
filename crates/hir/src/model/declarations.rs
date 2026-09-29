@@ -30,7 +30,7 @@ use common::{
 use smallvec::SmallVec;
 
 use crate::{
-    SymbolPointer, VariableId,
+    DeclarationId, SymbolPointer, VariableId,
     model::{HirComponentExpression, HirExpression, HirStatement},
     term::TermId,
 };
@@ -54,6 +54,16 @@ pub enum HirAttributeKind {
         name: SymbolPointer,
         args: Vec<SymbolPointer>,
     },
+}
+
+#[derive(Debug)]
+pub struct HirExtendDeclaration {
+    ///The type being extended.
+    pub target: TermId,
+    ///The interface being implemented.
+    pub interface: TermId,
+    ///Methods provided by this implementation, paired with their source names.
+    pub methods: Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>,
 }
 
 #[derive(Debug)]

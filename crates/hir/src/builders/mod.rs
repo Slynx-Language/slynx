@@ -8,7 +8,7 @@ mod work_channel;
 use std::{cell::RefCell, ops::Deref};
 
 use common::{
-    Span, Spanned,
+    Spanned,
     pool::{DedupPoolId, PoolId},
 };
 
@@ -21,6 +21,7 @@ use crate::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, work_channel::WorkChannel,
     },
     context::HirSymbol,
+    error::InvalidTypeReason,
     helpers::Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::{PrimitiveType, Term, TermId, TermNode},
@@ -42,6 +43,7 @@ use slynx_parser::{
 /// against an immutable `&SlynxHir` facade (which owns the mutable data).
 pub(crate) fn generate_hir<'a>(hir: &'a SlynxHir<'a>, modules: &'a Modules<'a>) -> Result<()> {
     let builder = HirQueueBuilder::new(hir, modules);
+    builder.prepare_interfaces()?;
     {
         let entry = &modules.entries()[0];
         let main_symbol = hir.intern_name("main");
@@ -94,6 +96,8 @@ pub struct HirQueueBuilder<'a> {
     pub(crate) modules: &'a Modules<'a>,
     pub(crate) bodies: WorkChannel<PendantFunction<'a>>,
     pub(crate) statics: WorkChannel<()>,
+    // TODO(interfaces): populated when the HIR extend scaffold is wired in.
+    #[allow(dead_code)]
     pub(crate) interfaces: WorkChannel<()>,
     #[allow(clippy::type_complexity)]
     pub(crate) resolved_bodies: DashMap<
@@ -130,11 +134,29 @@ impl HirNode<'_> {
                         .get_entry(data.owner)
                         .interfaces()
                         .get(interface);
+                    if !interface_declaration.type_args.is_empty() {
+                        return Err(HIRError::invalid_type(
+                            interface_declaration.name,
+                            InvalidTypeReason::IncorrectUsage,
+                            name.span,
+                        ));
+                    }
+                    if let Some(method) = interface_declaration
+                        .methods
+                        .iter()
+                        .find(|method| !method.type_params.is_empty())
+                    {
+                        return Err(HIRError::invalid_type(
+                            method.name,
+                            InvalidTypeReason::IncorrectUsage,
+                            method.span,
+                        ));
+                    }
                     let methods = interface_declaration
                         .methods
                         .iter()
                         .map(|method| {
-                            let method_signature = self.get_signature_of_function(method)?;
+                            let method_signature = self.get_interface_method_signature(method)?;
                             Ok((method.name, method_signature))
                         })
                         .collect::<Result<Vec<_>>>()?;
@@ -143,12 +165,9 @@ impl HirNode<'_> {
                         .iter()
                         .map(|ty| self.find_type(*ty, context).map(|(_, term_id)| term_id))
                         .collect::<Result<Vec<_>>>()?;
-                    self.hir.types.create_interface_type(
-                        name.data,
-                        methods,
-                        interface_declaration.type_args.len() as u8,
-                        super_interfaces,
-                    )
+                    self.hir
+                        .types
+                        .create_interface_type(name.data, methods, super_interfaces)
                 }
                 ASTTypeKind::Builtin(builtin) => self.hir.types.create_type(builtin.into()),
                 ASTTypeKind::Alias(alias) => {
@@ -323,6 +342,18 @@ impl HirNode<'_> {
                 Ok((self.entry, substitute))
             }
             Type::Plain(generic) => {
+                if !generic.generic.is_empty()
+                    && self
+                        .modules
+                        .find_type(self.entry, generic.identifier)
+                        .is_some_and(|data| matches!(data.content, ASTTypeKind::Interface(_)))
+                {
+                    return Err(HIRError::invalid_type(
+                        generic.identifier,
+                        InvalidTypeReason::IncorrectUsage,
+                        ty.span,
+                    ));
+                }
                 if generic.generic.is_empty()
                     && let Some(target) = context
                         .generic_names

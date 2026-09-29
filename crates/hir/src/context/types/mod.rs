@@ -157,13 +157,11 @@ impl TypesContext {
         &self,
         name: SymbolPointer,
         methods: Vec<(SymbolPointer, TermId)>,
-        generic_count: u8,
         super_interfaces: Vec<TermId>,
     ) -> TermId {
         let interface_type = self.storage.interfaces.insert(InterfaceType {
             name,
             methods,
-            generic_count,
             super_interfaces,
         });
         let interface = InterfaceTerm {

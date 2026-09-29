@@ -192,7 +192,6 @@ pub struct FunctionType {
 pub struct InterfaceType {
     pub(crate) name: SymbolPointer,
     pub(crate) super_interfaces: Vec<TermId>,
-    pub(crate) generic_count: u8,
     ///The signature of the methods
     pub methods: Vec<(SymbolPointer, TermId)>,
 }

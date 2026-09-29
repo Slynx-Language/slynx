@@ -1,6 +1,8 @@
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::one::Ref};
 
-use crate::{DeclarationId, HirFunctionDeclaration, SymbolPointer, term::TermId};
+use crate::{
+    DeclarationId, HirExtendDeclaration, HirFunctionDeclaration, SymbolPointer, term::TermId,
+};
 
 #[derive(Debug)]
 /// Methods attached to types.
@@ -15,12 +17,16 @@ pub struct MethodTable {
     methods: DashMap<TermId, DashMap<SymbolPointer, DeclarationId<HirFunctionDeclaration>>>,
     /// Maps (parent_type, method_name) -> return_type for external object methods.
     external_methods: DashMap<(TermId, SymbolPointer), TermId>,
+    ///Maps a type to an interface type. This occurs when a type is extended with an interface. Such as `extend int: ToString {}` this'd be `int` → `ToString`.
+    ///This maps to a `Vec` of `HirExtendDeclaration` ids, as a type may have multiple extensions
+    pub(crate) extensions: DashMap<TermId, Vec<DeclarationId<HirExtendDeclaration>>>,
 }
 impl Default for MethodTable {
     fn default() -> Self {
         Self {
             methods: DashMap::new(),
             external_methods: DashMap::new(),
+            extensions: DashMap::new(),
         }
     }
 }
@@ -38,6 +44,21 @@ impl MethodTable {
         id: DeclarationId<HirFunctionDeclaration>,
     ) {
         self.methods.entry(ty).or_default().insert(name, id);
+    }
+
+    pub fn get_extensions_of<'a>(
+        &'a self,
+        ty: TermId,
+    ) -> Option<Ref<'a, TermId, Vec<DeclarationId<HirExtendDeclaration>>>> {
+        if let Some(extension) = self.extensions.get(&ty) {
+            Some(extension)
+        } else {
+            None
+        }
+    }
+
+    pub fn create_extension(&self, ty: TermId, extension: DeclarationId<HirExtendDeclaration>) {
+        self.extensions.entry(ty).or_default().push(extension);
     }
 
     /// Looks up a single method registered on `ty`, if any. Works for methods

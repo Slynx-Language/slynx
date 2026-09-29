@@ -2,8 +2,8 @@ use module_loader::FileId;
 
 use crate::HirFile;
 use crate::{
-    DeclarationId, HirAliasDeclaration, HirComponentDeclaration, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, SlynxHir,
+    DeclarationId, HirAliasDeclaration, HirComponentDeclaration, HirExtendDeclaration,
+    HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration, SlynxHir,
 };
 use dashmap::mapref::one::MappedRef;
 
@@ -25,4 +25,5 @@ get_data!(
     static(HirStaticDeclaration),
     object(HirObjectDeclaration),
     component(HirComponentDeclaration),
+    extension(HirExtendDeclaration),
 );

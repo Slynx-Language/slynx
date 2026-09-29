@@ -1,9 +1,9 @@
 use common::{
-    Span, Spanned,
+    Span, Spanned, VisibilityModifier,
     pool::{DedupPoolId, PoolId},
 };
 use module_loader::FileId;
-use slynx_parser::{ASTStatement, FuncDeclaration, TypeContext};
+use slynx_parser::{ASTFunction, ASTStatement, FuncDeclaration, Type, TypeContext};
 
 use crate::{
     DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result, SymbolPointer,
@@ -24,6 +24,82 @@ pub struct HirFunctionBuilder {
 }
 
 impl<'a> HirQueueBuilder<'a> {
+    pub(crate) fn insert_method_declaration<T: ASTFunction>(
+        &self,
+        entry: FileId,
+        method: &'a T,
+        self_type: TermId,
+        visibility: VisibilityModifier,
+        external: bool,
+        declaration_name: SymbolPointer,
+        register_as_inherent: bool,
+    ) -> Result<DeclarationId<HirFunctionDeclaration>> {
+        let node = self.get_node(entry);
+        let self_symbol = self.hir.intern_name("Self");
+        let context = TypeContext::new(method.type_params());
+        let lower_type = |ty: Spanned<DedupPoolId<Type>>| {
+            if self.modules.referenced_name(ty.data) == Some(self_symbol) {
+                Ok(node.find_self_type(ty.data, self_type))
+            } else {
+                node.find_type(ty, &context).map(|(_, ty)| ty)
+            }
+        };
+        let args = method
+            .arguments()
+            .iter()
+            .map(|arg| lower_type(arg.data.kind))
+            .collect::<Result<Vec<_>>>()?;
+        let return_type = lower_type(method.return_type())?;
+        let function_type = self.hir.types.create_function_type(args, return_type);
+        let declaration = HirFunctionDeclaration {
+            name: declaration_name,
+            generics: method.type_params().to_vec(),
+            args: Default::default(),
+            ty: function_type,
+            statements: Vec::new(),
+            visibility,
+            external,
+            attributes: Vec::new(),
+            span: method.span(),
+        };
+        let make_declaration = || {
+            self.hir
+                .store
+                .get_or_create_file(entry)
+                .create_function(declaration)
+        };
+        let declaration_id = if register_as_inherent {
+            self.hir
+                .symbols_registry
+                .get_or_insert_function(HirSymbol::new(entry, declaration_name), make_declaration)
+        } else {
+            make_declaration()
+        };
+
+        if register_as_inherent {
+            self.hir
+                .types
+                .create_method(self_type, method.method_name(), declaration_id);
+        }
+
+        if !external {
+            let argument_names = method
+                .arguments()
+                .iter()
+                .map(|arg| arg.data.name.data)
+                .collect();
+            self.bodies.send(PendantFunction {
+                context,
+                func_id: declaration_id,
+                body: method.body(),
+                argument_names,
+                self_type: Some(self_type),
+            });
+        }
+
+        Ok(declaration_id)
+    }
+
     ///Hoists the given function, and then enqueues it so its body can be checked. On being processed, this function might generate more than simply the given `f` function since it will generate all the dependencies of `f` to work. Including impures
     pub(crate) fn enqueue_function(
         &self,

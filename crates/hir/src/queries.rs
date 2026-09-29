@@ -12,6 +12,29 @@ use crate::{
 };
 
 impl SlynxHir<'_> {
+    /// Returns a method that the given `ty` owns with the given `name`. The method MUST be provided by an extension.
+    pub fn get_extension_method(
+        &self,
+        ty: TermId,
+        name: SymbolPointer,
+    ) -> Option<DeclarationId<HirFunctionDeclaration>> {
+        let extensions = self.types.methods.get_extensions_of(ty)?;
+        for extensionid in extensions.iter() {
+            let extension = self.get_extension(*extensionid);
+            if extension.target != ty {
+                continue;
+            }
+            if let Some(method) = extension
+                .methods
+                .iter()
+                .find(|(method_name, _)| *method_name == name)
+            {
+                return Some(method.1);
+            }
+        }
+        None
+    }
+
     pub fn find_function_by_symbol(
         &self,
         symbol: HirSymbol,
