@@ -1,5 +1,6 @@
 use super::Parser;
-use crate::{ASTExpression, AliasDeclaration, SymbolPointer, Type, TypeParamScope, TypedName};
+use crate::flags::ParserFlags;
+use crate::{ASTExpression, AliasDeclaration, SymbolPointer, Type, TypedName};
 use crate::{Result, ast::GenericIdentifier};
 use common::pool::DedupPoolId;
 use common::{Span, Spanned, VisibilityModifier};
@@ -22,7 +23,7 @@ impl Parser<'_> {
     }
 
     ///Parses a typed name. A typed name is `name: type`, which is a name that contains a type
-    pub fn parse_typedname(&mut self, type_params: TypeParamScope) -> Result<Spanned<TypedName>> {
+    pub fn parse_typedname(&mut self, type_params: &[SymbolPointer]) -> Result<Spanned<TypedName>> {
         let ty = match self.peek()?.kind {
             TokenKind::BitAnd => {
                 self.eat()?;
@@ -147,7 +148,7 @@ impl Parser<'_> {
     ///Parses a type.
     pub fn parse_type(
         &mut self,
-        type_params: TypeParamScope,
+        type_params: &[SymbolPointer],
     ) -> Result<Spanned<DedupPoolId<Type>>> {
         let token = self.peek()?;
         let start_span = token.span;
@@ -208,7 +209,7 @@ impl Parser<'_> {
                     self.eat()?;
                     TypeVariant::Vector
                 } else {
-                    let expr = self.parse_expression(type_params)?;
+                    let expr = self.parse_expression(type_params, ParserFlags::empty())?;
                     self.expect(&TokenKind::RBracket)?;
                     TypeVariant::Array(expr.data)
                 };

@@ -3,7 +3,6 @@ use slynx_lexer::{Token, TokenKind};
 
 use crate::{
     ASTExpression, ASTStatement, ExpectedContent, ParseError, Parser, Result, SymbolPointer, Type,
-    flags::ParserFlag,
 };
 
 impl<'a> Parser<'a> {
@@ -19,18 +18,7 @@ impl<'a> Parser<'a> {
     pub fn intern_type(&self, name: Type) -> DedupPoolId<Type> {
         self.types.insert(name)
     }
-    pub fn reset_flags(&mut self) {
-        self.flags.reset();
-    }
-    pub fn add_flag(&mut self, flag: ParserFlag) {
-        self.flags.set_flag(flag);
-    }
-    pub fn remove_flag(&mut self, flag: ParserFlag) {
-        self.flags.remove_flag(flag);
-    }
-    pub fn has_flag(&self, flag: ParserFlag) -> bool {
-        self.flags.has_flag(flag)
-    }
+
     /// Consumes the next token from the input stream and returns it.
     /// If the end of the input stream is reached, it returns an error indicating that there
     pub fn eat(&mut self) -> Result<Token> {

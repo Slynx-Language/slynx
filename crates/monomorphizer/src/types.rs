@@ -226,6 +226,7 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool 
             .children()
             .iter()
             .any(|child| contains_resolvable_reference(hir, *child)),
+        TermNode::Ref { target, .. } => contains_resolvable_reference(hir, *target),
 
         TermNode::Func { args, ret } => {
             args.iter()

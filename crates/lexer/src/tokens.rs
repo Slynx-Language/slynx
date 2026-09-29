@@ -62,6 +62,8 @@ pub enum TokenKind {
     Interface,
     #[token("requires")]
     Requires,
+    #[token("extend")]
+    Extend,
     // Multi-char operators (must come before single-char)
     #[token("&&")]
     And,

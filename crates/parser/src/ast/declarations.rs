@@ -198,3 +198,59 @@ impl StyleState {
         }
     }
 }
+
+///A trait that represents a type that can be used as a function. This can use used to represent function them selves, object methods, closures, etc.
+pub trait ASTFunction {
+    fn type_params(&self) -> &[SymbolPointer];
+    fn method_name(&self) -> SymbolPointer;
+    fn arguments(&self) -> &[Spanned<TypedName>];
+    fn return_type(&self) -> Spanned<DedupPoolId<Type>>;
+    fn body(&self) -> &[Spanned<DedupPoolId<ASTStatement>>];
+    fn span(&self) -> Span;
+}
+
+impl ASTFunction for ObjectMethod {
+    fn type_params(&self) -> &[SymbolPointer] {
+        &self.type_params
+    }
+
+    fn method_name(&self) -> SymbolPointer {
+        self.method_name
+    }
+
+    fn arguments(&self) -> &[Spanned<TypedName>] {
+        &self.arguments
+    }
+
+    fn return_type(&self) -> Spanned<DedupPoolId<Type>> {
+        self.return_type
+    }
+
+    fn body(&self) -> &[Spanned<DedupPoolId<ASTStatement>>] {
+        &self.body
+    }
+
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+impl ASTFunction for FuncDeclaration {
+    fn arguments(&self) -> &[Spanned<TypedName>] {
+        &self.args
+    }
+    fn body(&self) -> &[Spanned<DedupPoolId<ASTStatement>>] {
+        &self.body
+    }
+    fn method_name(&self) -> SymbolPointer {
+        self.name
+    }
+    fn return_type(&self) -> Spanned<DedupPoolId<Type>> {
+        self.return_type
+    }
+    fn type_params(&self) -> &[SymbolPointer] {
+        &self.type_params
+    }
+    fn span(&self) -> Span {
+        self.span
+    }
+}

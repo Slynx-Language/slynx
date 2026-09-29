@@ -1,6 +1,7 @@
 use crate::{
-    ASTAttribute, ComponentDeclaration, Result, TypeParamScope,
+    ASTAttribute, ComponentDeclaration, Result, SymbolPointer,
     ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
+    flags::ParserFlags,
 };
 use common::{Span, Spanned};
 
@@ -41,7 +42,7 @@ impl Parser<'_> {
     }
 
     /// Parses a component member, which can be either a child component or a property. It first checks for any visibility modifiers (like 'pub'), then determines if the member is a child component (identified by an identifier followed by an expression) or a property (identified by the 'prop' keyword followed by an identifier and optional type and default value). The function constructs and returns a `ComponentMember` based on the parsed information, including its kind and span.
-    fn parse_component_member(&mut self, type_params: TypeParamScope) -> Result<ComponentMember> {
+    fn parse_component_member(&mut self, type_params: &[SymbolPointer]) -> Result<ComponentMember> {
         let mut span = self.peek()?.span;
         let modifier = self.parse_modifier()?;
         let curr = self.peek()?;
@@ -82,7 +83,7 @@ impl Parser<'_> {
                                 None
                             }
                             TokenKind::Eq => {
-                                let expr = self.parse_expression(type_params)?;
+                                let expr = self.parse_expression(type_params, ParserFlags::default())?;
 
                                 span.end = self.expect(&TokenKind::SemiColon)?.span.end;
                                 Some(expr)
@@ -106,7 +107,7 @@ impl Parser<'_> {
                     }
                     TokenKind::Eq => {
                         self.eat()?;
-                        let expr = self.parse_expression(type_params)?;
+                        let expr = self.parse_expression(type_params, ParserFlags::default())?;
                         span.end = self.expect(&TokenKind::SemiColon)?.span.end;
                         Ok(ComponentMember {
                             kind: ComponentMemberKind::Property {
@@ -131,7 +132,7 @@ impl Parser<'_> {
         }
     }
     ///Parses a component declaration. This initializes on the 'component' keyword
-    pub(crate) fn parse_component(
+    pub(crate) fn parse_component_declaration(
         &mut self,
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,

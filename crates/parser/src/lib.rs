@@ -1,45 +1,58 @@
 mod ast;
-mod component;
-pub mod conditionals;
 mod declarations;
+
 pub mod error;
+
 mod flags;
-mod import;
 mod program;
 mod queries;
-use common::{FrontendSymbol, SymbolsModule, pool::DedupPool};
+use common::{FrontendSymbol, Span, Spanned, SymbolsModule, pool::DedupPool};
 pub use error::*;
-mod enums;
-mod expr;
-mod functions;
-pub mod objects;
+
+mod expressions;
+
 mod statement;
-mod styles;
+
 mod types;
 pub use ast::*;
 pub use program::*;
-mod interfaces;
 
 #[cfg(test)]
 mod tests;
 
 use slynx_lexer::{TokenKind, TokenStream};
 
-use crate::flags::{ParserFlag, ParserFlags};
+use crate::flags::ParserFlags;
 
 pub type Result<T> = std::result::Result<T, ParseError>;
 pub type SymbolPointer = common::SymbolPointer<common::FrontendSymbol>;
+
+pub struct BasicParsingContext<'a> {
+    pub(crate) type_params: &'a [SymbolPointer],
+    pub(crate) _flags: ParserFlags,
+    pub(crate) span: Span,
+}
+
+pub struct ParsingContext<'a> {
+    pub(crate) basic: BasicParsingContext<'a>,
+    pub(crate) attributes: Vec<Spanned<ASTAttribute>>,
+}
+
+impl<'a> std::ops::Deref for ParsingContext<'a> {
+    type Target = BasicParsingContext<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.basic
+    }
+}
+
 ///The type parameters of the generic function currently being parsed. Each
 ///entry maps a parameter's name to its index, so that `T` inside
 ///`func identity<T>(x: T): T` resolves to `Type::Generic(0)`.
-pub type TypeParamScope<'a> = &'a [SymbolPointer];
 pub struct Parser<'a> {
     symbols: &'a SymbolsModule<FrontendSymbol>,
     expressions: &'a DedupPool<ASTExpression>,
     statements: &'a DedupPool<ASTStatement>,
     types: &'a DedupPool<Type>,
-    flags: ParserFlags,
-
     stream: TokenStream,
 }
 
@@ -58,29 +71,14 @@ impl<'a> Parser<'a> {
             statements,
             symbols,
             stream,
-            flags: ParserFlags::new(),
         }
     }
 
-    pub fn parse_without_component_expr<T>(
-        &mut self,
-        parse: impl FnOnce(&mut Self) -> Result<T>,
-    ) -> Result<T> {
-        let should_readd = self.flags.has_flag(ParserFlag::ComponentExpr);
-        self.flags.remove_flag(ParserFlag::ComponentExpr);
-
-        let result = parse(self);
-        if should_readd {
-            self.add_flag(ParserFlag::ComponentExpr);
-        }
-        result
-    }
-
-    pub fn finish_current_parse(&mut self) -> Result<()> {
-        if self.flags.has_flag(ParserFlag::RequireSemicolon) {
+    pub fn finish_current_parse(&mut self, flags: ParserFlags) -> Result<()> {
+        if flags.contains(ParserFlags::REQUIRE_SEMICOLON) {
             self.expect(&TokenKind::SemiColon)?;
         }
-        self.reset_flags();
+
         Ok(())
     }
 }

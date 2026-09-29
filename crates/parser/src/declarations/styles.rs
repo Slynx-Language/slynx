@@ -3,7 +3,7 @@ use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
     ASTAttribute, ASTExpression, Parser, StyleBlock, StyleSheet, StyleSheetStatement, StyleState,
-    error::ParseError,
+    error::ParseError, flags::ParserFlags,
 };
 
 impl Parser<'_> {
@@ -23,7 +23,7 @@ impl Parser<'_> {
         {
             self.eat()?;
             let duration = if self.peek()?.kind != TokenKind::RParen {
-                Some(self.parse_expression(&[])?)
+                Some(self.parse_expression(&[], ParserFlags::default())?)
             } else {
                 None
             };

@@ -1,18 +1,18 @@
-use crate::{ASTExpression, ASTStatement, Parser, Result, TypeParamScope};
+use crate::{ASTExpression, ASTStatement, Parser, Result, flags::ParserFlags};
 use common::{Span, Spanned, pool::DedupPoolId};
-use slynx_lexer::tokens::TokenKind;
+
+use slynx_lexer::TokenKind;
+
+use crate::SymbolPointer;
 
 impl Parser<'_> {
     /// Parses an if statement. The provided `span` is the initial span for the 'if' keyword.
     pub fn parse_if(
         &mut self,
         span: Span,
-        type_params: TypeParamScope,
+        type_params: &[SymbolPointer],
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
-        self.flags.reset();
-
-        let condition =
-            self.parse_without_component_expr(|parser| parser.parse_expression(type_params))?;
+        let condition = self.parse_expression(type_params, ParserFlags::empty())?;
         let (body, block_span) = self.parse_block(type_params)?;
 
         let (else_body, end) = match self.peek()?.kind {
@@ -43,9 +43,8 @@ impl Parser<'_> {
 
     pub fn parse_block(
         &mut self,
-        type_params: TypeParamScope,
+        type_params: &[SymbolPointer],
     ) -> Result<(Vec<Spanned<DedupPoolId<ASTStatement>>>, Span)> {
-        self.flags.reset();
         let lbrace = self.expect(&TokenKind::LBrace)?;
         let start = lbrace.span.start;
         let mut body = Vec::new();
@@ -62,7 +61,7 @@ impl Parser<'_> {
             if self.peek()?.kind == TokenKind::RBrace {
                 continue;
             }
-            self.finish_current_parse()?;
+            self.finish_current_parse(ParserFlags::default())?;
         }
         let rbrace = self.expect(&TokenKind::RBrace)?;
         let end = rbrace.span.end;

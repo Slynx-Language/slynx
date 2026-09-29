@@ -1,4 +1,7 @@
-use crate::{ASTAttribute, FuncDeclaration, ObjectDeclaration, ObjectMethod, Parser, Result};
+use crate::{
+    ASTAttribute, FuncDeclaration, ObjectDeclaration, ObjectMethod, Parser, Result,
+    flags::ParserFlags,
+};
 use slynx_lexer::tokens::{Token, TokenKind};
 
 use crate::ast::{ObjectField, VisibilityModifier};
@@ -9,8 +12,9 @@ impl<'a> Parser<'a> {
         &mut self,
         start: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
+        flags: ParserFlags,
     ) -> Result<ObjectMethod> {
-        let func = self.parse_func(start, attributes)?;
+        let func = self.parse_func(start, attributes, flags)?;
         let FuncDeclaration {
             name,
             args,
@@ -43,7 +47,7 @@ impl<'a> Parser<'a> {
             let attributes = self.parse_attributes()?;
             if self.peek()?.kind == TokenKind::Func {
                 let start = self.eat()?.span;
-                methods.push(self.parse_method(start, attributes)?);
+                methods.push(self.parse_method(start, attributes, ParserFlags::default())?);
                 if let TokenKind::Comma = self.peek()?.kind {
                     self.eat()?;
                 }

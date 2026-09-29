@@ -2,14 +2,14 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
 
 use crate::{
-    ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, Parser, Result, Type,
-    TypeParamScope,
+    ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, Parser, Result, SymbolPointer,
+    Type, flags::ParserFlags,
 };
 
 impl Parser<'_> {
     pub fn parse_enum_representation(
         &mut self,
-        generics: TypeParamScope,
+        generics: &[SymbolPointer],
     ) -> Result<Option<Spanned<DedupPoolId<Type>>>> {
         if self.peek()?.kind == TokenKind::Colon {
             self.eat()?;
@@ -23,13 +23,13 @@ impl Parser<'_> {
     pub fn parse_enum_variant(
         &mut self,
         attributes: Vec<Spanned<ASTAttribute>>,
-        generics: TypeParamScope,
+        generics: &[SymbolPointer],
     ) -> Result<EnumVariant> {
         let name = self.expect_identifier()?;
         match self.peek()?.kind {
             TokenKind::Eq => {
                 self.eat()?;
-                let rhs = self.parse_expression(generics)?;
+                let rhs = self.parse_expression(generics, ParserFlags::default())?;
                 Ok(EnumVariant {
                     name,
                     kind: EnumVariantKind::RawValued(rhs),
@@ -76,7 +76,7 @@ impl Parser<'_> {
         }
     }
 
-    pub fn parse_enum_variants(&mut self, generics: TypeParamScope) -> Result<Vec<EnumVariant>> {
+    pub fn parse_enum_variants(&mut self, generics: &[SymbolPointer]) -> Result<Vec<EnumVariant>> {
         self.expect(&TokenKind::LBrace)?;
         let variants =
             self.parse_separated(TokenKind::RBrace, TokenKind::Comma, true, |parser| {
