@@ -1,3 +1,5 @@
+use std::backtrace::Backtrace;
+
 use color_eyre::owo_colors::OwoColorize;
 
 pub mod helpers;
@@ -33,6 +35,7 @@ impl ColumnRange {
 #[derive(Debug)]
 ///The type of the error that was generated
 pub enum SlynxErrorType {
+    Entry(std::io::Error),
     Lexer,
     Parser,
     Hir,
@@ -42,6 +45,7 @@ pub enum SlynxErrorType {
 impl std::fmt::Display for SlynxErrorType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            SlynxErrorType::Entry(err) => write!(f, "Entry Error: {}", err),
             SlynxErrorType::Lexer => write!(f, "Lexing Error"),
             SlynxErrorType::Parser => write!(f, "Parsing Error"),
             SlynxErrorType::Hir => write!(f, "HIR Error"),
@@ -65,6 +69,7 @@ pub struct SlynxError {
     ///The file path the error occuried
     ///Suggestions for solving this error
     pub suggestion: Vec<SlynxSuggestion>,
+    pub backtrace: std::sync::Arc<Backtrace>,
 }
 
 impl std::error::Error for SlynxError {}
@@ -98,7 +103,12 @@ impl std::fmt::Display for SlynxError {
         for suggestion in self.suggestion.iter() {
             writeln!(f, "-->{}", suggestion)?;
         }
-        writeln!(f)
+        writeln!(f)?;
+        writeln!(
+            f,
+            "\n\n---------------Language Bracktrace-------------------"
+        )?;
+        writeln!(f, "{}", self.backtrace.as_ref())
     }
 }
 
@@ -113,6 +123,7 @@ macro_rules! impl_slynx_error {
                 file: String,
                 source: String,
                 suggestion: Vec<SlynxSuggestion>,
+                backtrace: Backtrace,
             ) -> Self {
                 Self {
                     ty: $value,
@@ -120,10 +131,50 @@ macro_rules! impl_slynx_error {
                     column: ColumnRange::new(column, end_column),
                     metadata: ErrorMetadata::new(file, message, source),
                     suggestion,
+                    backtrace: std::sync::Arc::new(backtrace),
                 }
             }
         }
     };
+}
+
+impl SlynxError {
+    pub fn new_entry(
+        e: std::io::Error,
+        message: String,
+        file: String,
+        source: String,
+        suggestion: Vec<SlynxSuggestion>,
+        backtrace: std::sync::Arc<Backtrace>,
+    ) -> Self {
+        Self {
+            ty: SlynxErrorType::Entry(e),
+            line: 0,
+            column: ColumnRange::new(0, 0),
+            metadata: ErrorMetadata::new(file, message, source),
+            suggestion,
+            backtrace,
+        }
+    }
+    pub fn new_ownership(
+        line: usize,
+        column: usize,
+        end_column: usize,
+        message: String,
+        file: String,
+        source: String,
+        suggestion: Vec<SlynxSuggestion>,
+        backtrace: std::sync::Arc<Backtrace>,
+    ) -> Self {
+        Self {
+            ty: SlynxErrorType::Hir,
+            line,
+            column: ColumnRange::new(column, end_column),
+            metadata: ErrorMetadata::new(file, message, source),
+            suggestion,
+            backtrace,
+        }
+    }
 }
 
 impl_slynx_error!(new_lexer -> SlynxErrorType::Lexer);

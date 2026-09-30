@@ -1,3 +1,5 @@
+use std::backtrace::Backtrace;
+
 use slynx_hir::{
     SlynxHir,
     error::{HIRError, HIRErrorKind, InvalidWriteReason, NotMutableReason},
@@ -248,11 +250,18 @@ impl SlynxContext {
                 let name = hir.get_name(*name);
                 format!("'{name}' uses a construct that is not implemented yet")
             }
+            HIRErrorKind::DuplicateInterfaceImplementation { ty, interface } => {
+                let ty = hir.view(*ty).name();
+                let interface = hir.view(*interface).name();
+                format!(
+                    "Type '{ty}' implements the interface '{interface}' more than once"
+                )
+            }
         }
     }
 
-    pub fn handle_hir_error(&self, hir: &SlynxHir, error: &HIRError) -> SlynxError {
-        let suggestion = suggestions_from_hir(hir, error);
+    pub fn handle_hir_error(&self, hir: &SlynxHir, error: HIRError) -> SlynxError {
+        let suggestion = suggestions_from_hir(hir, &error);
         let LineInfo {
             line,
             column_start,
@@ -263,14 +272,20 @@ impl SlynxContext {
             line,
             column_start,
             column_end,
-            self.hir_error_to_string(hir, error),
+            self.hir_error_to_string(hir, &error),
             self.file_name(),
             src.to_string(),
             suggestion,
+            error.backtrace,
         )
     }
 
-    pub fn handle_ownership_error(&self, hir: &SlynxHir, error: &OwnershipError) -> SlynxError {
+    pub fn handle_ownership_error(
+        &self,
+        hir: &SlynxHir,
+        error: &OwnershipError,
+        backtrace: std::sync::Arc<Backtrace>,
+    ) -> SlynxError {
         let message = match &error.kind {
             OwnershipErrorKind::UseAfterMove { variable } => {
                 format!(
@@ -310,7 +325,7 @@ impl SlynxContext {
             column_end,
             src,
         } = self.get_line_info(&self.entry_point, error.span.start as usize);
-        SlynxError::new_hir(
+        SlynxError::new_ownership(
             line,
             column_start,
             column_end,
@@ -318,6 +333,7 @@ impl SlynxContext {
             self.file_name(),
             src.to_string(),
             vec![],
+            backtrace,
         )
     }
 }

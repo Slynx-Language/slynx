@@ -1,4 +1,4 @@
-use slynx_codegen::CodegenError;
+use slynx_codegen::{CodegenError, CodegenErrorKind};
 use slynx_hir::{SlynxHir, id::AnyLocalDeclarationId};
 
 use crate::{
@@ -7,46 +7,46 @@ use crate::{
 };
 
 pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> String {
-    match error {
-        CodegenError::NotAStruct(id) => {
+    match &error.kind {
+        CodegenErrorKind::NotAStruct(id) => {
             format!(
                 "IR internal error: '{}' is not a struct but was trying to be used as one",
                 hir.view(*id).name()
             )
         }
-        CodegenError::NotAnEnum(id) => {
+        CodegenErrorKind::NotAnEnum(id) => {
             format!(
                 "IR internal error: '{}' is not an enum but was trying to be used as one",
                 hir.view(*id).name()
             )
         }
-        CodegenError::InvalidVariantIndex(id, index) => {
+        CodegenErrorKind::InvalidVariantIndex(id, index) => {
             format!(
                 "IR internal error: variant index {index} is out of bounds for enum '{}'",
                 hir.view(*id).name()
             )
         }
-        CodegenError::MissingEnumLayout(id) => {
+        CodegenErrorKind::MissingEnumLayout(id) => {
             format!(
                 "IR internal error: the layout of enum '{}' is not registered",
                 hir.view(*id).name()
             )
         }
-        CodegenError::MissingEnumPayload(id) => {
+        CodegenErrorKind::MissingEnumPayload(id) => {
             format!(
                 "IR internal error: enum '{}' is missing part of its payload layout",
                 hir.view(*id).name()
             )
         }
-        CodegenError::IRError(error) => format!("IR internal error: {error}"),
+        CodegenErrorKind::IRError(error) => format!("IR internal error: {error}"),
 
-        CodegenError::UnrecognizedVariable(id) => {
+        CodegenErrorKind::UnrecognizedVariable(id) => {
             format!(
                 "IR internal error: variable '{}' is not recognized by the IR",
                 hir.get_variable_name(*id)
             )
         }
-        CodegenError::DeclarationNotRecognized(id) => {
+        CodegenErrorKind::DeclarationNotRecognized(id) => {
             let file = hir.get_file(id.file_id);
             let ty = match id.local_id {
                 AnyLocalDeclarationId::Alias(a) => file[a].ty,
@@ -59,7 +59,7 @@ pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> Strin
 
             hir.view(ty).name()
         }
-        CodegenError::IRTypeNotRecognized(id) => {
+        CodegenErrorKind::IRTypeNotRecognized(id) => {
             format!(
                 "IR internal error: type '{}' is not recognized by the IR",
                 hir.view(*id).name()
@@ -68,7 +68,7 @@ pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> Strin
     }
 }
 impl SlynxContext {
-    pub fn build_ir_generation_error(&self, error: &CodegenError, hir: &SlynxHir) -> SlynxError {
+    pub fn build_ir_generation_error(&self, error: CodegenError, hir: &SlynxHir) -> SlynxError {
         let source_code = self
             .get_entry_point_source()
             .lines()
@@ -80,10 +80,11 @@ impl SlynxContext {
             0,
             0,
             0,
-            format_ir_generation_error(error, hir),
+            format_ir_generation_error(&error, hir),
             self.file_name(),
             source_code,
-            suggestions_from_ir(error),
+            suggestions_from_ir(&error),
+            error.backtrace,
         )
     }
 }

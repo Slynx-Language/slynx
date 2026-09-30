@@ -1,6 +1,7 @@
 mod errors;
 
 use std::{
+    backtrace::Backtrace,
     collections::HashSet,
     ops::Deref,
     path::{Path, PathBuf},
@@ -184,7 +185,7 @@ impl SlynxContext {
         }
     }
 
-    pub fn new(entry_point: PathBuf, std_path: Option<PathBuf>) -> std::io::Result<Self> {
+    pub fn new(entry_point: PathBuf, std_path: Option<PathBuf>) -> Result<Self, SlynxError> {
         let entry_point = Arc::new(entry_point);
         let mut out = Self {
             files: FilesProvider::new(),
@@ -192,7 +193,7 @@ impl SlynxContext {
             std: Self::std_dir(std_path),
             pools: GlobalPools::new(),
         };
-        out.insert_file(&entry_point)?;
+        out.insert_file(&entry_point);
         Ok(out)
     }
 
@@ -219,9 +220,8 @@ impl SlynxContext {
     }
 
     ///Inserts the file with provided `path` if it exists.
-    pub fn insert_file(&mut self, path: &Path) -> std::io::Result<()> {
-        self.files.read(path)?;
-        Ok(())
+    pub fn insert_file(&mut self, path: &Path) {
+        self.files.read(path).unwrap();
     }
 
     ///Registers a file that was already loaded by the source loader.
@@ -315,7 +315,7 @@ impl SlynxContext {
         let modules = { loader.load(entry, std, &mut on_load, &self.files) };
         match modules {
             Ok(modules) => Ok(modules),
-            Err(e) => Err(self.handle_source_error(&e)),
+            Err(e) => Err(self.handle_source_error(e)),
         }
     }
 
@@ -324,14 +324,18 @@ impl SlynxContext {
         &self,
         ast: &'a Modules,
     ) -> Result<(SlynxHir<'a>, HashSet<AnyDeclarationId>, OwnershipAnalysis), SlynxError> {
-        let mut hir = SlynxHir::new(ast).map_err(|e| self.handle_hir_error(&e.0, &e.1))?;
+        let mut hir = SlynxHir::new(ast).map_err(|e| self.handle_hir_error(&e.0, e.1))?;
 
         let deadcode = self.monomorphize(&mut hir)?;
 
         // Run ownership analysis (move semantics + borrow checking)
         let ownership = OwnershipAnalysis::analyze(&hir);
-        if let Some(first_error) = ownership.errors.first() {
-            return Err(self.handle_ownership_error(&hir, first_error));
+        if ownership.errors.len() > 0 {
+            return Err(self.handle_ownership_error(
+                &hir,
+                &ownership.errors[0],
+                ownership.errors[0].backtrace.clone(),
+            ));
         }
 
         Ok((hir, deadcode, ownership))
@@ -342,7 +346,7 @@ impl SlynxContext {
         &self,
         hir: &mut SlynxHir,
     ) -> Result<HashSet<AnyDeclarationId>, SlynxError> {
-        Monomorphizer::resolve(hir).map_err(|e| self.handle_hir_error(hir, &e))
+        Monomorphizer::resolve(hir).map_err(|e| self.handle_hir_error(hir, e))
     }
 
     ///Builds a new IR from the given `hir`. It's assumed that it is already implemented
@@ -355,7 +359,7 @@ impl SlynxContext {
         let codegen = LoweringState::new(&hir);
         codegen
             .generate(deadcode, ownership)
-            .map_err(|e| self.build_ir_generation_error(&e, &hir))
+            .map_err(|e| self.build_ir_generation_error(e, &hir))
     }
 
     ///Builds typed HIR and IR once so callers can inspect or persist intermediate dumps

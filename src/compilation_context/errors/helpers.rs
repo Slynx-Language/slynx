@@ -6,11 +6,11 @@ use std::{
 use std::fmt::Write;
 
 use module_loader::{SourceError, SourceErrorKind};
-use slynx_codegen::CodegenError;
+use slynx_codegen::{CodegenError, CodegenErrorKind};
 use slynx_hir::{HIRError, HIRErrorKind, SlynxHir};
 
 use slynx_lexer::error::LexerError;
-use slynx_parser::error::ParseError;
+use slynx_parser::{ParseErrorKind, error::ParseError};
 
 #[derive(Debug)]
 ///A metadata containing the `file` and `message` amd `source` data in a single string. This is being made to don't explode the requirement of sizoef(error) < 128, of rust.
@@ -137,8 +137,8 @@ pub fn suggestions_from_lexer(err: &LexerError) -> Vec<SlynxSuggestion> {
 }
 /// this function converts a [`ParseError`] into a [`Vec<SlynxSuggestion>`]
 pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
-    match &err {
-        ParseError::UnexpectedToken(token, expected) => {
+    match &err.kind {
+        ParseErrorKind::UnexpectedToken(token, expected) => {
             let expected = match expected {
                 slynx_parser::ExpectedContent::Token(kind) => format!("a '{kind:?}' token"),
                 slynx_parser::ExpectedContent::Raw(raw) => raw.clone(),
@@ -157,8 +157,8 @@ pub fn suggestions_from_parser(err: &ParseError) -> Vec<SlynxSuggestion> {
 
 /// this function converts a [`IRError`] into a [`Vec<SlynxSuggestion>`]
 pub fn suggestions_from_ir(err: &CodegenError) -> Vec<SlynxSuggestion> {
-    match &err {
-        CodegenError::DeclarationNotRecognized(sla) => {
+    match &err.kind {
+        CodegenErrorKind::DeclarationNotRecognized(sla) => {
             let mut buf = String::new();
             let _ = write!(buf, "{sla:?}");
             vec![SlynxSuggestion::DeclarationNotRecognized(buf)]
@@ -220,7 +220,7 @@ mod tests {
             FileId::from_raw(0),
             AnyLocalDeclarationId::Static(PoolId::new(0)),
         );
-        let err = CodegenError::DeclarationNotRecognized(id);
+        let err = CodegenError::new(CodegenErrorKind::DeclarationNotRecognized(id));
         let result = suggestions_from_ir(&err);
         assert_eq!(
             result,

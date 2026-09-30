@@ -1,3 +1,5 @@
+use std::backtrace::Backtrace;
+
 use slynx_lexer::error::LexerError;
 
 use crate::{
@@ -24,6 +26,7 @@ impl SlynxContext {
                     self.file_name(),
                     src.to_string(),
                     suggestion,
+                    Backtrace::capture(),
                 )
             }
             LexerError::UnrecognizedChar { index, .. } => {
@@ -41,6 +44,7 @@ impl SlynxContext {
                     self.file_name(),
                     src.to_string(),
                     suggestion,
+                    Backtrace::capture(),
                 )
             }
         }
