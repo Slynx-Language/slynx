@@ -26,14 +26,16 @@ impl ExpressionBuilder {
         }: ComponentExpressionDescriptor,
     ) -> Result<Spanned<PoolId<HirComponentExpression>>> {
         let name = queue.get_plain_type(component.name).identifier;
-        let node = queue.get_node(self.file());
-        let (owner, ty) = node.find_type(component.name, context)?;
+        let lowered = queue
+            .lowerer
+            .lower_type(queue, self.file(), component.name, context)?;
+        let (owner, ty) = (lowered.owner, lowered.term);
         if queue
             .hir
             .find_component_by_symbol(HirSymbol::new(owner, name))
             .is_none()
         {
-            let ty = queue.modules.find_type(self.file(), name);
+            let ty = queue.lowerer.lookup.find_type(self.file(), name);
             if let Some(ASTType {
                 owner,
                 content: ASTTypeKind::Component(comp),

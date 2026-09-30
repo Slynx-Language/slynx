@@ -1,4 +1,7 @@
-use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
+use common::{
+    Span, Spanned, VisibilityModifier,
+    pool::{DedupPoolId, PoolId},
+};
 use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{ASTFunction, ExtendDeclaration, Type, TypeContext};
 
@@ -75,10 +78,8 @@ impl<'a> HirQueueBuilder<'a> {
                 ));
             }
         };
-        let Some(ASTType {
-            owner: interface_owner,
-            content: ASTTypeKind::Interface(interface_id),
-        }) = self.modules.find_type(file_id, interface_name)
+        let Some((interface_owner, interface_index)) =
+            self.lowerer.lookup.find_interface(interface_name, file_id)
         else {
             return Err(HIRError::invalid_type(
                 interface_name,
@@ -86,10 +87,16 @@ impl<'a> HirQueueBuilder<'a> {
                 extension.interface.span,
             ));
         };
+        let interface_id = PoolId::new(interface_index as u32);
 
-        let node = self.get_node(file_id);
-        let (_, target) = node.find_type(extension.target, &TypeContext::EMPTY)?;
-        let (_, interface_term) = node.find_type(extension.interface, &TypeContext::EMPTY)?;
+        let target = self
+            .lowerer
+            .lower_type(self, file_id, extension.target, &TypeContext::EMPTY)?
+            .term;
+        let interface_term = self
+            .lowerer
+            .lower_type(self, file_id, extension.interface, &TypeContext::EMPTY)?
+            .term;
         let interface = self
             .modules
             .get_entry(interface_owner)
@@ -184,15 +191,11 @@ impl<'a> HirQueueBuilder<'a> {
         method: &T,
         self_type: TermId,
     ) -> Result<TermId> {
-        let node = self.get_node(file_id);
         let context = TypeContext::new(method.type_params());
-        let self_symbol = self.hir.intern_name("Self");
         let lower_type = |ty: Spanned<DedupPoolId<Type>>| {
-            if self.modules.referenced_name(ty.data) == Some(self_symbol) {
-                Ok(node.find_self_type(ty.data, self_type))
-            } else {
-                node.find_type(ty, &context).map(|(_, ty)| ty)
-            }
+            self.lowerer
+                .lower_type_with_self(self, file_id, ty, &context, self_type)
+                .map(|owned| owned.term)
         };
         let args = method
             .arguments()
@@ -210,8 +213,10 @@ impl<'a> HirQueueBuilder<'a> {
     ) -> Result<()> {
         match self.modules.get_type(ty.data) {
             Type::Plain(identifier) => {
-                let Some(ASTType { owner, content }) =
-                    self.modules.find_type(file_id, identifier.identifier)
+                let Some(ASTType { owner, content }) = self
+                    .lowerer
+                    .lookup
+                    .find_type(file_id, identifier.identifier)
                 else {
                     return Err(HIRError::type_unrecognized(identifier.identifier, ty.span));
                 };
@@ -287,7 +292,8 @@ impl<'a> HirQueueBuilder<'a> {
         span: Span,
     ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
         let reachable_files: std::collections::HashSet<FileId> = self
-            .modules
+            .lowerer
+            .lookup
             .find_all_in_modules((), requester, &|_, ()| Some(()))
             .into_iter()
             .map(|(file_id, ())| file_id)

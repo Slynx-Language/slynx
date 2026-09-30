@@ -71,7 +71,7 @@ pub mod ownership;
 mod queries;
 mod store;
 
-use std::ops::Index;
+use std::{fmt::Debug, hash::Hash, ops::Index};
 
 pub use crate::error::{HIRError, HIRErrorKind};
 use crate::{
@@ -83,7 +83,7 @@ pub use helpers::{HirViewer, Visible};
 
 pub use id::{ComponentId, DeclarationId, ExpressionId, VariableId};
 pub use model::*;
-use module_loader::Modules;
+use module_loader::{FileId, Modules};
 
 /// Result type for HIR operations.
 ///
@@ -91,6 +91,14 @@ use module_loader::Modules;
 /// successful values or [`HIRError`] instances with detailed diagnostic information.
 pub type Result<T> = std::result::Result<T, HIRError>;
 pub type SymbolPointer = common::SymbolPointer<FrontendSymbol>;
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+///A content that is owned by some file. Used mainly when we want to track ownership of something to know where it came from
+pub struct Owned<T: Clone + Hash + Eq + Debug> {
+    ///The file that owns this term.
+    pub owner: FileId,
+    ///The term id itself
+    pub term: T,
+}
 
 pub use crate::file::DeclarationsPool;
 pub use store::HirStore;

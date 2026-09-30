@@ -3,6 +3,7 @@ pub(crate) mod component;
 mod expression;
 mod function;
 pub(crate) mod interfaces;
+mod lowering;
 mod structs;
 mod work_channel;
 use std::{cell::RefCell, ops::Deref};
@@ -13,27 +14,24 @@ use common::{
 };
 
 use crate::{
-    ComponentId, ComponentMemberDeclaration, DeclarationId, EnumVariantType, HIRError,
-    HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration, HirObjectDeclaration,
-    HirStatement, HirStaticDeclaration, Result, SlynxHir, SymbolPointer, VariableId,
-    arrays::ArrayTerm,
+    ComponentId, ComponentMemberDeclaration, DeclarationId, HirComponentDeclaration,
+    HirFunctionDeclaration, HirStatement, HirStaticDeclaration, Result, SlynxHir, SymbolPointer,
+    VariableId,
     builders::{
-        expression::ExpressionBuildResult, function::HirFunctionBuilder, work_channel::WorkChannel,
+        expression::ExpressionBuildResult, function::HirFunctionBuilder, lowering::ASTLowerer,
+        work_channel::WorkChannel,
     },
     context::HirSymbol,
-    error::InvalidTypeReason,
-    helpers::Visible,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
-    term::{PrimitiveType, Term, TermId, TermNode},
-    vector::VectorTerm,
+    term::TermId,
 };
 use crossbeam_channel::select;
 use dashmap::{DashMap, DashSet};
 pub use expression::*;
-use module_loader::{ASTTypeKind, FileId, Modules};
+use module_loader::{FileId, Modules};
 use slynx_parser::{
-    ASTAttribute, ASTExpression, ASTStatement, ComponentDeclaration, ComponentMemberKind,
-    EnumVariantKind, FuncDeclaration, GenericIdentifier, StaticDeclaration, Type, TypeContext,
+    ASTAttribute, ASTStatement, ComponentDeclaration, GenericIdentifier, StaticDeclaration, Type,
+    TypeContext,
 };
 
 /// Orchestrates the AST → HIR build: hoists `main`, enqueues its transitive
@@ -64,7 +62,6 @@ pub struct PendingSignatures<'a> {
 
 ///A Node represents a file that is being compiled on the HIR. It's just a view over the Hir and AST to properly read data from the ast from the `entry` file
 pub struct HirNode<'a> {
-    pub(crate) hir: &'a SlynxHir<'a>,
     pub(crate) modules: &'a Modules<'a>,
     pub(crate) pendings: PendingSignatures<'a>,
     ///The ID of the file that we are reading
@@ -94,6 +91,7 @@ pub(crate) struct PendantComponent<'a> {
 pub struct HirQueueBuilder<'a> {
     pub(crate) hir: &'a SlynxHir<'a>,
     pub(crate) modules: &'a Modules<'a>,
+    pub(crate) lowerer: ASTLowerer<'a>,
     pub(crate) bodies: WorkChannel<PendantFunction<'a>>,
     pub(crate) statics: WorkChannel<()>,
     // TODO(interfaces): populated when the HIR extend scaffold is wired in.
@@ -118,450 +116,14 @@ pub struct HirQueueBuilder<'a> {
     pub signature_stack: RefCell<Vec<(FileId, SymbolPointer)>>,
 }
 
-impl HirNode<'_> {
-    ///Tries to find a type with the given `name`. For example, if the given name is `Person` it will try to find a type named like so, which might be a builtin type, an alias type, a struct, etc,
-    ///something that is a type, and contains the given `name`
-    pub fn find_type_named_as(
-        &self,
-        name: Spanned<SymbolPointer>,
-        context: &TypeContext,
-    ) -> Result<(FileId, TermId)> {
-        if let Some(data) = self.modules.find_type(self.entry, name.data) {
-            let id = match data.content {
-                ASTTypeKind::Interface(interface) => {
-                    let interface_declaration = self
-                        .modules
-                        .get_entry(data.owner)
-                        .interfaces()
-                        .get(interface);
-                    if !interface_declaration.type_args.is_empty() {
-                        return Err(HIRError::invalid_type(
-                            interface_declaration.name,
-                            InvalidTypeReason::IncorrectUsage,
-                            name.span,
-                        ));
-                    }
-                    if let Some(method) = interface_declaration
-                        .methods
-                        .iter()
-                        .find(|method| !method.type_params.is_empty())
-                    {
-                        return Err(HIRError::invalid_type(
-                            method.name,
-                            InvalidTypeReason::IncorrectUsage,
-                            method.span,
-                        ));
-                    }
-                    let methods = interface_declaration
-                        .methods
-                        .iter()
-                        .map(|method| {
-                            let method_signature = self.get_interface_method_signature(method)?;
-                            Ok((method.name, method_signature))
-                        })
-                        .collect::<Result<Vec<_>>>()?;
-                    let super_interfaces = interface_declaration
-                        .super_interfaces
-                        .iter()
-                        .map(|ty| self.find_type(*ty, context).map(|(_, term_id)| term_id))
-                        .collect::<Result<Vec<_>>>()?;
-                    self.hir
-                        .types
-                        .create_interface_type(name.data, methods, super_interfaces)
-                }
-                ASTTypeKind::Builtin(builtin) => self.hir.types.create_type(builtin.into()),
-                ASTTypeKind::Alias(alias) => {
-                    let target = self.modules.get_entry(data.owner).alias().get(alias).target;
-                    return self.find_type(target, context);
-                }
-                ASTTypeKind::Struct(s) => {
-                    let s = self.modules.get_entry(data.owner).object().get(s);
-                    let struct_name = s.name;
-                    let struct_context = TypeContext::new(&s.type_params);
-                    let fields = s
-                        .fields
-                        .iter()
-                        .map(|field| {
-                            let field_name = field.name.data.name;
-                            let field_ty = field.name.data.kind;
-                            let (_, type_id) = self.find_type(field_ty, &struct_context)?;
-
-                            Ok(Visible::new(field.visibility, (field_name.data, type_id)))
-                        })
-                        .collect::<Result<Vec<_>>>()?;
-
-                    let struct_ty =
-                        self.hir
-                            .types
-                            .create_struct_type(struct_name, fields, Vec::new());
-                    // Register a HirObjectDeclaration so the codegen's
-                    // hoist_declarations can create an IR struct for this type.
-                    let file = self.hir.store.get_or_create_file(data.owner);
-                    let already = file
-                        .declarations
-                        .objects
-                        .iter()
-                        .any(|d| d.name == struct_name);
-                    if !already {
-                        file.create_object(HirObjectDeclaration {
-                            name: struct_name,
-                            generics: s.type_params.clone(),
-                            ty: struct_ty,
-                            visibility: s.visibility,
-                            external: s.external,
-                            attributes: Vec::new(),
-                        });
-                    }
-                    struct_ty
-                }
-                ASTTypeKind::Component(component) => {
-                    let component = self
-                        .modules
-                        .get_entry(data.owner)
-                        .component()
-                        .get(component);
-                    self.resolve_component_signature(component)?
-                }
-                ASTTypeKind::Enum(e) => {
-                    let e = self.modules.get_entry(data.owner).enums().get(e);
-                    let enum_name = e.name;
-                    let enum_context = TypeContext::new(&e.type_params);
-                    // Validate the enum representation, if any. Only `int` is
-                    // supported for raw/raw-valued enums.
-                    if let Some(representation) = &e.representation {
-                        let (_, repr_ty) = self.find_type(
-                            representation.span.make_spanned(representation.data),
-                            &TypeContext::new(&[]),
-                        )?;
-                        match self.hir.view(repr_ty).dereference().raw().node() {
-                            TermNode::Primitive(
-                                PrimitiveType::Signed { .. } | PrimitiveType::Unsigned { .. },
-                            ) => {}
-                            _ => {
-                                return Err(HIRError::invalid_enum_representation(
-                                    enum_name,
-                                    representation.span,
-                                ));
-                            }
-                        }
-                    }
-                    // Discriminants walk the variants in declaration order.
-                    // Raw variants take the next sequential value; raw-valued
-                    // variants set their explicit value and bump the counter
-                    // past it, so later raw variants stay unique.
-                    let mut counter: i32 = 0;
-                    let mut variants = Vec::with_capacity(e.variants.len());
-                    for variant in &e.variants {
-                        let (discriminant, payload) = match &variant.kind {
-                            EnumVariantKind::Raw => (counter, Vec::new()),
-                            EnumVariantKind::RawValued(rhs) => {
-                                let value = match self.modules.get_expr(rhs.data) {
-                                    ASTExpression::IntLiteral(i) => *i,
-                                    _ => {
-                                        return Err(HIRError::enum_variant_must_be_an_int(
-                                            variant.name.data,
-                                            variant.span,
-                                        ));
-                                    }
-                                };
-                                (value, Vec::new())
-                            }
-                            EnumVariantKind::Associated(types) => {
-                                let payload = types
-                                    .iter()
-                                    .map(|ty| self.find_type(*ty, &enum_context).map(|v| v.1))
-                                    .collect::<Result<Vec<_>>>()?;
-                                (counter, payload)
-                            }
-                            EnumVariantKind::Struct(fields) => {
-                                let payload = fields
-                                    .iter()
-                                    .map(|field| {
-                                        self.find_type(field.data.kind, &enum_context).map(|v| v.1)
-                                    })
-                                    .collect::<Result<Vec<_>>>()?;
-                                (counter, payload)
-                            }
-                        };
-                        counter = counter.max(discriminant.saturating_add(1));
-                        variants.push(EnumVariantType {
-                            name: variant.name.data,
-                            payload,
-                            discriminant,
-                        });
-                    }
-                    let enum_ty = self.hir.types.create_enum_type(enum_name, variants);
-                    // Register a HirEnumDeclaration so the codegen's
-                    // hoist_declarations can create an IR type for this enum.
-                    let file = self.hir.store.get_or_create_file(data.owner);
-                    let already = file.declarations.enums.iter().any(|d| d.name == enum_name);
-                    if !already {
-                        file.create_enum(HirEnumDeclaration {
-                            name: enum_name,
-                            generics: e.type_params.clone(),
-                            variants: Vec::new(),
-                            visibility: e.visibility,
-                            attributes: Vec::new(),
-                            ty: enum_ty,
-                        });
-                    }
-                    enum_ty
-                }
-            };
-            Ok((data.owner, id))
-        } else {
-            Err(HIRError::type_unrecognized(name.data, name.span))
-        }
-    }
-
-    ///Finds the Hir type for the given `ty` and what file contains it if theres some. The given `file` is the file id where the given `ty` was generated at
-    pub fn find_type(
-        &self,
-        ty: Spanned<DedupPoolId<Type>>,
-        context: &TypeContext,
-    ) -> Result<(FileId, TermId)> {
-        self.find_type_inner(ty, context, None)
-    }
-
-    ///The single recursive `Type` → HIR type lowering shared by [`find_type`](Self::find_type)
-    ///and [`find_self_type`](Self::find_self_type) (see `builders/structs.rs`).
-    ///
-    ///When `self_substitute` is `Some`, a bare `Type::Plain` (such as `Self` in a
-    ///method signature) lowers directly to that type instead of being resolved
-    ///by name; every wrapper type recurses through this same helper, so the two
-    ///walkers cannot drift apart.
-    fn find_type_inner(
-        &self,
-        ty: Spanned<DedupPoolId<Type>>,
-        context: &TypeContext,
-        self_substitute: Option<TermId>,
-    ) -> Result<(FileId, TermId)> {
-        let real = self.modules.get_type(ty.data);
-        match real {
-            Type::Plain(generic) if let Some(substitute) = self_substitute => {
-                Ok((self.entry, substitute))
-            }
-            Type::Plain(generic) => {
-                if !generic.generic.is_empty()
-                    && self
-                        .modules
-                        .find_type(self.entry, generic.identifier)
-                        .is_some_and(|data| matches!(data.content, ASTTypeKind::Interface(_)))
-                {
-                    return Err(HIRError::invalid_type(
-                        generic.identifier,
-                        InvalidTypeReason::IncorrectUsage,
-                        ty.span,
-                    ));
-                }
-                if generic.generic.is_empty()
-                    && let Some(target) = context
-                        .generic_names
-                        .iter()
-                        .position(|name| *name == generic.identifier)
-                {
-                    return Ok((
-                        self.entry,
-                        self.hir
-                            .types
-                            .create_type(Term::new_variable_type(target as u8, generic.identifier)),
-                    ));
-                }
-                let (owner, ty) =
-                    self.find_type_named_as(ty.span.make_spanned(generic.identifier), context)?;
-                if generic.generic.is_empty() {
-                    return Ok((owner, ty));
-                }
-                // A generic application like `Option<int>` or `List<int>` is
-                // represented as a Reference carrying the concrete type
-                // arguments, so monomorphization can specialize it later.
-                let ty_view = self.hir.view(ty);
-                let deref = ty_view.dereference();
-                if deref.is_struct().is_none()
-                    && deref.is_component().is_none()
-                    && deref.is_enum().is_none()
-                {
-                    return Ok((owner, ty));
-                }
-                let args = generic
-                    .generic
-                    .iter()
-                    .map(|arg| {
-                        self.find_type_inner(arg.span.make_spanned(arg.data), context, None)
-                            .map(|v| v.1)
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                Ok((
-                    owner,
-                    self.hir.types.create_type(Term::application(ty, args)),
-                ))
-            }
-            Type::Array(t, len) => {
-                let (id, ty) =
-                    self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let len = match self.modules.get_expr(*len) {
-                    ASTExpression::IntLiteral(i) => *i as usize,
-                    _ => unimplemented!(
-                        "Array length can only be used as integers at the moment. It is idealized to be used in comptime in the future"
-                    ),
-                };
-                let array = self.hir.types.create_extension_type(ArrayTerm);
-                let len = self
-                    .hir
-                    .types
-                    .create_type(Term::const_usize_type(len as usize));
-                let ty = self
-                    .hir
-                    .types
-                    .create_type(Term::application(array, vec![ty, len]));
-                Ok((id, ty))
-            }
-            Type::Vector(t) => {
-                let (id, ty) =
-                    self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let array = self.hir.types.create_extension_type(VectorTerm);
-                let ty = self
-                    .hir
-                    .types
-                    .create_type(Term::application(array, vec![ty]));
-                Ok((id, ty))
-            }
-            Type::Reference(t) => {
-                let (id, ty) =
-                    self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-
-                let ty = self.hir.types.create_type(Term::reference(ty));
-                Ok((id, ty))
-            }
-            Type::MutableReference(t) => {
-                let (id, ty) =
-                    self.find_type_inner(ty.span.make_spanned(*t), context, self_substitute)?;
-                let ty = self.hir.types.create_type(Term::mutable_reference(ty));
-                Ok((id, ty))
-            }
-        }
-    }
-
-    fn get_interface_method_signature(&self, method: &FuncDeclaration) -> Result<TermId> {
-        let context = TypeContext::new(&method.type_params);
-        let self_sym = self.hir.intern_name("Self");
-        let self_term = self
-            .hir
-            .types
-            .create_type(Term::new_variable_type(0, self_sym));
-        let ret = self
-            .lower_with_self(method.return_type, &context, self_term)?
-            .1;
-        let args = method
-            .args
-            .iter()
-            .map(|f| {
-                self.lower_with_self(f.data.kind, &context, self_term)
-                    .map(|v| v.1)
-            })
-            .collect::<Result<Vec<_>>>()?;
-        Ok(self.hir.types.create_function_type(args, ret))
-    }
-    fn lower_with_self(
-        &self,
-        ty: Spanned<DedupPoolId<Type>>,
-        context: &TypeContext,
-        self_term: TermId,
-    ) -> Result<(FileId, TermId)> {
-        let self_symbol = self.hir.intern_name("Self");
-        if self.modules.referenced_name(ty.data) == Some(self_symbol) {
-            self.find_type_inner(ty.span.make_spanned(ty.data), context, Some(self_term))
-        } else {
-            self.find_type(ty.span.make_spanned(ty.data), context)
-        }
-    }
-
-    ///Gets the signature of the given `f` function. Asserting the id of the file it was generated is the given `file`.
-    fn get_signature_of_function(&self, f: &FuncDeclaration) -> Result<TermId> {
-        let context = TypeContext::new(&f.type_params);
-        let ret = self.find_type(f.return_type, &context)?.1;
-        let args = f
-            .args
-            .iter()
-            .map(|f| {
-                let inner = f.data.kind;
-                self.find_type(inner, &context).map(|v| v.1)
-            })
-            .collect::<Result<_>>()?;
-        Ok(self.hir.types.create_function_type(args, ret))
-    }
-
-    /// Pure computation of a component's signature type (no cycle detection).
-    fn compute_component_type(&self, component: &ComponentDeclaration) -> Result<TermId> {
-        let context = TypeContext::new(&component.type_params);
-        let (properties, children) = {
-            let mut properties = Vec::with_capacity(component.members.len());
-            let mut components = Vec::with_capacity(component.members.len());
-            for member in &component.members {
-                match &member.kind {
-                    ComponentMemberKind::Property { name, ty, .. } => {
-                        if let Some(ty) = ty {
-                            let (_, field) = self.find_type(*ty, &context)?;
-                            properties.push((*name, field));
-                        } else {
-                            return Err(HIRError::component_missing_prop_type(member.span));
-                        }
-                    }
-                    ComponentMemberKind::Child(c) => {
-                        let (_, ty) = self.find_type(c.data.name, &context)?;
-                        let ty_view = self.hir.view(ty);
-                        let view = ty_view.dereference();
-                        if let Some(view) = view.is_component() {
-                            components.push(view.data);
-                        } else {
-                            let name = self.type_name(c.data.name.data);
-                            return Err(HIRError::not_a_component(name, c.span));
-                        };
-                    }
-                }
-            }
-            (properties, components)
-        };
-        Ok(self
-            .hir
-            .types
-            .create_component_type(component.name, properties, children))
-    }
-
-    /// Resolve a component's signature with cycle detection.
-    pub(crate) fn resolve_component_signature(
-        &self,
-        component: &ComponentDeclaration,
-    ) -> Result<TermId> {
-        let key = (self.entry, component.name);
-
-        // Push onto cycle-detection stack
-        self.pendings.signature_stack.borrow_mut().push(key);
-
-        // Insert into in-progress set. If already present, we have a cycle.
-        if !self.pendings.signatures_in_progress.insert(key) {
-            let chain = self.pendings.signature_stack.borrow().clone();
-            self.pendings.signature_stack.borrow_mut().pop();
-            return Err(HIRError::cyclic_component_signature(
-                component.name,
-                chain,
-                component.span,
-            ));
-        }
-
-        let result = self.compute_component_type(component);
-
-        self.pendings.signatures_in_progress.remove(&key);
-        self.pendings.signature_stack.borrow_mut().pop();
-        result
-    }
-}
+impl HirNode<'_> {}
 
 impl<'a> HirQueueBuilder<'a> {
     pub fn new(hir: &'a SlynxHir<'a>, modules: &'a Modules<'a>) -> Self {
         Self {
             hir,
             modules,
+            lowerer: ASTLowerer::new(modules),
             bodies: WorkChannel::new(),
             statics: WorkChannel::new(),
             components: WorkChannel::new(),
@@ -587,7 +149,6 @@ impl<'a> HirQueueBuilder<'a> {
 
     pub(crate) fn get_node(&self, id: FileId) -> HirNode<'_> {
         HirNode {
-            hir: self.hir,
             modules: self.modules,
             entry: id,
             pendings: PendingSignatures {
@@ -629,28 +190,31 @@ impl<'a> HirQueueBuilder<'a> {
     pub(crate) fn enqueue_static(
         &self,
         s: &StaticDeclaration,
-        node: HirNode<'_>,
+        requester: FileId,
     ) -> Result<DeclarationId<HirStaticDeclaration>> {
-        let (_, ty) = node.find_type(s.ty, &TypeContext::EMPTY)?;
+        let ty = self
+            .lowerer
+            .lower_type(self, requester, s.ty, &TypeContext::EMPTY)?
+            .term;
         let name = s.name;
-        let id = self.hir.symbols_registry.get_or_insert_static(
-            HirSymbol::new(node.entry, name),
-            || {
-                let decl = HirStaticDeclaration {
-                    name,
-                    ty,
-                    visibility: s.visibility,
-                    external: s.external,
-                    attributes: Vec::new(),
-                };
-                let file = self.hir.store.get_or_create_file(node.entry);
-                file.create_static(decl)
-            },
-        );
+        let id =
+            self.hir
+                .symbols_registry
+                .get_or_insert_static(HirSymbol::new(requester, name), || {
+                    let decl = HirStaticDeclaration {
+                        name,
+                        ty,
+                        visibility: s.visibility,
+                        external: s.external,
+                        attributes: Vec::new(),
+                    };
+                    let file = self.hir.store.get_or_create_file(requester);
+                    file.create_static(decl)
+                });
 
         // Process attributes after the declaration is registered
         self.attach_attributes(
-            node.entry,
+            requester,
             AnyLocalDeclarationId::Static(id.local_id),
             &s.attributes,
         )?;

@@ -82,7 +82,15 @@ impl ExpressionBuilder {
                 _ => queue.hir.types.create_type(Term::void_type()),
             })
             .unwrap_or_else(|| queue.hir.types.create_type(Term::void_type()));
-        self.unify_terms(queue, else_ty, then_ty, span)?;
+        self.unify_terms(
+            queue,
+            else_ty,
+            then_ty,
+            else_body
+                .last()
+                .map(|s| s.span)
+                .unwrap_or(then_branch.last().map(|s| s.span).unwrap_or(span)),
+        )?;
         Ok(HirExpression {
             ty: then_ty,
             kind: HirExpressionKind::If {

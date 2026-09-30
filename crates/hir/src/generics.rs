@@ -20,12 +20,10 @@
 //! its own parameters/arguments; the mapping, inference, and substitution
 //! machinery is shared.
 
-use common::{Spanned, pool::DedupPoolId};
-use slynx_parser::{Type, TypeContext};
+use common::pool::DedupPoolId;
 
 use crate::{
-    Result, SlynxHir,
-    builders::HirNode,
+    SlynxHir,
     term::{Term, TermId, TermNode},
 };
 
@@ -205,22 +203,4 @@ pub fn implied_arity(types: &[TermId], hir: &SlynxHir) -> usize {
         })
         .max()
         .unwrap_or(0)
-}
-
-impl HirNode<'_> {
-    /// Resolves the explicit generic type arguments of a call like
-    /// `compare<int>(a, b)` into their HIR type ids. Types that are generic
-    /// parameters of the enclosing declaration (e.g. `identity<T>(x)`) resolve
-    /// to [`HirType::GenericParam`] ids, which monomorphization later
-    /// substitutes with concrete types.
-    pub(crate) fn resolve_call_generics(
-        &self,
-        generics: &[Spanned<DedupPoolId<Type>>],
-        context: &TypeContext,
-    ) -> Result<Vec<TermId>> {
-        generics
-            .iter()
-            .map(|ty| self.find_type(*ty, context).map(|(_, ty)| ty))
-            .collect()
-    }
 }

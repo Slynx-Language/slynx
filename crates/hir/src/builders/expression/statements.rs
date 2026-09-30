@@ -45,7 +45,12 @@ impl ExpressionBuilder {
             }
             ASTStatement::Var { name, ty, rhs } | ASTStatement::MutableVar { name, ty, rhs } => {
                 let var_type = if let Some(ty) = ty {
-                    Some(queue.get_node(self.file()).find_type(*ty, context)?.1)
+                    Some(
+                        queue
+                            .lowerer
+                            .lower_type(queue, self.file(), *ty, context)?
+                            .term,
+                    )
                 } else {
                     None
                 };
@@ -60,9 +65,9 @@ impl ExpressionBuilder {
                 let exprty = queue.hir.view(expr.data).ty();
                 let expected_type = if let Some(expected_ty) = ty {
                     queue
-                        .get_node(self.file())
-                        .find_type(*expected_ty, context)?
-                        .1
+                        .lowerer
+                        .lower_type(queue, self.file(), *expected_ty, context)?
+                        .term
                 } else {
                     exprty
                 };

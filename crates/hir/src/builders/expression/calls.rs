@@ -100,9 +100,15 @@ impl ExpressionBuilder {
             ));
         }
         let mut generics = GenericTypeArguments::from_explicit(
-            queue
-                .get_node(self.file())
-                .resolve_call_generics(type_arguments, context)?,
+            type_arguments
+                .iter()
+                .map(|ty| {
+                    queue
+                        .lowerer
+                        .lower_type(queue, self.file(), *ty, context)
+                        .map(|owned| owned.term)
+                })
+                .collect::<Result<Vec<_>>>()?,
         );
         let args = {
             let transformed_arguments = arguments

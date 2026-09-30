@@ -26,8 +26,10 @@ impl ExpressionBuilder {
     ) -> Result<HirName> {
         if let Some(var) = self.variables.scope.get_name(&ptr) {
             Ok(HirName::Variable(var))
-        } else if let Some((file_owner, statik)) = queue.find_static_declaration(ptr, self.file()) {
-            let id = queue.enqueue_static(statik, queue.get_node(file_owner))?;
+        } else if let Some((file_owner, statik)) =
+            queue.lowerer.lookup.find_static(ptr, self.file())
+        {
+            let id = queue.enqueue_static(statik, file_owner)?;
             Ok(HirName::Static(id))
         } else {
             Err(HIRError::name_unrecognized(ptr, span))

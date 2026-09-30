@@ -41,10 +41,14 @@ impl ExpressionBuilder {
 
         let ty = if let Some(self_type) = &self.self_type {
             queue
-                .get_node(self.file())
-                .find_self_type(name.data, *self_type)
+                .lowerer
+                .lower_type_with_self(queue, self.file(), name, context, *self_type)?
+                .term
         } else {
-            queue.get_node(self.file()).find_type(name, context)?.1
+            queue
+                .lowerer
+                .lower_type(queue, self.file(), name, context)?
+                .term
         };
         let ty_view = queue.hir.view(ty);
         let deref = ty_view.dereference();

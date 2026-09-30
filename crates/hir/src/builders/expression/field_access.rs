@@ -15,6 +15,7 @@ use crate::{
             enums::{EnumExpressionDescriptor, EnumVariantDescriptor},
             literals::ReferenceExpressionDescriptor,
         },
+        lowering::lowerer::LowerTypeDeclarationDescriptor,
     },
     term::{TermId, TermNode},
 };
@@ -55,12 +56,35 @@ impl ExpressionBuilder {
         } = descriptor;
         match parent {
             Either::Left(parent) => match queue.get_expr(parent.data) {
-                ASTExpression::Identifier(ident)
-                    if let Ok((file, ty)) = queue
-                        .get_node(self.file())
-                        .find_type_named_as(parent.span.make_spanned(*ident), context) =>
-                {
-                    self.build_type_access(queue, file, ty, field, span, context)
+                ASTExpression::Identifier(ident) => {
+                    if let Some(ast_type) = queue.lowerer.lookup.find_type(self.file(), *ident) {
+                        let lowered = queue.lowerer.lower_type_declaration(
+                            queue,
+                            LowerTypeDeclarationDescriptor {
+                                ast_type,
+                                context,
+                                span: parent.span,
+                            },
+                        )?;
+                        self.build_type_access(
+                            queue,
+                            lowered.owner,
+                            lowered.term,
+                            field,
+                            span,
+                            context,
+                        )
+                    } else {
+                        let parent = self.build_expression(
+                            queue,
+                            ExpressionDescriptor {
+                                target: parent,
+                                expected,
+                                context,
+                            },
+                        )?;
+                        self.build_field_access_impl(queue, parent, field, span, context)
+                    }
                 }
                 _ => {
                     let parent = self.build_expression(

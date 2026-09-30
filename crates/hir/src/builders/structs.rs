@@ -1,25 +1,10 @@
-use common::{Span, pool::DedupPoolId};
+use common::Span;
 use module_loader::{ASTType, ASTTypeKind, FileId};
-use slynx_parser::{Type, TypeContext};
 
 use crate::{
-    DeclarationId, DescriptorId, HirFunctionDeclaration, HirNode, HirQueueBuilder, Result,
-    SymbolPointer,
+    DeclarationId, DescriptorId, HirFunctionDeclaration, HirQueueBuilder, Result, SymbolPointer,
     term::{TermId, TermNode},
 };
-
-impl HirNode<'_> {
-    /// Lowers a method type while replacing `Self` and its wrappers with `selfty`.
-    pub fn find_self_type(&self, ty: DedupPoolId<Type>, selfty: TermId) -> TermId {
-        self.find_type_inner(
-            Span::default().make_spanned(ty),
-            &TypeContext::EMPTY,
-            Some(selfty),
-        )
-        .map(|(_, ty)| ty)
-        .expect("a type with Self substituted inside cannot fail to lower")
-    }
-}
 
 impl HirQueueBuilder<'_> {
     /// Lazily materializes an inherent method declared on a struct.
@@ -39,7 +24,7 @@ impl HirQueueBuilder<'_> {
         let Some(ASTType {
             owner,
             content: ASTTypeKind::Struct(declaration),
-        }) = self.modules.find_type(file_id, struct_name)
+        }) = self.lowerer.lookup.find_type(file_id, struct_name)
         else {
             return Ok(None);
         };

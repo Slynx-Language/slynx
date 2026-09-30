@@ -33,6 +33,8 @@
 //!
 //! All other types (structs, tuples, arrays, etc.) are Move-only.
 
+use std::{backtrace::Backtrace, sync::Arc};
+
 use crate::{
     SlynxHir, VariableId,
     term::{PrimitiveType, TermId},
@@ -62,6 +64,17 @@ pub enum ExpressionUse {
 pub struct OwnershipError {
     pub kind: OwnershipErrorKind,
     pub span: common::Span,
+    pub backtrace: Arc<Backtrace>,
+}
+
+impl OwnershipError {
+    pub fn new(kind: OwnershipErrorKind, span: common::Span) -> Self {
+        Self {
+            kind,
+            span,
+            backtrace: Arc::new(Backtrace::capture()),
+        }
+    }
 }
 
 #[derive(Debug)]

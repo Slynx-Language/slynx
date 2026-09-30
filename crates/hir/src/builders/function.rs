@@ -34,15 +34,11 @@ impl<'a> HirQueueBuilder<'a> {
         declaration_name: SymbolPointer,
         register_as_inherent: bool,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let node = self.get_node(entry);
-        let self_symbol = self.hir.intern_name("Self");
         let context = TypeContext::new(method.type_params());
         let lower_type = |ty: Spanned<DedupPoolId<Type>>| {
-            if self.modules.referenced_name(ty.data) == Some(self_symbol) {
-                Ok(node.find_self_type(ty.data, self_type))
-            } else {
-                node.find_type(ty, &context).map(|(_, ty)| ty)
-            }
+            self.lowerer
+                .lower_type_with_self(self, entry, ty, &context, self_type)
+                .map(|owned| owned.term)
         };
         let args = method
             .arguments()
@@ -106,7 +102,7 @@ impl<'a> HirQueueBuilder<'a> {
         f: &'a FuncDeclaration,
         owner: FileId,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let signature = self.get_node(owner).get_signature_of_function(f)?;
+        let signature = self.lowerer.resolve_signature_of_function(self, owner, f)?;
         let names = f.args.iter().map(|arg| arg.data.name.data).collect();
         let id =
             self.hir
@@ -158,7 +154,7 @@ impl<'a> HirQueueBuilder<'a> {
             Ok(func)
         } else if let Some(func) = self.hir.get_file(requester).find_function_with_name(name) {
             Ok(func)
-        } else if let Some((id, index)) = self.find_function_declaration(name, requester) {
+        } else if let Some((id, index)) = self.lowerer.lookup.find_function(name, requester) {
             let func = self
                 .modules
                 .get_entry(id)

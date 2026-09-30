@@ -8,6 +8,7 @@ use crate::{
     builders::{
         HirQueueBuilder, PendantComponent,
         expression::{ExpressionBuilder, ExpressionDescriptor},
+        lowering::lowerer::LowerTypeDeclarationDescriptor,
     },
     components::ComponentExpressionDescriptor,
     context::HirSymbol,
@@ -54,58 +55,26 @@ impl<'a> HirQueueBuilder<'a> {
         queue.bodies_in_progress.remove(&id);
         result.map(|r| r.decls)
     }
-    ///Finds a component with the given `name` on-demand, hoisting it if needed.
-    ///Mirrors the pattern of `find_function_named`.
-    #[allow(dead_code)]
-    pub fn find_component_named(
-        &'a self,
-        name: SymbolPointer,
-        requester: FileId,
-        span: Span,
-    ) -> Result<ComponentId> {
-        // 1. Already hoisted in symbol registry?
-        if let Some(comp) = self
-            .hir
-            .find_component_by_symbol(HirSymbol::new(requester, name))
-        {
-            return Ok(comp);
-        }
 
-        // 2. Already exists in the requester's file pool?
-        if let Some(id) = self.hir.get_file(requester).find_component_with_name(name) {
-            return Ok(id);
-        }
-
-        if let Some(ast_type) = self.modules.find_type(requester, name) {
-            match ast_type.content {
-                ASTTypeKind::Component(component) => {
-                    let component = self
-                        .modules
-                        .get_entry(ast_type.owner)
-                        .component()
-                        .get(component);
-                    let out = self.enqueue_component(component, ast_type.owner)?;
-                    return Ok(out);
-                }
-                _ => {
-                    return Err(HIRError::not_a_component(name, span));
-                }
-            }
-        }
-
-        // 4. Not found anywhere
-        Err(HIRError::name_unrecognized(name, span))
-    }
     pub(crate) fn enqueue_component(
         &self,
         component: &'a ComponentDeclaration,
         node: FileId,
     ) -> Result<DeclarationId<HirComponentDeclaration>> {
-        let node = self.get_node(node);
-        let (owner, ty) = node.find_type_named_as(
-            component.span.make_spanned(component.name),
-            &TypeContext::new(&component.type_params),
+        let ast_type = self
+            .lowerer
+            .lookup
+            .find_type(node, component.name)
+            .ok_or_else(|| HIRError::type_unrecognized(component.name, component.span))?;
+        let lowered = self.lowerer.lower_type_declaration(
+            self,
+            LowerTypeDeclarationDescriptor {
+                ast_type,
+                context: &TypeContext::new(&component.type_params),
+                span: component.span,
+            },
         )?;
+        let (owner, ty) = (lowered.owner, lowered.term);
 
         let id = self.hir.symbols_registry.get_or_insert_component(
             HirSymbol::new(owner, component.name),
@@ -118,7 +87,7 @@ impl<'a> HirQueueBuilder<'a> {
                     visibility: component.visibility,
                     attributes: Vec::new(),
                 };
-                let file = self.hir.store.get_or_create_file(node.entry);
+                let file = self.hir.store.get_or_create_file(node);
                 Ok(file.create_component(decl))
             },
         )?;

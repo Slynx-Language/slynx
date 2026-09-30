@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    backtrace::Backtrace,
+    path::{Path, PathBuf},
+};
 
 use common::Span;
 use slynx_lexer::LexerError;
@@ -15,6 +18,7 @@ pub enum SourceErrorKind {
 pub struct SourceError {
     kind: SourceErrorKind,
     entry: PathBuf,
+    backtrace: Backtrace,
 }
 
 impl SourceError {
@@ -28,20 +32,32 @@ impl SourceError {
         Self {
             kind: SourceErrorKind::InexistantSource(e, span, generator),
             entry: entry.clone(),
+            backtrace: Backtrace::capture(),
         }
     }
     pub fn lexing(e: LexerError, entry: PathBuf) -> Self {
         Self {
             kind: SourceErrorKind::Lexing(e),
             entry: entry.clone(),
+            backtrace: Backtrace::capture(),
         }
     }
     pub fn parsing(e: ParseError, entry: PathBuf) -> Self {
         Self {
             kind: SourceErrorKind::Parsing(e),
             entry: entry.clone(),
+            backtrace: Backtrace::capture(),
         }
     }
+
+    pub fn backtrace(self) -> Backtrace {
+        if let SourceErrorKind::Parsing(e) = self.kind {
+            e.backtrace
+        } else {
+            self.backtrace
+        }
+    }
+
     pub fn kind(&self) -> &SourceErrorKind {
         &self.kind
     }
