@@ -13,6 +13,7 @@ impl Parser<'_> {
         &mut self,
         name: Spanned<DedupPoolId<Type>>,
         type_params: &[SymbolPointer],
+        flags: ParserFlags,
     ) -> Result<Spanned<ComponentExpression>> {
         let mut span = name.span;
         self.expect(&TokenKind::LBrace)?;
@@ -29,7 +30,7 @@ impl Parser<'_> {
                 TokenKind::Colon => {
                     let ident = self.expect_identifier()?;
                     self.expect(&TokenKind::Colon)?;
-                    let val = self.parse_expression(type_params, ParserFlags::default())?;
+                    let val = self.parse_expression(type_params, flags)?;
                     values.push(ComponentMemberValue::Assign {
                         prop_name: ident.data,
                         rhs: val,
@@ -39,7 +40,7 @@ impl Parser<'_> {
                     }
                 }
                 _ => {
-                    let val = self.parse_component_expr(type_params)?;
+                    let val = self.parse_component_expr(type_params, flags)?;
                     values.push(ComponentMemberValue::Child(val.data));
                 }
             }
@@ -50,9 +51,10 @@ impl Parser<'_> {
     pub fn parse_component_expr(
         &mut self,
         type_params: &[SymbolPointer],
+        flags: ParserFlags,
     ) -> Result<Spanned<ComponentExpression>> {
         let ty = self.parse_type(type_params)?;
-        self.parse_component_expr_with_name(ty, type_params)
+        self.parse_component_expr_with_name(ty, type_params, flags)
     }
 
     ///From the current token parses a `NamedExpr`. It starts from the current token supposing it's a identifier,
@@ -60,10 +62,11 @@ impl Parser<'_> {
     pub fn parse_named_expr(
         &mut self,
         type_params: &[SymbolPointer],
+        flags: ParserFlags,
     ) -> Result<Spanned<NamedExpr>> {
         let name = self.expect_identifier()?;
         self.expect(&TokenKind::Colon)?;
-        let expr = self.parse_expression(type_params, ParserFlags::default())?;
+        let expr = self.parse_expression(type_params, flags)?;
         let span = name.span.merge_with(expr.span);
         Ok(Spanned::new(
             NamedExpr {
@@ -78,6 +81,7 @@ impl Parser<'_> {
         &mut self,
         start: Spanned<DedupPoolId<ASTExpression>>,
         type_params: &[SymbolPointer],
+        flags: ParserFlags,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let start_span = start.span;
 
@@ -87,7 +91,7 @@ impl Parser<'_> {
         }
         let mut vec = smallvec![start];
         while self.peek()?.kind != TokenKind::RParen {
-            vec.push(self.parse_expression(type_params, ParserFlags::default())?);
+            vec.push(self.parse_expression(type_params, flags)?);
             if self.peek()?.kind == TokenKind::Comma {
                 self.eat()?;
             }
@@ -102,11 +106,12 @@ impl Parser<'_> {
         &mut self,
         name: Spanned<DedupPoolId<Type>>,
         type_params: &[SymbolPointer],
+        flags: ParserFlags,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         self.expect(&TokenKind::LParen)?;
         let fields: SmallVec<[Spanned<NamedExpr>; 4]> = self
             .parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
-                parser.parse_named_expr(type_params)
+                parser.parse_named_expr(type_params, flags)
             })?
             .into();
         let end = self.expect(&TokenKind::RParen)?.span;
@@ -118,8 +123,9 @@ impl Parser<'_> {
     pub fn parse_object_expression(
         &mut self,
         type_params: &[SymbolPointer],
+        flags: ParserFlags,
     ) -> Result<Spanned<DedupPoolId<ASTExpression>>> {
         let name = self.parse_type(type_params)?;
-        self.parse_object_expression_with_name(name, type_params)
+        self.parse_object_expression_with_name(name, type_params, flags)
     }
 }

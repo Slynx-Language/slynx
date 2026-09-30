@@ -41,6 +41,16 @@ impl<'a> Parser<'a> {
     pub fn peek(&self) -> Result<&Token> {
         self.peek_at(0)
     }
+
+    /// Same as [`Self::peek_at`], but yields `None` instead of failing once the
+    /// stream is exhausted. Two-token lookaheads must use this: running out of
+    /// input is a normal outcome for a lookahead, and reporting it as
+    /// `UnexpectedEndOfInput` would abort a declaration that is otherwise
+    /// complete.
+    pub fn peek_at_opt(&self, idx: usize) -> Option<&Token> {
+        self.stream.stream.get(idx)
+    }
+
     /// Consumes the next token and checks if it matches the expected `kind`.
     /// If it does, it returns the token; otherwise, it returns an error indicating the mismatch.
     /// The error message will specify what kind of token was expected, providing clarity for debugging purposes.

@@ -43,7 +43,10 @@ impl<'a> Parser<'a> {
         Ok(out)
     }
 
-    ///Parses a single declaration
+    ///Parses a single declaration. `flags` is the parsing context the declaration
+    ///is being read in, and is forwarded to every declaration kind that cares
+    ///about it: `ONLY_SIGNATURES` is set for everything inside an `extern { .. }`
+    ///block, and is what makes bodies optional.
     fn parse_declaration(
         &mut self,
         program: &mut Program,
@@ -69,7 +72,6 @@ impl<'a> Parser<'a> {
                 let mut interface = self.parse_interface(ParsingContext {
                     basic: BasicParsingContext {
                         type_params: &[],
-                        _flags: flags,
                         span,
                     },
                     attributes,
@@ -163,6 +165,9 @@ impl<'a> Parser<'a> {
                 self.parse_externs(&mut program)?;
                 continue;
             }
+            // Top level declarations are read in the empty context: no enclosing
+            // `extern` block, so `ONLY_SIGNATURES` is absent. Blocks request
+            // `COMPONENT_EXPR` themselves when they are parsed.
             self.parse_declaration(&mut program, false, ParserFlags::empty())?;
         }
         Ok(program)

@@ -49,7 +49,7 @@ impl Parser<'_> {
         match curr.kind {
             TokenKind::Identifier(_) => {
                 let span = curr.span;
-                let expr = self.parse_component_expr(type_params)?;
+                let expr = self.parse_component_expr(type_params, ParserFlags::empty())?;
                 Ok(ComponentMember {
                     kind: ComponentMemberKind::Child(expr),
                     span,
@@ -83,7 +83,7 @@ impl Parser<'_> {
                                 None
                             }
                             TokenKind::Eq => {
-                                let expr = self.parse_expression(type_params, ParserFlags::default())?;
+                                let expr = self.parse_expression(type_params, ParserFlags::empty())?;
 
                                 span.end = self.expect(&TokenKind::SemiColon)?.span.end;
                                 Some(expr)
@@ -107,7 +107,7 @@ impl Parser<'_> {
                     }
                     TokenKind::Eq => {
                         self.eat()?;
-                        let expr = self.parse_expression(type_params, ParserFlags::default())?;
+                        let expr = self.parse_expression(type_params, ParserFlags::empty())?;
                         span.end = self.expect(&TokenKind::SemiColon)?.span.end;
                         Ok(ComponentMember {
                             kind: ComponentMemberKind::Property {

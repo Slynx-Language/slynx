@@ -27,9 +27,11 @@ use crate::flags::ParserFlags;
 pub type Result<T> = std::result::Result<T, ParseError>;
 pub type SymbolPointer = common::SymbolPointer<common::FrontendSymbol>;
 
+///The information about the declaration currently being parsed that is not
+///consumed directly by the declaration itself.
 pub struct BasicParsingContext<'a> {
     pub(crate) type_params: &'a [SymbolPointer],
-    pub(crate) _flags: ParserFlags,
+    ///Span of the keyword that introduced the declaration.
     pub(crate) span: Span,
 }
 
@@ -74,6 +76,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    ///Terminates the statement that was just parsed. `flags` says whether the
+    ///statement is expected to end with a `;`; block bodies always pass
+    ///[`ParserFlags::REQUIRE_SEMICOLON`] explicitly so that the check does not
+    ///depend on whatever context the block itself was parsed in.
     pub fn finish_current_parse(&mut self, flags: ParserFlags) -> Result<()> {
         if flags.contains(ParserFlags::REQUIRE_SEMICOLON) {
             self.expect(&TokenKind::SemiColon)?;

@@ -94,8 +94,13 @@ impl Parser<'_> {
             }
             TokenKind::LBrace => {
                 let mut body = vec![];
+                // A function body is a block: component literals are allowed and
+                // every statement is ';'-terminated. Both are requested here
+                // instead of being inherited from `flags`, which also carries
+                // `ONLY_SIGNATURES` for declarations inside an `extern` block.
                 while !matches!(self.peek()?.kind, TokenKind::RBrace) {
-                    let stmt = self.parse_statement(&type_params)?;
+                    let stmt =
+                        self.parse_statement(&type_params, ParserFlags::COMPONENT_EXPR)?;
                     body.push(stmt);
 
                     if self.peek()?.kind == TokenKind::RBrace {
@@ -117,10 +122,7 @@ impl Parser<'_> {
                 })
             }
             _ => self.unexpected_with(
-                format!(
-                    "Instead was expecting function body, which initializes with '->' or '{{' {:?}",
-                    flags
-                ),
+                "Instead was expecting function body, which initializes with '->' or '{'",
                 current,
             ),
         }

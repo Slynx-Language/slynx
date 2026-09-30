@@ -28,6 +28,10 @@ impl Parser<'_> {
         }
     }
 
+    ///Parses an `interface Name<T> requires A, B { func f() -> T; ... }`
+    ///declaration. Every method of an interface is a signature, so
+    ///[`ParserFlags::ONLY_SIGNATURES`] is always requested regardless of the
+    ///context the interface itself was declared in.
     pub fn parse_interface(&mut self, context: ParsingContext) -> Result<InterfaceDeclaration> {
         let (name, type_args) = self.parse_generic_name()?;
         let requirements = self.parse_interface_requirements(&context.basic)?;
@@ -90,7 +94,7 @@ impl Parser<'_> {
             let attributes = self.parse_attributes()?;
             let span = self.peek()?.span;
             self.expect(&TokenKind::Func)?;
-            methods.push(self.parse_func(span, attributes, ParserFlags::default())?);
+            methods.push(self.parse_func(span, attributes, ParserFlags::empty())?);
         }
         let end = self.expect(&TokenKind::RBrace)?.span;
         Ok(ExtendDeclaration {
