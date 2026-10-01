@@ -1,10 +1,10 @@
 use common::{
-    Span, Spanned,
+    Span, Spanned, VisibilityModifier,
     pool::{DedupPoolId, PoolId},
 };
 use either::Either;
 use module_loader::ASTType;
-use slynx_parser::{ASTExpression, Type};
+use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
     DeclarationId, DescriptorId, ExpressionBuilder, ExpressionDescriptor, HIRError, HirExpression,
@@ -12,6 +12,7 @@ use crate::{
     SymbolPointer,
     enums::{EnumExpressionDescriptor, EnumVariantDescriptor},
     field_access::FieldAccessDescriptor,
+    literals::ReferenceExpressionDescriptor,
     term::{TermId, TermNode},
 };
 
@@ -53,6 +54,19 @@ pub enum TypeAccessCategory {
     Intermediate {
         inner_parent: Spanned<DedupPoolId<ASTExpression>>,
         inner_field: Spanned<DedupPoolId<ASTExpression>>,
+    },
+}
+
+pub enum FieldAccessCategory {
+    Field(SymbolPointer),
+    Intermediate {
+        inner_parent: Spanned<DedupPoolId<ASTExpression>>,
+        inner_field: Spanned<DedupPoolId<ASTExpression>>,
+    },
+    Method {
+        target: DeclarationId<HirFunctionDeclaration>,
+        name: Spanned<DedupPoolId<Type>>,
+        args: Vec<Spanned<DedupPoolId<ASTExpression>>>,
     },
 }
 
@@ -160,5 +174,74 @@ impl ExpressionBuilder {
 
             _ => Err(HIRError::invalid_type_access(span)),
         }
+    }
+
+    pub fn resolve_field_access_category(
+        &mut self,
+        queue: &HirQueueBuilder,
+        parent: Spanned<PoolId<HirExpression>>,
+        child: Spanned<DedupPoolId<ASTExpression>>,
+        context: &TypeContext,
+        span: Span,
+    ) -> Result<FieldAccessCategory> {
+        let category = match queue.get_expr(child.data) {
+            ASTExpression::FieldAccess {
+                parent: inner_parent,
+                field: inner_field,
+            } => FieldAccessCategory::Intermediate {
+                inner_parent: *inner_parent,
+                inner_field: *inner_field,
+            },
+            ASTExpression::Identifier(field_name) => FieldAccessCategory::Field(*field_name),
+            ASTExpression::FunctionCall { name, args } => {
+                let name_sym = queue.type_name(name.data);
+                let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
+                let parent_ty = parent_type_view.dereference();
+
+                let inherent = match parent_ty.is_struct() {
+                    Some(view) => view
+                        .method_named_as(name_sym, VisibilityModifier::Public)
+                        .or_else(|| queue.hir.types.methods.method_of(parent_ty.data, name_sym)),
+                    None => None,
+                };
+                let func_id = match inherent {
+                    Some(id) => id,
+                    None if let Some(id) =
+                        queue.resolve_method(self.file(), parent_ty.data, name_sym, span)? =>
+                    {
+                        id
+                    }
+                    None => {
+                        let concrete_self = {
+                            let mut current = queue.hir[parent.data].ty;
+                            loop {
+                                match queue.hir.view(current).raw().node() {
+                                    TermNode::Ref { target, .. } => current = *target,
+                                    _ => break current,
+                                }
+                            }
+                        };
+                        if let Some(id) = queue.resolve_interface_method_for_concrete(
+                            self.file(),
+                            concrete_self,
+                            name_sym,
+                            span,
+                        )? {
+                            id
+                        } else {
+                            return Err(HIRError::missing_properties(vec![name_sym], span));
+                        }
+                    }
+                };
+
+                FieldAccessCategory::Method {
+                    target: func_id,
+                    name: *name,
+                    args: args.to_vec(),
+                }
+            }
+            _ => return Err(HIRError::invalid_field_access(span)),
+        };
+        Ok(category)
     }
 }

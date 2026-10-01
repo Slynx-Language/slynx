@@ -18,7 +18,7 @@ use crate::{
         },
         lowering::lowerer::LowerTypeDeclarationDescriptor,
     },
-    fields_resolution::TypeAccessCategory,
+    fields_resolution::{FieldAccessCategory, TypeAccessCategory},
     term::{TermId, TermNode},
 };
 
@@ -233,101 +233,61 @@ impl ExpressionBuilder {
         span: Span,
         context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
-        let expr = match queue.get_expr(field_ast.data) {
-            ASTExpression::FieldAccess {
-                parent: inner_parent,
-                field: inner_field,
-            } => {
-                let intermediate =
-                    self.build_field_access_impl(queue, parent, *inner_parent, span, context)?;
-                return self.build_field_access_impl(
-                    queue,
-                    intermediate,
-                    *inner_field,
-                    span,
-                    context,
-                );
-            }
-            ASTExpression::Identifier(field_name) => {
-                self.build_field_access_with_identifier(queue, parent, *field_name, span)?
-            }
-            ASTExpression::FunctionCall { name, args } => {
-                let name_sym = queue.type_name(name.data);
-                let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
-                let parent_ty = parent_type_view.dereference();
-
-                let inherent = match parent_ty.is_struct() {
-                    Some(view) => view
-                        .method_named_as(name_sym, VisibilityModifier::Public)
-                        .or_else(|| queue.hir.types.methods.method_of(parent_ty.data, name_sym)),
-                    None => None,
-                };
-                let func_id = match inherent {
-                    Some(id) => id,
-                    None if let Some(id) =
-                        queue.resolve_method(self.file(), parent_ty.data, name_sym, span)? =>
-                    {
-                        id
-                    }
-                    None => {
-                        let concrete_self = {
-                            let mut current = queue.hir[parent.data].ty;
-                            loop {
-                                match queue.hir.view(current).raw().node() {
-                                    TermNode::Ref { target, .. } => current = *target,
-                                    _ => break current,
-                                }
-                            }
-                        };
-                        if let Some(id) = queue.resolve_interface_method_for_concrete(
-                            self.file(),
-                            concrete_self,
-                            name_sym,
-                            span,
-                        )? {
-                            id
-                        } else {
-                            return Err(HIRError::missing_properties(vec![name_sym], span));
-                        }
-                    }
-                };
-
-                let prepend_args = {
-                    let func_view = queue.hir.view(func_id);
-                    let first_arg = match func_view.get_argument_type(0) {
-                        Some(ty)
-                            if let TermNode::Ref { mutable, .. } =
-                                queue.hir.view(ty).raw().node() =>
-                        {
-                            self.build_reference_expression(
-                                queue,
-                                ReferenceExpressionDescriptor {
-                                    target: Either::Right(parent),
-                                    mutable: *mutable,
-                                    context,
-                                },
-                            )?
-                        }
-                        _ => parent,
-                    };
-                    [first_arg]
-                };
-                self.build_function_call(
-                    queue,
-                    FunctionCallDescriptor {
-                        target: FunctionTarget::Resolved {
-                            target: func_id,
-                            type_arguments: &queue.get_plain_type(*name).generic,
-                        },
-                        arguments: args,
-                        prepended_arguments: &prepend_args,
+        let expr =
+            match self.resolve_field_access_category(queue, parent, field_ast, context, span)? {
+                FieldAccessCategory::Field(field_name) => {
+                    self.build_field_access_with_identifier(queue, parent, field_name, span)?
+                }
+                FieldAccessCategory::Intermediate {
+                    inner_parent,
+                    inner_field,
+                } => {
+                    let intermediate =
+                        self.build_field_access_impl(queue, parent, inner_parent, span, context)?;
+                    return self.build_field_access_impl(
+                        queue,
+                        intermediate,
+                        inner_field,
                         span,
                         context,
-                    },
-                )?
-            }
-            _ => return Err(HIRError::invalid_field_access(span)),
-        };
+                    );
+                }
+                FieldAccessCategory::Method {
+                    target,
+                    name,
+                    ref args,
+                } => {
+                    let prepend_args = vec![if let Some(ty) =
+                        queue.hir.view(target).get_argument_type(0)
+                        && let TermNode::Ref { mutable, .. } = queue.hir.view(ty).raw().node()
+                    {
+                        self.build_reference_expression(
+                            queue,
+                            ReferenceExpressionDescriptor {
+                                target: Either::Right(parent),
+                                mutable: *mutable,
+                                context,
+                            },
+                        )?
+                    } else {
+                        parent
+                    }];
+                    self.build_function_call(
+                        queue,
+                        FunctionCallDescriptor {
+                            target: FunctionTarget::Resolved {
+                                target: target,
+                                type_arguments: &queue.get_plain_type(name).generic,
+                            },
+                            arguments: args,
+                            prepended_arguments: &prepend_args,
+                            span,
+                            context,
+                        },
+                    )?
+                }
+            };
+
         Ok(span.make_spanned(queue.hir.store.insert_expression(expr)))
     }
 }
