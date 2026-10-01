@@ -274,6 +274,8 @@ impl<'a> ASTLowerer<'a> {
             term,
         })
     }
+    ///Lowers a type declaration. This is a declaration that defines a type. If the given `descriptor.ast_type` is already lowered, it is returned from the cache instead of lowering it again.
+    ///Lowering phase means that the content will be inserted into the HIR via queue if it does not exist, returning its ID. So if this is a struct, then it inserts an Struct declaration on the HIR and returns the ID of it
     pub fn lower_type_declaration(
         &self,
         queue: &HirQueueBuilder<'a>,

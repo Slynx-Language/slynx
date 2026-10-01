@@ -8,10 +8,7 @@ use module_loader::{ASTType, FileId, Modules};
 use slynx_parser::{Type, TypeContext};
 
 use crate::{Owned, Result, builders::lowering::lookup::ASTLookup, term::TermId};
-
-pub use components::*;
 pub use declarations::*;
-pub use types::*;
 
 pub struct ASTLowerer<'a> {
     pub(crate) lookup: ASTLookup<'a>,

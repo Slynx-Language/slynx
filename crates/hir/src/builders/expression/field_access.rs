@@ -7,7 +7,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    DescriptorId, HIRError, HirExpression, HirExpressionKind, Result,
+    DescriptorId, HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -55,49 +55,32 @@ impl ExpressionBuilder {
             context,
         } = descriptor;
         match parent {
-            Either::Left(parent) => match queue.get_expr(parent.data) {
-                ASTExpression::Identifier(ident) => {
-                    if let Some(ast_type) = queue.lowerer.lookup.find_type(self.file(), *ident) {
-                        let lowered = queue.lowerer.lower_type_declaration(
-                            queue,
-                            LowerTypeDeclarationDescriptor {
-                                ast_type,
-                                context,
-                                span: parent.span,
-                            },
-                        )?;
-                        self.build_type_access(
-                            queue,
-                            lowered.owner,
-                            lowered.term,
-                            field,
-                            span,
-                            context,
-                        )
-                    } else {
-                        let parent = self.build_expression(
-                            queue,
-                            ExpressionDescriptor {
-                                target: parent,
-                                expected,
-                                context,
-                            },
-                        )?;
-                        self.build_field_access_impl(queue, parent, field, span, context)
-                    }
-                }
-                _ => {
-                    let parent = self.build_expression(
-                        queue,
-                        ExpressionDescriptor {
-                            target: parent,
-                            expected,
-                            context,
-                        },
-                    )?;
-                    self.build_field_access_impl(queue, parent, field, span, context)
-                }
-            },
+            Either::Left(parent)
+                if let ASTExpression::Identifier(ident) = queue.get_expr(parent.data)
+                    && let Some(ast_type) = queue.lowerer.lookup.find_type(self.file(), *ident) =>
+            {
+                let lowered = queue.lowerer.lower_type_declaration(
+                    queue,
+                    LowerTypeDeclarationDescriptor {
+                        ast_type,
+                        context,
+                        span: parent.span,
+                    },
+                )?;
+                self.build_type_access(queue, lowered.owner, lowered.term, field, span, context)
+            }
+            Either::Left(parent) => {
+                let parent = self.build_expression(
+                    queue,
+                    ExpressionDescriptor {
+                        target: parent,
+                        expected,
+                        context,
+                    },
+                )?;
+                self.build_field_access_impl(queue, parent, field, span, context)
+            }
+
             Either::Right(parent) => {
                 self.build_field_access_impl(queue, parent, field, span, context)
             }
@@ -220,6 +203,87 @@ impl ExpressionBuilder {
         Ok(span.make_spanned(queue.hir.store.insert_expression(expr)))
     }
 
+    ///Parses a field access where the field being accessed is an identifier given by `field_name`. This is simply for expressions such as `a.b.c`, where the parent is `a.b`, and this is called with the field name `c` and `a.b` where the parent is `a` and this is called with field name `b`
+    fn build_field_access_with_identifier(
+        &mut self,
+        queue: &HirQueueBuilder,
+        parent: Spanned<PoolId<HirExpression>>,
+        field_name: SymbolPointer,
+        span: Span,
+    ) -> Result<HirExpression> {
+        let parent_ty = queue.hir[parent.data].ty;
+        let parent_view = queue.hir.view(parent_ty);
+        let concrete_type = parent_view.concrete_type();
+        let dereferenced_type = parent_view.dereference();
+        match dereferenced_type.is_struct() {
+            Some(view)
+                if let Some(position) = view.fields().iter().position(|f| f.data == field_name) =>
+            {
+                let field_ty = view.field_types()[position];
+                let field_ty = match view.new_with(field_ty).raw().node() {
+                    TermNode::Apply { args: generics, .. } => {
+                        crate::generics::substitute_terms(queue.hir, generics, field_ty)
+                    }
+                    _ => field_ty,
+                };
+                Ok(HirExpression {
+                    ty: field_ty,
+                    kind: HirExpressionKind::FieldAccess {
+                        expr: parent,
+                        field_index: position,
+                        field_name: Some(field_name),
+                    },
+                })
+            }
+            Some(_) => {
+                //is struct but could not find any field
+                return Err(HIRError::property_unrecognized(
+                    dereferenced_type.data,
+                    vec![field_name],
+                    span,
+                ));
+            }
+            None if parent_view.dereference().is_ref() //&T where T is a struct
+                && let Some(view) = parent_view.concrete_type().is_struct() =>
+            {
+                let Some(position) = view.fields().iter().position(|f| f.data == field_name) else {
+                    return Err(HIRError::property_unrecognized(
+                        dereferenced_type.data,
+                        vec![field_name],
+                        span,
+                    ));
+                };
+                let field_ty = view.field_types()[position];
+                let field_ty = match queue.hir.view(parent_ty).raw().node() {
+                    TermNode::Apply { args: generics, .. } => {
+                        crate::generics::substitute_terms(queue.hir, generics, field_ty)
+                    }
+                    _ => field_ty,
+                };
+
+                let parent =
+                    parent
+                        .span
+                        .make_spanned(queue.hir.store.insert_expression(HirExpression {
+                            ty: concrete_type.data,
+                            kind: HirExpressionKind::Deref(parent),
+                        }));
+                Ok(HirExpression {
+                    ty: field_ty,
+                    kind: HirExpressionKind::FieldAccess {
+                        expr: parent,
+                        field_index: position,
+                        field_name: Some(field_name),
+                    },
+                })
+            }
+            None => {
+                let ty = dereferenced_type.data;
+                return Err(HIRError::not_a_struct(ty, span));
+            }
+        }
+    }
+
     ///Builds a member access against an already-built parent expression.
     fn build_field_access_impl(
         &mut self,
@@ -245,92 +309,13 @@ impl ExpressionBuilder {
                 );
             }
             ASTExpression::Identifier(field_name) => {
-                let parent_ty = queue.hir[parent.data].ty;
-                let parent_view = queue.hir.view(parent_ty);
-                let concrete_type = parent_view.concrete_type();
-                let dereferenced_type = parent_view.dereference();
-                match dereferenced_type.is_struct() {
-                    Some(view) => {
-                        let (fields, field_types) = (view.fields(), view.field_types());
-                        let position = fields
-                            .iter()
-                            .position(|f| f.data == *field_name)
-                            .ok_or_else(|| {
-                                HIRError::property_unrecognized(
-                                    dereferenced_type.data,
-                                    vec![*field_name],
-                                    span,
-                                )
-                            })?;
-
-                        let field_ty = field_types[position];
-                        let field_ty = match queue.hir.view(parent_ty).raw().node() {
-                            TermNode::Apply { args: generics, .. } => {
-                                crate::generics::substitute_terms(queue.hir, generics, field_ty)
-                            }
-                            _ => field_ty,
-                        };
-                        HirExpression {
-                            ty: field_ty,
-                            kind: HirExpressionKind::FieldAccess {
-                                expr: parent,
-                                field_index: position,
-                                field_name: Some(*field_name),
-                            },
-                        }
-                    }
-                    None if parent_view.dereference().is_ref()
-                        && let Some(view) = parent_view.concrete_type().is_struct() =>
-                    {
-                        let (fields, field_types) = (view.fields(), view.field_types());
-                        let position = fields
-                            .iter()
-                            .position(|f| f.data == *field_name)
-                            .ok_or_else(|| {
-                                HIRError::property_unrecognized(
-                                    concrete_type.data,
-                                    vec![*field_name],
-                                    span,
-                                )
-                            })?;
-
-                        let field_ty = field_types[position];
-                        let field_ty = match queue.hir.view(parent_ty).raw().node() {
-                            TermNode::Apply { args: generics, .. } => {
-                                crate::generics::substitute_terms(queue.hir, generics, field_ty)
-                            }
-                            _ => field_ty,
-                        };
-
-                        let parent = parent.span.make_spanned(queue.hir.store.insert_expression(
-                            HirExpression {
-                                ty: concrete_type.data,
-                                kind: HirExpressionKind::Deref(parent),
-                            },
-                        ));
-                        HirExpression {
-                            ty: field_ty,
-                            kind: HirExpressionKind::FieldAccess {
-                                expr: parent,
-                                field_index: position,
-                                field_name: Some(*field_name),
-                            },
-                        }
-                    }
-                    None => {
-                        let ty = dereferenced_type.data;
-                        return Err(HIRError::not_a_struct(ty, span));
-                    }
-                }
+                self.build_field_access_with_identifier(queue, parent, *field_name, span)?
             }
             ASTExpression::FunctionCall { name, args } => {
                 let name_sym = queue.type_name(name.data);
                 let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
                 let parent_ty = parent_type_view.dereference();
-                // Inherent (object) methods take precedence over interface
-                // methods, mirroring how Rust resolves method calls. Anything
-                // that is not a struct (e.g. an enum instance, an array, a
-                // generic parameter placeholder) has no inherent methods.
+
                 let inherent = match parent_ty.is_struct() {
                     Some(view) => view
                         .method_named_as(name_sym, VisibilityModifier::Public)
@@ -345,9 +330,6 @@ impl ExpressionBuilder {
                         id
                     }
                     None => {
-                        // Interface implementations are registered against the
-                        // fully lowered concrete receiver type. Strip references
-                        // but preserve type applications such as `Option<int>`.
                         let concrete_self = {
                             let mut current = queue.hir[parent.data].ty;
                             loop {
@@ -357,16 +339,16 @@ impl ExpressionBuilder {
                                 }
                             }
                         };
-                        let Some(id) = queue.resolve_interface_method_for_concrete(
+                        if let Some(id) = queue.resolve_interface_method_for_concrete(
                             self.file(),
                             concrete_self,
                             name_sym,
                             span,
-                        )?
-                        else {
+                        )? {
+                            id
+                        } else {
                             return Err(HIRError::missing_properties(vec![name_sym], span));
-                        };
-                        id
+                        }
                     }
                 };
 

@@ -1,10 +1,9 @@
-use common::Span;
-use module_loader::{ASTTypeKind, FileId};
+use module_loader::FileId;
 use slynx_parser::{ComponentDeclaration, ComponentMemberKind, TypeContext};
 
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
-    Result, SymbolPointer,
+    Result,
     builders::{
         HirQueueBuilder, PendantComponent,
         expression::{ExpressionBuilder, ExpressionDescriptor},
