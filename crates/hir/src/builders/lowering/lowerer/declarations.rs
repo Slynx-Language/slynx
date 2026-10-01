@@ -242,7 +242,7 @@ impl<'a> ASTLowerer<'a> {
         Ok(enum_type)
     }
 
-    ///Lowers some AST declaration, thus, inserting content on the HIR via the given `queue` and returns the ID of the
+    ///Materialized some AST declaration into the HIR, thus, inserting content on the HIR via the given `queue` and returns the ID of the created content
     fn lower_ast_declaration(
         &self,
         queue: &HirQueueBuilder<'a>,
@@ -276,7 +276,7 @@ impl<'a> ASTLowerer<'a> {
     }
     ///Lowers a type declaration. This is a declaration that defines a type. If the given `descriptor.ast_type` is already lowered, it is returned from the cache instead of lowering it again.
     ///Lowering phase means that the content will be inserted into the HIR via queue if it does not exist, returning its ID. So if this is a struct, then it inserts an Struct declaration on the HIR and returns the ID of it
-    pub fn lower_type_declaration(
+    pub fn materialize_type_declaration(
         &self,
         queue: &HirQueueBuilder<'a>,
         descriptor: LowerTypeDeclarationDescriptor,
@@ -296,26 +296,4 @@ impl<'a> ASTLowerer<'a> {
 
         Ok(lowered)
     }
-}
-
-pub(super) fn resolve_signature_of_function<'a>(
-    lowerer: &ASTLowerer<'a>,
-    queue: &HirQueueBuilder<'a>,
-    owner: FileId,
-    function: &FuncDeclaration,
-) -> Result<TermId> {
-    let context = TypeContext::new(&function.type_params);
-    let return_type = lowerer
-        .lower_type(queue, owner, function.return_type, &context)?
-        .term;
-    let arguments = function
-        .args
-        .iter()
-        .map(|argument| {
-            lowerer
-                .lower_type(queue, owner, argument.data.kind, &context)
-                .map(|owned| owned.term)
-        })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(queue.hir.types.create_function_type(arguments, return_type))
 }

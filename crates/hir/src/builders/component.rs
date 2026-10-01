@@ -65,7 +65,7 @@ impl<'a> HirQueueBuilder<'a> {
             .lookup
             .find_type(node, component.name)
             .ok_or_else(|| HIRError::type_unrecognized(component.name, component.span))?;
-        let lowered = self.lowerer.lower_type_declaration(
+        let lowered = self.lowerer.materialize_type_declaration(
             self,
             LowerTypeDeclarationDescriptor {
                 ast_type,

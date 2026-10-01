@@ -66,6 +66,18 @@ impl<'a> ASTLowerer<'a> {
         owner: FileId,
         function: &slynx_parser::FuncDeclaration,
     ) -> Result<TermId> {
-        declarations::resolve_signature_of_function(self, queue, owner, function)
+        let context = TypeContext::new(&function.type_params);
+        let return_type = self
+            .lower_type(queue, owner, function.return_type, &context)?
+            .term;
+        let arguments = function
+            .args
+            .iter()
+            .map(|argument| {
+                self.lower_type(queue, owner, argument.data.kind, &context)
+                    .map(|owned| owned.term)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(queue.hir.types.create_function_type(arguments, return_type))
     }
 }

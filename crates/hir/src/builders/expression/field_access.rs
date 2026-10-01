@@ -7,7 +7,7 @@ use module_loader::{ASTType, FileId};
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    DescriptorId, HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
+    HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -72,7 +72,7 @@ impl ExpressionBuilder {
         span: Span,
         context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
-        let lowered_type = queue.lowerer.lower_type_declaration(
+        let lowered_type = queue.lowerer.materialize_type_declaration(
             queue,
             LowerTypeDeclarationDescriptor {
                 ast_type,

@@ -42,7 +42,7 @@ impl ExpressionBuilder {
         let ast_type = queue.lowerer.lookup.find_type(owner, enum_decl.name)?;
         let enum_ty = queue
             .lowerer
-            .lower_type_declaration(
+            .materialize_type_declaration(
                 queue,
                 LowerTypeDeclarationDescriptor {
                     ast_type,

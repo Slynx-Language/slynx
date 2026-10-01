@@ -24,6 +24,11 @@ pub(super) struct TypeLoweringDescriptor<'a> {
 
 impl<'a> ASTLowerer<'a> {
     ///Lowers the given plain type `generic` into a [`OwnedTerm`].
+    ///If the given `generic` does not contain generic parameters in it, which can be generated with something like: `Thing`, and it's found in the given `context`, the it returns an owned term that represents that position.
+    ///For example `func f<T,K>(): K -> ...;` when using 'K' the given `generic` is simply `K` and since it's the second parameter on the context(`[T,K]`), then it will return a term that represents the second generic parameter position.
+    ///Otherwise, if the `generic` is not found in the `context`, it will try to find the given `generic` starting by the given `requester` file. For example the `Thing` type above, it will try to search for it starting by the file
+    ///that requested this operation. If the given `generic` contains generic parameters, then the output term will be updated to contain these generics. So such as func `f<T,K>: K {let var: Vec<Thing> = ...;};`
+    ///Vec<Thing> is a generic type that contains a `Thing` type, so the output term will properly represent this Vec type with the generic Thing inside id.
     fn lower_plain_type(
         &self,
         queue: &HirQueueBuilder<'a>,
@@ -51,7 +56,7 @@ impl<'a> ASTLowerer<'a> {
             .lookup
             .find_type(requester, generic.identifier)
             .ok_or_else(|| HIRError::type_unrecognized(generic.identifier, span))?;
-        let Owned { owner, term: ty } = self.lower_type_declaration(
+        let Owned { owner, term: ty } = self.materialize_type_declaration(
             queue,
             LowerTypeDeclarationDescriptor {
                 ast_type,
@@ -94,6 +99,8 @@ impl<'a> ASTLowerer<'a> {
     }
     ///Lowers an AST type recursively, substituting only the `Self` identifier
     ///while preserving wrappers and generic applications around it.
+    ///Given a type from the AST, defined at `descriptor.ty`, it tries to find it on the HIR and returns so. If not found, it searches for some with that name on the AST and materialized it.
+    ///If any type on the AST is defined as `Self`, then it replaces it with the given `descriptor.self_substitute` if some. Otherwise, it returns the `Self` identifier as is.
     pub(super) fn lower_ast_type(
         &self,
         queue: &HirQueueBuilder<'a>,
@@ -103,13 +110,13 @@ impl<'a> ASTLowerer<'a> {
         let self_symbol = queue.hir.intern_name("Self");
         match real {
             Type::Plain(generic)
-                if descriptor.self_substitute.is_some()
+                if let Some(substitute) = descriptor.self_substitute
                     && generic.generic.is_empty()
                     && generic.identifier == self_symbol =>
             {
                 Ok(Owned {
                     owner: descriptor.requester,
-                    term: descriptor.self_substitute.expect("guarded above"),
+                    term: substitute,
                 })
             }
             Type::Plain(generic)
