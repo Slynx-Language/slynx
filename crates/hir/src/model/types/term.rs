@@ -98,7 +98,7 @@ impl PartialEq for TermNode {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (TermNode::Primitive(p1), TermNode::Primitive(p2)) => p1 == p2,
-            (TermNode::Var(v1), TermNode::Var(v2)) => v1.index == v2.index,
+            (TermNode::Var(v1), TermNode::Var(v2)) => v1.index == v2.index && v1.name == v2.name,
             (
                 TermNode::Func {
                     args: arg1,

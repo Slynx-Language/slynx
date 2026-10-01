@@ -3,7 +3,7 @@ use common::{
     pool::{DedupPoolId, PoolId},
 };
 use either::Either;
-use module_loader::FileId;
+use module_loader::{ASTType, FileId};
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
@@ -13,14 +13,16 @@ use crate::{
         expression::{
             calls::{FunctionCallDescriptor, FunctionTarget},
             enums::{EnumExpressionDescriptor, EnumVariantDescriptor},
+            fields_resolution::AccessParentCategory,
             literals::ReferenceExpressionDescriptor,
         },
         lowering::lowerer::LowerTypeDeclarationDescriptor,
     },
+    fields_resolution::TypeAccessCategory,
     term::{TermId, TermNode},
 };
 
-use super::{ExpressionBuilder, ExpressionDescriptor};
+use super::ExpressionBuilder;
 
 ///A descriptor for a field (or type member) access expression.
 pub struct FieldAccessDescriptor<'a> {
@@ -47,159 +49,97 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder,
         descriptor: FieldAccessDescriptor<'_>,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
-        let FieldAccessDescriptor {
-            parent,
-            field,
-            span,
-            expected,
-            context,
-        } = descriptor;
-        match parent {
-            Either::Left(parent)
-                if let ASTExpression::Identifier(ident) = queue.get_expr(parent.data)
-                    && let Some(ast_type) = queue.lowerer.lookup.find_type(self.file(), *ident) =>
-            {
-                let lowered = queue.lowerer.lower_type_declaration(
-                    queue,
-                    LowerTypeDeclarationDescriptor {
-                        ast_type,
-                        context,
-                        span: parent.span,
-                    },
-                )?;
-                self.build_type_access(queue, lowered.owner, lowered.term, field, span, context)
-            }
-            Either::Left(parent) => {
-                let parent = self.build_expression(
-                    queue,
-                    ExpressionDescriptor {
-                        target: parent,
-                        expected,
-                        context,
-                    },
-                )?;
-                self.build_field_access_impl(queue, parent, field, span, context)
+        match self.resolve_access_field_category(queue, &descriptor)? {
+            AccessParentCategory::TypeAccess { ast_type, span } => {
+                self.build_type_access(queue, ast_type, descriptor.field, span, descriptor.context)
             }
 
-            Either::Right(parent) => {
-                self.build_field_access_impl(queue, parent, field, span, context)
-            }
+            AccessParentCategory::NormalAccess(parent) => self.build_field_access_impl(
+                queue,
+                parent,
+                descriptor.field,
+                descriptor.span,
+                descriptor.context,
+            ),
         }
     }
 
     fn build_type_access(
         &mut self,
         queue: &HirQueueBuilder,
-        file_owner: FileId,
-        ty: TermId,
+        ast_type: ASTType,
         child: Spanned<DedupPoolId<ASTExpression>>,
         span: Span,
         context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
-        let ty_view = queue.hir.view(ty);
-        let ty_deref = ty_view.dereference();
-        let raw_ty = ty_deref.raw();
-        let expr = match (queue.get_expr(child.data), raw_ty.node()) {
-            (
-                ASTExpression::FieldAccess {
-                    parent: inner_parent,
-                    field: inner_field,
-                },
-                _,
-            ) => {
-                let parent =
-                    self.build_type_access(queue, file_owner, ty, *inner_parent, span, context)?;
-                return self.build_field_access_impl(queue, parent, *inner_field, span, context);
-            }
-            (ASTExpression::Identifier(name), TermNode::Data(DescriptorId::Enum(e)))
-                if let Some(variant_id) = queue.hir.view(*e).find_variant(*name) =>
-            {
-                let enum_viewer = queue.hir.view(*e);
-                let raw_variant = &enum_viewer.variants()[variant_id];
-                if raw_variant.payload.is_empty() {
-                    self.build_enum_expression(
-                        queue,
-                        EnumExpressionDescriptor {
-                            enum_type: ty,
-                            variant: EnumVariantDescriptor {
-                                variant_id,
-                                arguments: &[],
-                            },
-                            generics: &[],
-                            span,
-                            context,
-                        },
-                    )
-                } else {
-                    return Err(HIRError::invalid_funcall_arg_length(
-                        *name,
-                        raw_variant.payload.len(),
-                        0,
-                        span,
-                    ));
-                }
-            }
-            (ASTExpression::Identifier(_), _) => {
-                unimplemented!("Constant values bound to types are not supported yet")
-            }
+        let lowered_type = queue.lowerer.lower_type_declaration(
+            queue,
+            LowerTypeDeclarationDescriptor {
+                ast_type,
+                context,
+                span,
+            },
+        )?;
 
-            (
-                ASTExpression::FunctionCall {
-                    name,
-                    args: arguments,
-                },
-                TermNode::Data(DescriptorId::Enum(e)),
-            ) if let Some((id, _)) = queue
-                .hir
-                .view(*e)
-                .variants()
-                .iter()
-                .enumerate()
-                .find(|(_, variant)| variant.name == queue.type_name(name.data)) =>
-            {
-                let generics = {
-                    let plain = queue.get_plain_type(*name);
-                    &plain.generic
-                };
-                self.build_enum_expression(
+        let expr =
+            match self.resolve_type_access_category(queue, child, lowered_type.clone(), span)? {
+                TypeAccessCategory::Intermediate {
+                    inner_parent,
+                    inner_field,
+                } => {
+                    let parent =
+                        self.build_type_access(queue, ast_type, inner_parent, span, context)?;
+                    return self.build_field_access_impl(queue, parent, inner_field, span, context);
+                }
+                TypeAccessCategory::EnumVariant(variant_id) => self.build_enum_expression(
                     queue,
                     EnumExpressionDescriptor {
-                        enum_type: ty,
+                        enum_type: lowered_type.term,
                         variant: EnumVariantDescriptor {
-                            variant_id: id,
-                            arguments,
+                            variant_id,
+                            arguments: &[],
                         },
-                        generics,
+                        generics: &[],
                         span,
                         context,
                     },
-                )
-            }
-            (ASTExpression::FunctionCall { name, args }, _)
-                if let Some(method) =
-                    queue.resolve_method(file_owner, ty, queue.type_name(**name), span)? =>
-            {
-                let generics = {
-                    let plain = queue.get_plain_type(*name);
-                    &plain.generic
-                };
-                self.build_function_call(
+                ),
+                TypeAccessCategory::EnumPayloadVariant {
+                    variant_id,
+                    args: ref arguments,
+                    payload_name,
+                } => self.build_enum_expression(
+                    queue,
+                    EnumExpressionDescriptor {
+                        enum_type: lowered_type.term,
+                        variant: EnumVariantDescriptor {
+                            variant_id,
+                            arguments,
+                        },
+                        generics: &queue.get_plain_type(payload_name).generic,
+                        span,
+                        context,
+                    },
+                ),
+                TypeAccessCategory::StaticMethod {
+                    target,
+                    name,
+                    ref args,
+                } => self.build_function_call(
                     queue,
                     FunctionCallDescriptor {
                         target: FunctionTarget::Resolved {
-                            target: method,
-                            type_arguments: generics,
+                            target,
+                            type_arguments: &queue.get_plain_type(name).generic,
                         },
                         arguments: args,
                         span,
                         context,
                         prepended_arguments: &[],
                     },
-                )
-            }
+                ),
+            }?;
 
-            _ => Err(HIRError::invalid_type_access(span)),
-        }?;
         Ok(span.make_spanned(queue.hir.store.insert_expression(expr)))
     }
 

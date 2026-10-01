@@ -36,6 +36,7 @@ pub mod components;
 pub mod control_flow;
 pub mod enums;
 pub mod field_access;
+pub mod fields_resolution;
 pub mod literals;
 pub mod names;
 pub mod objects;
