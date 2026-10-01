@@ -2,7 +2,7 @@ use slynx_hir::term::TermId;
 use slynx_ir::{IRType, IRTypeId};
 
 use crate::{
-    CodegenError,
+    CodegenError, CodegenErrorKind,
     lowerers::{EnumLayout, TypeLowerer},
 };
 
@@ -37,7 +37,7 @@ impl<'a> TypeLowerer<'a> {
             // registered layout implies the struct is already mapped.
             return self
                 .get_mapped_type(&key)
-                .ok_or(CodegenError::MissingEnumLayout(key));
+                .ok_or(CodegenError::new(CodegenErrorKind::MissingEnumLayout(key)));
         }
         let enum_struct = match self.get_mapped_type(&key) {
             Some(ty) => ty,
@@ -47,7 +47,7 @@ impl<'a> TypeLowerer<'a> {
                     .view(key)
                     .dereference()
                     .is_enum()
-                    .ok_or(CodegenError::NotAnEnum(key))?;
+                    .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key)))?;
                 let name = self.hir.get_name(enum_view.name());
                 let ty = ir.create_struct(name);
                 self.types.insert(key, ty);
@@ -55,7 +55,7 @@ impl<'a> TypeLowerer<'a> {
             }
         };
         let IRType::Struct(enum_struct_id) = *ir.types.get_type(enum_struct) else {
-            return Err(CodegenError::NotAStruct(key));
+            return Err(CodegenError::new(CodegenErrorKind::NotAStruct(key)));
         };
         if !ir
             .types
@@ -70,7 +70,7 @@ impl<'a> TypeLowerer<'a> {
             .view(decl)
             .dereference()
             .is_enum()
-            .ok_or(CodegenError::NotAnEnum(key))?;
+            .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key)))?;
         let enum_name = self.hir.get_name(enum_view.name());
         let int_type = ir.types.int_type();
 
@@ -86,7 +86,7 @@ impl<'a> TypeLowerer<'a> {
             let union_name = format!("{enum_name}_payload");
             let union_ty = ir.create_union(&union_name);
             let IRType::Union(union_id) = *ir.types.get_type(union_ty) else {
-                return Err(CodegenError::MissingEnumPayload(key));
+                return Err(CodegenError::new(CodegenErrorKind::MissingEnumPayload(key)));
             };
             let mut members = Vec::with_capacity(enum_view.variants().len());
             for variant in enum_view.variants() {

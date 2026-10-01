@@ -1,11 +1,28 @@
+use std::backtrace::Backtrace;
+
 use slynx_hir::{VariableId, id::AnyDeclarationId};
 use slynx_ir::IRError;
 
 use crate::TypeId;
 
 #[derive(Debug)]
+pub struct CodegenError {
+    pub kind: CodegenErrorKind,
+    pub backtrace: Backtrace,
+}
+
+impl CodegenError {
+    pub fn new(kind: CodegenErrorKind) -> Self {
+        Self {
+            kind,
+            backtrace: Backtrace::capture(),
+        }
+    }
+}
+
+#[derive(Debug)]
 ///An error that occurred on the IR
-pub enum CodegenError {
+pub enum CodegenErrorKind {
     ///The provided type from the HIR was not recognized on the IR
     IRTypeNotRecognized(TypeId),
     DeclarationNotRecognized(AnyDeclarationId),
@@ -28,6 +45,6 @@ pub enum CodegenError {
 
 impl From<IRError> for CodegenError {
     fn from(error: IRError) -> Self {
-        CodegenError::IRError(error)
+        CodegenError::new(CodegenErrorKind::IRError(error))
     }
 }

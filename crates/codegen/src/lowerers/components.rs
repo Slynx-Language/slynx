@@ -6,7 +6,7 @@ use slynx_hir::{
 use slynx_ir::{ComponentBuilder, ComponentValueBuilder, IRTypeId, SlynxIR, Value};
 
 use crate::{
-    CodegenError,
+    CodegenError, CodegenErrorKind,
     lowerers::{LoweringState, functions::FunctionContext},
 };
 
@@ -23,10 +23,9 @@ impl<'a> LoweringState<'a> {
             ..
         } = &self.hir[value.data];
         let (ty, all_values) = {
-            let ty = self
-                .types
-                .get_mapped_type(name)
-                .ok_or(CodegenError::IRTypeNotRecognized(*name))?;
+            let ty = self.types.get_mapped_type(name).ok_or(CodegenError::new(
+                CodegenErrorKind::IRTypeNotRecognized(*name),
+            ))?;
 
             let mut all_values = Vec::new();
             if let Some(viewer) = self.hir.view(*name).is_component() {
@@ -61,7 +60,9 @@ impl<'a> LoweringState<'a> {
     ) -> Result<IRTypeId, CodegenError> {
         self.types
             .get_mapped_type(&expr.name)
-            .ok_or(CodegenError::IRTypeNotRecognized(expr.name))
+            .ok_or(CodegenError::new(CodegenErrorKind::IRTypeNotRecognized(
+                expr.name,
+            )))
     }
 
     pub(crate) fn initialize_component(

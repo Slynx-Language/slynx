@@ -4,7 +4,7 @@ use slynx_ir::{Opcode, Value};
 use smallvec::smallvec;
 
 use crate::{
-    CodegenError,
+    CodegenError, CodegenErrorKind,
     lowerers::{LoweringState, functions::FunctionContext},
 };
 
@@ -43,9 +43,9 @@ impl<'a> LoweringState<'a> {
         let lhs_raw = &self.hir[lhs.data];
         match &lhs_raw.kind {
             HirExpressionKind::Identifier(id) => {
-                let slot = context
-                    .get_variable(*id)
-                    .ok_or(CodegenError::UnrecognizedVariable(*id))?;
+                let slot = context.get_variable(*id).ok_or(CodegenError::new(
+                    CodegenErrorKind::UnrecognizedVariable(*id),
+                ))?;
                 context.write(slot, value);
             }
             HirExpressionKind::FieldAccess {

@@ -1,7 +1,7 @@
 use slynx_hir::term::TermId;
 use slynx_ir::IRType;
 
-use crate::{CodegenError, lowerers::TypeLowerer};
+use crate::{CodegenError, CodegenErrorKind, lowerers::TypeLowerer};
 
 impl<'a> TypeLowerer<'a> {
     pub(crate) fn insert_object_fields_for(
@@ -9,16 +9,16 @@ impl<'a> TypeLowerer<'a> {
         decl: TermId,
         ir: &mut slynx_ir::SlynxIR,
     ) -> Result<(), CodegenError> {
-        let obj_handle = self
-            .get_mapped_type(&decl)
-            .ok_or(CodegenError::IRTypeNotRecognized(decl))?;
+        let obj_handle = self.get_mapped_type(&decl).ok_or(CodegenError::new(
+            CodegenErrorKind::IRTypeNotRecognized(decl),
+        ))?;
         let IRType::Struct(obj) = *ir.types.get_type(obj_handle) else {
-            return Err(CodegenError::NotAStruct(decl));
+            return Err(CodegenError::new(CodegenErrorKind::NotAStruct(decl)));
         };
         let fields = if let Some(viewer) = self.hir.view(decl).dereference().is_struct() {
             viewer.field_types().to_vec()
         } else {
-            return Err(CodegenError::NotAStruct(decl));
+            return Err(CodegenError::new(CodegenErrorKind::NotAStruct(decl)));
         };
 
         for field in &fields {

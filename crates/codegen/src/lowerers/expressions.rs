@@ -9,7 +9,7 @@ use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, V
 use smallvec::{SmallVec, smallvec};
 
 use crate::{
-    CodegenError, TypeId,
+    CodegenError, CodegenErrorKind, TypeId,
     lowerers::{LoweringState, functions::FunctionContext},
 };
 
@@ -30,11 +30,12 @@ impl<'a> LoweringState<'a> {
         // exact shape registered at materialization time.
         let deref = self.hir.view(ty).dereference();
         let key = deref.data();
-        let enum_view = deref.is_enum().ok_or(CodegenError::NotAnEnum(key))?;
-        let variant_info = enum_view
-            .variants()
-            .get(variant)
-            .ok_or(CodegenError::InvalidVariantIndex(key, variant))?;
+        let enum_view = deref
+            .is_enum()
+            .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key)))?;
+        let variant_info = enum_view.variants().get(variant).ok_or(CodegenError::new(
+            CodegenErrorKind::InvalidVariantIndex(key, variant),
+        ))?;
 
         let layout = self.types.enum_layout(&key)?.clone();
 
@@ -50,7 +51,7 @@ impl<'a> LoweringState<'a> {
                 .get(variant)
                 .copied()
                 .flatten()
-                .ok_or(CodegenError::MissingEnumPayload(key))?;
+                .ok_or(CodegenError::new(CodegenErrorKind::MissingEnumPayload(key)))?;
             let args = args
                 .iter()
                 .map(|arg| self.lower_expression(*arg, context))
@@ -138,10 +139,9 @@ impl<'a> LoweringState<'a> {
         fields: &[Spanned<PoolId<HirExpression>>],
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
-        let ty = self
-            .types
-            .get_mapped_type(&name)
-            .ok_or(CodegenError::IRTypeNotRecognized(name))?;
+        let ty = self.types.get_mapped_type(&name).ok_or(CodegenError::new(
+            CodegenErrorKind::IRTypeNotRecognized(name),
+        ))?;
         let field_values: Vec<Value> = fields
             .iter()
             .map(|v| self.lower_expression(*v, ctx))
@@ -318,16 +318,12 @@ impl<'a> LoweringState<'a> {
                     let name = context.ir().strings.intern(name);
                     context.emit(Opcode::GlobalExtern(name), SmallVec::new(), *ty)
                 } else {
-                    let id =
-                        *self
-                            .globals
-                            .get(id)
-                            .ok_or(CodegenError::DeclarationNotRecognized(
-                                AnyDeclarationId::new(
-                                    id.file_id,
-                                    AnyLocalDeclarationId::Static(id.local_id),
-                                ),
-                            ))?;
+                    let id = *self.globals.get(id).ok_or(CodegenError::new(
+                        CodegenErrorKind::DeclarationNotRecognized(AnyDeclarationId::new(
+                            id.file_id,
+                            AnyLocalDeclarationId::Static(id.local_id),
+                        )),
+                    ))?;
                     let ty = context.ir().get_view(id).ty();
                     context.emit(Opcode::Global(id), SmallVec::new(), ty)
                 }
@@ -361,7 +357,9 @@ impl<'a> LoweringState<'a> {
                         _ => value,
                     }
                 } else {
-                    return Err(CodegenError::UnrecognizedVariable(*id));
+                    return Err(CodegenError::new(CodegenErrorKind::UnrecognizedVariable(
+                        *id,
+                    )));
                 }
             }
             HirExpressionKind::Object { name, fields } => {
@@ -410,10 +408,15 @@ impl<'a> LoweringState<'a> {
         let layout = self.types.enum_layout(&enum_type.data())?.clone();
         let discriminant = enum_type
             .is_enum()
-            .ok_or(CodegenError::NotAnEnum(enum_type.data()))?
+            .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(
+                enum_type.data(),
+            )))?
             .variants()
             .get(variant)
-            .ok_or(CodegenError::InvalidVariantIndex(enum_type.data(), variant))?
+            .ok_or(CodegenError::new(CodegenErrorKind::InvalidVariantIndex(
+                enum_type.data(),
+                variant,
+            )))?
             .discriminant;
 
         let cond = {
@@ -430,7 +433,7 @@ impl<'a> LoweringState<'a> {
         let key = enum_type.data();
         layout
             .union_type
-            .ok_or(CodegenError::MissingEnumPayload(key))?;
+            .ok_or(CodegenError::new(CodegenErrorKind::MissingEnumPayload(key)))?;
         ctx.branch_conditional(cond, then_label, end_label, &[], &[false_value]);
         let union_value = ctx.get_field(value, 1);
 

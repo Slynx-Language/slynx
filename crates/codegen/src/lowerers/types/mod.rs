@@ -9,7 +9,7 @@ use slynx_hir::{
 };
 use slynx_ir::{IRTypeId, SlynxIR};
 
-use crate::{CodegenError, TypeId};
+use crate::{CodegenError, CodegenErrorKind, TypeId};
 
 ///The IR layout of an enum type.
 ///
@@ -65,7 +65,7 @@ impl<'a> TypeLowerer<'a> {
     pub(crate) fn enum_layout(&self, ty: &TypeId) -> Result<&EnumLayout, CodegenError> {
         self.enum_layouts
             .get(ty)
-            .ok_or(CodegenError::MissingEnumLayout(*ty))
+            .ok_or(CodegenError::new(CodegenErrorKind::MissingEnumLayout(*ty)))
     }
     pub(crate) fn get_or_create_ir_type(
         &mut self,
@@ -120,7 +120,7 @@ impl<'a> TypeLowerer<'a> {
                 self.insert_enum_fields_for(key, ir)?
             }
 
-            _ => return Err(CodegenError::IRTypeNotRecognized(ty)),
+            _ => return Err(CodegenError::new(CodegenErrorKind::IRTypeNotRecognized(ty))),
         };
         Ok(out)
     }
@@ -144,7 +144,7 @@ impl<'a> TypeLowerer<'a> {
         let concrete_ty = concrete.data();
         let struct_view = concrete
             .is_struct()
-            .ok_or(CodegenError::NotAStruct(concrete_ty))?;
+            .ok_or(CodegenError::new(CodegenErrorKind::NotAStruct(concrete_ty)))?;
         let field_type = struct_view.field_types()[field_index];
         let field_type = self.get_or_create_ir_type(field_type, ir)?;
         Ok(ir.types.pointer_type(field_type))
