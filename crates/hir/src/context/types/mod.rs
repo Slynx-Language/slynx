@@ -204,6 +204,9 @@ impl TypesContext {
     pub fn get_component(&self, ty: &TermId) -> Option<TermId> {
         self.storage.get_component(ty)
     }
+    pub fn get_component_name(&self, ty: DedupPoolId<ComponentType>) -> SymbolPointer {
+        self.storage.get_component_definition(ty).name
+    }
 
     ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
     pub fn create_method(

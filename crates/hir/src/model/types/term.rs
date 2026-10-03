@@ -28,6 +28,23 @@ pub enum PrimitiveType {
     String,
 }
 
+impl std::fmt::Display for PrimitiveType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Unsigned { bitsize } => format!("uint{bitsize}"),
+                Self::Signed { bitsize } => format!("sint{bitsize}"),
+                Self::Float32 => "f32".to_string(),
+                Self::Float64 => "f64".to_string(),
+                Self::Void => "void".to_string(),
+                Self::String => "str".to_string(),
+            }
+        )
+    }
+}
+
 impl PrimitiveType {
     pub fn boolean_type() -> Self {
         Self::Unsigned { bitsize: 1 }
@@ -58,6 +75,18 @@ impl VarTerm {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ConstantTerm {
     Usize(usize),
+}
+
+impl std::fmt::Display for ConstantTerm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Usize(usize) => format!("Usize{usize}"),
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone)]
