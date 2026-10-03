@@ -11,31 +11,31 @@ pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> Strin
         CodegenErrorKind::NotAStruct(id) => {
             format!(
                 "IR internal error: '{}' is not a struct but was trying to be used as one",
-                hir.view(*id).name()
+                hir.view(*id).pretty_name()
             )
         }
         CodegenErrorKind::NotAnEnum(id) => {
             format!(
                 "IR internal error: '{}' is not an enum but was trying to be used as one",
-                hir.view(*id).name()
+                hir.view(*id).pretty_name()
             )
         }
         CodegenErrorKind::InvalidVariantIndex(id, index) => {
             format!(
                 "IR internal error: variant index {index} is out of bounds for enum '{}'",
-                hir.view(*id).name()
+                hir.view(*id).pretty_name()
             )
         }
         CodegenErrorKind::MissingEnumLayout(id) => {
             format!(
                 "IR internal error: the layout of enum '{}' is not registered",
-                hir.view(*id).name()
+                hir.view(*id).pretty_name()
             )
         }
         CodegenErrorKind::MissingEnumPayload(id) => {
             format!(
                 "IR internal error: enum '{}' is missing part of its payload layout",
-                hir.view(*id).name()
+                hir.view(*id).pretty_name()
             )
         }
         CodegenErrorKind::IRError(error) => format!("IR internal error: {error}"),
@@ -57,12 +57,12 @@ pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> Strin
                 AnyLocalDeclarationId::Enum(e) => file[e].ty,
             };
 
-            hir.view(ty).name()
+            hir.view(ty).pretty_name()
         }
         CodegenErrorKind::IRTypeNotRecognized(id) => {
             format!(
                 "IR internal error: type '{}' is not recognized by the IR",
-                hir.view(*id).name()
+                hir.view(*id).pretty_name()
             )
         }
     }

@@ -15,7 +15,7 @@ impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
             HIRErrorKind::InvalidEnumUsage(ty) => {
-                format!("Type '{}' is being used as an enum, even though it isn't", hir.view(*ty).name())
+                format!("Type '{}' is being used as an enum, even though it isn't", hir.view(*ty).pretty_name())
             }
             HIRErrorKind::MethodNotFound(name) => {
                 format!(
@@ -47,7 +47,7 @@ impl SlynxContext {
                 )
             }
             HIRErrorKind::MissingReturn => {
-                "Function does not contain return, but its return type is NOT void".to_string()
+                "Function does not contain return, but its return type is not void".to_string()
             }
             HIRErrorKind::EnumVariantNotAnInt(name) => {
                 format!(
@@ -58,7 +58,7 @@ impl SlynxContext {
             HIRErrorKind::MatchesOnNonEnum(ty) => {
                 format!(
                     "Cannot match on '{}': the `matches` operator requires an enum value on its left-hand side",
-                    hir.view(*ty).name()
+                    hir.view(*ty).pretty_name()
                 )
             }
             HIRErrorKind::InvalidPattern => "Invalid `matches` pattern. Expected a variant name (`Foo`) or a variant call (`Foo(...)`)".to_string(),
@@ -75,8 +75,8 @@ impl SlynxContext {
                 )
             }
             HIRErrorKind::UnexpectedType { expected, received } => {
-                let expected_name = hir.view(*expected).name();
-                let received_name = hir.view(*received).name();
+                let expected_name = hir.view(*expected).pretty_name();
+                let received_name = hir.view(*received).pretty_name();
                 format!(
                     "Received an incorrect type. Expected {expected_name} instead, received type {received_name}"
                 )
@@ -85,7 +85,7 @@ impl SlynxContext {
             HIRErrorKind::InvalidIndexing(ty) => {
                 format!(
                     "Expression cannot be indexed. Type is '{}', instead expected an array/vector type.",
-                    hir.view(*ty).name()
+                    hir.view(*ty).pretty_name()
                 )
             }
             HIRErrorKind::CouldntInfer => "Could not infer the type of expression".to_string(),
@@ -138,11 +138,11 @@ impl SlynxContext {
                 format!("Type with name '{name}' was not defined")
             }
             HIRErrorKind::InvalidFieldAccessTarget { ty } => {
-                let ty = hir.view(*ty).name();
+                let ty = hir.view(*ty).pretty_name();
                 format!("Type '{ty}' does not support field-style access")
             }
             HIRErrorKind::InvalidTupleAccessTarget { ty } => {
-                let ty = hir.view(*ty).name();
+                let ty = hir.view(*ty).pretty_name();
                 format!("Type '{ty}' does not support tuple-style access")
             }
             HIRErrorKind::InvalidTupleIndex { index, length } => {
@@ -185,7 +185,7 @@ impl SlynxContext {
                 } else {
                     "Properties"
                 };
-                let objname = hir.view(*ty).name();
+                let objname = hir.view(*ty).pretty_name();
                 let names = prop_names
                     .iter()
                     .map(|v| format!("'{}'", hir.get_name(*v)))
@@ -195,7 +195,7 @@ impl SlynxContext {
                 format!("{property} {names} are not recognized for object {objname}",)
             }
             HIRErrorKind::RecursiveType { ty } => {
-                let name = hir.view(*ty).name();
+                let name = hir.view(*ty).pretty_name();
                 format!("The type named as '{name}' is recursive at this point")
             }
             HIRErrorKind::InvalidStyleEvent { name } => {
@@ -251,8 +251,8 @@ impl SlynxContext {
                 format!("'{name}' uses a construct that is not implemented yet")
             }
             HIRErrorKind::DuplicateInterfaceImplementation { ty, interface } => {
-                let ty = hir.view(*ty).name();
-                let interface = hir.view(*interface).name();
+                let ty = hir.view(*ty).pretty_name();
+                let interface = hir.view(*interface).pretty_name();
                 format!(
                     "Type '{ty}' implements the interface '{interface}' more than once"
                 )
