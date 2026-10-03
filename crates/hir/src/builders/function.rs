@@ -154,13 +154,9 @@ impl<'a> HirQueueBuilder<'a> {
             Ok(func)
         } else if let Some(func) = self.hir.get_file(requester).find_function_with_name(name) {
             Ok(func)
-        } else if let Some((id, index)) = self.lowerer.lookup.find_function(name, requester) {
-            let func = self
-                .modules
-                .get_entry(id)
-                .func()
-                .get(PoolId::new(index as u32));
-            self.enqueue_function(func, id)
+        } else if let Some(id) = self.lowerer.lookup.find_function(name, requester) {
+            let func = self.modules.get_entry(id.owner).func().get(id.term);
+            self.enqueue_function(func, id.owner)
         } else {
             Err(HIRError::name_unrecognized(name, span))
         }

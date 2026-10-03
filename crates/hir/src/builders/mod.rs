@@ -2,9 +2,9 @@ pub(crate) mod attributes;
 pub(crate) mod component;
 mod expression;
 mod function;
+mod generic;
 pub(crate) mod interfaces;
 mod lowering;
-mod structs;
 mod work_channel;
 use std::{cell::RefCell, ops::Deref};
 
@@ -30,8 +30,8 @@ use dashmap::{DashMap, DashSet};
 pub use expression::*;
 use module_loader::{FileId, Modules};
 use slynx_parser::{
-    ASTAttribute, ASTStatement, ComponentDeclaration, GenericIdentifier, StaticDeclaration, Type,
-    TypeContext,
+    ASTAttribute, ASTStatement, ComponentDeclaration, ExtendDeclaration, GenericIdentifier,
+    StaticDeclaration, Type, TypeContext,
 };
 
 /// Orchestrates the AST → HIR build: hoists `main`, enqueues its transitive
@@ -41,7 +41,8 @@ use slynx_parser::{
 /// against an immutable `&SlynxHir` facade (which owns the mutable data).
 pub(crate) fn generate_hir<'a>(hir: &'a SlynxHir<'a>, modules: &'a Modules<'a>) -> Result<()> {
     let builder = HirQueueBuilder::new(hir, modules);
-    builder.prepare_interfaces()?;
+    builder.validate_interface_syntax(modules.entries()[0].id)?;
+
     {
         let entry = &modules.entries()[0];
         let main_symbol = hir.intern_name("main");
@@ -92,6 +93,10 @@ pub struct HirQueueBuilder<'a> {
     pub(crate) hir: &'a SlynxHir<'a>,
     pub(crate) modules: &'a Modules<'a>,
     pub(crate) lowerer: ASTLowerer<'a>,
+    pub(crate) interface_implementations: DashMap<
+        (FileId, PoolId<ExtendDeclaration>, TermId),
+        DeclarationId<crate::HirExtendDeclaration>,
+    >,
     pub(crate) bodies: WorkChannel<PendantFunction<'a>>,
     pub(crate) statics: WorkChannel<()>,
     // TODO(interfaces): populated when the HIR extend scaffold is wired in.
@@ -124,6 +129,7 @@ impl<'a> HirQueueBuilder<'a> {
             hir,
             modules,
             lowerer: ASTLowerer::new(modules),
+            interface_implementations: DashMap::new(),
             bodies: WorkChannel::new(),
             statics: WorkChannel::new(),
             components: WorkChannel::new(),
@@ -227,20 +233,19 @@ impl<'a> HirQueueBuilder<'a> {
         loop {
             select! {
                 recv(self.bodies.receiver()) -> body => {
-                    if let Ok(PendantFunction { func_id, body, argument_names, context, self_type }) = body {
-                        let mut builder = HirFunctionBuilder::new(func_id, self_type);
-                        for (idx, name) in argument_names.into_iter().enumerate() {
-                            builder.create_argument(self, name, idx as u8);
-                        }
-                        let ExpressionBuildResult { statements, args } = builder.build_body(self, body, &context)?;
-                        self.resolved_bodies.insert(func_id, (statements, args));
-
-                        if self.bodies.receiver().is_empty() {
-                            break;
-                        }
-                    }else {
+                    let Ok(PendantFunction { func_id, body, argument_names, context, self_type }) = body else {
+                        break;
+                    };
+                    let mut builder = HirFunctionBuilder::new(func_id, self_type);
+                    for (idx, name) in argument_names.into_iter().enumerate() {
+                        builder.create_argument(self, name, idx as u8);
+                    }
+                    let ExpressionBuildResult { statements, args } = builder.build_body(self, body, &context)?;
+                    self.resolved_bodies.insert(func_id, (statements, args));
+                    if self.bodies.receiver().is_empty() {
                         break;
                     }
+
                 }
                 recv(self.components.receiver()) -> component => {
                     if let Ok(PendantComponent { owner, component }) = component {
