@@ -1,0 +1,20 @@
+// An interface method with a `&mut self` receiver compiles and dispatches
+// like any other receiver form.
+interface Counter {
+    func increment(&mut self): void
+}
+
+object Score {
+    value: int
+}
+
+extend Score: Counter {
+    func increment(&mut self): void {
+        self.value = self.value + 1;
+    }
+}
+
+func main(): void {
+    let mut score = Score(value: 0);
+    score.increment();
+}

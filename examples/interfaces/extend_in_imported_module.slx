@@ -1,0 +1,17 @@
+// The interface `Stringifiable` is imported from `stringifiable.slx`, the
+// impl lives here, and the method is called on a concrete self type — the
+// full cross-file interface story.
+import stringifiable using Stringifiable;
+
+object Person {
+    name: str
+}
+
+extend Person: Stringifiable {
+    func stringify(&self) -> str { self.name }
+}
+
+func main(): void {
+    let person = Person(name: "ada");
+    person.stringify();
+}

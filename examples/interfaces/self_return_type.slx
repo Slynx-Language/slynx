@@ -1,0 +1,20 @@
+// An interface method whose return type is `Self` (`= Var(0)`) substitutes
+// to the concrete self type when the impl method is specialized.
+interface Cloneable {
+    func clone(&self) -> Self
+}
+
+object Counter {
+    value: int
+}
+
+extend Counter: Cloneable {
+    func clone(&self) -> Self {
+        Counter(value: self.value)
+    }
+}
+
+func main(): void {
+    let a = Counter(value: 1);
+    let b = a.clone();
+}

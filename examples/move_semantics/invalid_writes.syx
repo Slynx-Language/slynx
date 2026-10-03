@@ -1,3 +1,5 @@
+// xfail: writing through an immutable `&` (pref.name = "") must be rejected
+// by the ownership analysis.
 object Person {
     name: str
 }

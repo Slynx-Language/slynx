@@ -1,0 +1,8 @@
+// xfail: interfaces cannot be applied to type arguments.
+interface Stringifiable {
+    func stringify(&self) -> str
+}
+
+extend int: Stringifiable<str> {}
+
+func main(): void {}

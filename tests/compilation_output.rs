@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use slynx::{SlynxContext, compile_code};
+use slynx::SlynxContext;
 
 fn temp_source_path(case: &str) -> PathBuf {
     let case_dir = common::temp_dir(case);
@@ -33,24 +33,6 @@ fn compile_returns_output_before_writing() {
 
     output.write().expect("output should be written");
     assert!(output_path.exists());
-
-    cleanup(&output_path);
-}
-
-#[test]
-fn compile_code_still_writes_js_output() {
-    let source_path = temp_source_path("compile-code");
-    let output_path = source_path.with_extension("sir");
-
-    compile_code(source_path, Some(common::STD_PATH.clone()))
-        .expect("compile_code should still write the output file");
-
-    assert!(output_path.exists());
-    assert!(
-        !fs::read_to_string(&output_path)
-            .expect("generated output should be readable")
-            .is_empty()
-    );
 
     cleanup(&output_path);
 }

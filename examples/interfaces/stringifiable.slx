@@ -1,0 +1,8 @@
+// This module only defines an interface, imported by
+// extend_in_imported_module.slx. It must compile on its own.
+pub interface Stringifiable {
+    func stringify(&self) -> str
+}
+
+func main(): void {
+}

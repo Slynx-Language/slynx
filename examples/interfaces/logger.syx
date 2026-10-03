@@ -1,0 +1,27 @@
+// xfail: interfaces are not implemented yet. An `extern` object satisfying an
+// interface via declaration-site `pub object MyLogger: Logger` must compile
+// once the feature lands.
+interface Logger {
+    func log(&self, message: str): void;
+}
+
+extern {
+    pub object Console {
+        func log(&self, message: str): void;
+    }
+    pub static console: Console;
+}
+
+pub object MyLogger: Logger {
+    func new(): Self {
+        Self()
+    }
+    func log(&self, message: str): void {
+        console.log(message);
+    }
+}
+
+func main():void {
+    let logger = MyLogger.new();
+    logger.log("Hello, World!");
+}

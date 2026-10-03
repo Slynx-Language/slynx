@@ -1,0 +1,14 @@
+// xfail: calling an interface method on a concrete type that has no
+// `extend` block must be rejected (NoImplementationForInterface).
+interface Stringifiable {
+    func stringify(&self) -> str
+}
+
+object Person {
+    name: str
+}
+
+func main(): void {
+    let person = Person(name: "ada");
+    person.stringify();
+}

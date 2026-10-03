@@ -1,19 +1,16 @@
-func main() : Component{
-    
+func main():void {
+    let x = if 1 > 9 {
+        1
+    } else {
+        3
+    };
 
-   let x = if 1 > 9 {
-    1
-} else {
-    3
-}
-
-if 8> 10{
-    let mut y = 0;
-    y = 20;
-    0
-}else{
-    1.0
-}
-
-let yy = 10;
+    if 8 > 10 {
+        let mut y = 0;
+        y = 20;
+        0
+    } else {
+        10
+    };
+    let yy = 10;
 }

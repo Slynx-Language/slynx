@@ -1,0 +1,22 @@
+// xfail: interfaces are not implemented yet. A bounded generic function —
+// `func describe<T>(x: T) -> str where T: Stringifiable` — must compile and
+// resolve the interface call statically against the concrete impl.
+interface Stringifiable {
+    func stringify(&self) -> str
+}
+
+object Person {
+    name: str
+}
+
+extend Person: Stringifiable {
+    func stringify(&self) -> str { self.name }
+}
+
+func describe<T>(x: T) -> str where T: Stringifiable {
+    x.stringify()
+}
+
+func main(): void {
+    describe(Person(name: "ada"));
+}

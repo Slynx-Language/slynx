@@ -18,6 +18,7 @@
 
 use std::path::{Path, PathBuf};
 
+use color_eyre::eyre::Context;
 use slynx::SlynxContext;
 use slynx_hir::SlynxHir;
 use slynx_ir::SlynxIR;
@@ -64,9 +65,12 @@ pub fn load_context(path: &str) -> SlynxContext {
 }
 
 /// Compiles the example at `path` and returns its IR.
-pub fn compile_ok(path: &str) -> SlynxIR {
+pub fn compile_ok(path: &str) -> color_eyre::Result<SlynxIR> {
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        color_eyre::install().unwrap();
+    });
     slynx::compile_to_ir(PathBuf::from(path), Some(STD_PATH.clone()))
-        .unwrap_or_else(|e| panic!("compilation failed for {path}:\n{e:?}"))
 }
 
 /// Compiles the example at `path`, asserting the produced output targets a

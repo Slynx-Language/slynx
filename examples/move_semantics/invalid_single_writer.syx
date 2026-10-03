@@ -1,3 +1,6 @@
+// xpass: single-writer/move model is not enforced yet: `&mut p2` after a
+// move-like binding (`let mut p2 = p`) currently compiles, but the comments
+// below expect an error. This documents the gap.
 object Person {
     age: int
 }

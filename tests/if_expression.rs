@@ -14,3 +14,9 @@ fn lowers_if_else_expression_used_as_variable_value() {
     );
     assert!(ir.contains("Cbr"), "IR should contain Cbr:\n{ir}");
 }
+
+#[test]
+fn test_if_expression() -> Result<(), color_eyre::Report> {
+    let _ = common::compile_ok("examples/if.syx")?;
+    Ok(())
+}
