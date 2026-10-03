@@ -3,7 +3,7 @@ use common::{
     pool::{DedupPoolId, PoolId},
 };
 use either::Either;
-use module_loader::{ASTType, FileId};
+use module_loader::ASTType;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
@@ -13,12 +13,11 @@ use crate::{
         expression::{
             calls::{FunctionCallDescriptor, FunctionTarget},
             enums::{EnumExpressionDescriptor, EnumVariantDescriptor},
-            fields_resolution::AccessParentCategory,
             literals::ReferenceExpressionDescriptor,
         },
         lowering::lowerer::LowerTypeDeclarationDescriptor,
     },
-    fields_resolution::{FieldAccessCategory, TypeAccessCategory},
+    resolution::fields::{AccessParentCategory, FieldAccessCategory, TypeAccessCategory},
     term::{TermId, TermNode},
 };
 
@@ -233,60 +232,59 @@ impl ExpressionBuilder {
         span: Span,
         context: &TypeContext,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
-        let expr =
-            match self.resolve_field_access_category(queue, parent, field_ast, context, span)? {
-                FieldAccessCategory::Field(field_name) => {
-                    self.build_field_access_with_identifier(queue, parent, field_name, span)?
-                }
-                FieldAccessCategory::Intermediate {
-                    inner_parent,
+        let expr = match self.resolve_field_access_category(queue, parent, field_ast, span)? {
+            FieldAccessCategory::Field(field_name) => {
+                self.build_field_access_with_identifier(queue, parent, field_name, span)?
+            }
+            FieldAccessCategory::Intermediate {
+                inner_parent,
+                inner_field,
+            } => {
+                let intermediate =
+                    self.build_field_access_impl(queue, parent, inner_parent, span, context)?;
+                return self.build_field_access_impl(
+                    queue,
+                    intermediate,
                     inner_field,
-                } => {
-                    let intermediate =
-                        self.build_field_access_impl(queue, parent, inner_parent, span, context)?;
-                    return self.build_field_access_impl(
+                    span,
+                    context,
+                );
+            }
+            FieldAccessCategory::Method {
+                target,
+                name,
+                ref args,
+            } => {
+                let prepend_args = vec![if let Some(ty) =
+                    queue.hir.view(target).get_argument_type(0)
+                    && let TermNode::Ref { mutable, .. } = queue.hir.view(ty).raw().node()
+                {
+                    self.build_reference_expression(
                         queue,
-                        intermediate,
-                        inner_field,
-                        span,
-                        context,
-                    );
-                }
-                FieldAccessCategory::Method {
-                    target,
-                    name,
-                    ref args,
-                } => {
-                    let prepend_args = vec![if let Some(ty) =
-                        queue.hir.view(target).get_argument_type(0)
-                        && let TermNode::Ref { mutable, .. } = queue.hir.view(ty).raw().node()
-                    {
-                        self.build_reference_expression(
-                            queue,
-                            ReferenceExpressionDescriptor {
-                                target: Either::Right(parent),
-                                mutable: *mutable,
-                                context,
-                            },
-                        )?
-                    } else {
-                        parent
-                    }];
-                    self.build_function_call(
-                        queue,
-                        FunctionCallDescriptor {
-                            target: FunctionTarget::Resolved {
-                                target: target,
-                                type_arguments: &queue.get_plain_type(name).generic,
-                            },
-                            arguments: args,
-                            prepended_arguments: &prepend_args,
-                            span,
+                        ReferenceExpressionDescriptor {
+                            target: Either::Right(parent),
+                            mutable: *mutable,
                             context,
                         },
                     )?
-                }
-            };
+                } else {
+                    parent
+                }];
+                self.build_function_call(
+                    queue,
+                    FunctionCallDescriptor {
+                        target: FunctionTarget::Resolved {
+                            target: target,
+                            type_arguments: &queue.get_plain_type(name).generic,
+                        },
+                        arguments: args,
+                        prepended_arguments: &prepend_args,
+                        span,
+                        context,
+                    },
+                )?
+            }
+        };
 
         Ok(span.make_spanned(queue.hir.store.insert_expression(expr)))
     }

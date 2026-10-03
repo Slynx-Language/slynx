@@ -4,15 +4,16 @@ use common::{
 };
 use either::Either;
 use module_loader::ASTType;
-use slynx_parser::{ASTExpression, Type, TypeContext};
+use slynx_parser::{ASTExpression, Type};
 
 use crate::{
     DeclarationId, DescriptorId, ExpressionBuilder, ExpressionDescriptor, HIRError, HirExpression,
     HirExtendDeclaration, HirFunctionDeclaration, HirQueueBuilder, InterfaceType, Owned, Result,
     SymbolPointer,
-    enums::{EnumExpressionDescriptor, EnumVariantDescriptor},
     field_access::FieldAccessDescriptor,
-    literals::ReferenceExpressionDescriptor,
+    resolution::types::{
+        FindInherentMethodDescriptor, FindInterfaceMethodDescriptor, TypeMethodResolution,
+    },
     term::{TermId, TermNode},
 };
 
@@ -161,8 +162,14 @@ impl ExpressionBuilder {
             }
 
             ASTExpression::FunctionCall { name, args }
-                if let Some(method) =
-                    queue.resolve_method(ty.owner, ty.term, queue.type_name(**name), span)? =>
+                if let Some(method) = self.find_inherent_method_of(
+                    queue,
+                    FindInherentMethodDescriptor {
+                        ty,
+                        name: queue.type_name(**name),
+                        span,
+                    },
+                )? =>
             {
                 let name = *name;
                 Ok(TypeAccessCategory::StaticMethod {
@@ -181,7 +188,6 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder,
         parent: Spanned<PoolId<HirExpression>>,
         child: Spanned<DedupPoolId<ASTExpression>>,
-        context: &TypeContext,
         span: Span,
     ) -> Result<FieldAccessCategory> {
         let category = match queue.get_expr(child.data) {
@@ -206,8 +212,17 @@ impl ExpressionBuilder {
                 };
                 let func_id = match inherent {
                     Some(id) => id,
-                    None if let Some(id) =
-                        queue.resolve_method(self.file(), parent_ty.data, name_sym, span)? =>
+                    None if let Some(id) = self.find_inherent_method_of(
+                        queue,
+                        FindInherentMethodDescriptor {
+                            ty: Owned {
+                                owner: self.file(),
+                                term: parent_ty.data,
+                            },
+                            name: name_sym,
+                            span,
+                        },
+                    )? =>
                     {
                         id
                     }
@@ -221,15 +236,23 @@ impl ExpressionBuilder {
                                 }
                             }
                         };
-                        if let Some(id) = queue.resolve_interface_method_for_concrete(
-                            self.file(),
-                            concrete_self,
-                            name_sym,
-                            span,
+                        match self.find_interface_method_of(
+                            queue,
+                            FindInterfaceMethodDescriptor {
+                                ty: Owned {
+                                    owner: self.file(),
+                                    term: concrete_self,
+                                },
+                                name: name_sym,
+                                span,
+                            },
                         )? {
-                            id
-                        } else {
-                            return Err(HIRError::missing_properties(vec![name_sym], span));
+                            Some(TypeMethodResolution::Interface { method, .. }) => method,
+                            Some(TypeMethodResolution::Inherent(method))
+                            | Some(TypeMethodResolution::Static(method)) => method,
+                            None => {
+                                return Err(HIRError::missing_properties(vec![name_sym], span));
+                            }
                         }
                     }
                 };

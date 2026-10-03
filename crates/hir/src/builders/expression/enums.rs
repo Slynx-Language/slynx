@@ -2,7 +2,7 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
+    HIRError, HirExpression, HirExpressionKind, Owned, Result, SymbolPointer,
     builders::{HirQueueBuilder, lowering::lowerer::LowerTypeDeclarationDescriptor},
     generics::GenericTypeArguments,
     term::{Term, TermId},
@@ -35,8 +35,13 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder,
         name: SymbolPointer,
     ) -> Option<(TermId, usize)> {
-        let (owner, enum_id, variant_index) =
-            queue.lowerer.lookup.find_enum_variant(name, self.file())?;
+        let (
+            Owned {
+                owner,
+                term: enum_id,
+            },
+            variant_index,
+        ) = queue.lowerer.lookup.find_enum_variant(name, self.file())?;
         let enum_decl = queue.modules.get_entry(owner).enums().get(enum_id);
         let context = TypeContext::new(&enum_decl.type_params);
         let ast_type = queue.lowerer.lookup.find_type(owner, enum_decl.name)?;
