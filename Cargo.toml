@@ -34,9 +34,7 @@ module_loader.path="./crates/module_loader"
 slynx-monomorphizer.path="./crates/monomorphizer"
 slynx-ir.path="./crates/ir"
 slynx-codegen.path="./crates/codegen"
-
-
-
+bitflags.workspace = true
 
 [workspace]
 members = ["crates/*"]
