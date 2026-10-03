@@ -106,6 +106,25 @@ impl<'a> ASTLowerer<'a> {
         queue: &HirQueueBuilder<'a>,
         descriptor: TypeLoweringDescriptor,
     ) -> Result<Owned<TermId>> {
+        let cache_key = super::TypeLoweringCacheKey {
+            requester: descriptor.requester,
+            ty: descriptor.ty.data,
+            generic_names: descriptor.context.generic_names.to_vec(),
+            self_substitute: descriptor.self_substitute,
+        };
+        if let Some(lowered) = self.lowered_ast_types.get(&cache_key) {
+            return Ok(lowered.value().clone());
+        }
+        let lowered = self.lower_ast_type_uncached(queue, descriptor)?;
+        self.lowered_ast_types.insert(cache_key, lowered.clone());
+        Ok(lowered)
+    }
+
+    fn lower_ast_type_uncached(
+        &self,
+        queue: &HirQueueBuilder<'a>,
+        descriptor: TypeLoweringDescriptor,
+    ) -> Result<Owned<TermId>> {
         let real = queue.modules.get_type(descriptor.ty.data);
         let self_symbol = queue.hir.intern_name("Self");
         match real {
@@ -130,7 +149,7 @@ impl<'a> ASTLowerer<'a> {
             {
                 return Err(HIRError::invalid_type(
                     generic.identifier,
-                    InvalidTypeReason::IncorrectUsage,
+                    InvalidTypeReason::Unimplemented,
                     descriptor.ty.span,
                 ));
             }

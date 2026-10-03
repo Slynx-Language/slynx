@@ -7,12 +7,21 @@ use dashmap::DashMap;
 use module_loader::{ASTType, FileId, Modules};
 use slynx_parser::{Type, TypeContext};
 
-use crate::{Owned, Result, builders::lowering::lookup::ASTLookup, term::TermId};
+use crate::{Owned, Result, SymbolPointer, builders::lowering::lookup::ASTLookup, term::TermId};
 pub use declarations::*;
+
+#[derive(Hash, PartialEq, Eq)]
+pub(super) struct TypeLoweringCacheKey {
+    requester: FileId,
+    ty: DedupPoolId<Type>,
+    generic_names: Vec<SymbolPointer>,
+    self_substitute: Option<TermId>,
+}
 
 pub struct ASTLowerer<'a> {
     pub(crate) lookup: ASTLookup<'a>,
     pub(super) lowered_types: DashMap<ASTType, Owned<TermId>>,
+    pub(super) lowered_ast_types: DashMap<TypeLoweringCacheKey, Owned<TermId>>,
 }
 
 impl<'a> ASTLowerer<'a> {
@@ -20,6 +29,7 @@ impl<'a> ASTLowerer<'a> {
         Self {
             lookup: ASTLookup::new(modules),
             lowered_types: DashMap::new(),
+            lowered_ast_types: DashMap::new(),
         }
     }
 
