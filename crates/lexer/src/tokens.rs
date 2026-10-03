@@ -64,6 +64,8 @@ pub enum TokenKind {
     Requires,
     #[token("extend")]
     Extend,
+    #[token("where")]
+    Where,
     // Multi-char operators (must come before single-char)
     #[token("&&")]
     And,

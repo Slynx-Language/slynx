@@ -8,15 +8,80 @@ mod interfaces;
 mod objects;
 mod statics;
 mod styles;
-use common::{Spanned, VisibilityModifier};
+use common::{Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{
-    ASTAttribute, BasicParsingContext, Parser, ParsingContext, Result, flags::ParserFlags,
-    program::Program,
+    ASTAttribute, BasicParsingContext, GenericClause, ParseCollectionDescriptor, ParseErrorKind,
+    Parser, ParsingContext, Result, SymbolPointer, Type, flags::ParserFlags, program::Program,
 };
 
 impl<'a> Parser<'a> {
+    ///Parses a clause for a generic type parameter, such as
+    ///```func f<T,K>() where
+    ///     T: MyInterface1 & MyInterface2;
+    ///     K: MyInterface3 & MyInterface4; {
+    /// }
+    /// ```
+    pub fn parse_clause(&mut self, generics: &[SymbolPointer]) -> Result<Spanned<GenericClause>> {
+        let type_to_check = self.parse_type(generics)?;
+        self.expect(&TokenKind::Colon)?;
+        let bounds = self.parse_collection(ParseCollectionDescriptor {
+            eat_stop_token: false,
+            stop_token: TokenKind::Comma,
+            separator_token: Some(TokenKind::BitAnd),
+            parse_item: |parser| parser.parse_type(generics),
+        })?;
+        if bounds.is_empty() {
+            return Err(crate::ParseError::new(ParseErrorKind::ExpectedBounds(
+                type_to_check.span,
+            )));
+        }
+        Ok(Spanned {
+            span: type_to_check.span.merge_with(bounds.last().unwrap().span),
+            data: GenericClause {
+                type_to_check,
+                bounds,
+            },
+        })
+    }
+
+    pub fn parse_clauses(
+        &mut self,
+        generics: &[SymbolPointer],
+    ) -> Result<Vec<Spanned<GenericClause>>> {
+        self.parse_collection(ParseCollectionDescriptor {
+            eat_stop_token: true,
+            separator_token: Some(TokenKind::Comma),
+            stop_token: TokenKind::LBrace,
+            parse_item: |parser| parser.parse_clause(generics),
+        })
+    }
+
+    ///Parses interface implementations with bounds. for example `object MyObject : MyInterface`, this will start AFTER the ':' and get all the incomming interfaces and bounds and list them
+    ///This can be used for interfaces as well since they follow the same syntax
+    pub fn parse_interface_implementations(
+        &mut self,
+        generics: &[SymbolPointer],
+    ) -> Result<(Vec<Spanned<DedupPoolId<Type>>>, Vec<Spanned<GenericClause>>)> {
+        let mut interface_types = Vec::new();
+
+        while self.peek()?.kind != TokenKind::Where && self.peek()?.kind != TokenKind::LBrace {
+            interface_types.push(self.parse_type(generics)?);
+            if self.peek()?.kind == TokenKind::Comma {
+                self.expect(&TokenKind::Comma)?;
+            }
+        }
+        if self.peek()?.kind == TokenKind::LBrace {
+            //this represents something such as `:InterfaceA, InterfaceB {}`
+            self.expect(&TokenKind::LBrace)?;
+            return Ok((interface_types, Vec::new()));
+        }
+        let clauses = self.parse_clauses(generics)?;
+
+        Ok((interface_types, clauses))
+    }
+
     ///Parses a list of attributes. This makes the parsing of @name(arg0,arg1,arg2,arg3, ...). If the current token is not an `At` token(in code, '@'), an empty list is returned.
     pub fn parse_attributes(&mut self) -> Result<Vec<Spanned<ASTAttribute>>> {
         let mut out = Vec::new();

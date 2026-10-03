@@ -2,8 +2,8 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
 
 use crate::{
-    ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, Parser, Result, SymbolPointer,
-    Type, flags::ParserFlags,
+    ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, GenericsMetadata, Parser, Result,
+    SymbolPointer, Type, flags::ParserFlags,
 };
 
 impl Parser<'_> {
@@ -11,9 +11,11 @@ impl Parser<'_> {
         &mut self,
         generics: &[SymbolPointer],
     ) -> Result<Option<Spanned<DedupPoolId<Type>>>> {
-        if self.peek()?.kind == TokenKind::Colon {
+        //enum Slaoq(u8): Interface {}
+        if self.peek()?.kind == TokenKind::LParen {
             self.eat()?;
             let out = self.parse_type(generics)?;
+            self.expect(&TokenKind::RParen)?;
             Ok(Some(out))
         } else {
             Ok(None)
@@ -94,11 +96,17 @@ impl Parser<'_> {
     ) -> Result<EnumDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
         let representation = self.parse_enum_representation(&generics)?;
+        let (interface_implementations, interface_clauses) =
+            self.parse_interface_implementations(&generics)?;
         let variants = self.parse_enum_variants(&generics)?;
 
         Ok(EnumDeclaration {
             name,
-            type_params: generics,
+            generics: GenericsMetadata {
+                type_params: generics,
+                interface_implementations,
+                clauses: interface_clauses,
+            },
             representation,
             variants,
             attributes,

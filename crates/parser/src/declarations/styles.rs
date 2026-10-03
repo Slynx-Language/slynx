@@ -2,8 +2,8 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
-    ASTAttribute, ASTExpression, Parser, StyleBlock, StyleSheet, StyleSheetStatement, StyleState,
-    error::ParseError, flags::ParserFlags,
+    ASTAttribute, ASTExpression, GenericsMetadata, Parser, StyleBlock, StyleSheet,
+    StyleSheetStatement, StyleState, error::ParseError, flags::ParserFlags,
 };
 
 impl Parser<'_> {
@@ -173,6 +173,8 @@ impl Parser<'_> {
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<StyleSheet, ParseError> {
         let (name, generics) = self.parse_generic_name()?;
+        let (interface_implementations, clauses) =
+            self.parse_interface_implementations(&generics)?;
 
         self.expect(&TokenKind::LParen)?;
         let args = self.parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
@@ -191,7 +193,11 @@ impl Parser<'_> {
         self.expect(&TokenKind::LBrace)?;
         let body = self.parse_stylesheet_body()?;
         let out = StyleSheet {
-            type_params: generics,
+            generics: GenericsMetadata {
+                type_params: generics,
+                interface_implementations,
+                clauses,
+            },
             attributes,
             visibility: Default::default(),
             name,

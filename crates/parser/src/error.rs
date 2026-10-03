@@ -23,6 +23,7 @@ pub struct ParseError {
 
 #[derive(Debug)]
 pub enum ParseErrorKind {
+    ExpectedBounds(Span),
     ///An error that occurs when the provided `Token` is received when not intended. The provided `String` is a text to explain what was being expected instead. It's shown as 'Instead, was expecting `string`'
     UnexpectedToken(Token, ExpectedContent),
     UnexpectedEndOfInput,
@@ -55,6 +56,9 @@ impl std::fmt::Display for ParseError {
     ///Formats the `ParseError` into a human-readable string. It matches on the type of error and constructs an appropriate message. For `UnexpectedToken`, it includes the unexpected token and what was expected. For `UnexpectedEndOfInput`, it simply states that the end of input was unexpected.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match &self.kind {
+            ParseErrorKind::ExpectedBounds(span) => {
+                write!(f, "Expected bounds, but got none at {span:?}")
+            }
             ParseErrorKind::UnexpectedToken(token, expected_ty) => {
                 let expected = match expected_ty {
                     ExpectedContent::ParsingContext(ParserContext::OnlySignatures) => {

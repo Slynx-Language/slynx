@@ -1,5 +1,5 @@
 use crate::{
-    ASTAttribute, ComponentDeclaration, Result, SymbolPointer,
+    ASTAttribute, ComponentDeclaration, GenericsMetadata, Result, SymbolPointer,
     ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
     flags::ParserFlags,
 };
@@ -138,6 +138,8 @@ impl Parser<'_> {
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<ComponentDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
+        let (interface_implementations, clauses) =
+            self.parse_interface_implementations(&generics)?;
 
         self.expect(&TokenKind::LBrace)?;
         let mut defs = Vec::new();
@@ -148,7 +150,11 @@ impl Parser<'_> {
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
 
         Ok(ComponentDeclaration {
-            type_params: generics,
+            generics: GenericsMetadata {
+                type_params: generics,
+                interface_implementations,
+                clauses,
+            },
             attributes,
             visibility: Default::default(),
             name,

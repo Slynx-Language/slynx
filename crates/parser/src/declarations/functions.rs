@@ -1,5 +1,5 @@
 use crate::flags::ParserFlags;
-use crate::{ASTAttribute, SymbolPointer};
+use crate::{ASTAttribute, GenericsMetadata, ParseCollectionDescriptor, SymbolPointer};
 use crate::{FuncDeclaration, Parser, Result};
 use slynx_lexer::tokens::TokenKind;
 
@@ -22,22 +22,8 @@ impl Parser<'_> {
         flags: ParserFlags,
     ) -> Result<FuncDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
-        self.parse_func_rest(span, name, generics, attributes, flags)
-    }
-
-    ///Parses everything that comes after the function name: the arguments, the
-    ///return type and the body. The type parameters are kept in scope while this
-    ///runs, so `T` in argument/return types resolves to [`Type::Generic`].
-    fn parse_func_rest(
-        &mut self,
-        span: Span,
-        name: SymbolPointer,
-        type_params: Vec<SymbolPointer>,
-        attributes: Vec<Spanned<ASTAttribute>>,
-        flags: ParserFlags,
-    ) -> Result<FuncDeclaration> {
         self.expect(&TokenKind::LParen)?;
-        let args = self.parse_args(&type_params)?;
+        let args = self.parse_args(&generics)?;
         self.expect(&TokenKind::RParen)?;
         // The return type may follow either ':' or '->'. Object, interface and
         // `extend` methods conventionally write `func f(&self) -> str`, while
@@ -47,9 +33,14 @@ impl Parser<'_> {
         } else {
             self.expect(&TokenKind::Colon)?;
         }
-        let return_type = self.parse_type(&type_params)?;
+        let return_type = self.parse_type(&generics)?;
 
         if flags.contains(ParserFlags::ONLY_SIGNATURES) {
+            let clauses = if self.peek()?.kind == TokenKind::Where {
+                self.parse_clauses(&generics)?
+            } else {
+                Vec::new()
+            };
             // Interface signatures are written without a trailing ';' in the
             // corpus and docs, but tolerate it if present.
             if self.peek()?.kind == TokenKind::SemiColon {
@@ -61,18 +52,22 @@ impl Parser<'_> {
                 span: span.merge_with(return_type.span),
                 external: false,
                 name,
-                type_params,
+                generics: GenericsMetadata {
+                    clauses,
+                    type_params: generics,
+                    interface_implementations: Vec::new(),
+                },
                 args,
                 return_type,
                 body: vec![],
             });
         }
         let current = self.eat()?;
-
+        let clauses = self.parse_clauses(&generics)?;
         //func main(arg:T):Q ->/{}
         match current.kind {
             TokenKind::Arrow => {
-                let expr = self.parse_expression(&type_params, flags)?;
+                let expr = self.parse_expression(&generics, flags)?;
                 let end = expr
                     .span
                     .merge_with(self.expect(&TokenKind::SemiColon)?.span);
@@ -85,7 +80,11 @@ impl Parser<'_> {
                     visibility: Default::default(),
                     span: span.merge_with(end),
                     name,
-                    type_params,
+                    generics: GenericsMetadata {
+                        type_params: generics,
+                        interface_implementations: Vec::new(),
+                        clauses,
+                    },
                     args,
                     return_type,
                     body,
@@ -99,8 +98,7 @@ impl Parser<'_> {
                 // instead of being inherited from `flags`, which also carries
                 // `ONLY_SIGNATURES` for declarations inside an `extern` block.
                 while !matches!(self.peek()?.kind, TokenKind::RBrace) {
-                    let stmt =
-                        self.parse_statement(&type_params, ParserFlags::COMPONENT_EXPR)?;
+                    let stmt = self.parse_statement(&generics, ParserFlags::COMPONENT_EXPR)?;
                     body.push(stmt);
 
                     if self.peek()?.kind == TokenKind::RBrace {
@@ -115,7 +113,11 @@ impl Parser<'_> {
                     external: false,
                     span: span.merge_with(end),
                     name,
-                    type_params,
+                    generics: GenericsMetadata {
+                        type_params: generics,
+                        interface_implementations: Vec::new(),
+                        clauses,
+                    },
                     args,
                     return_type,
                     body,

@@ -58,6 +58,16 @@ pub struct Parser<'a> {
     stream: TokenStream,
 }
 
+pub struct ParseCollectionDescriptor<F, T>
+where
+    F: FnMut(&mut Parser<'_>) -> Result<T>,
+{
+    pub eat_stop_token: bool,
+    pub stop_token: TokenKind,
+    pub separator_token: Option<TokenKind>,
+    pub parse_item: F,
+}
+
 impl<'a> Parser<'a> {
     ///Creates a new parser instance from the given `stream`
     pub fn new(
@@ -86,5 +96,29 @@ impl<'a> Parser<'a> {
         }
 
         Ok(())
+    }
+
+    pub fn parse_collection<F, T>(
+        &mut self,
+        mut descriptor: ParseCollectionDescriptor<F, T>,
+    ) -> Result<Vec<T>>
+    where
+        F: FnMut(&mut Parser<'_>) -> Result<T>,
+    {
+        let mut out = Vec::new();
+
+        while self.peek()?.kind != descriptor.stop_token {
+            out.push((descriptor.parse_item)(self)?);
+            if self.peek()?.kind == descriptor.stop_token {
+                break;
+            }
+            if let Some(ref separator) = descriptor.separator_token {
+                self.expect(separator)?;
+            }
+        }
+        if descriptor.eat_stop_token {
+            self.expect(&descriptor.stop_token)?;
+        }
+        Ok(out)
     }
 }

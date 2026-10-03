@@ -1,6 +1,6 @@
 use crate::{
-    ASTAttribute, FuncDeclaration, ObjectDeclaration, ObjectMethod, Parser, Result,
-    flags::ParserFlags,
+    ASTAttribute, FuncDeclaration, GenericsMetadata, ObjectDeclaration, ObjectMethod, Parser,
+    Result, flags::ParserFlags,
 };
 use slynx_lexer::tokens::{Token, TokenKind};
 
@@ -20,11 +20,11 @@ impl<'a> Parser<'a> {
             args,
             return_type,
             body,
-            type_params,
+            generics,
             ..
         } = func;
         Ok(ObjectMethod {
-            type_params,
+            generics,
             method_name: name,
             arguments: args,
             return_type,
@@ -40,6 +40,8 @@ impl<'a> Parser<'a> {
         flags: ParserFlags,
     ) -> Result<ObjectDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
+        let (interface_implementations, clauses) =
+            self.parse_interface_implementations(&generics)?;
         self.expect(&TokenKind::LBrace)?;
         let mut fields = Vec::new();
         let mut methods = Vec::new();
@@ -68,7 +70,11 @@ impl<'a> Parser<'a> {
         }
         let Token { span, .. } = self.expect(&TokenKind::RBrace)?;
         Ok(ObjectDeclaration {
-            type_params: generics,
+            generics: GenericsMetadata {
+                type_params: generics,
+                interface_implementations,
+                clauses,
+            },
             attributes,
             visibility: Default::default(),
             name,

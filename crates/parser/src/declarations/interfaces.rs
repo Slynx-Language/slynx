@@ -2,8 +2,8 @@ use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
 
 use crate::{
-    ASTAttribute, BasicParsingContext, ExtendDeclaration, InterfaceDeclaration, Parser,
-    ParsingContext, Result, SymbolPointer, Type, flags::ParserFlags,
+    ASTAttribute, BasicParsingContext, ExtendDeclaration, GenericsMetadata, InterfaceDeclaration,
+    Parser, ParsingContext, Result, SymbolPointer, Type, flags::ParserFlags,
 };
 
 impl Parser<'_> {
@@ -34,6 +34,7 @@ impl Parser<'_> {
     ///context the interface itself was declared in.
     pub fn parse_interface(&mut self, context: ParsingContext) -> Result<InterfaceDeclaration> {
         let (name, type_args) = self.parse_generic_name()?;
+        let (interfaces, clauses) = self.parse_interface_implementations(&type_args)?;
         let requirements = self.parse_interface_requirements(&context.basic)?;
         let methods = {
             self.expect(&TokenKind::LBrace)?;
@@ -52,7 +53,11 @@ impl Parser<'_> {
 
         Ok(InterfaceDeclaration {
             name,
-            type_args,
+            generics: GenericsMetadata {
+                type_params: type_args,
+                interface_implementations: interfaces,
+                clauses,
+            },
             methods,
             super_interfaces: requirements,
             span: context.span.merge_with(end),
@@ -84,11 +89,11 @@ impl Parser<'_> {
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<ExtendDeclaration> {
+        //extend a: b,c,d,e where t {}
         let generic_inputs = self.parse_extension_generics()?;
         let target = self.parse_type(&generic_inputs)?;
         self.expect(&TokenKind::Colon)?;
-        let target_interface = self.parse_type(&generic_inputs)?;
-        self.expect(&TokenKind::LBrace)?;
+        let (target_interfaces, clauses) = self.parse_interface_implementations(&generic_inputs)?; //already eats the left brace.
         let mut methods = Vec::new();
         while self.peek()?.kind != TokenKind::RBrace {
             let attributes = self.parse_attributes()?;
@@ -99,8 +104,12 @@ impl Parser<'_> {
         let end = self.expect(&TokenKind::RBrace)?.span;
         Ok(ExtendDeclaration {
             target,
-            interface: target_interface,
-            type_args: generic_inputs,
+            generics: GenericsMetadata {
+                type_params: generic_inputs,
+                interface_implementations: target_interfaces,
+                clauses,
+            },
+
             methods,
             attributes,
             span: span.merge_with(end),
