@@ -60,7 +60,7 @@ pub(crate) fn mangle_name(hir: &SlynxHir, name: SymbolPointer, args: &[TermId]) 
         let mut hasher = DefaultHasher::new();
         hir.view(*arg).raw().hash(&mut hasher);
         out.push('_');
-        out.push_str(&hir.view(*arg).name());
+        out.push_str(&hir.view(*arg).pretty_name());
         out.push_str(&format!("_{:04x}", hasher.finish() & 0xffff));
     }
     out

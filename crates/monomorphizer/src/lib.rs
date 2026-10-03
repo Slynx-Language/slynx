@@ -432,7 +432,7 @@ impl Monomorphizer {
                 unreachable!(
                     "Resolvable references only target structs, components, or enums. Type: '{:?}' '{}'",
                     deref.data(),
-                    deref.name()
+                    deref.pretty_name()
                 )
             };
         }

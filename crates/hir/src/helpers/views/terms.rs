@@ -18,10 +18,55 @@ impl<'a> HirViewer<'a, TermId> {
         self.raw().children()
     }
 
-    ///Renders the term into the same diagnostic text produced by
-    ///`HirViewer<TermId>::name()` (I11). It first unrolls
-    ///reference chains (mirroring `dereference`) and then walks the term tree.
-    pub fn name(&self) -> String {
+    pub fn internal_name(&self) -> String {
+        match self.dereference().raw().node() {
+            TermNode::Primitive(pt) => pt.to_string(),
+            TermNode::Var(var) => self.hir.get_name(var.name).into(),
+            TermNode::Data(descriptor) => match descriptor {
+                DescriptorId::Struct(s) => {
+                    let name = self.hir.types.storage.get_struct_name(*s);
+                    self.hir.get_name(name).to_string()
+                }
+                DescriptorId::Enum(e) => {
+                    let name = self.hir.types.storage.get_enum_name(*e);
+                    self.hir.get_name(name).to_string()
+                }
+                DescriptorId::Component(c) => self.new_with(*c).name().to_string(),
+            },
+            TermNode::Func { args, ret } => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.new_with(*arg).internal_name())
+                    .collect::<Vec<_>>()
+                    .join("_");
+                let ret = self.new_with(*ret).internal_name();
+                format!("{ret}_func_{args}")
+            }
+            TermNode::Tuple { fields } => {
+                let fields = fields
+                    .iter()
+                    .map(|field| self.new_with(*field).internal_name())
+                    .collect::<Vec<_>>()
+                    .join("@");
+                format!("Tuple_{fields}")
+            }
+            TermNode::Ref {
+                mutable: false,
+                target,
+            } => format!("Ref_{}", self.new_with(*target).internal_name()),
+            TermNode::Ref {
+                mutable: true,
+                target,
+            } => format!("MRef_{}", self.new_with(*target).internal_name()),
+            TermNode::Apply { target, args } => self.render_apply(*target, args),
+            TermNode::Extension(ext) => ext.name().to_string(),
+            TermNode::Constant(constant) => format!("Constant_{constant:?}"),
+            TermNode::Hole(_) => format!("Hole"),
+        }
+    }
+
+    ///Renders the pretty name of this type. The pretty name is a name for the user to read, and should NOT be used to any internal naming
+    pub fn pretty_name(&self) -> String {
         self.dereference().render_name()
     }
 
@@ -175,7 +220,7 @@ impl<'a> HirViewer<'a, TermId> {
     fn render_name(self) -> String {
         let term = self.raw();
         match term.node() {
-            TermNode::Primitive(pt) => format!("{:?}", pt),
+            TermNode::Primitive(pt) => pt.to_string(),
             TermNode::Var(var) => self.hir.get_name(var.name).into(),
             TermNode::Data(descriptor) => match descriptor {
                 DescriptorId::Struct(s) => {
@@ -191,16 +236,16 @@ impl<'a> HirViewer<'a, TermId> {
             TermNode::Func { args, ret } => {
                 let args = args
                     .iter()
-                    .map(|arg| self.new_with(*arg).name())
+                    .map(|arg| self.new_with(*arg).pretty_name())
                     .collect::<Vec<_>>()
                     .join(",");
-                let ret = self.new_with(*ret).name();
+                let ret = self.new_with(*ret).pretty_name();
                 format!("func({args})->{ret}")
             }
             TermNode::Tuple { fields } => {
                 let fields = fields
                     .iter()
-                    .map(|field| self.new_with(*field).name())
+                    .map(|field| self.new_with(*field).pretty_name())
                     .collect::<Vec<_>>()
                     .join(",");
                 format!("({fields})")
@@ -208,11 +253,11 @@ impl<'a> HirViewer<'a, TermId> {
             TermNode::Ref {
                 mutable: false,
                 target,
-            } => format!("&{}", self.new_with(*target).name()),
+            } => format!("&{}", self.new_with(*target).pretty_name()),
             TermNode::Ref {
                 mutable: true,
                 target,
-            } => format!("&mut {}", self.new_with(*target).name()),
+            } => format!("&mut {}", self.new_with(*target).pretty_name()),
             TermNode::Apply { target, args } => self.render_apply(*target, args),
             TermNode::Extension(ext) => ext.name().to_string(),
             TermNode::Constant(_) | TermNode::Hole(_) => format!("{term:?}"),
@@ -224,7 +269,7 @@ impl<'a> HirViewer<'a, TermId> {
             Some(ext) if ext.dyn_eq(&ArrayTerm) => {
                 let elem = args
                     .first()
-                    .map(|elem| self.new_with(*elem).name())
+                    .map(|elem| self.new_with(*elem).pretty_name())
                     .unwrap_or_default();
                 let len = args
                     .get(1)
@@ -235,15 +280,15 @@ impl<'a> HirViewer<'a, TermId> {
             Some(ext) if ext.dyn_eq(&VectorTerm) => {
                 let elem = args
                     .first()
-                    .map(|elem| self.new_with(*elem).name())
+                    .map(|elem| self.new_with(*elem).pretty_name())
                     .unwrap_or_default();
                 format!("[]{elem}")
             }
             _ => {
-                let base = self.new_with(target).name();
+                let base = self.new_with(target).pretty_name();
                 let generics = args
                     .iter()
-                    .map(|arg| self.new_with(*arg).name())
+                    .map(|arg| self.new_with(*arg).pretty_name())
                     .collect::<Vec<_>>()
                     .join(",");
                 if generics.is_empty() {
@@ -265,6 +310,6 @@ impl<'a> HirViewer<'a, TermId> {
 
 impl std::fmt::Display for HirViewer<'_, TermId> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
+        write!(f, "{}", self.pretty_name())
     }
 }
