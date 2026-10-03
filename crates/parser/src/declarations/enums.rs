@@ -104,6 +104,7 @@ impl Parser<'_> {
             attributes,
             visibility: Default::default(),
             span,
+            methods: Vec::new(),
         })
     }
 }

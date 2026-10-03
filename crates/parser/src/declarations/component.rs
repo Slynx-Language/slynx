@@ -154,6 +154,7 @@ impl Parser<'_> {
             name,
             members: defs,
             span: span.merge_with(end),
+            methods: Vec::new(),
         })
     }
 }

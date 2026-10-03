@@ -62,6 +62,7 @@ pub struct ComponentDeclaration {
     pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,
     pub span: Span,
+    pub methods: Vec<ObjectMethod>,
 }
 #[derive(Debug)]
 pub struct FuncDeclaration {
@@ -174,6 +175,7 @@ pub struct EnumDeclaration {
     pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,
     pub span: Span,
+    pub methods: Vec<ObjectMethod>,
 }
 
 #[derive(Debug)]
