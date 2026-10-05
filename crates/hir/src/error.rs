@@ -67,6 +67,14 @@ pub enum HIRErrorKind {
         /// The interface that was implemented more than once.
         interface: TermId,
     },
+    /// A deferred interface call could not be discharged: the receiver's
+    /// concrete type has no implementation of the method.
+    UnresolvedInterfaceCall {
+        /// The name of the interface method that could not be dispatched.
+        method: SymbolPointer,
+        /// The concrete receiver type that provides no implementation.
+        receiver: TermId,
+    },
     InvalidTypeAccess,
     ExpressionNotMutable(NotMutableReason),
     InvalidDeref,
@@ -284,6 +292,14 @@ impl HIRError {
     pub fn duplicate_interface_implementation(ty: TermId, interface: TermId, span: Span) -> Self {
         Self::new(
             HIRErrorKind::DuplicateInterfaceImplementation { ty, interface },
+            span,
+        )
+    }
+
+    ///A deferred interface call on a receiver that no extension implements.
+    pub fn unresolved_interface_call(method: SymbolPointer, receiver: TermId, span: Span) -> Self {
+        Self::new(
+            HIRErrorKind::UnresolvedInterfaceCall { method, receiver },
             span,
         )
     }
@@ -552,6 +568,9 @@ impl std::fmt::Display for HIRError {
             }
             HIRErrorKind::DuplicateInterfaceImplementation { .. } => {
                 write!(f, "Type implements the same interface more than once")
+            }
+            HIRErrorKind::UnresolvedInterfaceCall { .. } => {
+                write!(f, "No implementation of this interface method was found")
             }
             HIRErrorKind::InvalidTypeAccess => write!(f, "Invalid type access"),
             HIRErrorKind::ExpressionNotMutable(_) => write!(f, "Expression not mutable"),

@@ -6,8 +6,12 @@ use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{ASTFunction, ExtendDeclaration, InterfaceDeclaration, Type, TypeContext};
 
 use crate::{
-    DeclarationId, HIRError, HirExtendDeclaration, HirQueueBuilder, Owned, Result,
-    error::MissingFeature, term::TermId,
+    DeclarationId, GenericParameter, HIRError, HirExtendDeclaration, HirFunctionDeclaration,
+    HirQueueBuilder, InterfaceType, Owned, Result, SymbolPointer,
+    builders::lowering::lookup::FindExtensionsWithMethodDescriptor,
+    context::{HirSymbol, InterfaceMethodSignature},
+    error::MissingFeature,
+    term::TermId,
 };
 
 /// Describes the lazy materialization of one concrete interface implementation.
@@ -73,6 +77,107 @@ impl<'a> HirQueueBuilder<'a> {
                     }
                 }
             }
+        }
+        Ok(())
+    }
+
+    ///Materializes the signature of an interface method as a bodyless
+    ///[`HirFunctionDeclaration`] keyed by `Self = Var(0)`, and registers it
+    ///against the declaring interface.
+    ///
+    ///A method call on a bounded generic parameter (`func f<T>(x: T) where T: I`
+    ///calling `x.m()`) has no concrete target while the HIR is being built. It
+    ///resolves to this declaration instead, so the existing call building path
+    ///works unchanged, and is discharged by the monomorphizer once the
+    ///receiver's concrete type is known.
+    ///
+    ///Idempotent: every later request for the same method returns the very same
+    ///declaration.
+    pub(crate) fn insert_interface_method_signature(
+        &self,
+        owner: FileId,
+        interface: DedupPoolId<InterfaceType>,
+        interface_name: SymbolPointer,
+        method: &slynx_parser::FuncDeclaration,
+        signature: TermId,
+    ) -> DeclarationId<HirFunctionDeclaration> {
+        let name = self.hir.intern_name(&format!(
+            "{}_interface_{}",
+            self.hir.get_name(method.name),
+            self.hir.get_name(interface_name),
+        ));
+        let declaration =
+            self.hir
+                .symbols_registry
+                .get_or_insert_function(HirSymbol::new(owner, name), || {
+                    self.hir.store.get_or_create_file(owner).create_function(
+                        HirFunctionDeclaration {
+                            name,
+                            // `Self` is generic parameter 0 so the receiver supplied
+                            // at the call site substitutes it.
+                            generics: vec![GenericParameter {
+                                name: self.hir.intern_name("Self"),
+                                bounds: Vec::new(),
+                            }],
+                            args: Default::default(),
+                            ty: signature,
+                            statements: Vec::new(),
+                            visibility: VisibilityModifier::Public,
+                            external: false,
+                            attributes: Vec::new(),
+                            span: method.span,
+                        },
+                    )
+                });
+        self.hir
+            .types
+            .create_interface_method(InterfaceMethodSignature {
+                interface,
+                name: method.name,
+                declaration,
+            });
+        declaration
+    }
+
+    ///Materializes every reachable extension that declares a method named
+    ///`name`, keyed by the concrete type it extends.
+    ///
+    ///A deferred interface call cannot pick its implementation while the HIR is
+    ///built — the receiver is still a generic parameter. Materializing every
+    ///candidate implementation up front is what lets the monomorphizer pick one
+    ///later, once the concrete self type is known.
+    pub(crate) fn materialize_extensions_declaring_method(
+        &self,
+        requester: FileId,
+        name: SymbolPointer,
+    ) -> Result<()> {
+        for extension in
+            self.lowerer
+                .lookup
+                .find_extensions_with_method(FindExtensionsWithMethodDescriptor {
+                    requester,
+                    method_name: name,
+                })
+        {
+            let declaration = self
+                .modules
+                .get_entry(extension.owner)
+                .extensions()
+                .get(extension.term);
+            self.assert_concrete_type_generic_count(extension.owner, declaration.target)?;
+            let target = self
+                .lowerer
+                .lower_type(
+                    self,
+                    extension.owner,
+                    declaration.target,
+                    &TypeContext::EMPTY,
+                )?
+                .term;
+            self.materialize_interface_implementation(InterfaceImplementationDescriptor {
+                extension,
+                target,
+            })?;
         }
         Ok(())
     }

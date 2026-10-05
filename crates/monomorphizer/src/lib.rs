@@ -698,7 +698,32 @@ impl Monomorphizer {
                     .map(|generic| substitute_type(hir, *generic, subst))
                     .collect::<Result<Vec<_>>>()?;
 
-                let new_name = if new_generics.is_empty() {
+                let new_name = if let Some(signature) = hir.types.interface_signature(name) {
+                    // A deferred interface call: the target was the interface
+                    // method's signature declaration because the receiver was a
+                    // generic parameter. Now that its concrete type is known,
+                    // pick the implementation that extends it.
+                    let target = self.resolve_interface_call(
+                        hir,
+                        &signature,
+                        args.first()
+                            .map(|receiver| hir[receiver.data].ty)
+                            .ok_or_else(|| {
+                                HIRError::unresolved_interface_call(
+                                    signature.name,
+                                    node.ty,
+                                    expression.span,
+                                )
+                            })?,
+                        subst,
+                        expression.span,
+                    )?;
+                    let AnyLocalDeclarationId::Function(local_id) = target.local_id else {
+                        unreachable!("A monomorphized call target must be a function")
+                    };
+                    call_ty = self.function_return_type(hir, target)?;
+                    DeclarationId::new(target.file_id, local_id)
+                } else if new_generics.is_empty() {
                     name
                 } else {
                     let target =

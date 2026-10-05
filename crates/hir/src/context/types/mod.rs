@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub use components::ComponentDefinition;
-pub use methods::MethodTable;
+pub use methods::{InterfaceMethodSignature, MethodTable};
 pub use registry::TypeRegistry;
 pub use storage::TypeStorage;
 pub use structs::StructDefinition;
@@ -244,6 +244,29 @@ impl TypesContext {
         ty: TermId,
     ) -> Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)> {
         self.methods.get_methods_of(ty)
+    }
+
+    ///Registers the signature declaration of a method declared by an interface.
+    pub fn create_interface_method(&self, signature: InterfaceMethodSignature) {
+        self.methods.create_interface_method(signature);
+    }
+
+    ///Returns the signature declaration of the method `name` declared by the
+    ///given `interface`, if any.
+    pub fn interface_method_of(
+        &self,
+        interface: DedupPoolId<InterfaceType>,
+        name: SymbolPointer,
+    ) -> Option<DeclarationId<HirFunctionDeclaration>> {
+        self.methods.interface_method_of(interface, name)
+    }
+
+    ///Returns the interface method the given `declaration` is the signature of.
+    pub fn interface_signature(
+        &self,
+        declaration: DeclarationId<HirFunctionDeclaration>,
+    ) -> Option<InterfaceMethodSignature> {
+        self.methods.interface_signature(declaration)
     }
 
     ///Retrieves the TermId of the provided `name` on the currentContext

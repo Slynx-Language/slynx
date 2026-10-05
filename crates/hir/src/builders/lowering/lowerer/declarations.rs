@@ -82,6 +82,10 @@ impl<'a> ASTLowerer<'a> {
                     .map(|signature| (method.name, signature))
             })
             .collect::<Result<Vec<_>>>()?;
+        let signatures = methods
+            .iter()
+            .map(|(_, signature)| *signature)
+            .collect::<Vec<_>>();
         let super_interfaces = declaration
             .super_interfaces
             .iter()
@@ -90,10 +94,34 @@ impl<'a> ASTLowerer<'a> {
                     .map(|owned| owned.term)
             })
             .collect::<Result<Vec<_>>>()?;
-        Ok(queue
+        let interface_term =
+            queue
+                .hir
+                .types
+                .create_interface_type(declaration.name, methods, super_interfaces);
+        let interface = queue
             .hir
-            .types
-            .create_interface_type(declaration.name, methods, super_interfaces))
+            .view(interface_term)
+            .is_extension()
+            .and_then(|extension| {
+                extension
+                    .as_any()
+                    .downcast_ref::<InterfaceTerm>()
+                    .map(|term| term.raw)
+            })
+            .expect("an interface type is always backed by an InterfaceTerm");
+        // Each declared method becomes a bodyless declaration so calls on a
+        // bounded generic parameter have a target to resolve against.
+        for (method, signature) in declaration.methods.iter().zip(&signatures) {
+            queue.insert_interface_method_signature(
+                owner,
+                interface,
+                declaration.name,
+                method,
+                *signature,
+            );
+        }
+        Ok(interface_term)
     }
 
     fn lower_alias(

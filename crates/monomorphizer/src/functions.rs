@@ -8,14 +8,55 @@
 
 use common::Span;
 use slynx_hir::{
-    DeclarationId, HirFunctionDeclaration, Result, SlynxHir,
+    DeclarationId, HIRError, HirFunctionDeclaration, Result, SlynxHir,
+    context::InterfaceMethodSignature,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::TermId,
 };
 
-use crate::{Monomorphizer, types::substitute_type};
+use crate::{
+    Monomorphizer,
+    types::{Substitution, contains_generic_param, substitute_type},
+};
 
 impl Monomorphizer {
+    ///Discharges a deferred interface call: the receiver is no longer a generic
+    ///parameter, so the implementation extending its concrete type with the
+    ///method the interface declares is selected.
+    ///
+    ///The implementation is already concrete — an extension method has `Self`
+    ///substituted for its target and cannot be generic — so it is returned
+    ///as-is rather than specialized again.
+    pub(crate) fn resolve_interface_call(
+        &mut self,
+        hir: &SlynxHir,
+        signature: &InterfaceMethodSignature,
+        receiver: TermId,
+        subst: &Substitution,
+        span: Span,
+    ) -> Result<AnyDeclarationId> {
+        // The receiver is passed by reference when the method takes one, and the
+        // extension is keyed by the type being extended.
+        let receiver = hir.view(receiver).concrete_type().data();
+        let receiver = substitute_type(hir, receiver, subst)?;
+        let receiver = if contains_generic_param(hir, receiver) {
+            return Err(HIRError::unresolved_interface_call(
+                signature.name,
+                receiver,
+                span,
+            ));
+        } else {
+            self.resolve_expression_type(hir, receiver, span)?
+        };
+        let method = hir
+            .get_extension_method(receiver, signature.name)
+            .ok_or_else(|| HIRError::unresolved_interface_call(signature.name, receiver, span))?;
+        Ok(AnyDeclarationId::new(
+            method.file_id,
+            AnyLocalDeclarationId::Function(method.local_id),
+        ))
+    }
+
     ///Generates (or retrieves from the cache) the specialization of the generic
     ///`template` function with the given concrete type `args`.
     pub(crate) fn resolve_function_target(

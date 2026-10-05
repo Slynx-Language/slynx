@@ -123,6 +123,17 @@ pub(crate) fn substitute_type(hir: &SlynxHir, ty: TermId, subst: &Substitution) 
 
             Ok(hir.types.create_enum_type(enum_view.name(), variants))
         }
+        TermNode::Ref { mutable, target } => {
+            let target = substitute_type(hir, *target, subst)?;
+            Ok(if *mutable {
+                hir.types.create_term(Term::mutable_reference(target))
+            } else {
+                hir.types.create_term(Term::reference(target))
+            })
+        }
+        TermNode::Extension(ext) => Ok(hir.types.create_term(Term::extension(
+            ext.try_map_children(&mut |child| substitute_type(hir, child, subst))?,
+        ))),
         _ => Ok(ty),
     }
 }
