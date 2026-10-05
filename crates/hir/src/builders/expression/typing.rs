@@ -1,7 +1,7 @@
 use common::Span;
 
 use crate::{
-    HIRError, Result,
+    ExpressionBuilder, HIRError, Result,
     builders::HirQueueBuilder,
     term::{Term, TermId, TermNode},
 };
@@ -9,7 +9,7 @@ use crate::{
 use super::ExpressionBuilder;
 
 impl ExpressionBuilder {
-    pub(super) fn unify_terms(
+    pub fn unify_terms(
         &self,
         queue: &HirQueueBuilder,
         received: TermId,

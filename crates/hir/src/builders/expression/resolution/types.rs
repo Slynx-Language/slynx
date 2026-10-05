@@ -26,8 +26,11 @@ pub enum TypeMethodResolution {
 }
 
 pub struct FindInterfaceMethodDescriptor {
+    ///The type to search for the method on.
     pub ty: Owned<TermId>,
+    ///The name of the method to be found
     pub name: SymbolPointer,
+    ///The span of the code that is requesting this
     pub span: Span,
 }
 

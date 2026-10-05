@@ -229,29 +229,48 @@ impl ExpressionBuilder {
                         id
                     }
                     None => {
-                        let concrete_self = {
-                            let mut current = queue.hir[parent.data].ty;
-                            loop {
-                                match queue.hir.view(current).raw().node() {
-                                    TermNode::Ref { target, .. } => current = *target,
-                                    _ => break current,
-                                }
-                            }
-                        };
-                        match self.find_interface_method_of(
-                            queue,
-                            FindInterfaceMethodDescriptor {
-                                ty: Owned {
-                                    owner: self.file(),
-                                    term: concrete_self,
-                                },
-                                name: name_sym,
-                                span,
+                        let concrete_self =
+                            queue.hir.view(parent.data).ty_viewer().dereference().data();
+                        let descriptor = FindInterfaceMethodDescriptor {
+                            ty: Owned {
+                                owner: self.file(),
+                                term: concrete_self,
                             },
-                        )? {
+                            name: name_sym,
+                            span,
+                        };
+                        match self.find_interface_method_of(queue, descriptor)? {
                             Some(TypeMethodResolution::Interface { method, .. }) => method,
                             Some(TypeMethodResolution::Inherent(method))
                             | Some(TypeMethodResolution::Static(method)) => method,
+                            None if let Some(ty) = queue
+                                .hir
+                                .view(parent.data)
+                                .ty_viewer()
+                                .dereference()
+                                .is_generic()
+                                && let Some(_) = match self.target {
+                                    OwnerId::Function(f) => queue.hir.get_function(f).generics
+                                        [ty.index as usize]
+                                        .clone(),
+                                    OwnerId::Component(c) => queue.hir.get_component(c).generics
+                                        [ty.index as usize]
+                                        .clone(),
+                                }
+                                .bounds
+                                .iter()
+                                .find(|term| {
+                                    queue
+                                        .hir
+                                        .view(term.raw)
+                                        .raw()
+                                        .methods
+                                        .iter()
+                                        .any(|(name, _)| name == &name_sym)
+                                }) =>
+                            {
+                                unimplemented!("Sei o q fazer nao peixe");
+                            }
                             None => {
                                 return Err(HIRError::missing_properties(vec![name_sym], span));
                             }

@@ -94,6 +94,16 @@ pub(crate) struct ExpressionBuilder {
     pub(crate) variables: VariablesManager,
     pub(crate) self_type: Option<TermId>,
 }
+///Macro for getting the generic arguments of a function or component inside an expression builder
+#[macro_export]
+macro_rules! generic_args {
+    ($self:ident, $q:ident) => {
+        match $self.target {
+            OwnerId::Function(f) => $q.hir.get_function(f).generics,
+            OwnerId::Component(c) => $q.hir.get_component(c).generics,
+        }
+    };
+}
 
 impl ExpressionBuilder {
     pub fn new(owner: OwnerId, self_type: Option<TermId>) -> Self {

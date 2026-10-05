@@ -3,13 +3,11 @@ use common::{
     pool::{DedupPoolId, PoolId},
 };
 use module_loader::FileId;
-use slynx_parser::{
-    ASTFunction, ASTStatement, FuncDeclaration, GenericsMetadata, Type, TypeContext,
-};
+use slynx_parser::{ASTFunction, ASTStatement, FuncDeclaration, Type, TypeContext};
 
 use crate::{
-    DeclarationId, GenericParameter, HIRError, HirFunctionDeclaration, HirStatement, Result,
-    SymbolPointer, VariableId,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result, SymbolPointer,
+    VariableId,
     builders::{
         HirQueueBuilder, PendantFunction,
         expression::{ExpressionBuildResult, ExpressionBuilder},
@@ -49,6 +47,7 @@ impl<'a> HirQueueBuilder<'a> {
             .collect::<Result<Vec<_>>>()?;
         let return_type = lower_type(method.return_type())?;
         let function_type = self.hir.types.create_function_type(args, return_type);
+
         let declaration = HirFunctionDeclaration {
             name: declaration_name,
             generics: self.lowerer.generic_parameters_of(
@@ -123,7 +122,7 @@ impl<'a> HirQueueBuilder<'a> {
                 .get_or_insert_function(HirSymbol::new(owner, f.name), || {
                     let decl = HirFunctionDeclaration {
                         name: f.name,
-                        generics: f.type_params.clone(),
+                        generics,
                         args: Default::default(),
                         ty: signature,
                         statements: Vec::new(),
