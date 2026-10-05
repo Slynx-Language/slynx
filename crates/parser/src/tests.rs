@@ -31,9 +31,9 @@ fn generic_function_declaration_maps_params_to_indices() {
     let (program, symbols, types, _, _) = parse_program("func identity<T>(x: T): T { return x; }");
 
     let func = &program.func().get(PoolId::new(0));
-    assert_eq!(func.type_params.len(), 1);
+    assert_eq!(func.generics.type_params.len(), 1);
 
-    let param = func.type_params[0];
+    let param = func.generics.type_params[0];
     assert_eq!(symbols.get_name(param), "T");
 
     let arg = &func.args[0].data;
@@ -53,7 +53,7 @@ fn generic_function_with_multiple_params() {
         parse_program("func transform<T, T1, T2>(x: T, y: T1, z: T2): T1 { return y; }");
 
     let func = &program.func().get(PoolId::new(0));
-    assert_eq!(func.type_params.len(), 3);
+    assert_eq!(func.generics.type_params.len(), 3);
     assert_eq!(
         types[func.args[0].data.kind.data],
         Type::Plain(GenericIdentifier {
@@ -90,7 +90,7 @@ fn non_generic_function_has_no_type_params() {
         parse_program("func add(a: int, b: int): int { return a + b; }");
 
     let func = &program.func().get(PoolId::new(0));
-    assert!(func.type_params.is_empty());
+    assert!(func.generics.type_params.is_empty());
 
     assert_eq!(symbols.get_name(func.name), "add");
 }
@@ -103,7 +103,7 @@ fn generic_function_without_usage_keeps_scope_clean() {
         parse_program("func identity<T>(x: T): T { return x; } func get(): T { return t; }");
 
     let func = &program.func().get(PoolId::new(1));
-    assert!(func.type_params.is_empty());
+    assert!(func.generics.type_params.is_empty());
     assert_eq!(
         types[func.return_type.data],
         Type::Plain(GenericIdentifier {
@@ -111,6 +111,129 @@ fn generic_function_without_usage_keeps_scope_clean() {
             generic: Default::default(),
         })
     );
+}
+
+///Every declaration that can carry an interface implementation list and a
+///`where` clause list must parse both, and the list parser must not swallow the
+///`{` that opens the body.
+#[test]
+fn interface_lists_and_clauses_parse_before_the_body() {
+    let sources = [
+        "interface I { func m(&self) -> str; }",
+        "interface I where T: I { func m(&self) -> str; }",
+        "interface J: I where T: I { func m(&self) -> str; }",
+        "interface J: I, I where T: I, U: I { func m(&self) -> str; }",
+        "object O { f: int } extend O: I where T: I { func m(&self) -> str { \"\" } }",
+        "enum E { A } extend E: I where T: I { func m(&self) -> str { \"\" } }",
+    ];
+
+    for source in sources {
+        parse_program(source);
+    }
+}
+
+///Within a `where` clause list the bounds of one clause are separated by `&`
+///and the clauses themselves by `,`. Neither list may demand a separator after
+///its last item.
+#[test]
+fn nested_bounds_do_not_require_a_separator_after_the_last_one() {
+    let (program, _, types, _, _) =
+        parse_program("interface J where T: I & K, U: I { func m(&self) -> str; }");
+
+    let interface = program.interfaces().iter().next().expect("one interface");
+    let clauses = &interface.generics.clauses;
+    assert_eq!(clauses.len(), 2);
+    assert_eq!(clauses[0].data.bounds.len(), 2);
+    assert_eq!(clauses[1].data.bounds.len(), 1);
+    // The `&`-separated bounds are `I` and `K`, not one `I & K` type.
+    assert!(matches!(
+        types[clauses[0].data.bounds[0].data],
+        Type::Plain(_)
+    ));
+    assert!(matches!(
+        types[clauses[0].data.bounds[1].data],
+        Type::Plain(_)
+    ));
+}
+
+///The `where` clause list of a function must be read after the return type and
+///before the token that opens its body, otherwise the clause list is read as
+///part of the body.
+#[test]
+fn where_clause_follows_the_return_type_and_precedes_the_body() {
+    let (program, _, _, _, _) = parse_program("func m<T>(x: T) -> T where T: int { return x; }");
+
+    let func = program.func().iter().next().expect("one function");
+    assert_eq!(func.generics.clauses.len(), 1);
+    assert_eq!(func.body.len(), 1);
+}
+
+///Fields and methods may be mixed in an object body; only two adjacent fields
+///need a `,` between them.
+#[test]
+fn object_fields_and_methods_can_be_mixed() {
+    let (program, _, _, _, _) = parse_program(
+        "object O { a: int, b: int, func m(&self) -> int { 1 } func n(&self) -> int { 2 } }",
+    );
+
+    let object = program.object().iter().next().expect("one object");
+    assert_eq!(object.fields.len(), 2);
+    assert_eq!(object.methods.len(), 2);
+}
+
+#[test]
+fn object_fields_still_need_a_separator() {
+    let tokens = Lexer::tokenize("object O { a: int b: int }").expect("source should tokenize");
+    let symbols = SymbolsModule::new();
+    let types = DedupPool::new();
+    let error = Parser::new(
+        tokens,
+        &symbols,
+        &DedupPool::new(),
+        &DedupPool::new(),
+        &types,
+    )
+    .parse_declarations()
+    .expect_err("two adjacent fields must not parse");
+    assert!(
+        error.to_string().contains("','"),
+        "error should name the missing separator, got: {error}"
+    );
+}
+
+///`func` inside an enum body declares a method, not a variant.
+#[test]
+fn enum_body_accepts_methods() {
+    let (program, symbols, _, _, _) = parse_program("enum E { A, func m(&self) -> int { 1 } }");
+
+    let enumeration = program.enums().iter().next().expect("one enum");
+    assert_eq!(enumeration.variants.len(), 1);
+    assert_eq!(symbols.get_name(enumeration.variants[0].name.data), "A");
+    assert_eq!(enumeration.methods.len(), 1);
+    assert_eq!(symbols.get_name(enumeration.methods[0].method_name), "m");
+}
+
+///A stylesheet header is `name(args) uses X, Y: Interfaces where T: U {`, so the
+///interface list comes after the arguments and the `uses` list.
+#[test]
+fn stylesheet_interface_list_follows_arguments_and_uses() {
+    let sources = [
+        "stylesheet S(color: int) { styles { default { backgroundColor: color } } }",
+        "stylesheet S(color: int): I { styles { default { backgroundColor: color } } }",
+        "stylesheet S(color: int) uses P() { styles { default { backgroundColor: color } } }",
+    ];
+
+    for source in sources {
+        parse_program(source);
+    }
+}
+
+#[test]
+fn interface_has_no_super_interface_list() {
+    let (program, _, _, _, _) = parse_program("interface I { func m(&self) -> str; }");
+
+    let interface = program.interfaces().iter().next().expect("one interface");
+    assert!(interface.super_interfaces.is_empty());
 }
 
 #[test]

@@ -173,9 +173,6 @@ impl Parser<'_> {
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<StyleSheet, ParseError> {
         let (name, generics) = self.parse_generic_name()?;
-        let (interface_implementations, clauses) =
-            self.parse_interface_implementations(&generics)?;
-
         self.expect(&TokenKind::LParen)?;
         let args = self.parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
             parser.parse_typedname(&[])
@@ -190,6 +187,10 @@ impl Parser<'_> {
         } else {
             vec![]
         };
+        // Read after the argument list, like every other declaration, so the
+        // `:` of `stylesheet Name(a: int): Interface` starts the interface list.
+        let interface_implementations = self.parse_interface_implementations(&generics)?;
+        let clauses = self.parse_clauses(&generics)?;
         self.expect(&TokenKind::LBrace)?;
         let body = self.parse_stylesheet_body()?;
         let out = StyleSheet {

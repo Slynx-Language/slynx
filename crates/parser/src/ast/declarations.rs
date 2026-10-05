@@ -101,7 +101,7 @@ pub struct FuncDeclaration {
 }
 
 ///An interface declaration. This represents interfaces declarations such as the following:
-///```
+///```text
 ///@myattribute
 ///pub interface Name<T,K>: SuperInterface, AnotherSuper where K: As<Bytes> {
 /// func normalMethod(&self);
@@ -120,6 +120,8 @@ pub struct InterfaceDeclaration {
     pub generics: GenericsMetadata,
     pub name: SymbolPointer,
     pub methods: Vec<FuncDeclaration>,
+    ///Always empty: the language has no syntax that names a super-interface of
+    ///an interface. Kept so restoring that syntax only needs parser work.
     pub super_interfaces: Vec<Spanned<DedupPoolId<Type>>>,
     pub attributes: Vec<Spanned<ASTAttribute>>,
     pub visibility: VisibilityModifier,

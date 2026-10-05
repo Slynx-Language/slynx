@@ -60,8 +60,6 @@ pub enum TokenKind {
     Matches,
     #[token("interface")]
     Interface,
-    #[token("requires")]
-    Requires,
     #[token("extend")]
     Extend,
     #[token("where")]

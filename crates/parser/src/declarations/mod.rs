@@ -12,26 +12,69 @@ use common::{Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_lexer::{Token, TokenKind};
 
 use crate::{
-    ASTAttribute, BasicParsingContext, GenericClause, ParseCollectionDescriptor, ParseErrorKind,
-    Parser, ParsingContext, Result, SymbolPointer, Type, flags::ParserFlags, program::Program,
+    ASTAttribute, GenericClause, ParseCollectionDescriptor, ParseErrorKind, Parser, ParsingContext,
+    Result, SymbolPointer, Type, flags::ParserFlags, program::Program,
 };
 
+///Every token that can end the header of a declaration. An interface
+///implementation list or a `where` clause list is attached to a declaration, so
+///what follows it depends on the declaration it is attached to: a block body
+///(`{`), an expression body (`->`), the `;` of a signature, or the end of the
+///enclosing block.
+const HEADER_END: &[TokenKind] = &[
+    TokenKind::LBrace,
+    TokenKind::Arrow,
+    TokenKind::SemiColon,
+    TokenKind::RBrace,
+];
+
+///[`HEADER_END`] plus `Where`, which introduces the `where` clause list that may
+///follow an interface implementation list.
+const INTERFACE_IMPLEMENTATIONS_END: &[TokenKind] = &[
+    TokenKind::LBrace,
+    TokenKind::Arrow,
+    TokenKind::SemiColon,
+    TokenKind::RBrace,
+    TokenKind::Where,
+];
+
+///[`HEADER_END`] plus `Comma`, which separates two clauses. A bound list is
+///nested inside a clause list, and the clause list only stops at `HEADER_END`,
+///so the bound list has to stop at those same tokens to know that its last bound
+///has been read.
+const HEADER_END_OR_COMMA: &[TokenKind] = &[
+    TokenKind::LBrace,
+    TokenKind::Arrow,
+    TokenKind::SemiColon,
+    TokenKind::RBrace,
+    TokenKind::Comma,
+];
+
 impl<'a> Parser<'a> {
+    ///Parses the bounds of a single generic clause, the `A & B` of
+    ///`where T: A & B`. The list stops at the `,` that separates two clauses and
+    ///at whatever ends the clause list itself.
+    fn parse_clause_bounds(
+        &mut self,
+        generics: &[SymbolPointer],
+    ) -> Result<Vec<Spanned<DedupPoolId<Type>>>> {
+        self.parse_collection(ParseCollectionDescriptor {
+            stop_tokens: HEADER_END_OR_COMMA,
+            separator_token: Some(TokenKind::BitAnd),
+            parse_item: |parser| parser.parse_type(generics),
+        })
+    }
+
     ///Parses a clause for a generic type parameter, such as
     ///```func f<T,K>() where
-    ///     T: MyInterface1 & MyInterface2;
-    ///     K: MyInterface3 & MyInterface4; {
+    ///     T: MyInterface1 & MyInterface2,
+    ///     K: MyInterface3 & MyInterface4 {
     /// }
     /// ```
     pub fn parse_clause(&mut self, generics: &[SymbolPointer]) -> Result<Spanned<GenericClause>> {
         let type_to_check = self.parse_type(generics)?;
         self.expect(&TokenKind::Colon)?;
-        let bounds = self.parse_collection(ParseCollectionDescriptor {
-            eat_stop_token: false,
-            stop_token: TokenKind::Comma,
-            separator_token: Some(TokenKind::BitAnd),
-            parse_item: |parser| parser.parse_type(generics),
-        })?;
+        let bounds = self.parse_clause_bounds(generics)?;
         if bounds.is_empty() {
             return Err(crate::ParseError::new(ParseErrorKind::ExpectedBounds(
                 type_to_check.span,
@@ -46,40 +89,45 @@ impl<'a> Parser<'a> {
         })
     }
 
+    ///Parses the `where T: A & B, K: C` clause list of a declaration, if there is
+    ///one. Returns an empty list when the declaration has no `where` clause.
+    ///The list has no terminator of its own: it ends at whatever ends the
+    ///declaration header, and it never consumes that token.
     pub fn parse_clauses(
         &mut self,
         generics: &[SymbolPointer],
     ) -> Result<Vec<Spanned<GenericClause>>> {
+        if self.peek()?.kind != TokenKind::Where {
+            return Ok(Vec::new());
+        }
+        self.expect(&TokenKind::Where)?;
         self.parse_collection(ParseCollectionDescriptor {
-            eat_stop_token: true,
+            stop_tokens: HEADER_END,
             separator_token: Some(TokenKind::Comma),
-            stop_token: TokenKind::LBrace,
             parse_item: |parser| parser.parse_clause(generics),
         })
     }
 
-    ///Parses interface implementations with bounds. for example `object MyObject : MyInterface`, this will start AFTER the ':' and get all the incomming interfaces and bounds and list them
-    ///This can be used for interfaces as well since they follow the same syntax
+    ///Parses the interface implementations of a declaration, such as
+    ///`object MyObject: MyInterface1, MyInterface2` or
+    ///`extend MyType: MyInterface`. Returns an empty list when the next token is
+    ///not `:`, so this can be called unconditionally after the declaration's
+    ///name. The list has no terminator of its own: it ends at whatever ends the
+    ///declaration header, and it never consumes that token. A `where` clause list
+    ///that may follow it is read separately by [`Parser::parse_clauses`].
     pub fn parse_interface_implementations(
         &mut self,
         generics: &[SymbolPointer],
-    ) -> Result<(Vec<Spanned<DedupPoolId<Type>>>, Vec<Spanned<GenericClause>>)> {
-        let mut interface_types = Vec::new();
-
-        while self.peek()?.kind != TokenKind::Where && self.peek()?.kind != TokenKind::LBrace {
-            interface_types.push(self.parse_type(generics)?);
-            if self.peek()?.kind == TokenKind::Comma {
-                self.expect(&TokenKind::Comma)?;
-            }
+    ) -> Result<Vec<Spanned<DedupPoolId<Type>>>> {
+        if self.peek()?.kind != TokenKind::Colon {
+            return Ok(Vec::new());
         }
-        if self.peek()?.kind == TokenKind::LBrace {
-            //this represents something such as `:InterfaceA, InterfaceB {}`
-            self.expect(&TokenKind::LBrace)?;
-            return Ok((interface_types, Vec::new()));
-        }
-        let clauses = self.parse_clauses(generics)?;
-
-        Ok((interface_types, clauses))
+        self.expect(&TokenKind::Colon)?;
+        self.parse_collection(ParseCollectionDescriptor {
+            stop_tokens: INTERFACE_IMPLEMENTATIONS_END,
+            separator_token: Some(TokenKind::Comma),
+            parse_item: |parser| parser.parse_type(generics),
+        })
     }
 
     ///Parses a list of attributes. This makes the parsing of @name(arg0,arg1,arg2,arg3, ...). If the current token is not an `At` token(in code, '@'), an empty list is returned.
@@ -134,13 +182,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Interface => {
                 let Token { span, .. } = self.eat()?;
-                let mut interface = self.parse_interface(ParsingContext {
-                    basic: BasicParsingContext {
-                        type_params: &[],
-                        span,
-                    },
-                    attributes,
-                })?;
+                let mut interface = self.parse_interface(ParsingContext { span, attributes })?;
                 interface.visibility = visibility;
                 program.append_interfaces(interface);
             }

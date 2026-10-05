@@ -1,5 +1,5 @@
 use crate::flags::ParserFlags;
-use crate::{ASTAttribute, GenericsMetadata, ParseCollectionDescriptor, SymbolPointer};
+use crate::{ASTAttribute, GenericsMetadata, SymbolPointer};
 use crate::{FuncDeclaration, Parser, Result};
 use slynx_lexer::tokens::TokenKind;
 
@@ -36,11 +36,7 @@ impl Parser<'_> {
         let return_type = self.parse_type(&generics)?;
 
         if flags.contains(ParserFlags::ONLY_SIGNATURES) {
-            let clauses = if self.peek()?.kind == TokenKind::Where {
-                self.parse_clauses(&generics)?
-            } else {
-                Vec::new()
-            };
+            let clauses = self.parse_clauses(&generics)?;
             // Interface signatures are written without a trailing ';' in the
             // corpus and docs, but tolerate it if present.
             if self.peek()?.kind == TokenKind::SemiColon {
@@ -62,8 +58,11 @@ impl Parser<'_> {
                 body: vec![],
             });
         }
-        let current = self.eat()?;
+        // The `where` clause list has to be read before the body is taken off the
+        // stream: `parse_clauses` looks for a leading `where` and would
+        // otherwise be handed the body token instead.
         let clauses = self.parse_clauses(&generics)?;
+        let current = self.eat()?;
         //func main(arg:T):Q ->/{}
         match current.kind {
             TokenKind::Arrow => {

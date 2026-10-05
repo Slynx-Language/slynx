@@ -2,8 +2,8 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
 
 use crate::{
-    ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, GenericsMetadata, Parser, Result,
-    SymbolPointer, Type, flags::ParserFlags,
+    ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, GenericsMetadata, ObjectMethod,
+    Parser, Result, SymbolPointer, Type, flags::ParserFlags,
 };
 
 impl Parser<'_> {
@@ -78,15 +78,30 @@ impl Parser<'_> {
         }
     }
 
-    pub fn parse_enum_variants(&mut self, generics: &[SymbolPointer]) -> Result<Vec<EnumVariant>> {
+    ///Parses the body of an enum, returning its variants and its methods
+    ///separately. Variants and methods share the body, so they are read in one
+    ///loop and split apart by the token that introduces them.
+    pub fn parse_enum_variants(
+        &mut self,
+        generics: &[SymbolPointer],
+    ) -> Result<(Vec<EnumVariant>, Vec<ObjectMethod>)> {
         self.expect(&TokenKind::LBrace)?;
-        let variants =
-            self.parse_separated(TokenKind::RBrace, TokenKind::Comma, true, |parser| {
-                let attributes = parser.parse_attributes()?;
-                parser.parse_enum_variant(attributes, generics)
-            })?;
+        let mut variants = Vec::new();
+        let mut methods = Vec::new();
+        while self.peek()?.kind != TokenKind::RBrace {
+            let attributes = self.parse_attributes()?;
+            if self.peek()?.kind == TokenKind::Func {
+                let start = self.eat()?.span;
+                methods.push(self.parse_method(start, attributes, ParserFlags::empty())?);
+            } else {
+                variants.push(self.parse_enum_variant(attributes, generics)?);
+            }
+            if self.peek()?.kind == TokenKind::Comma {
+                self.eat()?;
+            }
+        }
         self.expect(&TokenKind::RBrace)?;
-        Ok(variants)
+        Ok((variants, methods))
     }
 
     pub fn parse_enum(
@@ -94,25 +109,26 @@ impl Parser<'_> {
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<EnumDeclaration> {
+        //enum E(int): InterfaceA, InterfaceB where T: InterfaceC { ... }
         let (name, generics) = self.parse_generic_name()?;
         let representation = self.parse_enum_representation(&generics)?;
-        let (interface_implementations, interface_clauses) =
-            self.parse_interface_implementations(&generics)?;
-        let variants = self.parse_enum_variants(&generics)?;
+        let interface_implementations = self.parse_interface_implementations(&generics)?;
+        let clauses = self.parse_clauses(&generics)?;
+        let (variants, methods) = self.parse_enum_variants(&generics)?;
 
         Ok(EnumDeclaration {
             name,
             generics: GenericsMetadata {
                 type_params: generics,
                 interface_implementations,
-                clauses: interface_clauses,
+                clauses,
             },
             representation,
             variants,
             attributes,
             visibility: Default::default(),
             span,
-            methods: Vec::new(),
+            methods,
         })
     }
 }

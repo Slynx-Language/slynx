@@ -19,8 +19,7 @@ impl Parser<'_> {
         // The condition must not allow component literals: `if x matches
         // Variant { field: 1 }` would otherwise read the struct-variant pattern
         // as a component expression and swallow the block that follows it.
-        let condition =
-            self.parse_expression(type_params, flags - ParserFlags::COMPONENT_EXPR)?;
+        let condition = self.parse_expression(type_params, flags - ParserFlags::COMPONENT_EXPR)?;
         let (body, block_span) = self.parse_block(type_params, flags)?;
 
         let (else_body, end) = match self.peek()?.kind {

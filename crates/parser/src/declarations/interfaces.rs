@@ -1,54 +1,30 @@
-use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
+use common::{Span, Spanned, VisibilityModifier};
 use slynx_lexer::TokenKind;
 
 use crate::{
-    ASTAttribute, BasicParsingContext, ExtendDeclaration, GenericsMetadata, InterfaceDeclaration,
-    Parser, ParsingContext, Result, SymbolPointer, Type, flags::ParserFlags,
+    ASTAttribute, ExtendDeclaration, GenericsMetadata, InterfaceDeclaration, Parser,
+    ParsingContext, Result, SymbolPointer, flags::ParserFlags,
 };
 
 impl Parser<'_> {
-    fn parse_interface_requirements(
-        &mut self,
-        basic: &BasicParsingContext<'_>,
-    ) -> Result<Vec<Spanned<DedupPoolId<Type>>>> {
-        if let TokenKind::Requires = self.peek()?.kind {
-            self.expect(&TokenKind::Requires)?;
-
-            let mut out = Vec::new();
-            while self.peek()?.kind != TokenKind::RBrace {
-                out.push(self.parse_type(basic.type_params)?);
-                if self.peek()?.kind == TokenKind::RBrace {
-                    break;
-                }
-                self.expect(&TokenKind::Comma)?;
-            }
-            Ok(out)
-        } else {
-            Ok(vec![])
-        }
-    }
-
-    ///Parses an `interface Name<T> requires A, B { func f() -> T; ... }`
+    ///Parses an `interface Name<T>: A, B where T: C { func f() -> T; ... }`
     ///declaration. Every method of an interface is a signature, so
     ///[`ParserFlags::ONLY_SIGNATURES`] is always requested regardless of the
     ///context the interface itself was declared in.
     pub fn parse_interface(&mut self, context: ParsingContext) -> Result<InterfaceDeclaration> {
+        //interface Name<T>: A, B where T: C { ... }
         let (name, type_args) = self.parse_generic_name()?;
-        let (interfaces, clauses) = self.parse_interface_implementations(&type_args)?;
-        let requirements = self.parse_interface_requirements(&context.basic)?;
-        let methods = {
-            self.expect(&TokenKind::LBrace)?;
-            let mut out = Vec::new();
+        let interfaces = self.parse_interface_implementations(&type_args)?;
+        let clauses = self.parse_clauses(&type_args)?;
+        self.expect(&TokenKind::LBrace)?;
+        let mut methods = Vec::new();
 
-            while self.peek()?.kind != TokenKind::RBrace {
-                let attributes = self.parse_attributes()?;
-                let span = self.peek()?.span;
-                self.expect(&TokenKind::Func)?;
-                let method = self.parse_func(span, attributes, ParserFlags::ONLY_SIGNATURES)?;
-                out.push(method);
-            }
-            out
-        };
+        while self.peek()?.kind != TokenKind::RBrace {
+            let attributes = self.parse_attributes()?;
+            let span = self.peek()?.span;
+            self.expect(&TokenKind::Func)?;
+            methods.push(self.parse_func(span, attributes, ParserFlags::ONLY_SIGNATURES)?);
+        }
         let end = self.expect(&TokenKind::RBrace)?.span;
 
         Ok(InterfaceDeclaration {
@@ -59,7 +35,10 @@ impl Parser<'_> {
                 clauses,
             },
             methods,
-            super_interfaces: requirements,
+            // The language has no `requires` keyword, so an interface never
+            // names another one as a super-interface here. The field stays so
+            // that adding the keyword back only needs parser work.
+            super_interfaces: Vec::new(),
             span: context.span.merge_with(end),
             attributes: context.attributes,
             visibility: VisibilityModifier::default(),
@@ -69,19 +48,18 @@ impl Parser<'_> {
     pub fn parse_extension_generics(&mut self) -> Result<Vec<SymbolPointer>> {
         if self.peek()?.kind != TokenKind::Lt {
             return Ok(Vec::new());
-        } else {
-            let mut out = Vec::new();
-            self.expect(&TokenKind::Lt)?;
-            while self.peek()?.kind != TokenKind::Gt {
-                out.push(self.expect_identifier()?.data);
-                if self.peek()?.kind == TokenKind::Gt {
-                    break;
-                }
-                self.expect(&TokenKind::Comma)?;
-            }
-            self.expect(&TokenKind::Gt)?;
-            Ok(out)
         }
+        let mut out = Vec::new();
+        self.expect(&TokenKind::Lt)?;
+        while self.peek()?.kind != TokenKind::Gt {
+            out.push(self.expect_identifier()?.data);
+            if self.peek()?.kind == TokenKind::Gt {
+                break;
+            }
+            self.expect(&TokenKind::Comma)?;
+        }
+        self.expect(&TokenKind::Gt)?;
+        Ok(out)
     }
 
     pub fn parse_extend(
@@ -89,18 +67,24 @@ impl Parser<'_> {
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<ExtendDeclaration> {
-        //extend a: b,c,d,e where t {}
         let generic_inputs = self.parse_extension_generics()?;
+
         let target = self.parse_type(&generic_inputs)?;
-        self.expect(&TokenKind::Colon)?;
-        let (target_interfaces, clauses) = self.parse_interface_implementations(&generic_inputs)?; //already eats the left brace.
-        let mut methods = Vec::new();
-        while self.peek()?.kind != TokenKind::RBrace {
-            let attributes = self.parse_attributes()?;
-            let span = self.peek()?.span;
-            self.expect(&TokenKind::Func)?;
-            methods.push(self.parse_func(span, attributes, ParserFlags::empty())?);
-        }
+        let target_interfaces = self.parse_interface_implementations(&generic_inputs)?;
+        let clauses = self.parse_clauses(&generic_inputs)?;
+
+        self.expect(&TokenKind::LBrace)?;
+
+        let methods = {
+            let mut methods = Vec::new();
+            while self.peek()?.kind != TokenKind::RBrace {
+                let attributes = self.parse_attributes()?;
+                let span = self.peek()?.span;
+                self.expect(&TokenKind::Func)?;
+                methods.push(self.parse_func(span, attributes, ParserFlags::empty())?);
+            }
+            methods
+        };
         let end = self.expect(&TokenKind::RBrace)?.span;
         Ok(ExtendDeclaration {
             target,

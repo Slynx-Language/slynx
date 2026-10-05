@@ -138,8 +138,8 @@ impl Parser<'_> {
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<ComponentDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
-        let (interface_implementations, clauses) =
-            self.parse_interface_implementations(&generics)?;
+        let interface_implementations = self.parse_interface_implementations(&generics)?;
+        let clauses = self.parse_clauses(&generics)?;
 
         self.expect(&TokenKind::LBrace)?;
         let mut defs = Vec::new();

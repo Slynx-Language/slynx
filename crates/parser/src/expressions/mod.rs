@@ -65,18 +65,15 @@ impl Parser<'_> {
                             self.peek_at_opt(1).map(|token| &token.kind),
                             self.peek_at_opt(2).map(|token| &token.kind),
                         ) {
-                            (Some(TokenKind::Identifier(_)), Some(TokenKind::Colon)) => {
-                                Ok(Some(self.parse_object_expression_with_name(
-                                    ty,
-                                    type_params,
-                                    flags,
-                                )?))
-                            }
+                            (Some(TokenKind::Identifier(_)), Some(TokenKind::Colon)) => Ok(Some(
+                                self.parse_object_expression_with_name(ty, type_params, flags)?,
+                            )),
                             _ => Ok(Some(self.parse_funcall_args(ty, type_params, flags)?)),
                         }
                     }
                     TokenKind::LBrace => {
-                        let component = self.parse_component_expr_with_name(ty, type_params, flags)?;
+                        let component =
+                            self.parse_component_expr_with_name(ty, type_params, flags)?;
                         let span = component.span;
                         let id = self.intern_expression(ASTExpression::Component(component.data));
                         Ok(Some(Spanned::new(id, span)))

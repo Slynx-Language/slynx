@@ -29,22 +29,10 @@ pub type SymbolPointer = common::SymbolPointer<common::FrontendSymbol>;
 
 ///The information about the declaration currently being parsed that is not
 ///consumed directly by the declaration itself.
-pub struct BasicParsingContext<'a> {
-    pub(crate) type_params: &'a [SymbolPointer],
+pub struct ParsingContext {
     ///Span of the keyword that introduced the declaration.
     pub(crate) span: Span,
-}
-
-pub struct ParsingContext<'a> {
-    pub(crate) basic: BasicParsingContext<'a>,
     pub(crate) attributes: Vec<Spanned<ASTAttribute>>,
-}
-
-impl<'a> std::ops::Deref for ParsingContext<'a> {
-    type Target = BasicParsingContext<'a>;
-    fn deref(&self) -> &Self::Target {
-        &self.basic
-    }
 }
 
 ///The type parameters of the generic function currently being parsed. Each
@@ -62,8 +50,14 @@ pub struct ParseCollectionDescriptor<F, T>
 where
     F: FnMut(&mut Parser<'_>) -> Result<T>,
 {
-    pub eat_stop_token: bool,
-    pub stop_token: TokenKind,
+    ///Every token that ends the list. The list stops at the first of these it
+    ///sees and never consumes it, so whatever follows the list stays for the
+    ///caller to read. A list nested inside another list must list every token
+    ///that can end it, including the ones its enclosing list stops at.
+    pub stop_tokens: &'static [TokenKind],
+    ///The token that separates two items. When `None`, items are adjacent. A
+    ///separator is only required between two items, never after the last one,
+    ///so a trailing separator before a stop token is accepted.
     pub separator_token: Option<TokenKind>,
     pub parse_item: F,
 }
@@ -98,6 +92,22 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    ///Whether the next token is one of the `stop_tokens` that end the list
+    ///currently being parsed. Only the token discriminants are compared, the
+    ///same way [`Parser::expect`] does, so a data-carrying variant can never
+    ///match a unit one by payload.
+    pub fn at_list_end(&self, stop_tokens: &[TokenKind]) -> Result<bool> {
+        let next = std::mem::discriminant(&self.peek()?.kind);
+        Ok(stop_tokens
+            .iter()
+            .any(|stop| std::mem::discriminant(stop) == next))
+    }
+
+    ///Parses a list of items separated by `separator_token` and ended by any of
+    ///`stop_tokens`, none of which is consumed. Prefer this over a hand written
+    ///`while` loop: it keeps the "stop at, do not consume" decision in one
+    ///place, and it only ever asks for a separator *between* two items, so the
+    ///last item of a list can sit directly against its terminator.
     pub fn parse_collection<F, T>(
         &mut self,
         mut descriptor: ParseCollectionDescriptor<F, T>,
@@ -107,17 +117,14 @@ impl<'a> Parser<'a> {
     {
         let mut out = Vec::new();
 
-        while self.peek()?.kind != descriptor.stop_token {
+        while !self.at_list_end(descriptor.stop_tokens)? {
             out.push((descriptor.parse_item)(self)?);
-            if self.peek()?.kind == descriptor.stop_token {
+            if self.at_list_end(descriptor.stop_tokens)? {
                 break;
             }
             if let Some(ref separator) = descriptor.separator_token {
                 self.expect(separator)?;
             }
-        }
-        if descriptor.eat_stop_token {
-            self.expect(&descriptor.stop_token)?;
         }
         Ok(out)
     }
