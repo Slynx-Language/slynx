@@ -120,7 +120,6 @@ pub(crate) fn substitute_type(hir: &SlynxHir, ty: TermId, subst: &Substitution) 
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
-
             Ok(hir.types.create_enum_type(enum_view.name(), variants))
         }
         TermNode::Ref { mutable, target } => {

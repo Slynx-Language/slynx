@@ -11,10 +11,9 @@ use crate::{
     HirExtendDeclaration, HirFunctionDeclaration, HirQueueBuilder, InterfaceType, Owned, Result,
     SymbolPointer,
     field_access::FieldAccessDescriptor,
-    generic_args,
-    id::OwnerId,
     resolution::types::{
-        FindInherentMethodDescriptor, FindInterfaceMethodDescriptor, TypeMethodResolution,
+        FindBoundedMethodDescriptor, FindInherentMethodDescriptor, FindInterfaceMethodDescriptor,
+        TypeMethodResolution,
     },
     term::{TermId, TermNode},
 };
@@ -243,36 +242,35 @@ impl ExpressionBuilder {
                             Some(TypeMethodResolution::Interface { method, .. }) => method,
                             Some(TypeMethodResolution::Inherent(method))
                             | Some(TypeMethodResolution::Static(method)) => method,
-                            None if let Some(ty) = queue
-                                .hir
-                                .view(parent.data)
-                                .ty_viewer()
-                                .dereference()
-                                .is_generic()
-                                && let Some(_) = match self.target {
-                                    OwnerId::Function(f) => queue.hir.get_function(f).generics
-                                        [ty.index as usize]
-                                        .clone(),
-                                    OwnerId::Component(c) => queue.hir.get_component(c).generics
-                                        [ty.index as usize]
-                                        .clone(),
-                                }
-                                .bounds
-                                .iter()
-                                .find(|term| {
-                                    queue
-                                        .hir
-                                        .view(term.raw)
-                                        .raw()
-                                        .methods
-                                        .iter()
-                                        .any(|(name, _)| name == &name_sym)
-                                }) =>
-                            {
-                                unimplemented!("Sei o q fazer nao peixe");
-                            }
                             None => {
-                                return Err(HIRError::missing_properties(vec![name_sym], span));
+                                // A generic receiver has no concrete type yet,
+                                // so the call is discharged through the
+                                // interfaces its parameter is bounded by.
+                                let bounded = match queue
+                                    .hir
+                                    .view(parent.data)
+                                    .ty_viewer()
+                                    .dereference()
+                                    .is_generic()
+                                {
+                                    Some(generic) => self.find_bounded_method_of(
+                                        queue,
+                                        FindBoundedMethodDescriptor {
+                                            parameter: generic.index,
+                                            name: name_sym,
+                                        },
+                                    )?,
+                                    None => None,
+                                };
+                                match bounded {
+                                    Some(method) => method,
+                                    None => {
+                                        return Err(HIRError::missing_properties(
+                                            vec![name_sym],
+                                            span,
+                                        ));
+                                    }
+                                }
                             }
                         }
                     }

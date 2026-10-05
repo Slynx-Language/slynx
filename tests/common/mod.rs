@@ -18,7 +18,6 @@
 
 use std::path::{Path, PathBuf};
 
-use color_eyre::eyre::Context;
 use slynx::SlynxContext;
 use slynx_hir::SlynxHir;
 use slynx_ir::SlynxIR;
@@ -112,6 +111,15 @@ pub fn compile_source(source: &str) -> Result<(), String> {
 /// Asserts that `source` compiles cleanly.
 pub fn compile_source_ok(source: &str) {
     compile_source(source).unwrap_or_else(|err| panic!("expected source to compile:\n{err}"));
+}
+
+/// Compiles inline `source` and returns the formatted SIR, asserting success.
+pub fn compile_source_ok_sir(source: &str) -> String {
+    load_source(source)
+        .compile()
+        .expect("source should compile")
+        .ir()
+        .format_sir()
 }
 
 /// Asserts that `source` fails to compile and returns the formatted error.

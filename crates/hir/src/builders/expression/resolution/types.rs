@@ -3,13 +3,14 @@ use module_loader::ASTTypeKind;
 use slynx_parser::{ObjectMethod, TypeContext};
 
 use crate::{
-    DeclarationId, DescriptorId, ExpressionBuilder, HIRError, HirExtendDeclaration,
-    HirFunctionDeclaration, HirQueueBuilder, Owned, Result, SymbolPointer,
+    DeclarationId, DescriptorId, ExpressionBuilder, GenericParameter, HIRError,
+    HirExtendDeclaration, HirFunctionDeclaration, HirQueueBuilder, Owned, Result, SymbolPointer,
     builders::{
         interfaces::InterfaceImplementationDescriptor,
         lowering::lookup::FindExtensionsWithMethodDescriptor,
     },
     error::{InvalidTypeReason, MissingFeature},
+    id::OwnerId,
     term::{TermId, TermNode},
 };
 
@@ -40,6 +41,13 @@ pub struct FindInherentMethodDescriptor {
     ///The name of the method to be found
     pub name: SymbolPointer,
     pub span: Span,
+}
+
+pub struct FindBoundedMethodDescriptor {
+    ///The index of the generic parameter the receiver has as its type.
+    pub parameter: u8,
+    ///The name of the method to be found
+    pub name: SymbolPointer,
 }
 
 impl ExpressionBuilder {
@@ -216,5 +224,50 @@ impl ExpressionBuilder {
             }
         }
         Ok(resolved_methods.into_iter().next())
+    }
+
+    ///Resolves a method call whose receiver is typed as one of the enclosing
+    ///declaration's generic parameters, such as `x` in
+    ///`func describe<T>(x: T) where T: Stringifiable -> x.stringify()`.
+    ///
+    ///The receiver is not concrete yet, so no implementation can be picked here.
+    ///The call resolves to the interface method's signature declaration — which
+    ///reuses the whole method-call path, receiver included — and the
+    ///monomorphizer discharges it once it knows the concrete self type.
+    pub fn find_bounded_method_of(
+        &self,
+        queue: &HirQueueBuilder,
+        descriptor: FindBoundedMethodDescriptor,
+    ) -> Result<Option<DeclarationId<HirFunctionDeclaration>>> {
+        let Some(parameter) = self
+            .generics_of(queue)
+            .into_iter()
+            .nth(descriptor.parameter as usize)
+        else {
+            return Ok(None);
+        };
+        for bound in &parameter.bounds {
+            let Some(declaration) = queue
+                .hir
+                .types
+                .interface_method_of(bound.raw, descriptor.name)
+            else {
+                continue;
+            };
+            // The self type is still unknown, so every reachable implementation
+            // of this method has to be materialized now for the monomorphizer
+            // to choose from later.
+            queue.materialize_extensions_declaring_method(self.file(), descriptor.name)?;
+            return Ok(Some(declaration));
+        }
+        Ok(None)
+    }
+
+    ///The generic parameters of the declaration currently being built.
+    fn generics_of(&self, queue: &HirQueueBuilder) -> Vec<GenericParameter> {
+        match self.target {
+            OwnerId::Function(f) => queue.hir.get_function(f).generics.clone(),
+            OwnerId::Component(c) => queue.hir.get_component(c).generics.clone(),
+        }
     }
 }
