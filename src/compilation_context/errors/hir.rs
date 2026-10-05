@@ -14,6 +14,12 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::UnimplementedFeature(feature) => {
+                format!("Unimplemented feature: {:?}", feature)
+            }
+            HIRErrorKind::UnexpectedTypeUsage { actual, expected_usage } => {
+                format!("Expected type '{expected_usage:?}', but got '{}'", hir.view(*actual).pretty_name())
+            }
             HIRErrorKind::InvalidEnumUsage(ty) => {
                 format!("Type '{}' is being used as an enum, even though it isn't", hir.view(*ty).pretty_name())
             }

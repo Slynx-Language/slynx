@@ -507,6 +507,7 @@ dependencies = [
 name = "slynx"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "color-eyre",
  "common",
  "dashmap",
@@ -589,6 +590,7 @@ dependencies = [
 name = "slynx-parser"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "color-eyre",
  "common",
  "ordered-float",

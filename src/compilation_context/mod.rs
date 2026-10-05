@@ -267,7 +267,13 @@ impl SlynxContext {
         }
 
         let char_len = source.chars().count();
-        let clamped_index = index.min(char_len.saturating_sub(1));
+        
+        let byte_index = index.min(source.len().saturating_sub(1));
+        let clamped_index = source
+            .char_indices()
+            .take_while(|(offset, _)| *offset < byte_index)
+            .count()
+            .min(char_len.saturating_sub(1));
         let line_idx = match lines.binary_search(&clamped_index) {
             Ok(line) | Err(line) => line,
         };
@@ -284,12 +290,14 @@ impl SlynxContext {
 
         let start = Self::char_index_to_byte_offset(source, line_start_char);
         let end = Self::char_index_to_byte_offset(source, line_end_char);
-        let column = end.min(clamped_index.saturating_sub(line_start_char) + 1);
+        
+        let column_end = line_end_char - line_start_char;
+        let column = clamped_index.saturating_sub(line_start_char) + 1;
 
         LineInfo {
             line: line_idx + 1,
             column_start: column,
-            column_end: end,
+            column_end,
             src: source[start..end].to_string(),
         }
     }

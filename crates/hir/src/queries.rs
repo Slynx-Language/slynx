@@ -91,7 +91,6 @@ impl SlynxHir<'_> {
             AnyLocalDeclarationId::Function(func) => &file.functions.get(func).generics,
             AnyLocalDeclarationId::Alias(alias) => &file.alias.get(alias).generics,
             AnyLocalDeclarationId::Component(component) => &file.components.get(component).generics,
-            AnyLocalDeclarationId::Function(func) => &file.functions.get(func).generics,
             AnyLocalDeclarationId::Object(obj) => &file.objects.get(obj).generics,
             AnyLocalDeclarationId::Enum(enun) => &file.enums.get(enun).generics,
             AnyLocalDeclarationId::Static(_) => {

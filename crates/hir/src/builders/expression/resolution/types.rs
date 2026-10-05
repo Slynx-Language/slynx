@@ -130,18 +130,6 @@ impl ExpressionBuilder {
                 .get_entry(extension_id.owner)
                 .extensions()
                 .get(extension_id.term);
-
-            if !extension.type_args.is_empty() {
-                return Err(HIRError::invalid_type(
-                    queue.modules.type_name(extension.target.data),
-                    InvalidTypeReason::Unimplemented,
-                    extension.span,
-                ));
-            }
-            if extension
-                .methods
-                .iter()
-                .any(|method| method.name == descriptor.name && !method.type_params.is_empty())
             {
                 //Only exists due to not supporting generics inside interface extensions
                 if !extension.generics.type_params.is_empty() {

@@ -9,6 +9,20 @@ impl SlynxContext {
     pub fn handle_parser_error(&self, error: ParseError) -> SlynxError {
         let suggestion = suggestions_from_parser(&error);
         match &error.kind {
+            ParseErrorKind::ExpectedBounds(span) => {
+                let info = self.get_line_info(&self.entry_point, span.start as usize);
+
+                SlynxError::new_parser(
+                    info.line,
+                    info.column_start,
+                    info.column_end,
+                    error.to_string(),
+                    self.file_name(),
+                    info.src.to_string(),
+                    suggestion,
+                    error.backtrace,
+                )
+            }
             ParseErrorKind::InvalidPostfix(span) => {
                 let info = self.get_line_info(&self.entry_point, span.start as usize);
 

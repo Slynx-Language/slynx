@@ -347,19 +347,6 @@ impl<'a> ASTLowerer<'a> {
         queue: &HirQueueBuilder<'a>,
         descriptor: LowerTypeDeclarationDescriptor,
     ) -> Result<Owned<TermId>> {
-        if let ASTTypeKind::Interface(interface) = descriptor.ast_type.content {
-            let name = queue
-                .modules
-                .get_entry(descriptor.ast_type.owner)
-                .interfaces()
-                .get(interface)
-                .name;
-            return Err(HIRError::invalid_type(
-                name,
-                InvalidTypeReason::Unimplemented,
-                descriptor.span,
-            ));
-        }
         if matches!(descriptor.ast_type.content, ASTTypeKind::Alias(_)) {
             return self.lower_ast_declaration(
                 queue,
@@ -390,13 +377,6 @@ impl<'a> ASTLowerer<'a> {
         ast_type: ASTType,
         span: Span,
     ) -> Result<Owned<TermId>> {
-        let ASTTypeKind::Interface(_) = ast_type.content else {
-            return Err(HIRError::invalid_type(
-                queue.hir.intern_name("interface"),
-                InvalidTypeReason::Unimplemented,
-                span,
-            ));
-        };
         if let Some(lowered) = self.lowered_types.get(&ast_type) {
             return Ok(lowered.value().clone());
         }

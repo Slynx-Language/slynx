@@ -709,8 +709,6 @@ pub enum InvalidTypeReason {
     MissingGeneric,
     /// The type is being used in a context where it is not valid.
     IncorrectUsage,
-    /// Generic interfaces and generic interface implementations are unsupported.
-    Unimplemented,
     /// The type could not be inferred from context (e.g. variable without initializer and no type annotation).
     CouldntInfer,
 }
@@ -720,10 +718,6 @@ impl std::fmt::Display for InvalidTypeReason {
         match self {
             InvalidTypeReason::MissingGeneric => write!(f, "missing generic type"),
             InvalidTypeReason::IncorrectUsage => write!(f, "being used incorrectly"),
-            InvalidTypeReason::Unimplemented => write!(
-                f,
-                "generic interfaces are not implemented yet (for example, `Interface<int, float>`)"
-            ),
             InvalidTypeReason::CouldntInfer => write!(f, "could not infer type"),
         }
     }

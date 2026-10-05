@@ -6,8 +6,6 @@ use crate::{
     term::{Term, TermId, TermNode},
 };
 
-use super::ExpressionBuilder;
-
 impl ExpressionBuilder {
     pub fn unify_terms(
         &self,

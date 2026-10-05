@@ -71,12 +71,6 @@ impl<'a> HirQueueBuilder<'a> {
                             interface.span,
                         ));
                     }
-                } else {
-                    return Err(HIRError::invalid_type(
-                        self.modules.type_name(extension.interface.data),
-                        InvalidTypeReason::Unimplemented,
-                        extension.interface.span,
-                    ));
                 }
             }
         }
@@ -118,7 +112,6 @@ impl<'a> HirQueueBuilder<'a> {
         }
 
         self.assert_concrete_type_generic_count(descriptor.extension.owner, extension.target)?;
-        self.assert_concrete_type_generic_count(descriptor.extension.owner, extension.interface)?;
 
         let (interface_ids, interface_methods) = {
             let mut interfaces = Vec::new();
@@ -178,33 +171,17 @@ impl<'a> HirQueueBuilder<'a> {
         };
         let mut methods = Vec::new();
 
-        let interface_ast_type = ASTType {
-            owner: interface_owner,
-            content: ASTTypeKind::Interface(interface_id),
-        };
-        let interface_declaration = self
-            .modules
-            .get_entry(interface_owner)
-            .interfaces()
-            .get(interface_id);
-        self.validate_extension_methods(
-            descriptor.extension.owner,
-            extension,
-            interface_owner,
-            interface_declaration,
-            descriptor.target,
-        )?;
-
-        let interface_term = self
-            .lowerer
-            .materialize_interface_definition(self, interface_ast_type, extension.interface.span)?
-            .term;
-        let mut methods = Vec::with_capacity(extension.methods.len());
         for method in &extension.methods {
             let declaration_name = self.hir.intern_name(&format!(
-                "__interface_impl_{}_{}_{}",
-                descriptor.extension.owner.as_raw(),
-                descriptor.extension.term.as_raw(),
+                "{}_interface_{}_{}",
+                self.hir.view(descriptor.target).internal_name(),
+                self.hir
+                    .view(
+                        *interface_methods
+                            .get(&method.name)
+                            .expect("Expected interface to be checked to contain method",)
+                    )
+                    .internal_name(),
                 self.hir.get_name(method.name)
             ));
             let declaration_id = self.insert_method_declaration(
@@ -291,15 +268,6 @@ impl<'a> HirQueueBuilder<'a> {
                 }
             } else {
                 return Err(HIRError::method_not_found(required.name, extension.span));
-            };
-            let expected = self.method_signature(interface_file, required, target)?;
-            let actual = self.method_signature(extension_file, implementation, target)?;
-            if expected != actual {
-                return Err(HIRError::unexpected_type(
-                    actual,
-                    expected,
-                    implementation.span,
-                ));
             }
         }
         Ok(())
