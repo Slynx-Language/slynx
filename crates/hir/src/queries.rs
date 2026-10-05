@@ -3,8 +3,8 @@ use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, DescriptorId, HirFunctionDeclaration, Result, SlynxHir, SymbolPointer,
-    VariableId,
+    DeclarationId, DescriptorId, GenericParameter, HirFunctionDeclaration, Result, SlynxHir,
+    SymbolPointer, VariableId,
     context::HirSymbol,
     helpers::HirViewer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
@@ -85,9 +85,10 @@ impl SlynxHir<'_> {
         }
     }
 
-    pub fn get_declaration_generics(&self, id: AnyDeclarationId) -> Vec<SymbolPointer> {
+    pub fn get_declaration_generics(&self, id: AnyDeclarationId) -> Vec<GenericParameter> {
         let file = self.store.get_or_create_file(id.file_id);
         match id.local_id {
+            AnyLocalDeclarationId::Function(func) => &file.functions.get(func).generics,
             AnyLocalDeclarationId::Alias(alias) => &file.alias.get(alias).generics,
             AnyLocalDeclarationId::Component(component) => &file.components.get(component).generics,
             AnyLocalDeclarationId::Function(func) => &file.functions.get(func).generics,

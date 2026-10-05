@@ -67,10 +67,17 @@ pub struct HirExtendDeclaration {
     pub methods: Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>,
 }
 
+///A generic parameter defined for something. The given `name` is the name of the parameter and bounds are the interfaces that the parameter must implement.
+#[derive(Debug, Clone)]
+pub struct GenericParameter {
+    pub name: SymbolPointer,
+    pub bounds: Vec<InterfaceTerm>,
+}
+
 #[derive(Debug)]
 pub struct HirFunctionDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub generics: Vec<GenericParameter>,
     pub args: SmallVec<[VariableId; 2]>,
     pub statements: Vec<Spanned<PoolId<HirStatement>>>,
     pub ty: TermId,
@@ -83,7 +90,7 @@ pub struct HirFunctionDeclaration {
 #[derive(Debug)]
 pub struct HirObjectDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub generics: Vec<GenericParameter>,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
     pub external: bool,
@@ -102,7 +109,7 @@ pub struct HirStaticDeclaration {
 #[derive(Debug)]
 pub struct HirAliasDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub generics: Vec<GenericParameter>,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
 }
@@ -110,7 +117,7 @@ pub struct HirAliasDeclaration {
 #[derive(Debug)]
 pub struct HirComponentDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub generics: Vec<GenericParameter>,
     pub props: Vec<ComponentMemberDeclaration>,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
@@ -133,7 +140,7 @@ pub struct HirEnumVariant {
 #[derive(Debug)]
 pub struct HirEnumDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub generics: Vec<GenericParameter>,
     pub variants: Vec<Spanned<HirEnumVariant>>,
     pub visibility: VisibilityModifier,
     pub attributes: Vec<HirAttribute>,
