@@ -3,3 +3,4 @@
 pub mod lookup;
 pub mod lowerer;
 pub use lowerer::ASTLowerer;
+pub mod typing;

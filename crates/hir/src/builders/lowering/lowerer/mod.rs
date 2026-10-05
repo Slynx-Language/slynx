@@ -76,7 +76,7 @@ impl<'a> ASTLowerer<'a> {
         owner: FileId,
         function: &slynx_parser::FuncDeclaration,
     ) -> Result<TermId> {
-        let context = TypeContext::new(&function.type_params);
+        let context = TypeContext::new(&function.generics.type_params);
         let return_type = self
             .lower_type(queue, owner, function.return_type, &context)?
             .term;

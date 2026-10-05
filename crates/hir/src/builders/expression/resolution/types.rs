@@ -9,7 +9,7 @@ use crate::{
         interfaces::InterfaceImplementationDescriptor,
         lowering::lookup::FindExtensionsWithMethodDescriptor,
     },
-    error::InvalidTypeReason,
+    error::{InvalidTypeReason, MissingFeature},
     term::{TermId, TermNode},
 };
 
@@ -120,6 +120,7 @@ impl ExpressionBuilder {
                 });
 
         let mut matching = Vec::new();
+
         for extension_id in candidates {
             let extension = queue
                 .modules
@@ -139,16 +140,21 @@ impl ExpressionBuilder {
                 .iter()
                 .any(|method| method.name == descriptor.name && !method.type_params.is_empty())
             {
-                let method = extension
-                    .methods
-                    .iter()
-                    .find(|method| method.name == descriptor.name)
-                    .expect("method was found above");
-                return Err(HIRError::invalid_type(
-                    method.name,
-                    InvalidTypeReason::Unimplemented,
-                    method.span,
-                ));
+                //Only exists due to not supporting generics inside interface extensions
+                if !extension.generics.type_params.is_empty() {
+                    return Err(HIRError::unimplemented(
+                        MissingFeature::GenericInterfaces,
+                        extension.span,
+                    ));
+                }
+                if let Some(method) = extension.methods.iter().find(|method| {
+                    method.name == descriptor.name && !method.generics.type_params.is_empty()
+                }) {
+                    return Err(HIRError::unimplemented(
+                        MissingFeature::GenericInterfaces,
+                        method.span,
+                    ));
+                }
             }
 
             queue.assert_concrete_type_generic_count(extension_id.owner, extension.target)?;
@@ -164,31 +170,30 @@ impl ExpressionBuilder {
             if target != descriptor.ty.term {
                 continue;
             }
-
-            let interface_name = match queue.modules.get_type(extension.interface.data) {
-                slynx_parser::Type::Plain(identifier) if identifier.generic.is_empty() => {
-                    identifier.identifier
-                }
-                _ => {
-                    return Err(HIRError::invalid_type(
-                        queue.modules.type_name(extension.interface.data),
-                        InvalidTypeReason::Unimplemented,
-                        extension.interface.span,
+            for interface in extension.generics.interface_implementations.iter() {
+                let interface_name = match queue.modules.get_type(interface.data) {
+                    slynx_parser::Type::Plain(identifier) if identifier.generic.is_empty() => {
+                        identifier.identifier
+                    }
+                    _ => {
+                        return Err(HIRError::unimplemented(
+                            MissingFeature::GenericInterfaces,
+                            interface.span,
+                        ));
+                    }
+                };
+                let Some(interface) = queue
+                    .lowerer
+                    .lookup
+                    .find_interface(interface_name, extension_id.owner)
+                else {
+                    return Err(HIRError::unimplemented(
+                        MissingFeature::GenericInterfaces,
+                        interface.span,
                     ));
-                }
-            };
-            let Some(interface) = queue
-                .lowerer
-                .lookup
-                .find_interface(interface_name, extension_id.owner)
-            else {
-                return Err(HIRError::invalid_type(
-                    interface_name,
-                    InvalidTypeReason::Unimplemented,
-                    extension.interface.span,
-                ));
-            };
-            matching.push((extension_id, target, interface));
+                };
+                matching.push((extension_id.clone(), target, interface));
+            }
         }
 
         let mut implemented_interfaces = std::collections::HashMap::new();
@@ -207,7 +212,7 @@ impl ExpressionBuilder {
                     target,
                 })?;
             let implementation = queue.hir.get_extension(extension_id);
-            implemented_interfaces.insert(interface, implementation.interface);
+            implemented_interfaces.insert(interface, implementation.target);
             if let Some((_, method)) = implementation
                 .methods
                 .iter()

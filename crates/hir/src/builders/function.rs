@@ -3,11 +3,13 @@ use common::{
     pool::{DedupPoolId, PoolId},
 };
 use module_loader::FileId;
-use slynx_parser::{ASTFunction, ASTStatement, FuncDeclaration, Type, TypeContext};
+use slynx_parser::{
+    ASTFunction, ASTStatement, FuncDeclaration, GenericsMetadata, Type, TypeContext,
+};
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result, SymbolPointer,
-    VariableId,
+    DeclarationId, GenericParameter, HIRError, HirFunctionDeclaration, HirStatement, Result,
+    SymbolPointer, VariableId,
     builders::{
         HirQueueBuilder, PendantFunction,
         expression::{ExpressionBuildResult, ExpressionBuilder},
@@ -34,7 +36,7 @@ impl<'a> HirQueueBuilder<'a> {
         declaration_name: SymbolPointer,
         register_as_inherent: bool,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
-        let context = TypeContext::new(method.type_params());
+        let context = TypeContext::new(method.generics().type_params());
         let lower_type = |ty: Spanned<DedupPoolId<Type>>| {
             self.lowerer
                 .lower_type_with_self(self, entry, ty, &context, self_type)
@@ -49,7 +51,12 @@ impl<'a> HirQueueBuilder<'a> {
         let function_type = self.hir.types.create_function_type(args, return_type);
         let declaration = HirFunctionDeclaration {
             name: declaration_name,
-            generics: method.type_params().to_vec(),
+            generics: self.lowerer.generic_parameters_of(
+                self,
+                &method.generics(),
+                entry,
+                &context,
+            )?,
             args: Default::default(),
             ty: function_type,
             statements: Vec::new(),
@@ -104,6 +111,12 @@ impl<'a> HirQueueBuilder<'a> {
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
         let signature = self.lowerer.resolve_signature_of_function(self, owner, f)?;
         let names = f.args.iter().map(|arg| arg.data.name.data).collect();
+        let generics = self.lowerer.generic_parameters_of(
+            self,
+            &f.generics,
+            owner,
+            &TypeContext::new(&f.generics.type_params),
+        )?;
         let id =
             self.hir
                 .symbols_registry
@@ -131,7 +144,7 @@ impl<'a> HirQueueBuilder<'a> {
         )?;
 
         self.bodies.send(PendantFunction {
-            context: TypeContext::new(&f.type_params),
+            context: TypeContext::new(&f.generics.type_params),
             func_id: id,
             body: &f.body,
             argument_names: names,

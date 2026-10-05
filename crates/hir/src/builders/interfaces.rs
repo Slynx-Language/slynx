@@ -7,7 +7,7 @@ use slynx_parser::{ASTFunction, ExtendDeclaration, InterfaceDeclaration, Type, T
 
 use crate::{
     DeclarationId, HIRError, HirExtendDeclaration, HirQueueBuilder, Owned, Result,
-    error::InvalidTypeReason, term::TermId,
+    error::MissingFeature, term::TermId,
 };
 
 /// Describes the lazy materialization of one concrete interface implementation.
@@ -21,52 +21,54 @@ impl<'a> HirQueueBuilder<'a> {
         for owner in self.lowerer.lookup.reachable_modules(requester) {
             let module = self.modules.get_entry(owner);
             for interface in module.interfaces().iter() {
-                if !interface.type_args.is_empty() {
-                    return Err(HIRError::invalid_type(
-                        interface.name,
-                        InvalidTypeReason::Unimplemented,
+                if !interface.generics.type_params.is_empty() {
+                    return Err(HIRError::unimplemented(
+                        MissingFeature::GenericInterfaces,
                         interface.span,
                     ));
                 }
                 if let Some(method) = interface
                     .methods
                     .iter()
-                    .find(|method| !method.type_params.is_empty())
+                    .find(|method| !method.generics.type_params.is_empty())
                 {
-                    return Err(HIRError::invalid_type(
-                        method.name,
-                        InvalidTypeReason::Unimplemented,
+                    return Err(HIRError::unimplemented(
+                        MissingFeature::GenericInterfaces,
                         method.span,
                     ));
                 }
             }
 
             for extension in module.extensions().iter() {
-                if !extension.type_args.is_empty() {
-                    return Err(HIRError::invalid_type(
-                        self.modules.type_name(extension.target.data),
-                        InvalidTypeReason::Unimplemented,
+                if !extension.generics.type_params.is_empty() {
+                    return Err(HIRError::unimplemented(
+                        MissingFeature::GenericInterfaces,
                         extension.span,
                     ));
                 }
                 if let Some(method) = extension
                     .methods
                     .iter()
-                    .find(|method| !method.type_params.is_empty())
+                    .find(|method| !method.generics.type_params.is_empty())
                 {
-                    return Err(HIRError::invalid_type(
-                        method.name,
-                        InvalidTypeReason::Unimplemented,
+                    return Err(HIRError::unimplemented(
+                        MissingFeature::GenericInterfaces,
                         method.span,
                     ));
                 }
                 self.assert_concrete_type_generic_count(owner, extension.target)?;
-                if let Type::Plain(identifier) = self.modules.get_type(extension.interface.data) {
-                    if !identifier.generic.is_empty() {
-                        return Err(HIRError::invalid_type(
-                            identifier.identifier,
-                            InvalidTypeReason::Unimplemented,
-                            extension.interface.span,
+                for interface in extension.generics.interface_implementations.iter() {
+                    if let Type::Plain(identifier) = self.modules.get_type(interface.data) {
+                        if !identifier.generic.is_empty() {
+                            return Err(HIRError::unimplemented(
+                                MissingFeature::GenericInterfaces,
+                                interface.span,
+                            ));
+                        }
+                    } else {
+                        return Err(HIRError::unimplemented(
+                            MissingFeature::GenericInterfaces,
+                            interface.span,
                         ));
                     }
                 } else {
@@ -99,18 +101,17 @@ impl<'a> HirQueueBuilder<'a> {
             .get_entry(descriptor.extension.owner)
             .extensions()
             .get(descriptor.extension.term);
-        if !extension.type_args.is_empty() {
-            return Err(HIRError::invalid_type(
-                self.modules.type_name(extension.target.data),
-                InvalidTypeReason::Unimplemented,
+
+        if !extension.generics.type_params.is_empty() {
+            return Err(HIRError::unimplemented(
+                MissingFeature::GenericInterfaces,
                 extension.span,
             ));
         }
         for method in &extension.methods {
-            if !method.type_params.is_empty() {
-                return Err(HIRError::invalid_type(
-                    method.name,
-                    InvalidTypeReason::Unimplemented,
+            if !method.generics.type_params.is_empty() {
+                return Err(HIRError::unimplemented(
+                    MissingFeature::GenericInterfaces,
                     method.span,
                 ));
             }
@@ -119,30 +120,63 @@ impl<'a> HirQueueBuilder<'a> {
         self.assert_concrete_type_generic_count(descriptor.extension.owner, extension.target)?;
         self.assert_concrete_type_generic_count(descriptor.extension.owner, extension.interface)?;
 
-        let interface_name = match self.modules.get_type(extension.interface.data) {
-            Type::Plain(identifier) if identifier.generic.is_empty() => identifier.identifier,
-            _ => {
-                return Err(HIRError::invalid_type(
-                    self.modules.type_name(extension.interface.data),
-                    InvalidTypeReason::Unimplemented,
-                    extension.interface.span,
-                ));
+        let (interface_ids, interface_methods) = {
+            let mut interfaces = Vec::new();
+            let mut interface_methods = std::collections::HashMap::new(); //hashmap name->interface_id
+            for interface in extension.generics.interface_implementations() {
+                self.assert_concrete_type_generic_count(descriptor.extension.owner, *interface)?;
+                let interface_name = match self.modules.get_type(interface.data) {
+                    Type::Plain(identifier) if identifier.generic.is_empty() => {
+                        identifier.identifier
+                    }
+                    _ => {
+                        return Err(HIRError::unimplemented(
+                            MissingFeature::GenericInterfaces,
+                            interface.span,
+                        ));
+                    }
+                };
+                let Some(Owned {
+                    owner: interface_owner,
+                    term: interface_id,
+                }) = self
+                    .lowerer
+                    .lookup
+                    .find_interface(interface_name, descriptor.extension.owner)
+                else {
+                    return Err(HIRError::type_unrecognized(interface_name, interface.span));
+                };
+                let interface_declaration = self
+                    .modules
+                    .get_entry(interface_owner)
+                    .interfaces()
+                    .get(interface_id);
+                self.validate_extension_methods(
+                    descriptor.extension.owner,
+                    extension,
+                    interface_owner,
+                    interface_declaration,
+                    descriptor.target,
+                )?;
+                let interface_term = self
+                    .lowerer
+                    .materialize_interface_definition(
+                        self,
+                        ASTType {
+                            owner: interface_owner,
+                            content: ASTTypeKind::Interface(interface_id),
+                        },
+                        interface.span,
+                    )?
+                    .term;
+                interfaces.push(interface_term);
+                for method in interface_declaration.methods.iter() {
+                    interface_methods.insert(method.name, interface_term);
+                }
             }
+            (interfaces, interface_methods)
         };
-        let Some(Owned {
-            owner: interface_owner,
-            term: interface_id,
-        }) = self
-            .lowerer
-            .lookup
-            .find_interface(interface_name, descriptor.extension.owner)
-        else {
-            return Err(HIRError::invalid_type(
-                interface_name,
-                InvalidTypeReason::Unimplemented,
-                extension.interface.span,
-            ));
-        };
+        let mut methods = Vec::new();
 
         let interface_ast_type = ASTType {
             owner: interface_owner,
@@ -187,7 +221,7 @@ impl<'a> HirQueueBuilder<'a> {
 
         let declaration = HirExtendDeclaration {
             target: descriptor.target,
-            interface: interface_term,
+            interfaces: interface_ids,
             methods,
         };
         let id = {
@@ -210,6 +244,7 @@ impl<'a> HirQueueBuilder<'a> {
         Ok(id)
     }
 
+    ///Makes validations to see if interface methods are implemented correctly. Thus with no repetition and if all the methods are properly implemented
     fn validate_extension_methods(
         &self,
         extension_file: FileId,
@@ -218,36 +253,43 @@ impl<'a> HirQueueBuilder<'a> {
         interface: &InterfaceDeclaration,
         target: TermId,
     ) -> Result<()> {
-        if !interface.type_args.is_empty() {
-            return Err(HIRError::invalid_type(
-                interface.name,
-                InvalidTypeReason::Unimplemented,
-                interface.span,
-            ));
-        }
-        for method in &interface.methods {
-            if !method.type_params.is_empty() {
-                return Err(HIRError::invalid_type(
-                    method.name,
-                    InvalidTypeReason::Unimplemented,
-                    method.span,
+        {
+            // Exist only because the codebase does not support `extend<T,L> MyType<T>: Interface<L> {}` yet. After so, all this can be removed
+            if !interface.generics.type_params.is_empty() {
+                return Err(HIRError::unimplemented(
+                    MissingFeature::GenericInterfaces,
+                    interface.span,
                 ));
+            }
+            for method in &interface.methods {
+                if !method.generics.type_params.is_empty() {
+                    return Err(HIRError::unimplemented(
+                        MissingFeature::GenericInterfaces,
+                        method.span,
+                    ));
+                }
             }
         }
 
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = std::collections::HashMap::new();
         for method in &extension.methods {
-            if !seen.insert(method.name) {
+            if seen.insert(method.name, method).is_some() {
                 return Err(HIRError::already_defined(method.name, method.span));
             }
         }
 
         for required in &interface.methods {
-            let Some(implementation) = extension
-                .methods
-                .iter()
-                .find(|method| method.name == required.name)
-            else {
+            if let Some(implementation) = seen.get(&required.name) {
+                let expected = self.method_signature(interface_file, required, target)?;
+                let actual = self.method_signature(extension_file, *implementation, target)?;
+                if expected != actual {
+                    return Err(HIRError::unexpected_type(
+                        actual,
+                        expected,
+                        implementation.span,
+                    ));
+                }
+            } else {
                 return Err(HIRError::method_not_found(required.name, extension.span));
             };
             let expected = self.method_signature(interface_file, required, target)?;
@@ -263,13 +305,14 @@ impl<'a> HirQueueBuilder<'a> {
         Ok(())
     }
 
+    ///Gets the signature of the given `method` function.
     fn method_signature<T: ASTFunction>(
         &self,
         file_id: FileId,
         method: &T,
         self_type: TermId,
     ) -> Result<TermId> {
-        let context = TypeContext::new(method.type_params());
+        let context = TypeContext::new(method.generics().type_params());
         let lower_type = |ty: Spanned<DedupPoolId<Type>>| {
             self.lowerer
                 .lower_type_with_self(self, file_id, ty, &context, self_type)

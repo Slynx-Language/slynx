@@ -6,7 +6,7 @@ use crate::{
     HIRError, HirQueueBuilder, Owned, Result,
     arrays::ArrayTerm,
     builders::lowering::{ASTLowerer, lowerer::declarations::LowerTypeDeclarationDescriptor},
-    error::InvalidTypeReason,
+    error::MissingFeature,
     term::{Term, TermId},
     vector::VectorTerm,
 };
@@ -147,9 +147,8 @@ impl<'a> ASTLowerer<'a> {
                         Some(ASTTypeKind::Interface(_))
                     ) =>
             {
-                return Err(HIRError::invalid_type(
-                    generic.identifier,
-                    InvalidTypeReason::Unimplemented,
+                return Err(HIRError::unimplemented(
+                    MissingFeature::GenericInterfaces,
                     descriptor.ty.span,
                 ));
             }

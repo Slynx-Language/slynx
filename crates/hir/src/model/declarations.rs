@@ -31,6 +31,7 @@ use smallvec::SmallVec;
 
 use crate::{
     DeclarationId, SymbolPointer, VariableId,
+    interface::InterfaceTerm,
     model::{HirComponentExpression, HirExpression, HirStatement},
     term::TermId,
 };
@@ -61,7 +62,7 @@ pub struct HirExtendDeclaration {
     ///The type being extended.
     pub target: TermId,
     ///The interface being implemented.
-    pub interface: TermId,
+    pub interfaces: Vec<TermId>,
     ///Methods provided by this implementation, paired with their source names.
     pub methods: Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>,
 }

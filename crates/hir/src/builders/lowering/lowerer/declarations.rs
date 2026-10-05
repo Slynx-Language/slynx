@@ -5,14 +5,15 @@ use common::{
 use module_loader::{ASTType, ASTTypeKind, FileId};
 use slynx_parser::{
     ASTExpression, AliasDeclaration, EnumDeclaration, EnumVariantKind, FuncDeclaration,
-    InterfaceDeclaration, ObjectDeclaration, Type, TypeContext,
+    GenericsMetadata, InterfaceDeclaration, ObjectDeclaration, Type, TypeContext,
 };
 
 use crate::{
-    EnumVariantType, HIRError, HirEnumDeclaration, HirObjectDeclaration, HirQueueBuilder, Owned,
-    Result, Visible,
+    EnumVariantType, GenericParameter, HIRError, HirEnumDeclaration, HirObjectDeclaration,
+    HirQueueBuilder, Owned, Result, Visible,
     builders::lowering::ASTLowerer,
-    error::InvalidTypeReason,
+    error::MissingFeature,
+    interface::InterfaceTerm,
     term::{PrimitiveType, Term, TermId, TermNode},
 };
 
@@ -29,7 +30,7 @@ impl<'a> ASTLowerer<'a> {
         owner: FileId,
         method: &FuncDeclaration,
     ) -> Result<TermId> {
-        let context = TypeContext::new(&method.type_params);
+        let context = TypeContext::new(&method.generics.type_params);
         let self_symbol = queue.hir.intern_name("Self");
         let self_type = queue
             .hir
@@ -57,21 +58,19 @@ impl<'a> ASTLowerer<'a> {
         span: Span,
     ) -> Result<TermId> {
         let declaration = queue.modules.get_entry(owner).interfaces().get(interface);
-        if !declaration.type_args.is_empty() {
-            return Err(HIRError::invalid_type(
-                declaration.name,
-                InvalidTypeReason::Unimplemented,
+        if !declaration.generics.type_params.is_empty() {
+            return Err(HIRError::unimplemented(
+                MissingFeature::GenericInterfaces,
                 span,
             ));
         }
         if let Some(method) = declaration
             .methods
             .iter()
-            .find(|method| !method.type_params.is_empty())
+            .find(|method| !method.generics.type_params.is_empty())
         {
-            return Err(HIRError::invalid_type(
-                method.name,
-                InvalidTypeReason::Unimplemented,
+            return Err(HIRError::unimplemented(
+                MissingFeature::GenericInterfaces,
                 method.span,
             ));
         }
@@ -115,7 +114,7 @@ impl<'a> ASTLowerer<'a> {
         strukt: PoolId<ObjectDeclaration>,
     ) -> Result<TermId> {
         let declaration = queue.modules.get_entry(owner).object().get(strukt);
-        let context = TypeContext::new(&declaration.type_params);
+        let context = TypeContext::new(&declaration.generics.type_params);
         let fields = declaration
             .fields
             .iter()
@@ -135,7 +134,12 @@ impl<'a> ASTLowerer<'a> {
             .get_or_create_file(owner)
             .create_object(HirObjectDeclaration {
                 name: declaration.name,
-                generics: declaration.type_params.clone(),
+                generics: self.generic_parameters_of(
+                    queue,
+                    &declaration.generics,
+                    owner,
+                    &context,
+                )?,
                 ty: struct_type,
                 visibility: declaration.visibility,
                 external: declaration.external,
@@ -151,7 +155,7 @@ impl<'a> ASTLowerer<'a> {
         enumer: PoolId<EnumDeclaration>,
     ) -> Result<TermId> {
         let declaration = queue.modules.get_entry(owner).enums().get(enumer);
-        let context = TypeContext::new(&declaration.type_params);
+        let context = TypeContext::new(&declaration.generics.type_params);
         if let Some(representation) = &declaration.representation {
             let representation_type = self
                 .lower_type(
@@ -233,7 +237,12 @@ impl<'a> ASTLowerer<'a> {
             .get_or_create_file(owner)
             .create_enum(HirEnumDeclaration {
                 name: declaration.name,
-                generics: declaration.type_params.clone(),
+                generics: self.generic_parameters_of(
+                    queue,
+                    &declaration.generics,
+                    owner,
+                    &context,
+                )?,
                 variants: Vec::new(),
                 visibility: declaration.visibility,
                 attributes: Vec::new(),
@@ -273,6 +282,63 @@ impl<'a> ASTLowerer<'a> {
             owner: ast_type.owner,
             term,
         })
+    }
+
+    pub fn generic_parameters_of(
+        &self,
+        queue: &HirQueueBuilder<'a>,
+        method: &GenericsMetadata,
+        entry: FileId,
+        context: &TypeContext,
+    ) -> Result<Vec<GenericParameter>> {
+        let clauses = method.clauses();
+        let generics = {
+            let mut out = Vec::new();
+            for param in method.type_params() {
+                if let Some(clause) = clauses.iter().find_map(|clause| {
+                    if {
+                        let ty = queue.modules.get_type(clause.type_to_check.data); //no get plain type because the error message would lead to incorrect message
+                        !matches!(ty, Type::Plain(_))
+                    } {
+                        return Some(Err(HIRError::unimplemented(
+                            MissingFeature::ComplexTypeForBounds,
+                            clause.type_to_check.span,
+                        )));
+                    }
+                    (queue.get_plain_type(clause.type_to_check).identifier == *param)
+                        .then_some(Ok(clause))
+                }) {
+                    let clause = clause?;
+                    let bounds = clause
+                        .bounds
+                        .iter()
+                        .map(|bound| {
+                            let ty = self.lower_type(queue, entry, *bound, &context)?;
+                            if let Some(ext) = queue.hir.view(ty.term).is_extension()
+                                && let Some(interface) =
+                                    ext.as_any().downcast_ref::<InterfaceTerm>()
+                            {
+                                Ok(interface.clone())
+                            } else {
+                                Err(HIRError::expected_interface_type(ty.term, bound.span))
+                            }
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    out.push(GenericParameter {
+                        name: *param,
+                        bounds,
+                    });
+                } else {
+                    out.push(GenericParameter {
+                        name: *param,
+                        bounds: Vec::new(),
+                    });
+                };
+            }
+            out
+        };
+        Ok(generics)
     }
     ///Lowers a type declaration. This is a declaration that defines a type. If the given `descriptor.ast_type` is already lowered, it is returned from the cache instead of lowering it again.
     ///Lowering phase means that the content will be inserted into the HIR via queue if it does not exist, returning its ID. So if this is a struct, then it inserts an Struct declaration on the HIR and returns the ID of it

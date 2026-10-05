@@ -11,6 +11,8 @@ use crate::{
     HirExtendDeclaration, HirFunctionDeclaration, HirQueueBuilder, InterfaceType, Owned, Result,
     SymbolPointer,
     field_access::FieldAccessDescriptor,
+    generic_args,
+    id::OwnerId,
     resolution::types::{
         FindInherentMethodDescriptor, FindInterfaceMethodDescriptor, TypeMethodResolution,
     },

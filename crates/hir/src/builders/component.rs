@@ -69,7 +69,7 @@ impl<'a> HirQueueBuilder<'a> {
             self,
             LowerTypeDeclarationDescriptor {
                 ast_type,
-                context: &TypeContext::new(&component.type_params),
+                context: &TypeContext::new(&component.generics.type_params),
                 span: component.span,
             },
         )?;
@@ -80,7 +80,12 @@ impl<'a> HirQueueBuilder<'a> {
             || {
                 let decl = HirComponentDeclaration {
                     name: component.name,
-                    generics: component.type_params.clone(),
+                    generics: self.lowerer.generic_parameters_of(
+                        self,
+                        &component.generics,
+                        owner,
+                        &TypeContext::new(&component.generics.type_params),
+                    )?,
                     props: Vec::new(),
                     ty,
                     visibility: component.visibility,
@@ -128,7 +133,7 @@ impl ComponentBuilder {
         };
 
         let mut prop_index = 0;
-        let context = TypeContext::new(&component.type_params);
+        let context = TypeContext::new(&component.generics.type_params);
         for member in &component.members {
             match &member.kind {
                 ComponentMemberKind::Property {

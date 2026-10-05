@@ -35,9 +35,26 @@ pub enum NotMutableReason {
     ExpressionNotAssignable,
 }
 
+#[derive(Debug, Clone)]
+pub enum MissingFeature {
+    ComplexTypeForBounds,
+    GenericInterfaces,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExpectedTypeUsage {
+    InterfaceType,
+}
+
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    UnexpectedTypeUsage {
+        actual: TermId,
+        expected_usage: ExpectedTypeUsage,
+    },
+
+    UnimplementedFeature(MissingFeature),
     ///Error that occurs when a type is used like an enum, but isn't
     InvalidEnumUsage(TermId),
 
@@ -237,6 +254,19 @@ impl HIRError {
             span,
             backtrace: Backtrace::capture(),
         }
+    }
+    pub fn expected_interface_type(found: TermId, span: Span) -> Self {
+        Self::new(
+            HIRErrorKind::UnexpectedTypeUsage {
+                expected_usage: ExpectedTypeUsage::InterfaceType,
+                actual: found,
+            },
+            span,
+        )
+    }
+
+    pub fn unimplemented(feature: MissingFeature, span: Span) -> Self {
+        Self::new(HIRErrorKind::UnimplementedFeature(feature), span)
     }
 
     pub fn not_an_enum(ty: TermId, span: Span) -> Self {
@@ -500,6 +530,19 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::UnexpectedTypeUsage {
+                expected_usage,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Unexpected type usage: expected {:?}, got {:?}",
+                    expected_usage, actual
+                )
+            }
+            HIRErrorKind::UnimplementedFeature(feature) => {
+                write!(f, "Unimplemented feature: '{:?}'", feature)
+            }
             HIRErrorKind::InvalidEnumUsage(_) => write!(f, "Invalid enum usage"),
             HIRErrorKind::MethodNotFound(_) => {
                 write!(f, "Method not found")

@@ -1,12 +1,13 @@
 use crate::{
-    DeclarationId, HirFunctionDeclaration, SymbolPointer, helpers::HirViewer, term::TermId,
+    DeclarationId, GenericParameter, HirFunctionDeclaration, SymbolPointer, helpers::HirViewer,
+    term::TermId,
 };
 
 impl HirViewer<'_, DeclarationId<HirFunctionDeclaration>> {
     pub fn name(&self) -> SymbolPointer {
         self.hir.get_function(self.data).name
     }
-    pub fn generic(&self, generic: usize) -> Option<SymbolPointer> {
+    pub fn generic(&self, generic: usize) -> Option<GenericParameter> {
         self.hir
             .get_function(self.data)
             .generics

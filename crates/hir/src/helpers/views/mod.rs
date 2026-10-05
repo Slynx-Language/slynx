@@ -3,6 +3,7 @@ mod component;
 mod declarations;
 mod expressions;
 mod functions;
+mod interfaces;
 mod strukt;
 mod terms;
 #[cfg(test)]

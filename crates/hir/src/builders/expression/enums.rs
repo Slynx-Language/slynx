@@ -43,7 +43,7 @@ impl ExpressionBuilder {
             variant_index,
         ) = queue.lowerer.lookup.find_enum_variant(name, self.file())?;
         let enum_decl = queue.modules.get_entry(owner).enums().get(enum_id);
-        let context = TypeContext::new(&enum_decl.type_params);
+        let context = TypeContext::new(&enum_decl.generics.type_params);
         let ast_type = queue.lowerer.lookup.find_type(owner, enum_decl.name)?;
         let enum_ty = queue
             .lowerer

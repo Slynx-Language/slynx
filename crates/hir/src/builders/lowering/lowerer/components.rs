@@ -12,7 +12,7 @@ impl<'a> ASTLowerer<'a> {
         requester: module_loader::FileId,
         component: &ComponentDeclaration,
     ) -> Result<TermId> {
-        let context = TypeContext::new(&component.type_params);
+        let context = TypeContext::new(&component.generics.type_params);
         let (properties, children) = {
             let mut properties = Vec::with_capacity(component.members.len());
             let mut components = Vec::with_capacity(component.members.len());
