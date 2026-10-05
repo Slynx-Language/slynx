@@ -263,6 +263,11 @@ impl SlynxContext {
                     "Type '{ty}' implements the interface '{interface}' more than once"
                 )
             }
+            HIRErrorKind::UnresolvedInterfaceCall { method, receiver } => {
+                let method = hir.get_name(*method);
+                let receiver = hir.view(*receiver).pretty_name();
+                format!("Type '{receiver}' has no implementation of the interface method '{method}'")
+            }
         }
     }
 
