@@ -1,6 +1,3 @@
-// xfail: interfaces are not implemented yet. An enum satisfies an interface
-// at the declaration site: `enum Option<T>: Stringifiable { ... }` must
-// compile and dispatch to the (generic) impl.
 interface Stringifiable {
     func stringify(&self) -> str
     func length(&self) -> int

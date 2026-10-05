@@ -1,15 +1,12 @@
-// xfail: interfaces are not implemented yet. An interface can be satisfied at
-// the type declaration site: `object Person: Stringifiable { ... }` is the
-// same as an `extend` block (see concrete_extend.slx).
 interface Stringifiable {
-    func stringify(&self) -> str
-    func length(&self) -> int
+    func stringify(&self): str;
+    func length(&self): int;
 }
 
 object Person: Stringifiable {
-    name: str
-    func stringify(&self) -> str { self.name }
-    func length(&self) -> int { self.name.length() }
+    name: str,
+    func stringify(&self): str -> self.name;
+    func length(&self): int -> self.name.length();
 }
 
 func main(): void {

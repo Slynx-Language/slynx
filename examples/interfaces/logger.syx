@@ -1,6 +1,4 @@
-// xfail: interfaces are not implemented yet. An `extern` object satisfying an
-// interface via declaration-site `pub object MyLogger: Logger` must compile
-// once the feature lands.
+
 interface Logger {
     func log(&self, message: str): void;
 }
@@ -13,8 +11,9 @@ extern {
 }
 
 pub object MyLogger: Logger {
+
     func new(): Self {
-        Self()
+        Self
     }
     func log(&self, message: str): void {
         console.log(message);
