@@ -5,7 +5,7 @@ use std::{hash::Hash, marker::PhantomData, ops::Range};
 #[derive(Debug)]
 pub struct IRPointer<T, const N: usize = 0> {
     inner: u64,
-    data: PhantomData<T>,
+    data: PhantomData<fn() -> T>,
 }
 
 impl<T, const N: usize> Copy for IRPointer<T, N> {}
