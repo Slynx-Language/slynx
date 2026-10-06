@@ -2,9 +2,9 @@ use common::Span;
 use dashmap::DashMap;
 
 use crate::{
-    DeclarationId, HIRError, HirComponentDeclaration, HirEnumDeclaration, HirExtendDeclaration,
-    HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration, LanguageItem, Result,
-    SymbolPointer,
+    DeclarationId, HIRError, HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration,
+    HirExtendDeclaration, HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration,
+    LanguageItem, Result, SymbolPointer,
 };
 
 #[derive(Debug)]
@@ -19,6 +19,7 @@ pub struct LangItems {
     pub components: LangMap<HirComponentDeclaration>,
     pub statics: LangMap<HirStaticDeclaration>,
     pub extensions: LangMap<HirExtendDeclaration>,
+    pub aliases: LangMap<HirAliasDeclaration>,
 }
 
 impl<T: std::fmt::Debug> std::default::Default for LangMap<T> {

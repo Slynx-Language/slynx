@@ -30,7 +30,7 @@ use common::{
 use smallvec::SmallVec;
 
 use crate::{
-    DeclarationId, HirDeclaration, LanguageItem, SymbolPointer, VariableId,
+    DeclarationId, HirDeclaration, LanguageItem, SymbolPointer, TypeDeclaration, VariableId,
     interface::InterfaceTerm,
     model::{HirComponentExpression, HirExpression, HirStatement},
     term::TermId,
@@ -61,6 +61,7 @@ pub enum HirAttributeKind {
 pub struct HirExtendDeclaration {
     ///The type being extended.
     pub target: TermId,
+    pub generics: Vec<GenericParameter>,
     ///The interface being implemented.
     pub interfaces: Vec<TermId>,
     ///Methods provided by this implementation, paired with their source names.
@@ -110,6 +111,7 @@ pub struct HirStaticDeclaration {
 #[derive(Debug)]
 pub struct HirAliasDeclaration {
     pub name: SymbolPointer,
+    pub attributes: Vec<HirAttribute>,
     pub generics: Vec<GenericParameter>,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
@@ -302,11 +304,35 @@ macro_rules! impl_hir_decl {
     };
 }
 
+macro_rules! impl_type_decl {
+    ($($t:ty),*$(,)?) => {
+        $(
+            impl TypeDeclaration for $t {
+                fn hir_type(&self) -> TermId {
+                    self.ty
+                }
+                fn generics(&self) -> &[GenericParameter] {
+                    &self.generics
+                }
+            }
+        )*
+    };
+}
+
+impl_type_decl!(
+    HirFunctionDeclaration,
+    HirObjectDeclaration,
+    HirComponentDeclaration,
+    HirEnumDeclaration,
+    HirAliasDeclaration,
+);
+
 impl_hir_decl!(
     HirFunctionDeclaration => functions,
     HirObjectDeclaration => objects,
     HirComponentDeclaration => components,
     HirEnumDeclaration => enums,
-    HirStaticDeclaration => statics,
     HirExtendDeclaration => extensions,
+    HirAliasDeclaration => aliases,
+    HirStaticDeclaration => statics,
 );
