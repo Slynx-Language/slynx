@@ -313,16 +313,14 @@ impl<'a> LoweringState<'a> {
             }
             HirExpressionKind::Static { id } => {
                 if let Some(ty) = self.external_statics.get(id) {
-                    let name = self
-                        .hir
-                        .get_name(self.hir.get_file(id.file_id)[id.local_id].name);
+                    let name = self.hir.get_name(self.hir.get_file(id.owner)[id.term].name);
                     let name = context.ir().strings.intern(name);
                     context.emit(Opcode::GlobalExtern(name), SmallVec::new(), *ty)
                 } else {
                     let id = *self.globals.get(id).ok_or(CodegenError::new(
                         CodegenErrorKind::DeclarationNotRecognized(AnyDeclarationId::new(
-                            id.file_id,
-                            AnyLocalDeclarationId::Static(id.local_id),
+                            id.owner,
+                            AnyLocalDeclarationId::Static(id.term),
                         )),
                     ))?;
                     let ty = context.ir().get_view(id).ty();

@@ -81,11 +81,7 @@ impl Monomorphizer {
                 let AnyLocalDeclarationId::Object(local_id) = cached.local_id else {
                     unreachable!("A monomorphized object target must be an object")
                 };
-                hir.get_file(cached.file_id)
-                    .declarations
-                    .declarations
-                    .objects[local_id]
-                    .ty
+                hir.get_file(cached.owner).declarations.declarations.objects[local_id].ty
             },
             |monomorphizer, hir, subst, mangled_symbol, _| {
                 let fields = struct_view

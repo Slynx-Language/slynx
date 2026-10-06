@@ -12,7 +12,7 @@ macro_rules! get_data {
         impl SlynxHir<'_>{
             paste::paste! {
                 $(pub(crate) fn [<get_ $name>](&self, id: DeclarationId<$typ>) -> MappedRef<'_, FileId, HirFile, $typ> {
-                    self.get_file(id.file_id).map(|file| &file[id.local_id])
+                    self.get_file(id.owner).map(|file| &file[id.term])
                 })*
             }
         }

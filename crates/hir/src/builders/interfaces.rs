@@ -381,14 +381,14 @@ impl<'a> HirQueueBuilder<'a> {
     ///Gets the signature of the given `method` function.
     fn method_signature<T: ASTFunction>(
         &self,
-        file_id: FileId,
+        owner: FileId,
         method: &T,
         self_type: TermId,
     ) -> Result<TermId> {
         let context = TypeContext::new(method.generics().type_params());
         let lower_type = |ty: Spanned<DedupPoolId<Type>>| {
             self.lowerer
-                .lower_type_with_self(self, file_id, ty, &context, self_type)
+                .lower_type_with_self(self, owner, ty, &context, self_type)
                 .map(|owned| owned.term)
         };
         let args = method

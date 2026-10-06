@@ -58,7 +58,7 @@ impl Monomorphizer {
                 let AnyLocalDeclarationId::Enum(local_id) = cached.local_id else {
                     unreachable!("A monomorphized enum target must be an enum")
                 };
-                hir.get_file(cached.file_id).declarations.declarations.enums[local_id].ty
+                hir.get_file(cached.owner).declarations.declarations.enums[local_id].ty
             },
             |monomorphizer, hir, subst, mangled_symbol, _| {
                 let type_variants = {

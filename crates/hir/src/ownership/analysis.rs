@@ -160,7 +160,7 @@ impl OwnershipAnalysis {
                 self.analyze_reference(hir, inner, mutable, expr.span, state);
             }
             HirExpressionKind::FunctionCall { args, name, .. } => {
-                let ty = hir.get_file(name.file_id)[name.local_id].ty;
+                let ty = hir.get_file(name.owner)[name.term].ty;
                 let viewer = hir.view(ty);
                 let (arguments, _) = viewer
                     .is_function()

@@ -98,8 +98,8 @@ impl<'a> HirQueueBuilder<'a> {
 
         // Process attributes after the declaration is registered
         self.attach_attributes(
-            id.file_id,
-            AnyLocalDeclarationId::Component(id.local_id),
+            id.owner,
+            AnyLocalDeclarationId::Component(id.term),
             &component.attributes,
         )?;
 

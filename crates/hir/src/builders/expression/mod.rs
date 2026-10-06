@@ -116,8 +116,8 @@ impl ExpressionBuilder {
 
     pub fn file(&self) -> FileId {
         match self.target {
-            OwnerId::Component(c) => c.file_id,
-            OwnerId::Function(f) => f.file_id,
+            OwnerId::Component(c) => c.owner,
+            OwnerId::Function(f) => f.owner,
         }
     }
 

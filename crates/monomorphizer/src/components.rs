@@ -90,7 +90,7 @@ impl Monomorphizer {
                 let AnyLocalDeclarationId::Component(local_id) = cached.local_id else {
                     unreachable!("A monomorphized component target must be a component")
                 };
-                hir.get_file(cached.file_id)
+                hir.get_file(cached.owner)
                     .declarations
                     .declarations
                     .components[local_id]
@@ -213,18 +213,18 @@ impl Monomorphizer {
     pub(crate) fn rewrite_non_generic_component(
         &mut self,
         hir: &SlynxHir,
-        file_id: module_loader::FileId,
+        owner: module_loader::FileId,
         local_id: PoolId<HirComponentDeclaration>,
     ) -> Result<()> {
         let template_members = {
-            let file = hir.get_file(file_id);
+            let file = hir.get_file(owner);
             file.declarations.declarations.components[local_id]
                 .props
                 .clone()
         };
         let new_members =
             self.build_component_members(hir, &template_members, &Substitution::empty())?;
-        let mut file = hir.get_file_mut(file_id);
+        let mut file = hir.get_file_mut(owner);
         file.declarations
             .declarations
             .components

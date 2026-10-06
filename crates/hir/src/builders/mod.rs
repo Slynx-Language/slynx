@@ -221,7 +221,7 @@ impl<'a> HirQueueBuilder<'a> {
         // Process attributes after the declaration is registered
         self.attach_attributes(
             requester,
-            AnyLocalDeclarationId::Static(id.local_id),
+            AnyLocalDeclarationId::Static(id.term),
             &s.attributes,
         )?;
 
@@ -257,16 +257,16 @@ impl<'a> HirQueueBuilder<'a> {
         }
 
         for mut entry in self.resolved_bodies.iter_mut() {
-            let mut file = self.hir.get_file_mut(entry.key().file_id);
-            let func = file.declarations.functions.get_mut(entry.key().local_id);
+            let mut file = self.hir.get_file_mut(entry.key().owner);
+            let func = file.declarations.functions.get_mut(entry.key().term);
             func.statements.append(&mut entry.0);
             for data in entry.1.drain(..) {
                 func.args.push(data);
             }
         }
         for mut entry in self.resolved_components.iter_mut() {
-            let mut file = self.hir.get_file_mut(entry.key().file_id);
-            let func = file.declarations.components.get_mut(entry.key().local_id);
+            let mut file = self.hir.get_file_mut(entry.key().owner);
+            let func = file.declarations.components.get_mut(entry.key().term);
             func.props.append(&mut entry);
         }
         Ok(())

@@ -52,8 +52,8 @@ impl Monomorphizer {
             .get_extension_method(receiver, signature.name)
             .ok_or_else(|| HIRError::unresolved_interface_call(signature.name, receiver, span))?;
         Ok(AnyDeclarationId::new(
-            method.file_id,
-            AnyLocalDeclarationId::Function(method.local_id),
+            method.owner,
+            AnyLocalDeclarationId::Function(method.term),
         ))
     }
 
@@ -67,13 +67,13 @@ impl Monomorphizer {
         span: Span,
     ) -> Result<AnyDeclarationId> {
         let template_any = AnyDeclarationId::new(
-            template.file_id,
-            AnyLocalDeclarationId::Function(template.local_id),
+            template.owner,
+            AnyLocalDeclarationId::Function(template.term),
         );
 
         let (name, generics, fargs, fty, statements, visibility, external, attributes) = {
-            let file = hir.get_file(template.file_id);
-            let declaration = &file.declarations.declarations.functions[template.local_id];
+            let file = hir.get_file(template.owner);
+            let declaration = &file.declarations.declarations.functions[template.term];
             (
                 declaration.name,
                 declaration.generics.clone(),
@@ -102,7 +102,7 @@ impl Monomorphizer {
                 )?;
 
                 let specialized_local = {
-                    let file = hir.get_file_mut(template.file_id);
+                    let file = hir.get_file_mut(template.owner);
                     file.declarations
                         .declarations
                         .functions
@@ -119,7 +119,7 @@ impl Monomorphizer {
                         })
                 };
                 let specialized = AnyDeclarationId::new(
-                    template.file_id,
+                    template.owner,
                     AnyLocalDeclarationId::Function(specialized_local),
                 );
 
@@ -129,7 +129,7 @@ impl Monomorphizer {
 
                 let new_statements = monomorphizer.build_statements(hir, &statements, subst)?;
                 {
-                    let mut file = hir.get_file_mut(template.file_id);
+                    let mut file = hir.get_file_mut(template.owner);
                     file.declarations
                         .declarations
                         .functions
@@ -152,7 +152,7 @@ impl Monomorphizer {
         let AnyLocalDeclarationId::Function(local_id) = id.local_id else {
             unreachable!("A monomorphized call target must be a function")
         };
-        let file = hir.get_file(id.file_id);
+        let file = hir.get_file(id.owner);
         let declaration = &file.declarations.declarations.functions[local_id];
         let view = hir.view(declaration.ty);
         let (_, return_type) = view

@@ -112,6 +112,8 @@ where
     }
 }
 
+impl<T> Copy for Owned<T> where T: Copy + Clone + Debug + Hash + Eq {}
+
 pub use crate::file::DeclarationsPool;
 pub use store::HirStore;
 

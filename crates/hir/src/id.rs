@@ -5,7 +5,7 @@ use module_loader::FileId;
 
 use crate::{
     HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirExpression,
-    HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration,
+    HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration, Owned,
 };
 
 /// Shared trait for all HIR IDs
@@ -29,47 +29,17 @@ pub enum AnyLocalDeclarationId {
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct AnyDeclarationId {
-    pub file_id: FileId,
+    pub owner: FileId,
     pub local_id: AnyLocalDeclarationId,
 }
 
 impl AnyDeclarationId {
-    pub fn new(file_id: FileId, local_id: AnyLocalDeclarationId) -> Self {
-        Self { file_id, local_id }
+    pub fn new(owner: FileId, local_id: AnyLocalDeclarationId) -> Self {
+        Self { owner, local_id }
     }
 }
 
-#[derive(Debug)]
-pub struct DeclarationId<T> {
-    ///The id of the file where this declaration was originated
-    pub file_id: FileId,
-    ///The id on the pools of the file
-    pub local_id: PoolId<T>,
-}
-impl<T> DeclarationId<T> {
-    pub fn new(file_id: FileId, local_id: PoolId<T>) -> Self {
-        Self { file_id, local_id }
-    }
-}
-impl<T> Clone for DeclarationId<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<T> Copy for DeclarationId<T> {}
-
-impl<T> PartialEq for DeclarationId<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.file_id == other.file_id && self.local_id == other.local_id
-    }
-}
-impl<T> Eq for DeclarationId<T> {}
-impl<T> Hash for DeclarationId<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.file_id.hash(state);
-        self.local_id.hash(state);
-    }
-}
+pub type DeclarationId<T> = Owned<PoolId<T>>;
 
 /// Type alias for a function declaration ID.
 pub type FunctionId = DeclarationId<HirFunctionDeclaration>;

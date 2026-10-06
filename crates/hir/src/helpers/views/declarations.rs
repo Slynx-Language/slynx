@@ -12,36 +12,34 @@ use crate::{
 
 impl HirViewer<'_, AnyDeclarationId> {
     pub fn name(&self) -> SymbolPointer<FrontendSymbol> {
-        let file_id = self.data.file_id;
+        let owner = self.data.owner;
         match self.data.local_id {
             AnyLocalDeclarationId::Alias(local_id) => {
-                self.hir
-                    .get_alias(DeclarationId::new(file_id, local_id))
-                    .name
+                self.hir.get_alias(DeclarationId::new(owner, local_id)).name
             }
             AnyLocalDeclarationId::Function(local_id) => {
                 self.hir
-                    .get_function(DeclarationId::new(file_id, local_id))
+                    .get_function(DeclarationId::new(owner, local_id))
                     .name
             }
             AnyLocalDeclarationId::Object(local_id) => {
                 self.hir
-                    .get_object(DeclarationId::new(file_id, local_id))
+                    .get_object(DeclarationId::new(owner, local_id))
                     .name
             }
             AnyLocalDeclarationId::Component(local_id) => {
                 self.hir
-                    .get_component(DeclarationId::new(file_id, local_id))
+                    .get_component(DeclarationId::new(owner, local_id))
                     .name
             }
             AnyLocalDeclarationId::Static(local_id) => {
                 self.hir
-                    .get_static(DeclarationId::new(file_id, local_id))
+                    .get_static(DeclarationId::new(owner, local_id))
                     .name
             }
 
             AnyLocalDeclarationId::Enum(local_id) => {
-                self.hir.get_file(file_id).enums.get(local_id).name
+                self.hir.get_file(owner).enums.get(local_id).name
             }
         }
     }

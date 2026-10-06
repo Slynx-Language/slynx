@@ -130,9 +130,9 @@ impl Monomorphizer {
         // call sites and generic struct/component usage as they are found.
         // Specializations may discover further generic usage and instantiate it
         // recursively.
-        for file_id in &files {
+        for owner in &files {
             let targets: Vec<FunctionSnapshot> = {
-                let file = hir.get_file(*file_id);
+                let file = hir.get_file(*owner);
                 file.declarations
                     .declarations
                     .functions
@@ -146,7 +146,7 @@ impl Monomorphizer {
             for (local_id, statements) in targets {
                 let new_statements =
                     self.build_statements(hir, &statements, &Substitution::empty())?;
-                let mut file = hir.get_file_mut(*file_id);
+                let mut file = hir.get_file_mut(*owner);
                 file.declarations
                     .declarations
                     .functions
@@ -157,9 +157,9 @@ impl Monomorphizer {
 
         // Step 2: rewrite the members (property defaults and child tree) of
         // every non-generic component.
-        for file_id in &files {
+        for owner in &files {
             let ids: Vec<PoolId<slynx_hir::HirComponentDeclaration>> = {
-                let file = hir.get_file(*file_id);
+                let file = hir.get_file(*owner);
                 file.declarations
                     .declarations
                     .components
@@ -171,15 +171,15 @@ impl Monomorphizer {
             };
 
             for local_id in ids {
-                self.rewrite_non_generic_component(hir, *file_id, local_id)?;
+                self.rewrite_non_generic_component(hir, *owner, local_id)?;
             }
         }
 
         // Step 3: resolve generic struct/component references in the signatures
         // of non-generic functions and components.
-        for file_id in &files {
+        for owner in &files {
             let function_ids: Vec<PoolId<HirFunctionDeclaration>> = {
-                let file = hir.get_file(*file_id);
+                let file = hir.get_file(*owner);
                 file.declarations
                     .declarations
                     .functions
@@ -190,11 +190,10 @@ impl Monomorphizer {
                     .collect()
             };
             for local_id in function_ids {
-                let old_ty =
-                    hir.get_file(*file_id).declarations.declarations.functions[local_id].ty;
+                let old_ty = hir.get_file(*owner).declarations.declarations.functions[local_id].ty;
                 if contains_resolvable_reference(hir, old_ty) {
                     let new_ty = self.resolve_expression_type(hir, old_ty, Span::default())?;
-                    hir.get_file_mut(*file_id)
+                    hir.get_file_mut(*owner)
                         .declarations
                         .declarations
                         .functions
@@ -204,7 +203,7 @@ impl Monomorphizer {
             }
 
             let component_ids: Vec<PoolId<slynx_hir::HirComponentDeclaration>> = {
-                let file = hir.get_file(*file_id);
+                let file = hir.get_file(*owner);
                 file.declarations
                     .declarations
                     .components
@@ -215,11 +214,10 @@ impl Monomorphizer {
                     .collect()
             };
             for local_id in component_ids {
-                let old_ty =
-                    hir.get_file(*file_id).declarations.declarations.components[local_id].ty;
+                let old_ty = hir.get_file(*owner).declarations.declarations.components[local_id].ty;
                 if contains_resolvable_reference(hir, old_ty) {
                     let new_ty = self.resolve_expression_type(hir, old_ty, Span::default())?;
-                    hir.get_file_mut(*file_id)
+                    hir.get_file_mut(*owner)
                         .declarations
                         .declarations
                         .components
@@ -374,9 +372,9 @@ impl Monomorphizer {
         mut neutralize: impl FnMut(&mut D, TermId),
         to_any: fn(PoolId<D>) -> AnyLocalDeclarationId,
     ) {
-        for file_id in files {
+        for owner in files {
             let generic_ids: Vec<PoolId<D>> = {
-                let file = hir.get_file(*file_id);
+                let file = hir.get_file(*owner);
                 select(&file.declarations.declarations)
                     .iter()
                     .with_ids()
@@ -386,13 +384,13 @@ impl Monomorphizer {
             };
 
             for local_id in generic_ids {
-                let mut file = hir.get_file_mut(*file_id);
+                let mut file = hir.get_file_mut(*owner);
                 neutralize(
                     select_mut(&mut file.declarations.declarations).get_mut(local_id),
                     void_ty,
                 );
                 self.dead_code
-                    .insert(AnyDeclarationId::new(*file_id, to_any(local_id)));
+                    .insert(AnyDeclarationId::new(*owner, to_any(local_id)));
             }
         }
     }
@@ -722,7 +720,7 @@ impl Monomorphizer {
                         unreachable!("A monomorphized call target must be a function")
                     };
                     call_ty = self.function_return_type(hir, target)?;
-                    DeclarationId::new(target.file_id, local_id)
+                    DeclarationId::new(target.owner, local_id)
                 } else if new_generics.is_empty() {
                     name
                 } else {
@@ -732,7 +730,7 @@ impl Monomorphizer {
                         unreachable!("A monomorphized call target must be a function")
                     };
                     call_ty = self.function_return_type(hir, target)?;
-                    DeclarationId::new(target.file_id, local_id)
+                    DeclarationId::new(target.owner, local_id)
                 };
 
                 HirExpressionKind::FunctionCall {
