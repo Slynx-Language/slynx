@@ -5,6 +5,7 @@ pub use span::*;
 pub mod symbols;
 pub use pool::soa;
 pub use symbols::*;
+pub mod vec;
 
 /// Visibility of a declaration.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]

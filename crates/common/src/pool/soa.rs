@@ -55,7 +55,7 @@ macro_rules! __pooled_insert_with_id {
                 &self,
                 f: F,
             ) -> $err<PoolId<$ty>> {
-                self.$field.try_insert_with_id(f)
+                self.$field.insert_with_id(f)
             }
         }
     };
@@ -83,11 +83,7 @@ macro_rules! pooled {
                     self.$field_name.get(index)
                 }
             }
-            impl std::ops::IndexMut<PoolId<$ty>> for $name {
-                fn index_mut(&mut self, index: PoolId<$ty>) -> &mut Self::Output {
-                    self.$field_name.get_mut(index)
-                }
-            }
+
         )*
         impl $name {
             $(
