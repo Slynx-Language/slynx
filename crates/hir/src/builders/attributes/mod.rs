@@ -11,7 +11,6 @@ use crate::{HirAttribute, HirAttributeKind, SlynxHir, id::AnyDeclarationId};
 pub(crate) fn process_attributes(
     hir: &SlynxHir,
     attrs: &[Spanned<ASTAttribute>],
-    decl_id: AnyDeclarationId,
 ) -> crate::Result<Vec<HirAttribute>> {
     let mut out = Vec::with_capacity(attrs.len());
     for attr in attrs {

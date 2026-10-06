@@ -1,6 +1,6 @@
 use common::pool::DedupPoolId;
 
-use crate::{ComponentType, StructField, SymbolPointer, Visible, helpers::HirViewer, term::TermId};
+use crate::{ComponentType, StructField, Visible, helpers::HirViewer};
 
 impl HirViewer<'_, DedupPoolId<ComponentType>> {
     pub fn name(&self) -> &str {

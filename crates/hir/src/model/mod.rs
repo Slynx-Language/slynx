@@ -54,7 +54,22 @@ mod statements;
 
 mod types;
 
+use common::pool::Pool;
 pub use declarations::*;
 pub use expression::*;
 pub use statements::*;
 pub use types::*;
+
+use crate::context::{LangItems, LangMap};
+
+pub trait HirDeclaration {
+    fn attributes(&self) -> &[HirAttribute];
+    fn attributes_mut(&mut self) -> &mut Vec<HirAttribute>;
+}
+pub trait HirDeclarationStorage<T: HirDeclaration> {
+    fn pool(&self) -> &Pool<T>;
+}
+
+pub trait LanguageItem: std::fmt::Debug + Sized + HirDeclaration {
+    fn map(items: &LangItems) -> &LangMap<Self>;
+}

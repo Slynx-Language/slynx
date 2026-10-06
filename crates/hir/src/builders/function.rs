@@ -1,7 +1,4 @@
-use common::{
-    Span, Spanned, VisibilityModifier,
-    pool::{DedupPoolId, PoolId},
-};
+use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use module_loader::FileId;
 use slynx_parser::{ASTFunction, ASTStatement, FuncDeclaration, Type, TypeContext};
 

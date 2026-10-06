@@ -30,7 +30,7 @@ use common::{
 use smallvec::SmallVec;
 
 use crate::{
-    DeclarationId, SymbolPointer, VariableId,
+    DeclarationId, HirDeclaration, LanguageItem, SymbolPointer, VariableId,
     interface::InterfaceTerm,
     model::{HirComponentExpression, HirExpression, HirStatement},
     term::TermId,
@@ -65,6 +65,7 @@ pub struct HirExtendDeclaration {
     pub interfaces: Vec<TermId>,
     ///Methods provided by this implementation, paired with their source names.
     pub methods: Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>,
+    pub attributes: Vec<HirAttribute>,
 }
 
 ///A generic parameter defined for something. The given `name` is the name of the parameter and bounds are the interfaces that the parameter must implement.
@@ -279,3 +280,33 @@ impl ComponentMemberDeclaration {
         Self::Child(child)
     }
 }
+
+macro_rules! impl_hir_decl {
+    ($($t:ty => $name:ident),*$(,)?) => {
+        $(
+            impl HirDeclaration for $t {
+                fn attributes(&self) -> &[HirAttribute] {
+                    &self.attributes
+                }
+                fn attributes_mut(&mut self) -> &mut Vec<HirAttribute> {
+                    &mut self.attributes
+                }
+            }
+            impl LanguageItem for $t {
+                fn map(items: &crate::context::LangItems) -> &crate::context::LangMap<Self> {
+                    &items.$name
+                }
+            }
+        )*
+
+    };
+}
+
+impl_hir_decl!(
+    HirFunctionDeclaration => functions,
+    HirObjectDeclaration => objects,
+    HirComponentDeclaration => components,
+    HirEnumDeclaration => enums,
+    HirStaticDeclaration => statics,
+    HirExtendDeclaration => extensions,
+);

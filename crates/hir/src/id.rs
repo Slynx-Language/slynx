@@ -1,7 +1,6 @@
 use std::hash::Hash;
 
 use common::pool::{DedupPoolId, PoolId};
-use module_loader::FileId;
 
 use crate::{
     HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirExpression,

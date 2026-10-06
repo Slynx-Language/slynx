@@ -9,7 +9,7 @@ use crate::{
         interfaces::InterfaceImplementationDescriptor,
         lowering::lookup::FindExtensionsWithMethodDescriptor,
     },
-    error::{InvalidTypeReason, MissingFeature},
+    error::MissingFeature,
     id::OwnerId,
     term::{TermId, TermNode},
 };

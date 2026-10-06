@@ -4,8 +4,9 @@ use std::{
 };
 
 use crate::{
-    HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirExtendDeclaration,
-    HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration, SymbolPointer,
+    HirAliasDeclaration, HirComponentDeclaration, HirDeclarationStorage, HirEnumDeclaration,
+    HirExtendDeclaration, HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration,
+    SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::TermId,
 };
@@ -16,6 +17,15 @@ use common::{
 use dashmap::DashMap;
 use module_loader::FileId;
 
+macro_rules! impl_storage {
+    ($($target:ident : $ty:ty),* $(,)?) => {
+        $(impl HirDeclarationStorage<$ty> for DeclarationsPool {
+            fn pool(&self) -> &Pool<$ty> {
+                &self.$target
+            }
+        })*
+    };
+}
 pooled!(pub DeclarationsPool {
     pub objects: HirObjectDeclaration,
     pub functions: HirFunctionDeclaration,
@@ -25,6 +35,15 @@ pooled!(pub DeclarationsPool {
     pub enums: HirEnumDeclaration,
     pub extensions: HirExtendDeclaration,
 });
+
+impl_storage!(
+    objects:HirObjectDeclaration,
+    functions:HirFunctionDeclaration,
+    components: HirComponentDeclaration,
+    statik: HirStaticDeclaration,
+    enums: HirEnumDeclaration,
+    extensions: HirExtendDeclaration
+);
 
 impl Debug for DeclarationsPool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -12,8 +12,7 @@ use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    GenericParameter, HIRError, HirExpression, HirExpressionKind, HirStatement, Result,
-    SymbolPointer, VariableId,
+    HIRError, HirExpression, HirExpressionKind, HirStatement, Result, SymbolPointer, VariableId,
     builders::{
         HirQueueBuilder,
         expression::{

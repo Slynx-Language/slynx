@@ -14,9 +14,9 @@ use common::{
 };
 
 use crate::{
-    ComponentId, ComponentMemberDeclaration, DeclarationId, HirComponentDeclaration,
-    HirFunctionDeclaration, HirStatement, HirStaticDeclaration, Result, SlynxHir, SymbolPointer,
-    VariableId,
+    ComponentId, ComponentMemberDeclaration, DeclarationId, DeclarationsPool,
+    HirComponentDeclaration, HirDeclaration, HirDeclarationStorage, HirFunctionDeclaration,
+    HirStatement, HirStaticDeclaration, Result, SlynxHir, SymbolPointer, VariableId,
     builders::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, lowering::ASTLowerer,
         work_channel::WorkChannel,
@@ -167,29 +167,23 @@ impl<'a> HirQueueBuilder<'a> {
     ///Processes the attributes of a just-registered declaration and writes the
     ///resulting HIR attributes back into it. Shared by every hoist path so the
     ///process-attributes-and-write-back postamble is not repeated per kind.
-    pub(crate) fn attach_attributes(
+    pub(crate) fn attach_attributes<Attr: HirDeclaration>(
         &self,
         file: FileId,
-        id: AnyLocalDeclarationId,
+        id: PoolId<Attr>,
         attributes: &[Spanned<ASTAttribute>],
-    ) -> crate::Result<()> {
+    ) -> crate::Result<()>
+    where
+        DeclarationsPool: HirDeclarationStorage<Attr>,
+    {
         let attrs =
             attributes::process_attributes(self.hir, attributes, AnyDeclarationId::new(file, id))?;
         if attrs.is_empty() {
             return Ok(());
         }
         let pool = &mut self.hir.get_file_mut(file).declarations.declarations;
-        let target = match id {
-            AnyLocalDeclarationId::Function(local) => &mut pool.functions.get_mut(local).attributes,
-            AnyLocalDeclarationId::Object(local) => &mut pool.objects.get_mut(local).attributes,
-            AnyLocalDeclarationId::Component(local) => {
-                &mut pool.components.get_mut(local).attributes
-            }
-            AnyLocalDeclarationId::Static(local) => &mut pool.statik.get_mut(local).attributes,
-            AnyLocalDeclarationId::Enum(local) => &mut pool.enums.get_mut(local).attributes,
-            AnyLocalDeclarationId::Alias(_) => return Ok(()),
-        };
-        *target = attrs;
+        pool.pool().get(id).attributes_mut().append(&mut attrs);
+
         Ok(())
     }
     ///Hoists the given function, and then enqueues it so its body can be checked. On being processed, this function might generate more than simply the given `f` function since it will generate all the dependencies of `f` to work. Including impures
