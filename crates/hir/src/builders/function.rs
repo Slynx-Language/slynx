@@ -11,7 +11,7 @@ use crate::{
         expression::{ExpressionBuildResult, ExpressionBuilder},
     },
     context::HirSymbol,
-    id::{AnyLocalDeclarationId, OwnerId},
+    id::OwnerId,
     term::{Term, TermId},
 };
 

@@ -20,7 +20,7 @@ use module_loader::FileId;
 macro_rules! impl_storage {
     ($($target:ident : $ty:ty),* $(,)?) => {
         $(impl HirDeclarationStorage<$ty> for DeclarationsPool {
-            fn pool(&self) -> &Pool<$ty> {
+            fn get_pool(&self) -> &Pool<$ty> {
                 &self.$target
             }
         })*
@@ -42,7 +42,8 @@ impl_storage!(
     components: HirComponentDeclaration,
     statik: HirStaticDeclaration,
     enums: HirEnumDeclaration,
-    extensions: HirExtendDeclaration
+    extensions: HirExtendDeclaration,
+    alias: HirAliasDeclaration,
 );
 
 impl Debug for DeclarationsPool {

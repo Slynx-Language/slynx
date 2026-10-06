@@ -1,9 +1,7 @@
 use common::Spanned;
 use slynx_parser::ASTAttribute;
 
-use crate::{
-    DeclarationId, HirAttribute, HirAttributeKind, LanguageItem, SlynxHir, id::AnyDeclarationId,
-};
+use crate::{DeclarationId, HirAttribute, HirAttributeKind, LanguageItem, SlynxHir};
 
 /// Processes a list of AST attributes and returns their HIR representations.
 ///

@@ -61,7 +61,9 @@ pub use statements::*;
 pub use types::*;
 
 use crate::{
+    DeclarationId, SymbolPointer,
     context::{LangItems, LangMap},
+    id::AnyDeclarationId,
     term::TermId,
 };
 
@@ -71,13 +73,15 @@ pub trait HirDeclaration: std::fmt::Debug {
 }
 
 ///A declaration on the hir that represents a type
-pub trait TypeDeclaration: HirDeclaration {
+pub trait TypeDeclaration: HirDeclaration + Sized {
     fn hir_type(&self) -> TermId;
     fn generics(&self) -> &[GenericParameter];
+    fn as_any_id(id: DeclarationId<Self>) -> AnyDeclarationId;
+    fn name(&self) -> SymbolPointer;
 }
 
 pub trait HirDeclarationStorage<T: HirDeclaration> {
-    fn pool(&self) -> &Pool<T>;
+    fn get_pool(&self) -> &Pool<T>;
 }
 
 pub trait LanguageItem: std::fmt::Debug + Sized + HirDeclaration {

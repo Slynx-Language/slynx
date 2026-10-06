@@ -119,7 +119,7 @@ impl<'a> ASTLowerer<'a> {
                 declaration.name,
                 method,
                 *signature,
-            );
+            )?;
         }
         Ok(interface_term)
     }

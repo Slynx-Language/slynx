@@ -1,14 +1,10 @@
-use common::Span;
 use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, DeclarationsPool, DescriptorId, GenericParameter, HirDeclarationStorage,
-    HirFunctionDeclaration, LanguageItem, Result, SlynxHir, SymbolPointer, TypeDeclaration,
-    VariableId,
+    DeclarationId, DescriptorId, HirFunctionDeclaration, SlynxHir, SymbolPointer, VariableId,
     context::HirSymbol,
     helpers::HirViewer,
-    id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::{TermId, TermNode},
 };
 
@@ -72,39 +68,6 @@ impl SlynxHir<'_> {
     }
     pub fn get_file_mut(&self, id: FileId) -> RefMut<'_, FileId, crate::file::HirFile> {
         self.store.get_file_mut(id)
-    }
-
-    pub fn get_declaration_type<T: TypeDeclaration>(&self, id: DeclarationId<T>) -> TermId
-    where
-        DeclarationsPool: HirDeclarationStorage<T>,
-    {
-        let file = self.store.get_or_create_file(id.owner);
-        let decl = file.pool().get(id.term);
-        decl.hir_type()
-    }
-
-    pub fn get_declaration_generics<T: TypeDeclaration>(
-        &self,
-        id: DeclarationId<T>,
-    ) -> Vec<GenericParameter>
-    where
-        DeclarationsPool: HirDeclarationStorage<T>,
-    {
-        let file = self.store.get_or_create_file(id.owner);
-        let decl = file.pool().get(id.term);
-        decl.generics().to_vec()
-    }
-
-    pub fn type_of_intrinsic<T: LanguageItem + TypeDeclaration>(
-        &self,
-        name: SymbolPointer,
-        span: Span,
-    ) -> Result<TermId>
-    where
-        DeclarationsPool: HirDeclarationStorage<T>,
-    {
-        let id = self.store.lang_items.get::<T>(name, span)?;
-        Ok(self.get_declaration_type(id))
     }
 
     /// Recursively flattens a HIR type to its primitive components.

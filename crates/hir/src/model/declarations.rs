@@ -300,10 +300,10 @@ macro_rules! impl_hir_decl {
                 }
             }
         )*
-
     };
 }
 
+use crate::id::AnyDeclarationId;
 macro_rules! impl_type_decl {
     ($($t:ty),*$(,)?) => {
         $(
@@ -314,7 +314,14 @@ macro_rules! impl_type_decl {
                 fn generics(&self) -> &[GenericParameter] {
                     &self.generics
                 }
+                fn name(&self) -> SymbolPointer {
+                    self.name
+                }
+                fn as_any_id(id: DeclarationId<Self>) -> AnyDeclarationId {
+                    AnyDeclarationId::from(id)
+                }
             }
+
         )*
     };
 }

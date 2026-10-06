@@ -27,7 +27,29 @@ pub enum AnyLocalDeclarationId {
 }
 
 pub type AnyDeclarationId = Owned<AnyLocalDeclarationId>;
+macro_rules! impl_from_decl_id {
+    ($($name:ident: $t:ty),*$(,)?) => {
+        $(
+            impl From<DeclarationId<$t>> for AnyDeclarationId {
+                fn from(id: DeclarationId<$t>) -> Self {
+                    AnyDeclarationId {
+                        owner: id.owner,
+                        term: AnyLocalDeclarationId::$name(id.term),
+                    }
+                }
+            }
+        )*
+    }
+}
 
+impl_from_decl_id!(
+    Function: HirFunctionDeclaration,
+    Object: HirObjectDeclaration,
+    Component: HirComponentDeclaration,
+    Enum: HirEnumDeclaration,
+    Alias: HirAliasDeclaration,
+    Static: HirStaticDeclaration,
+);
 pub type DeclarationId<T> = Owned<PoolId<T>>;
 
 /// Type alias for a function declaration ID.

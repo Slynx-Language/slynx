@@ -12,7 +12,7 @@ use crate::{
     },
     components::ComponentExpressionDescriptor,
     context::HirSymbol,
-    id::{AnyLocalDeclarationId, OwnerId},
+    id::OwnerId,
 };
 
 pub struct ComponentBuildResult {

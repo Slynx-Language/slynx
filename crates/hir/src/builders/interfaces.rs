@@ -302,6 +302,7 @@ impl<'a> HirQueueBuilder<'a> {
         }
 
         let declaration = HirExtendDeclaration {
+            generics: Vec::new(),
             target: descriptor.target,
             interfaces: interface_ids,
             methods,

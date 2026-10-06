@@ -14,17 +14,15 @@ use common::{
 };
 
 use crate::{
-    ComponentId, ComponentMemberDeclaration, DeclarationId, DeclarationsPool,
-    HirComponentDeclaration, HirDeclaration, HirDeclarationStorage, HirFunctionDeclaration,
-    HirStatement, HirStaticDeclaration, LanguageItem, Owned, Result, SlynxHir, SymbolPointer,
-    VariableId,
+    ComponentId, ComponentMemberDeclaration, DeclarationId, HirComponentDeclaration,
+    HirFunctionDeclaration, HirStatement, HirStaticDeclaration, Owned, Result, SlynxHir,
+    SymbolPointer, VariableId,
     attributes::process_attributes,
     builders::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, lowering::ASTLowerer,
         work_channel::WorkChannel,
     },
     context::HirSymbol,
-    id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::TermId,
 };
 use crossbeam_channel::select;
@@ -32,8 +30,8 @@ use dashmap::{DashMap, DashSet};
 pub use expression::*;
 use module_loader::{FileId, Modules};
 use slynx_parser::{
-    ASTAttribute, ASTStatement, ComponentDeclaration, ExtendDeclaration, GenericIdentifier,
-    StaticDeclaration, Type, TypeContext,
+    ASTStatement, ComponentDeclaration, ExtendDeclaration, GenericIdentifier, StaticDeclaration,
+    Type, TypeContext,
 };
 
 /// Orchestrates the AST → HIR build: hoists `main`, enqueues its transitive
