@@ -100,35 +100,35 @@ impl<'a> HirQueueBuilder<'a> {
         interface_name: SymbolPointer,
         method: &slynx_parser::FuncDeclaration,
         signature: TermId,
-    ) -> DeclarationId<HirFunctionDeclaration> {
+    ) -> Result<DeclarationId<HirFunctionDeclaration>> {
         let name = self.hir.intern_name(&format!(
             "{}_interface_{}",
             self.hir.get_name(method.name),
             self.hir.get_name(interface_name),
         ));
-        let declaration =
-            self.hir
-                .symbols_registry
-                .get_or_insert_function(HirSymbol::new(owner, name), || {
-                    self.hir.store.get_or_create_file(owner).create_function(
-                        HirFunctionDeclaration {
-                            name,
-                            // `Self` is generic parameter 0 so the receiver supplied
-                            // at the call site substitutes it.
-                            generics: vec![GenericParameter {
-                                name: self.hir.intern_name("Self"),
-                                bounds: Vec::new(),
-                            }],
-                            args: Default::default(),
-                            ty: signature,
-                            statements: Vec::new(),
-                            visibility: VisibilityModifier::Public,
-                            external: false,
-                            attributes: Vec::new(),
-                            span: method.span,
-                        },
-                    )
-                });
+        let declaration = self.hir.symbols_registry.get_or_insert_function(
+            HirSymbol::new(owner, name),
+            || {
+                Ok(self.hir.store.get_or_create_file(owner).create_function(
+                    HirFunctionDeclaration {
+                        name,
+                        // `Self` is generic parameter 0 so the receiver supplied
+                        // at the call site substitutes it.
+                        generics: vec![GenericParameter {
+                            name: self.hir.intern_name("Self"),
+                            bounds: Vec::new(),
+                        }],
+                        args: Default::default(),
+                        ty: signature,
+                        statements: Vec::new(),
+                        visibility: VisibilityModifier::Public,
+                        external: false,
+                        attributes: Vec::new(),
+                        span: method.span,
+                    },
+                ))
+            },
+        )?;
         self.hir
             .types
             .create_interface_method(InterfaceMethodSignature {
@@ -136,7 +136,7 @@ impl<'a> HirQueueBuilder<'a> {
                 name: method.name,
                 declaration,
             });
-        declaration
+        Ok(declaration)
     }
 
     ///Materializes every reachable extension that declares a method named
@@ -305,6 +305,7 @@ impl<'a> HirQueueBuilder<'a> {
             target: descriptor.target,
             interfaces: interface_ids,
             methods,
+            attributes: Vec::new(),
         };
         let id = {
             let file = self

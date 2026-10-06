@@ -6,7 +6,7 @@ use std::{
 use crate::{
     HirAliasDeclaration, HirComponentDeclaration, HirDeclarationStorage, HirEnumDeclaration,
     HirExtendDeclaration, HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration,
-    SymbolPointer,
+    Result, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::TermId,
 };
@@ -27,13 +27,13 @@ macro_rules! impl_storage {
     };
 }
 pooled!(pub DeclarationsPool {
-    pub objects: HirObjectDeclaration,
-    pub functions: HirFunctionDeclaration,
-    pub components: HirComponentDeclaration,
-    pub alias: HirAliasDeclaration,
-    pub statik: HirStaticDeclaration,
-    pub enums: HirEnumDeclaration,
-    pub extensions: HirExtendDeclaration,
+    pub objects: HirObjectDeclaration where Err=Result,
+    pub functions: HirFunctionDeclaration where Err=Result,
+    pub components: HirComponentDeclaration where Err=Result,
+    pub alias: HirAliasDeclaration where Err=Result,
+    pub statik: HirStaticDeclaration where Err=Result,
+    pub enums: HirEnumDeclaration where Err=Result,
+    pub extensions: HirExtendDeclaration where Err=Result,
 });
 
 impl_storage!(

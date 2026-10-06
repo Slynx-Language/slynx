@@ -1,15 +1,18 @@
 use common::Spanned;
 use slynx_parser::ASTAttribute;
 
-use crate::{HirAttribute, HirAttributeKind, SlynxHir, id::AnyDeclarationId};
+use crate::{
+    DeclarationId, HirAttribute, HirAttributeKind, LanguageItem, SlynxHir, id::AnyDeclarationId,
+};
 
 /// Processes a list of AST attributes and returns their HIR representations.
 ///
 /// Known attributes are handled immediately:
 /// - `@builtin("name")` registers the declaration into `LangItems`.
 /// - `@capabilities(...)` is stored for the effect system.
-pub(crate) fn process_attributes(
+pub(crate) fn process_attributes<T: LanguageItem>(
     hir: &SlynxHir,
+    decl_id: DeclarationId<T>,
     attrs: &[Spanned<ASTAttribute>],
 ) -> crate::Result<Vec<HirAttribute>> {
     let mut out = Vec::with_capacity(attrs.len());

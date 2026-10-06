@@ -87,7 +87,7 @@ impl Monomorphizer {
                 let fields = struct_view
                     .fields()
                     .into_iter()
-                    .map(|(field)| {
+                    .map(|field| {
                         let new_ty = monomorphizer.resolve_expression_type(
                             hir,
                             substitute_type(hir, field.ty, subst)?,

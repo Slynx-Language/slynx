@@ -3,7 +3,8 @@ use slynx_parser::{ComponentDeclaration, ComponentMemberKind, TypeContext};
 
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
-    Result,
+    Owned, Result,
+    attributes::process_attributes,
     builders::{
         HirQueueBuilder, PendantComponent,
         expression::{ExpressionBuilder, ExpressionDescriptor},
@@ -78,29 +79,28 @@ impl<'a> HirQueueBuilder<'a> {
         let id = self.hir.symbols_registry.get_or_insert_component(
             HirSymbol::new(owner, component.name),
             || {
-                let decl = HirComponentDeclaration {
-                    name: component.name,
-                    generics: self.lowerer.generic_parameters_of(
-                        self,
-                        &component.generics,
-                        owner,
-                        &TypeContext::new(&component.generics.type_params),
-                    )?,
-                    props: Vec::new(),
-                    ty,
-                    visibility: component.visibility,
-                    attributes: Vec::new(),
-                };
-                let file = self.hir.store.get_or_create_file(node);
-                Ok(file.create_component(decl))
-            },
-        )?;
+                let generics = self.lowerer.generic_parameters_of(
+                    self,
+                    &component.generics,
+                    owner,
+                    &TypeContext::new(&component.generics.type_params),
+                )?;
 
-        // Process attributes after the declaration is registered
-        self.attach_attributes(
-            id.owner,
-            AnyLocalDeclarationId::Component(id.term),
-            &component.attributes,
+                let file = self.hir.store.get_or_create_file(node);
+                let id = file.insert_at_components_with_id(|id| {
+                    let id = Owned::new(node, id);
+                    let attributes = process_attributes(self.hir, id, &component.attributes)?;
+                    Ok(HirComponentDeclaration {
+                        name: component.name,
+                        generics,
+                        props: Vec::new(),
+                        ty,
+                        visibility: component.visibility,
+                        attributes,
+                    })
+                })?;
+                Ok(Owned::new(node, id))
+            },
         )?;
 
         self.components.send(PendantComponent {

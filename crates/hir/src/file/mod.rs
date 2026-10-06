@@ -22,7 +22,7 @@ pub struct HirFile {
 macro_rules! create_methods {
     ($($name: ident = $target:ident($typ:ty)),* $(,)?) => {
         $(
-            #[allow(dead_code)]
+
             pub(crate) fn $name(&self, arg: $typ) -> DeclarationId<$typ> {
                 let out = self.$target(arg);
                 DeclarationId::new(self.file, out)

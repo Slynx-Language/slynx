@@ -1,10 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use common::{Spanned, pool::PoolId};
-use slynx_hir::{
-    HirStatement, VariableId,
-    term::{Term, TermId},
-};
+use slynx_hir::{HirStatement, VariableId, term::TermId};
 use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, Label, SlynxIR, Value};
 
 use crate::{CodegenError, lowerers::LoweringState};

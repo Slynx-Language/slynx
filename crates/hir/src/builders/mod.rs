@@ -16,7 +16,9 @@ use common::{
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, DeclarationsPool,
     HirComponentDeclaration, HirDeclaration, HirDeclarationStorage, HirFunctionDeclaration,
-    HirStatement, HirStaticDeclaration, Result, SlynxHir, SymbolPointer, VariableId,
+    HirStatement, HirStaticDeclaration, LanguageItem, Owned, Result, SlynxHir, SymbolPointer,
+    VariableId,
+    attributes::process_attributes,
     builders::{
         expression::ExpressionBuildResult, function::HirFunctionBuilder, lowering::ASTLowerer,
         work_channel::WorkChannel,
@@ -164,28 +166,6 @@ impl<'a> HirQueueBuilder<'a> {
         }
     }
 
-    ///Processes the attributes of a just-registered declaration and writes the
-    ///resulting HIR attributes back into it. Shared by every hoist path so the
-    ///process-attributes-and-write-back postamble is not repeated per kind.
-    pub(crate) fn attach_attributes<Attr: HirDeclaration>(
-        &self,
-        file: FileId,
-        id: PoolId<Attr>,
-        attributes: &[Spanned<ASTAttribute>],
-    ) -> crate::Result<()>
-    where
-        DeclarationsPool: HirDeclarationStorage<Attr>,
-    {
-        let attrs =
-            attributes::process_attributes(self.hir, attributes, AnyDeclarationId::new(file, id))?;
-        if attrs.is_empty() {
-            return Ok(());
-        }
-        let pool = &mut self.hir.get_file_mut(file).declarations.declarations;
-        pool.pool().get(id).attributes_mut().append(&mut attrs);
-
-        Ok(())
-    }
     ///Hoists the given function, and then enqueues it so its body can be checked. On being processed, this function might generate more than simply the given `f` function since it will generate all the dependencies of `f` to work. Including impures
     pub(crate) fn enqueue_static(
         &self,
@@ -197,26 +177,23 @@ impl<'a> HirQueueBuilder<'a> {
             .lower_type(self, requester, s.ty, &TypeContext::EMPTY)?
             .term;
         let name = s.name;
-        let id =
-            self.hir
-                .symbols_registry
-                .get_or_insert_static(HirSymbol::new(requester, name), || {
-                    let decl = HirStaticDeclaration {
+        let id = self.hir.symbols_registry.get_or_insert_static(
+            HirSymbol::new(requester, name),
+            || {
+                let file = self.hir.store.get_or_create_file(requester);
+                let id = file.insert_at_statik_with_id(|id| {
+                    let attributes =
+                        process_attributes(self.hir, Owned::new(requester, id), &s.attributes)?;
+                    Ok(HirStaticDeclaration {
                         name,
                         ty,
                         visibility: s.visibility,
                         external: s.external,
-                        attributes: Vec::new(),
-                    };
-                    let file = self.hir.store.get_or_create_file(requester);
-                    file.create_static(decl)
-                });
-
-        // Process attributes after the declaration is registered
-        self.attach_attributes(
-            requester,
-            AnyLocalDeclarationId::Static(id.term),
-            &s.attributes,
+                        attributes,
+                    })
+                })?;
+                Ok(Owned::new(requester, id))
+            },
         )?;
 
         self.statics.send(());

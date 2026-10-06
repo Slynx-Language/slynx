@@ -83,6 +83,15 @@ impl<T> Pool<T> {
             inner: boxcar::Vec::new(),
         }
     }
+
+    pub fn insert_with_id<F: FnOnce(PoolId<T>) -> T>(&self, f: F) -> PoolId<T> {
+        let out = self.inner.push_with(|idx| {
+            let id = PoolId(idx as u32, PhantomData);
+            f(id)
+        });
+        PoolId(out as u32, PhantomData)
+    }
+
     ///Inserts the given `data` into this pool. If it was previously inserted returns the ID of the previous value
     pub fn insert(&self, data: T) -> PoolId<T> {
         let idx = self.inner.push(data);

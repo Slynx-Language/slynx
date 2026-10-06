@@ -3,8 +3,9 @@ use module_loader::FileId;
 use slynx_parser::{ASTFunction, ASTStatement, FuncDeclaration, Type, TypeContext};
 
 use crate::{
-    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Result, SymbolPointer,
+    DeclarationId, HIRError, HirFunctionDeclaration, HirStatement, Owned, Result, SymbolPointer,
     VariableId,
+    attributes::process_attributes,
     builders::{
         HirQueueBuilder, PendantFunction,
         expression::{ExpressionBuildResult, ExpressionBuilder},
@@ -62,10 +63,11 @@ impl<'a> HirQueueBuilder<'a> {
             span: method.span(),
         };
         let make_declaration = || {
-            self.hir
+            Ok(self
+                .hir
                 .store
                 .get_or_create_file(entry)
-                .create_function(declaration)
+                .create_function(declaration))
         };
         let declaration_id = if register_as_inherent {
             self.hir
@@ -73,7 +75,7 @@ impl<'a> HirQueueBuilder<'a> {
                 .get_or_insert_function(HirSymbol::new(entry, declaration_name), make_declaration)
         } else {
             make_declaration()
-        };
+        }?;
 
         if register_as_inherent {
             self.hir
@@ -113,11 +115,14 @@ impl<'a> HirQueueBuilder<'a> {
             owner,
             &TypeContext::new(&f.generics.type_params),
         )?;
-        let id =
-            self.hir
-                .symbols_registry
-                .get_or_insert_function(HirSymbol::new(owner, f.name), || {
-                    let decl = HirFunctionDeclaration {
+        let id = self.hir.symbols_registry.get_or_insert_function(
+            HirSymbol::new(owner, f.name),
+            || {
+                let file = self.hir.store.get_or_create_file(owner);
+                let id = file.insert_at_functions_with_id(|id| {
+                    let attributes =
+                        process_attributes(self.hir, Owned::new(owner, id), &f.attributes)?;
+                    Ok(HirFunctionDeclaration {
                         name: f.name,
                         generics,
                         args: Default::default(),
@@ -125,18 +130,12 @@ impl<'a> HirQueueBuilder<'a> {
                         statements: Vec::new(),
                         visibility: f.visibility,
                         external: f.external,
-                        attributes: Vec::new(),
+                        attributes,
                         span: f.span,
-                    };
-                    let file = self.hir.store.get_or_create_file(owner);
-                    file.create_function(decl)
-                });
-
-        // Process attributes after the declaration is registered so we have the decl_id
-        self.attach_attributes(
-            id.owner,
-            AnyLocalDeclarationId::Function(id.term),
-            &f.attributes,
+                    })
+                })?;
+                Ok(Owned::new(owner, id))
+            },
         )?;
 
         self.bodies.send(PendantFunction {
