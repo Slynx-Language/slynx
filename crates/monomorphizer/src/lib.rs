@@ -716,7 +716,7 @@ impl Monomorphizer {
                         subst,
                         expression.span,
                     )?;
-                    let AnyLocalDeclarationId::Function(local_id) = target.local_id else {
+                    let AnyLocalDeclarationId::Function(local_id) = target.term else {
                         unreachable!("A monomorphized call target must be a function")
                     };
                     call_ty = self.function_return_type(hir, target)?;
@@ -726,7 +726,7 @@ impl Monomorphizer {
                 } else {
                     let target =
                         self.resolve_function_target(hir, name, new_generics, expression.span)?;
-                    let AnyLocalDeclarationId::Function(local_id) = target.local_id else {
+                    let AnyLocalDeclarationId::Function(local_id) = target.term else {
                         unreachable!("A monomorphized call target must be a function")
                     };
                     call_ty = self.function_return_type(hir, target)?;

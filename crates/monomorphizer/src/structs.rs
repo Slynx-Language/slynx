@@ -78,7 +78,7 @@ impl Monomorphizer {
             args,
             span,
             |hir, cached| {
-                let AnyLocalDeclarationId::Object(local_id) = cached.local_id else {
+                let AnyLocalDeclarationId::Object(local_id) = cached.term else {
                     unreachable!("A monomorphized object target must be an object")
                 };
                 hir.get_file(cached.owner).declarations.declarations.objects[local_id].ty

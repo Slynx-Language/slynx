@@ -13,7 +13,7 @@ use crate::{
 impl HirViewer<'_, AnyDeclarationId> {
     pub fn name(&self) -> SymbolPointer<FrontendSymbol> {
         let owner = self.data.owner;
-        match self.data.local_id {
+        match self.data.term {
             AnyLocalDeclarationId::Alias(local_id) => {
                 self.hir.get_alias(DeclarationId::new(owner, local_id)).name
             }

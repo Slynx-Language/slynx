@@ -75,7 +75,7 @@ impl SlynxHir<'_> {
 
     pub fn get_declaration_type(&self, id: AnyDeclarationId) -> TermId {
         let file = self.store.get_or_create_file(id.owner);
-        match id.local_id {
+        match id.term {
             AnyLocalDeclarationId::Alias(alias) => file.alias.get(alias).ty,
             AnyLocalDeclarationId::Component(component) => file.components.get(component).ty,
             AnyLocalDeclarationId::Function(func) => file.functions.get(func).ty,
@@ -87,7 +87,7 @@ impl SlynxHir<'_> {
 
     pub fn get_declaration_generics(&self, id: AnyDeclarationId) -> Vec<GenericParameter> {
         let file = self.store.get_or_create_file(id.owner);
-        match id.local_id {
+        match id.term {
             AnyLocalDeclarationId::Function(func) => &file.functions.get(func).generics,
             AnyLocalDeclarationId::Alias(alias) => &file.alias.get(alias).generics,
             AnyLocalDeclarationId::Component(component) => &file.components.get(component).generics,

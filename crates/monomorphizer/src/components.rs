@@ -87,7 +87,7 @@ impl Monomorphizer {
             args,
             span,
             |hir, cached| {
-                let AnyLocalDeclarationId::Component(local_id) = cached.local_id else {
+                let AnyLocalDeclarationId::Component(local_id) = cached.term else {
                     unreachable!("A monomorphized component target must be a component")
                 };
                 hir.get_file(cached.owner)

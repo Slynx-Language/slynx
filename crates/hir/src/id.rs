@@ -27,17 +27,7 @@ pub enum AnyLocalDeclarationId {
     Enum(PoolId<HirEnumDeclaration>),
 }
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
-pub struct AnyDeclarationId {
-    pub owner: FileId,
-    pub local_id: AnyLocalDeclarationId,
-}
-
-impl AnyDeclarationId {
-    pub fn new(owner: FileId, local_id: AnyLocalDeclarationId) -> Self {
-        Self { owner, local_id }
-    }
-}
+pub type AnyDeclarationId = Owned<AnyLocalDeclarationId>;
 
 pub type DeclarationId<T> = Owned<PoolId<T>>;
 

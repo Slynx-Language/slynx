@@ -149,7 +149,7 @@ impl Monomorphizer {
         hir: &SlynxHir,
         id: AnyDeclarationId,
     ) -> Result<TermId> {
-        let AnyLocalDeclarationId::Function(local_id) = id.local_id else {
+        let AnyLocalDeclarationId::Function(local_id) = id.term else {
             unreachable!("A monomorphized call target must be a function")
         };
         let file = hir.get_file(id.owner);
