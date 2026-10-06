@@ -250,13 +250,13 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool 
             let view = hir.view(*component);
             view.props()
                 .iter()
-                .any(|prop| contains_resolvable_reference(hir, *prop))
+                .any(|prop| contains_resolvable_reference(hir, prop.ty))
                 || view.children().iter().any(|child| {
                     let child = hir.view(*child);
                     child
                         .props()
                         .iter()
-                        .any(|prop| contains_resolvable_reference(hir, *prop))
+                        .any(|prop| contains_resolvable_reference(hir, prop.ty))
                 })
         }
         _ => false,

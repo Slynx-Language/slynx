@@ -32,7 +32,10 @@ impl ExpressionBuilder {
         let ty = lowered.term;
         if queue
             .hir
-            .find_component_by_symbol(HirSymbol::new(lowered.owner, name))
+            .find_component_by_symbol(HirSymbol {
+                owner: lowered.owner,
+                term: name,
+            })
             .is_none()
         {
             if let Some(ASTType {
@@ -57,14 +60,16 @@ impl ExpressionBuilder {
         for value in &component.values {
             match value {
                 ComponentMemberValue::Assign { prop_name, rhs }
-                    if let Some(position) =
-                        comp_view.prop_names().iter().position(|n| n == prop_name) =>
+                    if let Some(position) = comp_view
+                        .props()
+                        .iter()
+                        .position(|prop| prop.name == *prop_name) =>
                 {
                     let expr = self.build_expression(
                         queue,
                         ExpressionDescriptor {
                             target: *rhs,
-                            expected: Some(comp_view.props()[position]),
+                            expected: Some(comp_view.props()[position].ty),
                             context,
                         },
                     )?;

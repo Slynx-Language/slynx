@@ -16,13 +16,13 @@ impl<'a> TypeLowerer<'a> {
             return Err(CodegenError::new(CodegenErrorKind::NotAStruct(decl)));
         };
         let fields = if let Some(viewer) = self.hir.view(decl).dereference().is_struct() {
-            viewer.field_types().to_vec()
+            viewer.fields().to_vec()
         } else {
             return Err(CodegenError::new(CodegenErrorKind::NotAStruct(decl)));
         };
 
         for field in &fields {
-            let ty = self.get_or_create_ir_type(*field, ir)?;
+            let ty = self.get_or_create_ir_type(field.ty, ir)?;
             let obj_ty = ir.types.get_object_type_mut(obj);
             obj_ty.insert_field(ty);
         }

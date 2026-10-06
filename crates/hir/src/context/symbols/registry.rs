@@ -1,25 +1,11 @@
-use dashmap::{DashMap, DashSet};
-use module_loader::FileId;
-
 use crate::{
-    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
+    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration, Owned,
     SymbolPointer, id::AnyDeclarationId,
 };
+use dashmap::{DashMap, DashSet};
 
-#[derive(Debug, PartialEq, Eq, Hash)]
 ///Represents a symbol on the HIR that was found at an specific file and has an specific name
-pub struct HirSymbol {
-    ///The file that contains the given `name`
-    file: FileId,
-    ///The actual name that appeared in the file with this file id
-    name: SymbolPointer,
-}
-
-impl HirSymbol {
-    pub fn new(file: FileId, name: SymbolPointer) -> Self {
-        Self { file, name }
-    }
-}
+pub type HirSymbol = Owned<SymbolPointer>;
 
 macro_rules! impl_get_or_insert {
     ($($fname:ident: $type:ty => $pname:ident),*$(,)?) => {

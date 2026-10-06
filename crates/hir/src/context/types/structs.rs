@@ -6,20 +6,12 @@ use common::{
 };
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, StructType, SymbolPointer, TupleType, helpers::Visible,
-    term::TermId,
+    DeclarationId, HirFunctionDeclaration, StructField, StructMethod, StructType, SymbolPointer,
+    TupleType, helpers::Visible, term::TermId,
 };
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct StructDefinition {
-    pub(crate) name: SymbolPointer,
-    pub(crate) fields: Vec<Visible<SymbolPointer>>,
-    pub(crate) methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
-}
 
 dedup_pooled!(pub StructsPool {
     structs: StructType,
-    bodies: StructDefinition,
     tuples: TupleType,
 });
 
@@ -29,23 +21,39 @@ impl StructsPool {
         name: SymbolPointer,
         fields: Vec<Visible<(SymbolPointer, TermId)>>,
         methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
-    ) -> (DedupPoolId<StructType>, DedupPoolId<StructDefinition>) {
-        let (names, types) = fields
+    ) -> DedupPoolId<StructType> {
+        let fields = fields
             .into_iter()
-            .map(|v| (Visible::new(v.visibility, v.data.0), v.data.1))
+            .map(|field| {
+                Visible::new(
+                    field.visibility,
+                    StructField {
+                        name: field.data.0,
+                        ty: field.data.1,
+                    },
+                )
+            })
             .collect();
-        let def_id = self.bodies.insert(StructDefinition {
-            name,
-            fields: names,
-            methods,
-        });
+        let methods = methods
+            .into_iter()
+            .map(|field| {
+                Visible::new(
+                    field.visibility,
+                    StructMethod {
+                        name: field.data.0,
+                        target: field.data.1,
+                    },
+                )
+            })
+            .collect();
+
         let s = StructType {
-            fields: types,
-            metadata: def_id,
+            name,
+            fields,
+            methods,
         };
 
-        let id = self.structs.insert(s);
-        (id, def_id)
+        self.structs.insert(s)
     }
 }
 
@@ -53,7 +61,6 @@ impl Debug for StructsPool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StructsPool")
             .field("structs", &self.structs)
-            .field("bodies", &self.bodies)
             .field("tuples", &self.tuples)
             .finish()
     }

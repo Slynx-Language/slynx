@@ -145,14 +145,10 @@ impl Monomorphizer {
         let properties = view
             .props()
             .iter()
-            .zip(view.prop_names())
-            .map(|(prop_ty, prop_name)| {
-                let new_ty = self.resolve_expression_type(
-                    hir,
-                    substitute_type(hir, *prop_ty, subst)?,
-                    span,
-                )?;
-                Ok((*prop_name, new_ty))
+            .map(|prop| {
+                let new_ty =
+                    self.resolve_expression_type(hir, substitute_type(hir, prop.ty, subst)?, span)?;
+                Ok((prop.name, new_ty))
             })
             .collect::<Result<Vec<_>>>()?;
 

@@ -100,6 +100,18 @@ pub struct Owned<T: Clone + Hash + Eq + Debug> {
     pub term: T,
 }
 
+impl<T> Owned<T>
+where
+    T: Clone + Hash + Eq + Debug,
+{
+    pub fn new(owner: FileId, content: T) -> Self {
+        Self {
+            owner,
+            term: content,
+        }
+    }
+}
+
 pub use crate::file::DeclarationsPool;
 pub use store::HirStore;
 

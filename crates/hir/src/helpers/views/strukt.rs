@@ -1,8 +1,8 @@
 use common::{VisibilityModifier, pool::DedupPoolId};
 
 use crate::{
-    DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, StructType, SymbolPointer,
-    TupleType,
+    DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, StructField, StructMethod,
+    StructType, SymbolPointer, TupleType,
     helpers::{HirViewer, Visible},
     term::TermId,
 };
@@ -12,25 +12,14 @@ impl HirViewer<'_, DedupPoolId<StructType>> {
         self.hir.types.get_struct_name(self.data)
     }
 
-    pub fn fields(&self) -> &[Visible<SymbolPointer>] {
+    pub fn fields(&self) -> &[Visible<StructField>] {
         self.hir.types.get_struct_fields(self.data)
     }
 
-    pub fn field_types(&self) -> &[TermId] {
-        self.hir.types.get_struct_field_types(self.data)
+    pub fn methods(&self) -> &[Visible<StructMethod>] {
+        &self.hir.types[self.data].methods
     }
-
-    pub fn signature(&self) -> Vec<(&Visible<SymbolPointer>, &TermId)> {
-        self.hir.types.get_struct_signature(self.data)
-    }
-    pub fn methods(&self) -> &[Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>] {
-        let metadata = self.hir.types[self.data].metadata;
-        &self.hir.types[metadata].methods
-    }
-    pub fn public_methods(
-        &self,
-    ) -> impl Iterator<Item = &Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>
-    {
+    pub fn public_methods(&self) -> impl Iterator<Item = &Visible<StructMethod>> {
         self.methods()
             .iter()
             .filter(|m| m.visibility == VisibilityModifier::Public)
@@ -41,9 +30,9 @@ impl HirViewer<'_, DedupPoolId<StructType>> {
         name: SymbolPointer,
         visibility: VisibilityModifier,
     ) -> Option<DeclarationId<HirFunctionDeclaration>> {
-        self.methods()
-            .iter()
-            .find_map(|m| (m.data.0 == name && m.visibility == visibility).then_some(m.data.1))
+        self.methods().iter().find_map(|m| {
+            (m.data.name == name && m.visibility == visibility).then_some(m.data.target)
+        })
     }
 }
 

@@ -4,12 +4,13 @@ use slynx_hir::{
     SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::ExpressionUse,
+    term::TermId,
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
 use smallvec::{SmallVec, smallvec};
 
 use crate::{
-    CodegenError, CodegenErrorKind, TypeId,
+    CodegenError, CodegenErrorKind,
     lowerers::{LoweringState, functions::FunctionContext},
 };
 
@@ -17,7 +18,7 @@ impl<'a> LoweringState<'a> {
     fn lower_enum(
         &mut self,
         context: &mut FunctionContext,
-        ty: TypeId,
+        ty: TermId,
         variant: usize,
         args: &[Spanned<PoolId<HirExpression>>],
     ) -> Result<Value, CodegenError> {
@@ -135,7 +136,7 @@ impl<'a> LoweringState<'a> {
 
     fn lower_struct_literal(
         &mut self,
-        name: TypeId,
+        name: TermId,
         fields: &[Spanned<PoolId<HirExpression>>],
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {

@@ -143,14 +143,19 @@ impl ComponentBuilder {
                     ..
                 } => {
                     let rhs = if let Some(rhs) = rhs {
-                        Some(self.builder.build_expression(
-                            queue,
-                            ExpressionDescriptor {
-                                target: *rhs,
-                                expected: component_type.props().get(prop_index).cloned(),
-                                context: &context,
-                            },
-                        )?)
+                        Some(
+                            self.builder.build_expression(
+                                queue,
+                                ExpressionDescriptor {
+                                    target: *rhs,
+                                    expected: component_type
+                                        .props()
+                                        .get(prop_index)
+                                        .map(|field| field.data.ty),
+                                    context: &context,
+                                },
+                            )?,
+                        )
                     } else {
                         None
                     };

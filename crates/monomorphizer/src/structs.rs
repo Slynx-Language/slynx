@@ -89,18 +89,15 @@ impl Monomorphizer {
             },
             |monomorphizer, hir, subst, mangled_symbol, _| {
                 let fields = struct_view
-                    .signature()
+                    .fields()
                     .into_iter()
-                    .map(|(field_name, field_ty)| {
+                    .map(|(field)| {
                         let new_ty = monomorphizer.resolve_expression_type(
                             hir,
-                            substitute_type(hir, *field_ty, subst)?,
+                            substitute_type(hir, field.ty, subst)?,
                             span,
                         )?;
-                        Ok(Visible::new(
-                            field_name.visibility,
-                            (field_name.data, new_ty),
-                        ))
+                        Ok(Visible::new(field.visibility, (field.name, new_ty)))
                     })
                     .collect::<Result<Vec<_>>>()?;
 

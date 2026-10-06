@@ -9,7 +9,7 @@ use slynx_hir::{
 };
 use slynx_ir::{IRTypeId, SlynxIR};
 
-use crate::{CodegenError, CodegenErrorKind, TypeId};
+use crate::{CodegenError, CodegenErrorKind};
 
 ///The IR layout of an enum type.
 ///
@@ -40,7 +40,7 @@ pub struct EnumLayout {
 pub struct TypeLowerer<'a> {
     hir: &'a SlynxHir<'a>,
     /// IR layouts for enum types.
-    enum_layouts: HashMap<TypeId, EnumLayout>,
+    enum_layouts: HashMap<TermId, EnumLayout>,
     types: HashMap<TermId, IRTypeId>,
 }
 
@@ -55,27 +55,23 @@ impl<'a> TypeLowerer<'a> {
 
     ///Registers an already-known HIR→IR mapping (used by declaration hoisting,
     ///where the IR handle is created up-front and non-primitives resolve to it).
-    pub(crate) fn register_mapping(&mut self, hir_ty: TypeId, ir_ty: IRTypeId) {
+    pub(crate) fn register_mapping(&mut self, hir_ty: TermId, ir_ty: IRTypeId) {
         self.types.insert(hir_ty, ir_ty);
     }
 
     ///The registered [`EnumLayout`] for an enum type. Returns a single typed
     ///error rather than letting every consumer construct a near-identical
     ///"layout is not registered" string.
-    pub(crate) fn enum_layout(&self, ty: &TypeId) -> Result<&EnumLayout, CodegenError> {
+    pub(crate) fn enum_layout(&self, ty: &TermId) -> Result<&EnumLayout, CodegenError> {
         self.enum_layouts
             .get(ty)
             .ok_or(CodegenError::new(CodegenErrorKind::MissingEnumLayout(*ty)))
     }
     pub(crate) fn get_or_create_ir_type(
         &mut self,
-        ty: TypeId,
+        ty: TermId,
         ir: &mut SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
-        // `dereference` unrolls named-type references (the term form of the
-        // old `HirType::Reference`) while leaving arrays, vectors and raw
-        // `Ref`s intact, mirroring the classic `get_or_create_ir_type` that
-        // matched on `view.dereference().raw()`.
         let deref = self.hir.view(ty).dereference();
         let out = match deref.raw().node() {
             TermNode::Primitive(PrimitiveType::Signed { .. }) => ir.types.int_type(),
@@ -125,7 +121,7 @@ impl<'a> TypeLowerer<'a> {
         Ok(out)
     }
 
-    pub(crate) fn get_mapped_type(&self, ty: &TypeId) -> Option<IRTypeId> {
+    pub(crate) fn get_mapped_type(&self, ty: &TermId) -> Option<IRTypeId> {
         self.types.get(ty).cloned()
     }
 
@@ -145,7 +141,7 @@ impl<'a> TypeLowerer<'a> {
         let struct_view = concrete
             .is_struct()
             .ok_or(CodegenError::new(CodegenErrorKind::NotAStruct(concrete_ty)))?;
-        let field_type = struct_view.field_types()[field_index];
+        let field_type = struct_view.fields()[field_index].ty;
         let field_type = self.get_or_create_ir_type(field_type, ir)?;
         Ok(ir.types.pointer_type(field_type))
     }

@@ -11,17 +11,15 @@ use dashmap::{DashMap, DashSet};
 
 use crate::{
     ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, InterfaceType,
-    Result, StructType, SymbolPointer, TupleType, VariableId,
+    Result, StructField, StructType, SymbolPointer, TupleType, VariableId,
     helpers::Visible,
     interface::InterfaceTerm,
     term::{ExtensionNode, Term, TermId, TermNode},
 };
 
-pub use components::ComponentDefinition;
 pub use methods::{InterfaceMethodSignature, MethodTable};
 pub use registry::TypeRegistry;
 pub use storage::TypeStorage;
-pub use structs::StructDefinition;
 
 #[derive(Debug)]
 /// Manages all types in the HIR, including built-ins, user-defined types, and variables.
@@ -97,7 +95,7 @@ impl TypesContext {
         fields: Vec<Visible<(SymbolPointer, TermId)>>,
         methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
     ) -> TermId {
-        let (id, _) = self.storage.structs.insert(name, fields, methods);
+        let id = self.storage.structs.insert(name, fields, methods);
         let id = self.storage.insert_type(Term::struct_type(id));
         self.registry.register(name, id);
         id
@@ -147,7 +145,7 @@ impl TypesContext {
         properties: Vec<(SymbolPointer, TermId)>,
         children: Vec<DedupPoolId<ComponentType>>,
     ) -> TermId {
-        let (comp_ty, _) = self.storage.components.insert(name, properties, children);
+        let comp_ty = self.storage.components.insert(name, properties, children);
         let id = self.storage.insert_type(Term::component_type(comp_ty));
         self.registry.register(name, id);
         id
@@ -172,13 +170,6 @@ impl TypesContext {
         id
     }
 
-    pub fn get_component_definition(
-        &self,
-        comp: DedupPoolId<ComponentType>,
-    ) -> &ComponentDefinition {
-        self.storage.get_component_definition(comp)
-    }
-
     pub fn create_alias_type(&self, name: SymbolPointer, ty: Term) -> TermId {
         let id = self.storage.insert_type(ty);
         self.registry.register(name, id);
@@ -195,17 +186,8 @@ impl TypesContext {
         self.storage.insert_type(ty)
     }
 
-    ///Returns the inner object from the provided `ty`, returns None if the type is not a object
-    pub fn get_object(&self, ty: TermId) -> Option<TermId> {
-        self.storage.get_object(ty)
-    }
-
-    ///Returns the inner component from the provided `ty`, returns None if the type is not a object
-    pub fn get_component(&self, ty: &TermId) -> Option<TermId> {
-        self.storage.get_component(ty)
-    }
     pub fn get_component_name(&self, ty: DedupPoolId<ComponentType>) -> SymbolPointer {
-        self.storage.get_component_definition(ty).name
+        self.storage.components[ty].name
     }
 
     ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
@@ -276,19 +258,8 @@ impl TypesContext {
     pub fn get_struct_name(&self, s: DedupPoolId<StructType>) -> SymbolPointer {
         self.storage.get_struct_name(s)
     }
-    pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[Visible<SymbolPointer>] {
+    pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[Visible<StructField>] {
         self.storage.get_struct_fields(s)
-    }
-
-    pub fn get_struct_field_types(&self, s: DedupPoolId<StructType>) -> &[TermId] {
-        self.storage.get_struct_field_types(s)
-    }
-
-    pub fn get_struct_signature(
-        &self,
-        s: DedupPoolId<StructType>,
-    ) -> Vec<(&Visible<SymbolPointer>, &TermId)> {
-        self.storage.get_struct_signature(s)
     }
 
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
@@ -350,12 +321,4 @@ macro_rules! impl_index {
     };
 }
 
-impl_index!(
-    Term,
-    StructType,
-    StructDefinition,
-    TupleType,
-    EnumType,
-    ComponentType,
-    ComponentDefinition,
-);
+impl_index!(Term, StructType, TupleType, EnumType, ComponentType,);

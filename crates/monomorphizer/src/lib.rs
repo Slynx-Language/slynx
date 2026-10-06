@@ -646,9 +646,9 @@ impl Monomorphizer {
                 let parent_ty = hir[expr.data].ty;
                 call_ty = match hir.view(parent_ty).dereference().is_struct() {
                     Some(struct_view) => struct_view
-                        .field_types()
+                        .fields()
                         .get(field_index)
-                        .copied()
+                        .map(|field| field.ty)
                         .unwrap_or(node.ty),
                     None => node.ty,
                 };

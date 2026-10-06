@@ -83,7 +83,7 @@ impl<'a> LoweringState<'a> {
         };
         let property_types = component_props
             .iter()
-            .map(|prop| self.types.get_or_create_ir_type(*prop, ir))
+            .map(|prop| self.types.get_or_create_ir_type(prop.ty, ir))
             .collect::<Result<Vec<_>, CodegenError>>()?;
 
         // For each specialized child with a style usage, build the __child_init function

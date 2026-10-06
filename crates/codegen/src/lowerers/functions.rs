@@ -1,10 +1,13 @@
 use std::ops::{Deref, DerefMut};
 
 use common::{Spanned, pool::PoolId};
-use slynx_hir::{HirStatement, VariableId};
+use slynx_hir::{
+    HirStatement, VariableId,
+    term::{Term, TermId},
+};
 use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, Label, SlynxIR, Value};
 
-use crate::{CodegenError, TypeId, lowerers::LoweringState};
+use crate::{CodegenError, lowerers::LoweringState};
 
 /// Per-function state during HIR-to-IR lowering.
 pub struct FunctionContext<'a> {
@@ -61,7 +64,7 @@ impl<'a> DerefMut for FunctionContext<'a> {
 impl<'a> LoweringState<'a> {
     fn map_function_type(
         &mut self,
-        func_ty: TypeId,
+        func_ty: TermId,
         ir: &mut SlynxIR,
     ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
         let Some((args, return_type)) = self.hir.view(func_ty).is_function() else {
@@ -78,7 +81,7 @@ impl<'a> LoweringState<'a> {
     pub(crate) fn initialize_function(
         &mut self,
         fptr: IRPointer<Function, 1>,
-        func_ty: TypeId,
+        func_ty: TermId,
         statements: &[Spanned<PoolId<HirStatement>>],
         args: &[VariableId],
         ir: &mut SlynxIR,

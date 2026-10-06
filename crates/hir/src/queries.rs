@@ -113,9 +113,9 @@ impl SlynxHir<'_> {
             TermNode::Primitive(_) => vec![ty],
             TermNode::Data(DescriptorId::Struct(strukt)) => self
                 .view(*strukt)
-                .field_types()
+                .fields()
                 .iter()
-                .flat_map(|f| self.flatten_type(*f))
+                .flat_map(|f| self.flatten_type(f.ty))
                 .collect(),
             TermNode::Apply { target, .. } => self.flatten_type(*target),
             _ => vec![ty],

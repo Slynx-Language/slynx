@@ -1,5 +1,5 @@
 use common::{
-    Span, Spanned, VisibilityModifier,
+    Span, Spanned,
     pool::{DedupPoolId, PoolId},
 };
 use either::Either;
@@ -156,9 +156,9 @@ impl ExpressionBuilder {
         let dereferenced_type = parent_view.dereference();
         match dereferenced_type.is_struct() {
             Some(view)
-                if let Some(position) = view.fields().iter().position(|f| f.data == field_name) =>
+                if let Some(position) = view.fields().iter().position(|f| f.name == field_name) =>
             {
-                let field_ty = view.field_types()[position];
+                let field_ty = view.fields()[position].data.ty;
                 let field_ty = match view.new_with(field_ty).raw().node() {
                     TermNode::Apply { args: generics, .. } => {
                         crate::generics::substitute_terms(queue.hir, generics, field_ty)
@@ -185,14 +185,14 @@ impl ExpressionBuilder {
             None if parent_view.dereference().is_ref() //&T where T is a struct
                 && let Some(view) = parent_view.concrete_type().is_struct() =>
             {
-                let Some(position) = view.fields().iter().position(|f| f.data == field_name) else {
+                let Some(position) = view.fields().iter().position(|f| f.name == field_name) else {
                     return Err(HIRError::property_unrecognized(
                         dereferenced_type.data,
                         vec![field_name],
                         span,
                     ));
                 };
-                let field_ty = view.field_types()[position];
+                let field_ty = view.fields()[position].ty;
                 let field_ty = match queue.hir.view(parent_ty).raw().node() {
                     TermNode::Apply { args: generics, .. } => {
                         crate::generics::substitute_terms(queue.hir, generics, field_ty)
