@@ -25,6 +25,15 @@ pub(crate) struct Substitution(HashMap<u8, TermId>);
 
 /// The key of a monomorphization: the generic template declaration together
 /// with the concrete type arguments supplied at a use site.
+///
+/// The template half is an [`AnyDeclarationId`]: this is the key of the
+/// heterogeneous [`Monomorphizer::cache`](crate::Monomorphizer::cache), which
+/// stores specializations of every declaration kind in one map, and of the
+/// companion in-progress cycle-detection set. The typed template id a key was
+/// built from is erased with
+/// [`TypeDeclaration::as_any_id`](slynx_hir::TypeDeclaration::as_any_id) at
+/// that border and narrowed back with
+/// [`SpecializableDeclaration::from_erased`](crate::specialization::SpecializableDeclaration::from_erased).
 pub(crate) type MonomorphizationKey = (AnyDeclarationId, SmallVec<[TermId; 2]>);
 
 impl Substitution {

@@ -8,21 +8,47 @@
 //!
 //! Generic struct methods are not specialized: the specialized struct is
 //! created with an empty method table (see the extension guide).
+//!
+//! This module also owns the neutralization of the object templates that
+//! survive the pass
+//! ([`neutralize_generic_objects`](Monomorphizer::neutralize_generic_objects)).
 
 use common::Span;
+use module_loader::FileId;
 use slynx_hir::{
-    HIRError, HirObjectDeclaration, Result, SlynxHir, Visible,
-    id::{AnyDeclarationId, AnyLocalDeclarationId},
+    DeclarationId, HIRError, HirObjectDeclaration, Result, SlynxHir, SymbolPointer, Visible,
     term::{TermId, TermNode},
 };
 
-use crate::{Monomorphizer, types::substitute_type};
+use crate::{
+    Monomorphizer,
+    specialization::SpecializationDescriptor,
+    types::{MonomorphizationKey, Substitution, substitute_type},
+};
 
 impl Monomorphizer {
     ///Given the `HirType::Reference` type of a generic object usage such as
     ///`Option<int>`, returns the specialized struct type, generating a mangled
     ///`HirObjectDeclaration` on first use and deduplicating identical
     ///instantiations afterwards.
+    ///
+    ///The request is handed to the shared
+    ///[`specialize`](Monomorphizer::specialize) skeleton as a
+    ///[`SpecializationDescriptor`]; the skeleton reads the template's name and
+    ///generic arity itself, and the resulting typed id is narrowed to the
+    ///specialization's struct type for the caller.
+    ///
+    ///# Arguments
+    ///
+    ///* `hir` — the HIR being monomorphized; the declaration is inserted into
+    ///  the template's file so codegen hoists it next to its template.
+    ///* `ty` — the concrete type application (`Option<int>`) to specialize.
+    ///* `span` — the use-site span, reported on arity and cycle errors.
+    ///
+    ///# Returns
+    ///
+    ///The struct type of the concrete copy — freshly generated or served from
+    ///the cache.
     pub(crate) fn resolve_object_target(
         &mut self,
         hir: &SlynxHir,
@@ -46,22 +72,16 @@ impl Monomorphizer {
         })?;
         let name = struct_view.name();
 
-        let Some((template_file, template_local)) =
-            self.find_declaration_by_name(hir, name, |pool| &pool.objects, |d| d.name)
+        let Some(template) = self.find_declaration_by_name::<HirObjectDeclaration>(hir, name)
         else {
             unreachable!("Every generic object type must have a HirObjectDeclaration")
         };
-        let template_any =
-            AnyDeclarationId::new(template_file, AnyLocalDeclarationId::Object(template_local));
+        let owner = template.owner;
 
-        let (template_generics, visibility, external) = {
-            let file = hir.get_file(template_file);
-            let declaration = &file.declarations.declarations.objects[template_local];
-            (
-                declaration.generics.clone(),
-                declaration.visibility,
-                declaration.external,
-            )
+        let (visibility, external) = {
+            let file = hir.get_file(owner);
+            let declaration = &file.declarations.declarations.objects[template.term];
+            (declaration.visibility, declaration.external)
         };
 
         let args: Vec<TermId> = args
@@ -70,60 +90,87 @@ impl Monomorphizer {
             .filter(|slot| !slot.is_null())
             .collect();
 
-        self.specialize(
+        let specialized = self.specialize(
             hir,
-            name,
-            template_any,
-            template_generics.len(),
-            args,
-            span,
-            |hir, cached| {
-                let AnyLocalDeclarationId::Object(local_id) = cached.term else {
-                    unreachable!("A monomorphized object target must be an object")
-                };
-                hir.get_file(cached.owner).declarations.declarations.objects[local_id].ty
-            },
-            |monomorphizer, hir, subst, mangled_symbol, _| {
-                let fields = struct_view
-                    .fields()
-                    .into_iter()
-                    .map(|field| {
-                        let new_ty = monomorphizer.resolve_expression_type(
-                            hir,
-                            substitute_type(hir, field.ty, subst)?,
-                            span,
-                        )?;
-                        Ok(Visible::new(field.visibility, (field.name, new_ty)))
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-
-                let specialized_ty =
-                    hir.types
-                        .create_struct_type(mangled_symbol, fields, Vec::new());
-
-                let specialized_local = {
-                    let file = hir.get_file_mut(template_file);
-                    file.declarations
-                        .declarations
-                        .objects
-                        .insert(HirObjectDeclaration {
-                            name: mangled_symbol,
-                            generics: Vec::new(),
-                            ty: specialized_ty,
-                            visibility,
-                            external,
-                            attributes: Vec::new(),
+            SpecializationDescriptor {
+                template,
+                args,
+                span,
+                build: |monomorphizer: &mut Monomorphizer,
+                        hir: &SlynxHir,
+                        subst: &Substitution,
+                        mangled_symbol: SymbolPointer,
+                        _: &MonomorphizationKey| {
+                    let fields = struct_view
+                        .fields()
+                        .iter()
+                        .map(|field| {
+                            let new_ty = monomorphizer.resolve_expression_type(
+                                hir,
+                                substitute_type(hir, field.ty, subst)?,
+                                span,
+                            )?;
+                            Ok(Visible::new(field.visibility, (field.name, new_ty)))
                         })
-                };
+                        .collect::<Result<Vec<_>>>()?;
 
-                Ok((
-                    AnyDeclarationId::new(
-                        template_file,
-                        AnyLocalDeclarationId::Object(specialized_local),
-                    ),
-                    specialized_ty,
-                ))
+                    let specialized_ty =
+                        hir.types
+                            .create_struct_type(mangled_symbol, fields, Vec::new());
+
+                    let specialized_local = {
+                        let file = hir.get_file_mut(owner);
+                        file.declarations
+                            .declarations
+                            .objects
+                            .insert(HirObjectDeclaration {
+                                name: mangled_symbol,
+                                generics: Vec::new(),
+                                ty: specialized_ty,
+                                visibility,
+                                external,
+                                attributes: Vec::new(),
+                            })
+                    };
+
+                    Ok(DeclarationId::new(owner, specialized_local))
+                },
             },
-        )
+        )?;
+
+        let file = hir.get_file(specialized.owner);
+        Ok(file.declarations.declarations.objects[specialized.term].ty)
+    }
+
+    ///Neutralizes every generic *object* template: empties its method table
+    ///and retypes it to `void_ty`, then records it as dead code.
+    ///
+    ///After this runs no object declaration in the HIR carries a
+    ///`GenericParam`-typed signature, so codegen never sees one. Templates
+    ///that were instantiated during the pass are neutralized too — their
+    ///concrete specializations exist alongside them and are the declarations
+    ///codegen emits.
+    ///
+    ///# Arguments
+    ///
+    ///* `hir` — the HIR whose object templates are neutralized.
+    ///* `files` — the files to scan for generic templates.
+    ///* `void_ty` — the concrete, non-generic type every neutralized template
+    ///  is retyped to.
+    pub(crate) fn neutralize_generic_objects(
+        &mut self,
+        hir: &SlynxHir,
+        files: &[FileId],
+        void_ty: TermId,
+    ) {
+        for template in self.generic_templates::<HirObjectDeclaration>(hir, files) {
+            let mut file = hir.get_file_mut(template.owner);
+            file.declarations
+                .declarations
+                .objects
+                .get_mut(template.term)
+                .ty = void_ty;
+            self.mark_dead(template);
+        }
     }
 }
