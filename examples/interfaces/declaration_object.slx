@@ -3,6 +3,11 @@ interface Stringifiable {
     func length(&self): int;
 }
 
+extend str: Stringifiable {
+    func stringify(&self): str -> self;
+    func length(&self): int -> 0;
+}
+
 object Person: Stringifiable {
     name: str,
     func stringify(&self): str -> self.name;
