@@ -13,8 +13,7 @@
 use common::Span;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationId, EnumVariantType, HIRError, HirEnumDeclaration, Result, SlynxHir,
-    SymbolPointer,
+    DeclarationId, EnumVariantType, HIRError, HirEnumDeclaration, Result, SlynxHir, SymbolPointer,
     term::{TermId, TermNode},
 };
 
@@ -115,8 +114,7 @@ impl Monomorphizer {
                             .collect::<Result<Vec<_>>>()?
                     };
 
-                    let specialized_ty =
-                        hir.types.create_enum_type(mangled_symbol, type_variants);
+                    let specialized_ty = hir.types.create_enum_type(mangled_symbol, type_variants);
 
                     let specialized_local = {
                         let file = hir.get_file_mut(owner);
@@ -165,11 +163,7 @@ impl Monomorphizer {
     ) {
         for template in self.generic_templates::<HirEnumDeclaration>(hir, files) {
             let mut file = hir.get_file_mut(template.owner);
-            let declaration = file
-                .declarations
-                .declarations
-                .enums
-                .get_mut(template.term);
+            let declaration = file.declarations.declarations.enums.get_mut(template.term);
             declaration.variants = Vec::new();
             declaration.ty = void_ty;
             self.mark_dead(template);

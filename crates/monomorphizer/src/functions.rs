@@ -14,9 +14,7 @@ use common::Span;
 use module_loader::FileId;
 use slynx_hir::{
     DeclarationId, HIRError, HirFunctionDeclaration, Result, SlynxHir, SymbolPointer,
-    TypeDeclaration,
-    context::InterfaceMethodSignature,
-    term::TermId,
+    TypeDeclaration, context::InterfaceMethodSignature, term::TermId,
 };
 
 use crate::{

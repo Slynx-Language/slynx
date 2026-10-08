@@ -190,7 +190,7 @@ impl HirFunctionBuilder {
             .view(self.target)
             .get_argument(arg_index)
             .expect("Argument index should be < function argument count");
-        
+
         self.builder.create_mapped_variable(name, id, false, ty);
         queue.hir.store.variable_names.insert(id, name);
         self.args.push(id);

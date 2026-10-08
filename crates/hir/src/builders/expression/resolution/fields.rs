@@ -228,12 +228,8 @@ impl ExpressionBuilder {
                         id
                     }
                     None => {
-                        let concrete_self = queue
-                            .hir
-                            .view(parent.data)
-                            .ty_viewer()
-                            .dereference()
-                            .data();
+                        let concrete_self =
+                            queue.hir.view(parent.data).ty_viewer().dereference().data();
                         let descriptor = FindInterfaceMethodDescriptor {
                             ty: Owned {
                                 owner: self.file(),

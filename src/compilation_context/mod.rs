@@ -267,7 +267,7 @@ impl SlynxContext {
         }
 
         let char_len = source.chars().count();
-        
+
         let byte_index = index.min(source.len().saturating_sub(1));
         let clamped_index = source
             .char_indices()
@@ -290,7 +290,7 @@ impl SlynxContext {
 
         let start = Self::char_index_to_byte_offset(source, line_start_char);
         let end = Self::char_index_to_byte_offset(source, line_end_char);
-        
+
         let column_end = line_end_char - line_start_char;
         let column = clamped_index.saturating_sub(line_start_char) + 1;
 

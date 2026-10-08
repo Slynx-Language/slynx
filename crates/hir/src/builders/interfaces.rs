@@ -268,12 +268,15 @@ impl<'a> HirQueueBuilder<'a> {
                     )?
                     .term;
 
-                if let Some(existing) = self.hir.types.methods.get_extensions_of(descriptor.target) {
+                if let Some(existing) = self.hir.types.methods.get_extensions_of(descriptor.target)
+                {
                     for existing_id in existing.value().iter() {
                         let existing_impl = self.hir.get_extension(*existing_id);
-                        if existing_impl.interfaces.iter().any(|existing_interface| {
-                            *existing_interface == interface_term
-                        }) {
+                        if existing_impl
+                            .interfaces
+                            .iter()
+                            .any(|existing_interface| *existing_interface == interface_term)
+                        {
                             return Err(HIRError::duplicate_interface_implementation(
                                 descriptor.target,
                                 interface_term,
