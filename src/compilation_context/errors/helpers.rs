@@ -193,7 +193,7 @@ mod tests {
 
     use super::*;
 
-    use common::pool::PoolId;
+    use common::{Span, pool::PoolId};
     use module_loader::FileId;
     use slynx_hir::id::{AnyDeclarationId, AnyLocalDeclarationId};
 
@@ -220,7 +220,10 @@ mod tests {
             FileId::from_raw(0),
             AnyLocalDeclarationId::Static(PoolId::new(0)),
         );
-        let err = CodegenError::new(CodegenErrorKind::DeclarationNotRecognized(id));
+        let err = CodegenError::new(
+            CodegenErrorKind::DeclarationNotRecognized(id),
+            Span::default(),
+        );
         let result = suggestions_from_ir(&err);
         assert_eq!(
             result,

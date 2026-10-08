@@ -162,6 +162,7 @@ impl<'a> ASTLowerer<'a> {
             .get_or_create_file(owner)
             .create_object(HirObjectDeclaration {
                 name: declaration.name,
+                span: declaration.span,
                 generics: self.generic_parameters_of(
                     queue,
                     &declaration.generics,
@@ -265,6 +266,7 @@ impl<'a> ASTLowerer<'a> {
             .get_or_create_file(owner)
             .create_enum(HirEnumDeclaration {
                 name: declaration.name,
+                span: declaration.span,
                 generics: self.generic_parameters_of(
                     queue,
                     &declaration.generics,

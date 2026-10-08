@@ -92,6 +92,7 @@ impl<'a> HirQueueBuilder<'a> {
                     let attributes = process_attributes(self.hir, id, &component.attributes)?;
                     Ok(HirComponentDeclaration {
                         name: component.name,
+                        span: component.span,
                         generics,
                         props: Vec::new(),
                         ty,

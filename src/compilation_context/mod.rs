@@ -1,7 +1,6 @@
 mod errors;
 
 use std::{
-    backtrace::Backtrace,
     collections::HashSet,
     ops::Deref,
     path::{Path, PathBuf},
@@ -338,7 +337,7 @@ impl SlynxContext {
 
         // Run ownership analysis (move semantics + borrow checking)
         let ownership = OwnershipAnalysis::analyze(&hir);
-        if ownership.errors.len() > 0 {
+        if !ownership.errors.is_empty() {
             return Err(self.handle_ownership_error(
                 &hir,
                 &ownership.errors[0],

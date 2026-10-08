@@ -92,6 +92,7 @@ pub struct HirFunctionDeclaration {
 #[derive(Debug)]
 pub struct HirObjectDeclaration {
     pub name: SymbolPointer,
+    pub span: Span,
     pub generics: Vec<GenericParameter>,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
@@ -102,6 +103,7 @@ pub struct HirObjectDeclaration {
 #[derive(Debug)]
 pub struct HirStaticDeclaration {
     pub name: SymbolPointer,
+    pub span: Span,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
     pub external: bool,
@@ -120,6 +122,7 @@ pub struct HirAliasDeclaration {
 #[derive(Debug)]
 pub struct HirComponentDeclaration {
     pub name: SymbolPointer,
+    pub span: Span,
     pub generics: Vec<GenericParameter>,
     pub props: Vec<ComponentMemberDeclaration>,
     pub ty: TermId,
@@ -143,6 +146,7 @@ pub struct HirEnumVariant {
 #[derive(Debug)]
 pub struct HirEnumDeclaration {
     pub name: SymbolPointer,
+    pub span: Span,
     pub generics: Vec<GenericParameter>,
     pub variants: Vec<Spanned<HirEnumVariant>>,
     pub visibility: VisibilityModifier,

@@ -82,10 +82,14 @@ impl Monomorphizer {
         };
         let owner = template.owner;
 
-        let (visibility, template_members) = {
+        let (visibility, template_members, decl_span) = {
             let file = hir.get_file(owner);
             let declaration = &file.declarations.declarations.components[template.term];
-            (declaration.visibility, declaration.props.clone())
+            (
+                declaration.visibility,
+                declaration.props.clone(),
+                declaration.span,
+            )
         };
 
         let args: Vec<TermId> = args
@@ -118,6 +122,7 @@ impl Monomorphizer {
                             .components
                             .insert(HirComponentDeclaration {
                                 name: mangled_symbol,
+                                span: decl_span,
                                 generics: Vec::new(),
                                 props: new_members,
                                 ty: specialized_ty,

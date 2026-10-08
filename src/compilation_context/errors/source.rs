@@ -2,7 +2,7 @@ use module_loader::{SourceError, SourceErrorKind};
 use slynx_lexer::LexerError;
 
 use crate::{
-    SlynxContext,
+    ErrorPosition, SlynxContext,
     compilation_context::errors::{SlynxError, helpers::suggestions_from_source},
 };
 
@@ -37,9 +37,11 @@ impl SlynxContext {
                 };
                 let msg = format!("Could not open file '{}': {inner}", error.entry().display());
                 SlynxError::new_compiler(
-                    line,
-                    col_start,
-                    col_end,
+                    ErrorPosition {
+                        line,
+                        column: col_start,
+                        end_column: col_end,
+                    },
                     msg,
                     generator.display().to_string(),
                     src,
@@ -64,9 +66,11 @@ impl SlynxContext {
                     (0, 0, 0, String::new())
                 };
                 SlynxError::new_lexer(
-                    line,
-                    col_start,
-                    col_end,
+                    ErrorPosition {
+                        line,
+                        column: col_start,
+                        end_column: col_end,
+                    },
                     lex_err.to_string(),
                     file_name,
                     src,
@@ -93,9 +97,11 @@ impl SlynxContext {
                     (0, 0, 0, String::new())
                 };
                 SlynxError::new_parser(
-                    line,
-                    col_start,
-                    col_end,
+                    ErrorPosition {
+                        line,
+                        column: col_start,
+                        end_column: col_end,
+                    },
                     parse_err.to_string(),
                     file_name,
                     src,

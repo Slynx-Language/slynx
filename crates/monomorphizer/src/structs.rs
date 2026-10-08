@@ -78,10 +78,14 @@ impl Monomorphizer {
         };
         let owner = template.owner;
 
-        let (visibility, external) = {
+        let (visibility, external, decl_span) = {
             let file = hir.get_file(owner);
             let declaration = &file.declarations.declarations.objects[template.term];
-            (declaration.visibility, declaration.external)
+            (
+                declaration.visibility,
+                declaration.external,
+                declaration.span,
+            )
         };
 
         let args: Vec<TermId> = args
@@ -125,6 +129,7 @@ impl Monomorphizer {
                             .objects
                             .insert(HirObjectDeclaration {
                                 name: mangled_symbol,
+                                span: decl_span,
                                 generics: Vec::new(),
                                 ty: specialized_ty,
                                 visibility,

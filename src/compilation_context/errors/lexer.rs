@@ -3,7 +3,7 @@ use std::backtrace::Backtrace;
 use slynx_lexer::error::LexerError;
 
 use crate::{
-    LineInfo, SlynxContext, compilation_context::errors::SlynxError,
+    ErrorPosition, LineInfo, SlynxContext, compilation_context::errors::SlynxError,
     helpers::suggestions_from_lexer,
 };
 
@@ -19,9 +19,11 @@ impl SlynxContext {
                     src,
                 } = self.get_line_info(&self.entry_point, init);
                 SlynxError::new_lexer(
-                    line,
-                    column_start,
-                    column_end,
+                    ErrorPosition {
+                        line,
+                        column: column_start,
+                        end_column: column_end,
+                    },
                     error.to_string(),
                     self.file_name(),
                     src.to_string(),
@@ -37,9 +39,11 @@ impl SlynxContext {
                     src,
                 } = self.get_line_info(&self.entry_point, index);
                 SlynxError::new_lexer(
-                    line,
-                    column_start,
-                    column_end,
+                    ErrorPosition {
+                        line,
+                        column: column_start,
+                        end_column: column_end,
+                    },
                     error.to_string(),
                     self.file_name(),
                     src.to_string(),

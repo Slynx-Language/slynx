@@ -112,13 +112,21 @@ impl std::fmt::Display for SlynxError {
     }
 }
 
+pub struct ErrorPosition {
+    pub line: usize,
+    pub column: usize,
+    pub end_column: usize,
+}
+
 macro_rules! impl_slynx_error {
     ($name: ident -> $value:expr) => {
         impl SlynxError {
             pub fn $name(
-                line: usize,
-                column: usize,
-                end_column: usize,
+                ErrorPosition {
+                    line,
+                    column,
+                    end_column,
+                }: ErrorPosition,
                 message: String,
                 file: String,
                 source: String,

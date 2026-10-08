@@ -7,7 +7,7 @@ use slynx_hir::{
 };
 
 use crate::{
-    LineInfo, SlynxContext,
+    ErrorPosition, LineInfo, SlynxContext,
     compilation_context::errors::{SlynxError, helpers::suggestions_from_hir},
 };
 
@@ -288,9 +288,11 @@ impl SlynxContext {
             src,
         } = self.get_line_info(&self.entry_point, error.span.start as usize);
         SlynxError::new_hir(
-            line,
-            column_start,
-            column_end,
+            ErrorPosition {
+                line,
+                column: column_start,
+                end_column: column_end,
+            },
             self.hir_error_to_string(hir, &error),
             self.file_name(),
             src.to_string(),

@@ -69,10 +69,14 @@ impl Monomorphizer {
         };
         let owner = template.owner;
 
-        let (visibility, decl_variants) = {
+        let (visibility, decl_variants, span) = {
             let file = hir.get_file(owner);
             let declaration = &file.declarations.declarations.enums[template.term];
-            (declaration.visibility, declaration.variants.clone())
+            (
+                declaration.visibility,
+                declaration.variants.clone(),
+                declaration.span,
+            )
         };
 
         let args: Vec<TermId> = args
@@ -123,6 +127,7 @@ impl Monomorphizer {
                             .enums
                             .insert(HirEnumDeclaration {
                                 name: mangled_symbol,
+                                span,
                                 generics: Vec::new(),
                                 ty: specialized_ty,
                                 visibility,

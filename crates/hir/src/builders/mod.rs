@@ -184,6 +184,7 @@ impl<'a> HirQueueBuilder<'a> {
                         process_attributes(self.hir, Owned::new(requester, id), &s.attributes)?;
                     Ok(HirStaticDeclaration {
                         name,
+                        span: s.span,
                         ty,
                         visibility: s.visibility,
                         external: s.external,
