@@ -165,9 +165,11 @@ impl SlynxError {
         }
     }
     pub fn new_ownership(
-        line: usize,
-        column: usize,
-        end_column: usize,
+        ErrorPosition {
+            line,
+            column,
+            end_column,
+        }: ErrorPosition,
         message: String,
         file: String,
         source: String,

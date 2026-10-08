@@ -130,12 +130,12 @@ impl ExpressionBuilder {
                 if raw_variant.payload.is_empty() {
                     Ok(TypeAccessCategory::EnumVariant(variant_id))
                 } else {
-                    return Err(HIRError::invalid_funcall_arg_length(
+                    Err(HIRError::invalid_funcall_arg_length(
                         *name,
                         raw_variant.payload.len(),
                         0,
                         span,
-                    ));
+                    ))
                 }
             }
             ASTExpression::Identifier(_) => {

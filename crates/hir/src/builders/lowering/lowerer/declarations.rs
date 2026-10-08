@@ -326,10 +326,11 @@ impl<'a> ASTLowerer<'a> {
             let mut out = Vec::new();
             for param in method.type_params() {
                 if let Some(clause) = clauses.iter().find_map(|clause| {
-                    if {
-                        let ty = queue.modules.get_type(clause.type_to_check.data); //no get plain type because the error message would lead to incorrect message
-                        !matches!(ty, Type::Plain(_))
-                    } {
+                    let res = matches!(
+                        queue.modules.get_type(clause.type_to_check.data),
+                        Type::Plain(_)
+                    );
+                    if res {
                         return Some(Err(HIRError::unimplemented(
                             MissingFeature::ComplexTypeForBounds,
                             clause.type_to_check.span,
@@ -343,7 +344,7 @@ impl<'a> ASTLowerer<'a> {
                         .bounds
                         .iter()
                         .map(|bound| {
-                            let ty = self.lower_type(queue, entry, *bound, &context)?;
+                            let ty = self.lower_type(queue, entry, *bound, context)?;
                             if let Some(ext) = queue.hir.view(ty.term).is_extension()
                                 && let Some(interface) =
                                     ext.as_any().downcast_ref::<InterfaceTerm>()
@@ -386,7 +387,7 @@ impl<'a> ASTLowerer<'a> {
             );
         }
         if let Some(lowered) = self.lowered_types.get(&descriptor.ast_type) {
-            return Ok(lowered.value().clone());
+            return Ok(*lowered.value());
         }
         let lowered = self.lower_ast_declaration(
             queue,
@@ -395,8 +396,7 @@ impl<'a> ASTLowerer<'a> {
             descriptor.span,
         )?;
 
-        self.lowered_types
-            .insert(descriptor.ast_type, lowered.clone());
+        self.lowered_types.insert(descriptor.ast_type, lowered);
 
         Ok(lowered)
     }
@@ -408,10 +408,10 @@ impl<'a> ASTLowerer<'a> {
         span: Span,
     ) -> Result<Owned<TermId>> {
         if let Some(lowered) = self.lowered_types.get(&ast_type) {
-            return Ok(lowered.value().clone());
+            return Ok(*lowered.value());
         }
         let lowered = self.lower_ast_declaration(queue, ast_type, &TypeContext::EMPTY, span)?;
-        self.lowered_types.insert(ast_type, lowered.clone());
+        self.lowered_types.insert(ast_type, lowered);
         Ok(lowered)
     }
 }

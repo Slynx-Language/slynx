@@ -7,12 +7,14 @@ use slynx_parser::{
 
 use crate::{Owned, SymbolPointer};
 
+type EnumVariant = (Owned<PoolId<EnumDeclaration>>, usize);
+
 pub struct ASTLookup<'a> {
     modules: &'a Modules<'a>,
     type_cache: DashMap<Owned<SymbolPointer>, Option<ASTType>>,
     function_cache: DashMap<Owned<SymbolPointer>, Option<Owned<PoolId<FuncDeclaration>>>>,
     interface_cache: DashMap<Owned<SymbolPointer>, Option<Owned<PoolId<InterfaceDeclaration>>>>,
-    enum_cache: DashMap<Owned<SymbolPointer>, Option<(Owned<PoolId<EnumDeclaration>>, usize)>>,
+    enum_cache: DashMap<Owned<SymbolPointer>, Option<EnumVariant>>,
     static_cache: DashMap<Owned<SymbolPointer>, Option<(FileId, &'a StaticDeclaration)>>,
     extension_method_cache:
         DashMap<FindExtensionsWithMethodDescriptor, Vec<Owned<PoolId<ExtendDeclaration>>>>,
@@ -63,7 +65,7 @@ impl<'a> ASTLookup<'a> {
             term: name,
         };
         if let Some(cached) = self.function_cache.get(&cache_key) {
-            return cached.clone();
+            return *cached;
         }
         let out = self
             .modules
@@ -73,7 +75,7 @@ impl<'a> ASTLookup<'a> {
                 term: PoolId::new(term as u32),
             });
 
-        self.function_cache.insert(cache_key, out.clone());
+        self.function_cache.insert(cache_key, out);
         out
     }
 
@@ -87,7 +89,7 @@ impl<'a> ASTLookup<'a> {
             term: name,
         };
         if let Some(cached) = self.interface_cache.get(&cache_key) {
-            return cached.clone();
+            return *cached;
         }
         let out = self
             .modules
@@ -97,7 +99,7 @@ impl<'a> ASTLookup<'a> {
                 term: PoolId::new(term as u32),
             });
 
-        self.interface_cache.insert(cache_key, out.clone());
+        self.interface_cache.insert(cache_key, out);
         out
     }
 
@@ -111,14 +113,14 @@ impl<'a> ASTLookup<'a> {
             term: name,
         };
         if let Some(cached) = self.enum_cache.get(&cache_key) {
-            return cached.clone();
+            return *cached;
         }
         let out = self
             .modules
             .find_enum_variant(name, requester)
             .map(|(owner, term, id)| (Owned { owner, term }, id));
 
-        self.enum_cache.insert(cache_key, out.clone());
+        self.enum_cache.insert(cache_key, out);
         out
     }
 

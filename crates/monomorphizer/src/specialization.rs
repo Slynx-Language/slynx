@@ -26,7 +26,7 @@
 use common::Span;
 use slynx_hir::{
     DeclarationId, HirComponentDeclaration, HirDeclaration, HirEnumDeclaration,
-    HirFunctionDeclaration, HirObjectDeclaration, SymbolPointer, TypeDeclaration,
+    HirFunctionDeclaration, HirObjectDeclaration, TypeDeclaration,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::TermId,
 };

@@ -80,64 +80,63 @@ impl ExpressionBuilder {
             },
         )?;
 
-        let expr =
-            match self.resolve_type_access_category(queue, child, lowered_type.clone(), span)? {
-                TypeAccessCategory::Intermediate {
-                    inner_parent,
-                    inner_field,
-                } => {
-                    let parent =
-                        self.build_type_access(queue, ast_type, inner_parent, span, context)?;
-                    return self.build_field_access_impl(queue, parent, inner_field, span, context);
-                }
-                TypeAccessCategory::EnumVariant(variant_id) => self.build_enum_expression(
-                    queue,
-                    EnumExpressionDescriptor {
-                        enum_type: lowered_type.term,
-                        variant: EnumVariantDescriptor {
-                            variant_id,
-                            arguments: &[],
-                        },
-                        generics: &[],
-                        span,
-                        context,
+        let expr = match self.resolve_type_access_category(queue, child, lowered_type, span)? {
+            TypeAccessCategory::Intermediate {
+                inner_parent,
+                inner_field,
+            } => {
+                let parent =
+                    self.build_type_access(queue, ast_type, inner_parent, span, context)?;
+                return self.build_field_access_impl(queue, parent, inner_field, span, context);
+            }
+            TypeAccessCategory::EnumVariant(variant_id) => self.build_enum_expression(
+                queue,
+                EnumExpressionDescriptor {
+                    enum_type: lowered_type.term,
+                    variant: EnumVariantDescriptor {
+                        variant_id,
+                        arguments: &[],
                     },
-                ),
-                TypeAccessCategory::EnumPayloadVariant {
-                    variant_id,
-                    args: ref arguments,
-                    payload_name,
-                } => self.build_enum_expression(
-                    queue,
-                    EnumExpressionDescriptor {
-                        enum_type: lowered_type.term,
-                        variant: EnumVariantDescriptor {
-                            variant_id,
-                            arguments,
-                        },
-                        generics: &queue.get_plain_type(payload_name).generic,
-                        span,
-                        context,
+                    generics: &[],
+                    span,
+                    context,
+                },
+            ),
+            TypeAccessCategory::EnumPayloadVariant {
+                variant_id,
+                args: ref arguments,
+                payload_name,
+            } => self.build_enum_expression(
+                queue,
+                EnumExpressionDescriptor {
+                    enum_type: lowered_type.term,
+                    variant: EnumVariantDescriptor {
+                        variant_id,
+                        arguments,
                     },
-                ),
-                TypeAccessCategory::StaticMethod {
-                    target,
-                    name,
-                    ref args,
-                } => self.build_function_call(
-                    queue,
-                    FunctionCallDescriptor {
-                        target: FunctionTarget::Resolved {
-                            target,
-                            type_arguments: &queue.get_plain_type(name).generic,
-                        },
-                        arguments: args,
-                        span,
-                        context,
-                        prepended_arguments: &[],
+                    generics: &queue.get_plain_type(payload_name).generic,
+                    span,
+                    context,
+                },
+            ),
+            TypeAccessCategory::StaticMethod {
+                target,
+                name,
+                ref args,
+            } => self.build_function_call(
+                queue,
+                FunctionCallDescriptor {
+                    target: FunctionTarget::Resolved {
+                        target,
+                        type_arguments: &queue.get_plain_type(name).generic,
                     },
-                ),
-            }?;
+                    arguments: args,
+                    span,
+                    context,
+                    prepended_arguments: &[],
+                },
+            ),
+        }?;
 
         Ok(span.make_spanned(queue.hir.store.insert_expression(expr)))
     }
@@ -176,11 +175,11 @@ impl ExpressionBuilder {
             }
             _ if dereferenced_type.is_struct().is_some() => {
                 //is struct but could not find any field
-                return Err(HIRError::property_unrecognized(
+                Err(HIRError::property_unrecognized(
                     dereferenced_type.data,
                     vec![field_name],
                     span,
-                ));
+                ))
             }
             _ if dereferenced_type.is_ref()
                 && let Some(view) = concrete_type.is_struct() =>
@@ -218,7 +217,7 @@ impl ExpressionBuilder {
             }
             _ => {
                 let ty = dereferenced_type.data;
-                return Err(HIRError::not_a_struct(ty, span));
+                Err(HIRError::not_a_struct(ty, span))
             }
         }
     }
@@ -274,7 +273,7 @@ impl ExpressionBuilder {
                     queue,
                     FunctionCallDescriptor {
                         target: FunctionTarget::Resolved {
-                            target: target,
+                            target,
                             type_arguments: &queue.get_plain_type(name).generic,
                         },
                         arguments: args,

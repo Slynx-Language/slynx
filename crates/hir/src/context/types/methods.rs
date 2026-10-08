@@ -75,11 +75,7 @@ impl MethodTable {
         &'a self,
         ty: TermId,
     ) -> Option<Ref<'a, TermId, Vec<DeclarationId<HirExtendDeclaration>>>> {
-        if let Some(extension) = self.extensions.get(&ty) {
-            Some(extension)
-        } else {
-            None
-        }
+        self.extensions.get(&ty)
     }
 
     pub fn create_extension(&self, ty: TermId, extension: DeclarationId<HirExtendDeclaration>) {

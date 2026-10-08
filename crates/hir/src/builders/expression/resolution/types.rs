@@ -6,7 +6,7 @@ use crate::{
     DeclarationId, DescriptorId, ExpressionBuilder, GenericParameter, HIRError,
     HirExtendDeclaration, HirFunctionDeclaration, HirQueueBuilder, Owned, Result, SymbolPointer,
     builders::{
-        interfaces::InterfaceImplementationDescriptor,
+        function::InsertMethodDeclaration, interfaces::InterfaceImplementationDescriptor,
         lowering::lookup::FindExtensionsWithMethodDescriptor,
     },
     error::MissingFeature,
@@ -125,15 +125,15 @@ impl ExpressionBuilder {
             queue.hir.get_name(descriptor_name)
         ));
         queue
-            .insert_method_declaration(
-                asttype.owner,
+            .insert_method_declaration(InsertMethodDeclaration {
+                entry: asttype.owner,
                 method,
-                descriptor.ty.term,
+                self_type: descriptor.ty.term,
                 visibility,
                 external,
                 declaration_name,
-                true,
-            )
+                register_as_inherent: true,
+            })
             .map(Some)
     }
 

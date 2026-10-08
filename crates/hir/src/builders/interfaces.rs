@@ -8,7 +8,9 @@ use slynx_parser::{ASTFunction, ExtendDeclaration, InterfaceDeclaration, Type, T
 use crate::{
     DeclarationId, GenericParameter, HIRError, HirExtendDeclaration, HirFunctionDeclaration,
     HirQueueBuilder, InterfaceType, Owned, Result, SymbolPointer,
-    builders::lowering::lookup::FindExtensionsWithMethodDescriptor,
+    builders::{
+        function::InsertMethodDeclaration, lowering::lookup::FindExtensionsWithMethodDescriptor,
+    },
     context::{HirSymbol, InterfaceMethodSignature},
     error::MissingFeature,
     term::TermId,
@@ -272,11 +274,7 @@ impl<'a> HirQueueBuilder<'a> {
                 {
                     for existing_id in existing.value().iter() {
                         let existing_impl = self.hir.get_extension(*existing_id);
-                        if existing_impl
-                            .interfaces
-                            .iter()
-                            .any(|existing_interface| *existing_interface == interface_term)
-                        {
+                        if existing_impl.interfaces.contains(&interface_term) {
                             return Err(HIRError::duplicate_interface_implementation(
                                 descriptor.target,
                                 interface_term,
@@ -308,15 +306,15 @@ impl<'a> HirQueueBuilder<'a> {
                     .internal_name(),
                 self.hir.get_name(method.name)
             ));
-            let declaration_id = self.insert_method_declaration(
-                descriptor.extension.owner,
+            let declaration_id = self.insert_method_declaration(InsertMethodDeclaration {
+                entry: descriptor.extension.owner,
                 method,
-                descriptor.target,
-                VisibilityModifier::Public,
-                false,
+                self_type: descriptor.target,
+                visibility: VisibilityModifier::Public,
+                external: false,
                 declaration_name,
-                false,
-            )?;
+                register_as_inherent: false,
+            })?;
             methods.push((method.name, declaration_id));
         }
 

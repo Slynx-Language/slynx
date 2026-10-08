@@ -347,9 +347,11 @@ impl SlynxContext {
             src,
         } = self.get_line_info(&self.entry_point, error.span.start as usize);
         SlynxError::new_ownership(
-            line,
-            column_start,
-            column_end,
+            ErrorPosition {
+                line,
+                column: column_start,
+                end_column: column_end,
+            },
             message,
             self.file_name(),
             src.to_string(),

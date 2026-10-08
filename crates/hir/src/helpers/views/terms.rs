@@ -61,7 +61,7 @@ impl<'a> HirViewer<'a, TermId> {
             TermNode::Apply { target, args } => self.render_apply(*target, args),
             TermNode::Extension(ext) => ext.name().to_string(),
             TermNode::Constant(constant) => format!("Constant_{constant:?}"),
-            TermNode::Hole(_) => format!("Hole"),
+            TermNode::Hole(_) => "Hole".to_string(),
         }
     }
 
@@ -70,11 +70,8 @@ impl<'a> HirViewer<'a, TermId> {
     ///specialized type and must survive method/interface matching.
     pub fn dereference(self) -> HirViewer<'a, TermId> {
         let mut data = self.data;
-        loop {
-            match self.hir.types.storage.terms[data].node() {
-                TermNode::Ref { target, .. } => data = *target,
-                _ => break,
-            }
+        while let TermNode::Ref { target, .. } = self.hir.types.storage.terms[data].node() {
+            data = *target;
         }
         self.new_with(data)
     }

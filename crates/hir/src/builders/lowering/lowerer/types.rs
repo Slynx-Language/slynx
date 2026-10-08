@@ -60,7 +60,7 @@ impl<'a> ASTLowerer<'a> {
             queue,
             LowerTypeDeclarationDescriptor {
                 ast_type,
-                context: &context,
+                context,
                 span,
             },
         )?;
@@ -113,10 +113,10 @@ impl<'a> ASTLowerer<'a> {
             self_substitute: descriptor.self_substitute,
         };
         if let Some(lowered) = self.lowered_ast_types.get(&cache_key) {
-            return Ok(lowered.value().clone());
+            return Ok(*lowered.value());
         }
         let lowered = self.lower_ast_type_uncached(queue, descriptor)?;
-        self.lowered_ast_types.insert(cache_key, lowered.clone());
+        self.lowered_ast_types.insert(cache_key, lowered);
         Ok(lowered)
     }
 
@@ -147,10 +147,10 @@ impl<'a> ASTLowerer<'a> {
                         Some(ASTTypeKind::Interface(_))
                     ) =>
             {
-                return Err(HIRError::unimplemented(
+                Err(HIRError::unimplemented(
                     MissingFeature::GenericInterfaces,
                     descriptor.ty.span,
-                ));
+                ))
             }
             Type::Plain(generic) => self.lower_plain_type(
                 queue,

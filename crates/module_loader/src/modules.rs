@@ -330,15 +330,14 @@ impl<'a> Modules<'a> {
 
     pub fn generic_count(&self, ast_type: ASTType) -> usize {
         let entry = self.get_entry(ast_type.owner);
-        let generic_count = match ast_type.content {
+        match ast_type.content {
             ASTTypeKind::Struct(id) => entry.object().get(id).generics.type_params.len(),
             ASTTypeKind::Component(id) => entry.component().get(id).generics.type_params.len(),
             ASTTypeKind::Alias(id) => entry.alias().get(id).type_params.len(),
             ASTTypeKind::Enum(id) => entry.enums().get(id).generics.type_params.len(),
             ASTTypeKind::Interface(id) => entry.interfaces().get(id).generics.type_params.len(),
             ASTTypeKind::Builtin(_) => 0,
-        };
-        generic_count
+        }
     }
 
     fn recreate_pathbuf(&self, entry: FileId, path: &ASTPath) -> PathBuf {

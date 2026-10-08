@@ -220,6 +220,11 @@ impl<T> AppendOnlyVec<T> {
         self.count.load(Ordering::Acquire)
     }
 
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn layout(&self, array: u32) -> std::alloc::Layout {
         std::alloc::Layout::array::<T>(bin_size(array)).unwrap()
     }
@@ -312,6 +317,7 @@ impl<T> AppendOnlyVec<T> {
         }
     }
 
+    #[allow(clippy::declare_interior_mutable_const)]
     const EMPTY: UnsafeCell<*mut T> = UnsafeCell::new(std::ptr::null_mut());
     /// Allocate a new empty array
     pub const fn new() -> Self {
@@ -330,6 +336,9 @@ impl<T> AppendOnlyVec<T> {
     /// current thread.  In single-threaded code, however, it is not needed to
     /// call `self.len()` explicitly (if e.g. you have counted the number of
     /// elements pushed).
+    ///
+    /// # Safety
+    /// There's no safety. The index must be inside of bounds, This is idealized to be used by pools, thus it's their responsability
     pub unsafe fn get_unchecked(&self, idx: usize) -> &T {
         let (array, offset) = indices(idx);
         // We use a Relaxed load of the pointer, because the length check (which
@@ -337,13 +346,21 @@ impl<T> AppendOnlyVec<T> {
         // already visible, since self.len() used Ordering::Acquire on
         // `self.count` which synchronizes with the Ordering::Release write in
         // `self.push`.
-        let ptr = *self.data[array as usize].get();
-        &*ptr.add(offset)
+        unsafe {
+            //to keep clippy calm
+            let ptr = *self.data[array as usize].get();
+            &*ptr.add(offset)
+        }
     }
+    /// # Safety
+    /// There's no safety. The index must be inside of bounds, This is idealized to be used by pools, thus it's their responsability
     pub unsafe fn get_unchecked_mut(&mut self, idx: usize) -> &mut T {
         let (array, offset) = indices(idx);
-        let ptr = *self.data[array as usize].get();
-        &mut *ptr.add(offset)
+        unsafe {
+            //to keep clippy calm
+            let ptr = *self.data[array as usize].get();
+            &mut *ptr.add(offset)
+        }
     }
 }
 impl<T> std::fmt::Debug for AppendOnlyVec<T>

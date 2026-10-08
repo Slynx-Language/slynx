@@ -60,7 +60,7 @@ impl LangItems {
         map.register(name, id, span)
     }
     pub fn try_get<T: LanguageItem>(&self, name: SymbolPointer) -> Option<DeclarationId<T>> {
-        T::map(self).0.get(&name).map(|value| value.clone())
+        T::map(self).0.get(&name).map(|value| *value)
     }
     pub fn get<T: LanguageItem>(
         &self,

@@ -21,16 +21,28 @@ pub struct HirFunctionBuilder {
     args: Vec<VariableId>,
 }
 
+pub(crate) struct InsertMethodDeclaration<'a, T: ASTFunction> {
+    pub entry: FileId,
+    pub method: &'a T,
+    pub self_type: TermId,
+    pub visibility: VisibilityModifier,
+    pub external: bool,
+    pub declaration_name: SymbolPointer,
+    pub register_as_inherent: bool,
+}
+
 impl<'a> HirQueueBuilder<'a> {
     pub(crate) fn insert_method_declaration<T: ASTFunction>(
         &self,
-        entry: FileId,
-        method: &'a T,
-        self_type: TermId,
-        visibility: VisibilityModifier,
-        external: bool,
-        declaration_name: SymbolPointer,
-        register_as_inherent: bool,
+        InsertMethodDeclaration {
+            entry,
+            method,
+            self_type,
+            visibility,
+            external,
+            declaration_name,
+            register_as_inherent,
+        }: InsertMethodDeclaration<'a, T>,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
         let context = TypeContext::new(method.generics().type_params());
         let lower_type = |ty: Spanned<DedupPoolId<Type>>| {
@@ -50,7 +62,7 @@ impl<'a> HirQueueBuilder<'a> {
             name: declaration_name,
             generics: self.lowerer.generic_parameters_of(
                 self,
-                &method.generics(),
+                method.generics(),
                 entry,
                 &context,
             )?,
