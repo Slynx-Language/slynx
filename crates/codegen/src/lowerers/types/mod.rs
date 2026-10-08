@@ -24,7 +24,7 @@ use crate::{CodegenError, CodegenErrorKind};
 ///materializes the struct fields and registers the layout, while both enum
 ///construction (`lower_enum`) and pattern matching (`lower_matches`) consume it
 ///instead of re-deriving the shape from the IR.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EnumLayout {
     ///The IR struct type of the enum.
     pub type_id: IRTypeId,

@@ -50,6 +50,27 @@ pub struct FindBoundedMethodDescriptor {
     pub name: SymbolPointer,
 }
 
+///Finds all the interfaces the given `ty` implements across all the given `candidates` extensions.
+///The given `ty` is the type we are searching for and the `candidates` are extensions that may implement interfaces for it.
+///
+///For example, when finding '5.abs()' the given `ty` will be Int, or any other number type, and the `candidates` are any extensions desired.
+///What this will do is to filter these extensions and find the ones whose target is the given `ty`.
+///Thus, for example `extend Int: Math {func abs() {}}` would be a candidate for implementing `abs()` for `Int`,
+/// and `Math` interface would be included on `FindInterfaceImplementationsResult.interfaces`.
+pub struct FindInterfaceImplementationsDescriptor<'a> {
+    ///The type to search for implementations of.
+    pub ty: Owned<TermId>,
+    ///The id of the extensions that are candidates for implementing this interface. Thus, if a given `ty` T, the candidates are all extensions such as `extend T: Interface`
+    pub candidates: &'a [Owned<PoolId<ExtendDeclaration>>],
+    pub span: Span,
+}
+
+pub struct FindInterfaceImplementationsResult {
+    pub interfaces: Vec<Owned<PoolId<InterfaceDeclaration>>>,
+    pub extension: Owned<PoolId<ExtendDeclaration>>,
+    pub target: TermId,
+}
+
 impl ExpressionBuilder {
     pub fn find_inherent_method_of(
         &self,
@@ -116,6 +137,70 @@ impl ExpressionBuilder {
             .map(Some)
     }
 
+    pub fn find_interface_implementations_of(
+        &self,
+        queue: &HirQueueBuilder,
+        descriptor: FindInterfaceImplementationsDescriptor,
+    ) -> Result<Vec<FindInterfaceImplementationsResult>> {
+        let mut matching = Vec::new();
+
+        for extension_id in descriptor.candidates {
+            let extension = queue
+                .modules
+                .get_entry(extension_id.owner)
+                .extensions()
+                .get(extension_id.term);
+
+            queue.assert_concrete_type_generic_count(extension_id.owner, extension.target)?;
+            let target = queue
+                .lowerer
+                .lower_type(
+                    queue,
+                    extension_id.owner,
+                    extension.target,
+                    &TypeContext::EMPTY,
+                )?
+                .term;
+            let matched_target =
+                match self.unify_terms(queue, target, descriptor.ty.term, descriptor.span) {
+                    Ok(term) => term,
+                    Err(_) => continue,
+                };
+            let target = matched_target;
+            let interfaces = {
+                let mut out = Vec::new();
+                for interface in extension.generics.interface_implementations.iter() {
+                    let interface = match queue.modules.get_type(interface.data) {
+                        slynx_parser::Type::Plain(identifier)
+                            if identifier.generic.is_empty()
+                                && let Some(interface) = queue
+                                    .lowerer
+                                    .lookup
+                                    .find_interface(identifier.identifier, extension_id.owner) =>
+                        {
+                            interface
+                        }
+                        _ => {
+                            return Err(HIRError::unimplemented(
+                                MissingFeature::GenericInterfaces,
+                                interface.span,
+                            ));
+                        }
+                    };
+
+                    out.push(interface);
+                }
+                out
+            };
+            matching.push(FindInterfaceImplementationsResult {
+                interfaces,
+                extension: *extension_id,
+                target,
+            });
+        }
+        Ok(matching)
+    }
+
     pub fn find_interface_method_of(
         &self,
         queue: &HirQueueBuilder,
@@ -130,75 +215,17 @@ impl ExpressionBuilder {
                     method_name: descriptor.name,
                 });
 
-        let mut matching = Vec::new();
-
-        for extension_id in candidates {
-            let extension = queue
-                .modules
-                .get_entry(extension_id.owner)
-                .extensions()
-                .get(extension_id.term);
-            {
-                //Only exists due to not supporting generics inside interface extensions
-                if !extension.generics.type_params.is_empty() {
-                    return Err(HIRError::unimplemented(
-                        MissingFeature::GenericInterfaces,
-                        extension.span,
-                    ));
-                }
-                if let Some(method) = extension.methods.iter().find(|method| {
-                    method.name == descriptor.name && !method.generics.type_params.is_empty()
-                }) {
-                    return Err(HIRError::unimplemented(
-                        MissingFeature::GenericInterfaces,
-                        method.span,
-                    ));
-                }
-            }
-
-            queue.assert_concrete_type_generic_count(extension_id.owner, extension.target)?;
-            let target = queue
-                .lowerer
-                .lower_type(
-                    queue,
-                    extension_id.owner,
-                    extension.target,
-                    &TypeContext::EMPTY,
-                )?
-                .term;
-            if target != descriptor.ty.term {
-                continue;
-            }
-            for interface in extension.generics.interface_implementations.iter() {
-                let interface_name = match queue.modules.get_type(interface.data) {
-                    slynx_parser::Type::Plain(identifier) if identifier.generic.is_empty() => {
-                        identifier.identifier
-                    }
-                    _ => {
-                        return Err(HIRError::unimplemented(
-                            MissingFeature::GenericInterfaces,
-                            interface.span,
-                        ));
-                    }
-                };
-                let Some(interface) = queue
-                    .lowerer
-                    .lookup
-                    .find_interface(interface_name, extension_id.owner)
-                else {
-                    return Err(HIRError::unimplemented(
-                        MissingFeature::GenericInterfaces,
-                        interface.span,
-                    ));
-                };
-                matching.push((extension_id.clone(), target, interface));
-            }
-        }
-
         let mut implemented_interfaces = std::collections::HashMap::new();
         let mut resolved_methods = Vec::new();
-        for (extension, target, interface) in matching {
-            if let Some(interface_type) = implemented_interfaces.get(&interface) {
+        for result in self.find_interface_implementations_of(
+            queue,
+            FindInterfaceImplementationsDescriptor {
+                ty: descriptor.ty,
+                candidates: &candidates,
+                span: descriptor.span,
+            },
+        )? {
+            if let Some(interface_type) = implemented_interfaces.get(&result.extension) {
                 return Err(HIRError::duplicate_interface_implementation(
                     descriptor.ty.term,
                     *interface_type,
@@ -207,11 +234,11 @@ impl ExpressionBuilder {
             }
             let extension_id =
                 queue.materialize_interface_implementation(InterfaceImplementationDescriptor {
-                    extension,
-                    target,
+                    extension: result.extension,
+                    target: result.target,
                 })?;
             let implementation = queue.hir.get_extension(extension_id);
-            implemented_interfaces.insert(interface, implementation.target);
+            implemented_interfaces.insert(result.extension, implementation.target);
             if let Some((_, method)) = implementation
                 .methods
                 .iter()

@@ -267,6 +267,22 @@ impl<'a> HirQueueBuilder<'a> {
                         interface.span,
                     )?
                     .term;
+
+                if let Some(existing) = self.hir.types.methods.get_extensions_of(descriptor.target) {
+                    for existing_id in existing.value().iter() {
+                        let existing_impl = self.hir.get_extension(*existing_id);
+                        if existing_impl.interfaces.iter().any(|existing_interface| {
+                            *existing_interface == interface_term
+                        }) {
+                            return Err(HIRError::duplicate_interface_implementation(
+                                descriptor.target,
+                                interface_term,
+                                interface.span,
+                            ));
+                        }
+                    }
+                }
+
                 interfaces.push(interface_term);
                 for method in interface_declaration.methods.iter() {
                     interface_methods.insert(method.name, interface_term);
@@ -374,7 +390,10 @@ impl<'a> HirQueueBuilder<'a> {
                     ));
                 }
             } else {
-                return Err(HIRError::method_not_found(required.name, extension.span));
+                return Err(HIRError::missing_interface_method(
+                    required.name,
+                    extension.span,
+                ));
             }
         }
         Ok(())

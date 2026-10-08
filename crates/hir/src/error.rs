@@ -266,6 +266,11 @@ impl HIRError {
             backtrace: Backtrace::capture(),
         }
     }
+
+    pub fn missing_interface_method(name: SymbolPointer, span: Span) -> Self {
+        Self::new(HIRErrorKind::MissingExtensionMethod { method: name }, span)
+    }
+
     pub fn expected_interface_type(found: TermId, span: Span) -> Self {
         Self::new(
             HIRErrorKind::UnexpectedTypeUsage {
