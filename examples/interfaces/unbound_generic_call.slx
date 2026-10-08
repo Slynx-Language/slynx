@@ -1,0 +1,14 @@
+// xfail: an interface method call on a generic parameter with no `where`
+// bound must be rejected — there is no impl to discharge the call against
+// (NoImplementationForInterface).
+interface Stringifiable {
+    func stringify(&self) -> str
+}
+
+func bad<T>(x: T) -> str {
+    x.stringify()
+}
+
+func main(): void {
+    bad(42);
+}

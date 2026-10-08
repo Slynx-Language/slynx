@@ -56,7 +56,11 @@ mod views_terms_tests {
         ];
 
         for (id, expected) in cases {
-            assert_eq!(hir.view(id).name(), expected, "term name for {expected}");
+            assert_eq!(
+                hir.view(id).pretty_name(),
+                expected,
+                "term name for {expected}"
+            );
         }
     }
 
@@ -194,7 +198,7 @@ mod views_terms_tests {
                 .create_type(Term::var_type(0, symbols.intern("T"))),
         );
         assert!(generic_term.is_generic().is_some());
-        assert_eq!(generic_term.name(), "T");
+        assert_eq!(generic_term.pretty_name(), "T");
     }
 
     #[test]

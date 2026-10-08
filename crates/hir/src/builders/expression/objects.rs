@@ -41,13 +41,17 @@ impl ExpressionBuilder {
 
         let ty = if let Some(self_type) = &self.self_type {
             queue
-                .get_node(self.file())
-                .find_self_type(name.data, *self_type)
+                .lowerer
+                .lower_type_with_self(queue, self.file(), name, context, *self_type)?
+                .term
         } else {
-            queue.get_node(self.file()).find_type(name, context)?.1
+            queue
+                .lowerer
+                .lower_type(queue, self.file(), name, context)?
+                .term
         };
         let ty_view = queue.hir.view(ty);
-        let deref = ty_view.dereference();
+        let deref = ty_view.nominal();
         let obj = deref
             .is_struct()
             .expect("Expected name to generate a struct type");
@@ -72,7 +76,7 @@ impl ExpressionBuilder {
             .fields()
             .iter()
             .enumerate()
-            .map(|(i, s)| (s.data, (i, s.visibility)))
+            .map(|(i, s)| (s.data.name, (i, s.visibility)))
             .collect();
         let mut ordered = vec![None; obj.fields().len()];
 
@@ -109,7 +113,7 @@ impl ExpressionBuilder {
                         let field_ty = crate::generics::substitute_terms(
                             queue.hir,
                             generics,
-                            obj.field_types()[*idx],
+                            obj.fields()[*idx].data.ty,
                         );
                         self.build_expression(
                             queue,
@@ -120,7 +124,7 @@ impl ExpressionBuilder {
                             },
                         )?
                     }),
-                    None => missing.push(obj.fields()[i].data),
+                    None => missing.push(obj.fields()[i].data.name),
                 }
             }
 

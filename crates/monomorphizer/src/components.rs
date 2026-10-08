@@ -6,21 +6,26 @@
 //! a new component type with substituted property types, plus a mangled,
 //! non-generic `HirComponentDeclaration` whose property members (default values
 //! and the child tree) are rebuilt with the substitution applied.
+//!
+//! This module also owns the neutralization of the component templates that
+//! survive the pass
+//! ([`neutralize_generic_components`](Monomorphizer::neutralize_generic_components)).
 
 use common::{
     Span,
     pool::{DedupPoolId, PoolId},
 };
+use module_loader::FileId;
 use slynx_hir::{
-    ComponentMemberDeclaration, ComponentType, DescriptorId, HIRError, HirComponentDeclaration,
-    Result, SlynxHir,
-    id::{AnyDeclarationId, AnyLocalDeclarationId},
+    ComponentMemberDeclaration, ComponentType, DeclarationId, DescriptorId, HIRError,
+    HirComponentDeclaration, Result, SlynxHir, SymbolPointer,
     term::{TermId, TermNode},
 };
 
 use crate::{
     Monomorphizer,
-    types::{Substitution, substitute_type},
+    specialization::SpecializationDescriptor,
+    types::{MonomorphizationKey, Substitution, substitute_type},
 };
 
 impl Monomorphizer {
@@ -28,6 +33,24 @@ impl Monomorphizer {
     ///`List<int>`, returns the specialized component type, generating a mangled
     ///`HirComponentDeclaration` on first use and deduplicating identical
     ///instantiations afterwards.
+    ///
+    ///The request is handed to the shared
+    ///[`specialize`](Monomorphizer::specialize) skeleton as a
+    ///[`SpecializationDescriptor`]; the skeleton reads the template's name and
+    ///generic arity itself, and the resulting typed id is narrowed to the
+    ///specialization's component type for the caller.
+    ///
+    ///# Arguments
+    ///
+    ///* `hir` — the HIR being monomorphized; the declaration is inserted into
+    ///  the template's file so codegen hoists it next to its template.
+    ///* `ty` — the concrete type application (`List<int>`) to specialize.
+    ///* `span` — the use-site span, reported on arity and cycle errors.
+    ///
+    ///# Returns
+    ///
+    ///The component type of the concrete copy — freshly generated or served
+    ///from the cache.
     pub(crate) fn resolve_component_target(
         &mut self,
         hir: &SlynxHir,
@@ -53,23 +76,19 @@ impl Monomorphizer {
         };
         let name = hir.intern_name(hir.view(comp_id).name());
 
-        let Some((template_file, template_local)) =
-            self.find_declaration_by_name(hir, name, |pool| &pool.components, |d| d.name)
+        let Some(template) = self.find_declaration_by_name::<HirComponentDeclaration>(hir, name)
         else {
             unreachable!("Every generic component type must have a HirComponentDeclaration")
         };
-        let template_any = AnyDeclarationId::new(
-            template_file,
-            AnyLocalDeclarationId::Component(template_local),
-        );
+        let owner = template.owner;
 
-        let (template_generics, visibility, template_members) = {
-            let file = hir.get_file(template_file);
-            let declaration = &file.declarations.declarations.components[template_local];
+        let (visibility, template_members, decl_span) = {
+            let file = hir.get_file(owner);
+            let declaration = &file.declarations.declarations.components[template.term];
             (
-                declaration.generics.clone(),
                 declaration.visibility,
                 declaration.props.clone(),
+                declaration.span,
             )
         };
 
@@ -79,59 +98,94 @@ impl Monomorphizer {
             .filter(|slot| !slot.is_null())
             .collect();
 
-        self.specialize(
+        let specialized = self.specialize(
             hir,
-            name,
-            template_any,
-            template_generics.len(),
-            args,
-            span,
-            |hir, cached| {
-                let AnyLocalDeclarationId::Component(local_id) = cached.local_id else {
-                    unreachable!("A monomorphized component target must be a component")
-                };
-                hir.get_file(cached.file_id)
-                    .declarations
-                    .declarations
-                    .components[local_id]
-                    .ty
+            SpecializationDescriptor {
+                template,
+                args,
+                span,
+                build: |monomorphizer: &mut Monomorphizer,
+                        hir: &SlynxHir,
+                        subst: &Substitution,
+                        mangled_symbol: SymbolPointer,
+                        _: &MonomorphizationKey| {
+                    let specialized_ty =
+                        monomorphizer.rebuild_component_type(hir, comp_id, subst, span)?;
+
+                    let new_members =
+                        monomorphizer.build_component_members(hir, &template_members, subst)?;
+
+                    let specialized_local = {
+                        let file = hir.get_file_mut(owner);
+                        file.declarations
+                            .declarations
+                            .components
+                            .insert(HirComponentDeclaration {
+                                name: mangled_symbol,
+                                span: decl_span,
+                                generics: Vec::new(),
+                                props: new_members,
+                                ty: specialized_ty,
+                                visibility,
+                                attributes: Vec::new(),
+                            })
+                    };
+
+                    Ok(DeclarationId::new(owner, specialized_local))
+                },
             },
-            |monomorphizer, hir, subst, mangled_symbol, _| {
-                let specialized_ty =
-                    monomorphizer.rebuild_component_type(hir, comp_id, subst, span)?;
+        )?;
 
-                let new_members =
-                    monomorphizer.build_component_members(hir, &template_members, subst)?;
+        let file = hir.get_file(specialized.owner);
+        Ok(file.declarations.declarations.components[specialized.term].ty)
+    }
 
-                let specialized_local = {
-                    let file = hir.get_file_mut(template_file);
-                    file.declarations
-                        .declarations
-                        .components
-                        .insert(HirComponentDeclaration {
-                            name: mangled_symbol,
-                            generics: Vec::new(),
-                            props: new_members,
-                            ty: specialized_ty,
-                            visibility,
-                            attributes: Vec::new(),
-                        })
-                };
-
-                Ok((
-                    AnyDeclarationId::new(
-                        template_file,
-                        AnyLocalDeclarationId::Component(specialized_local),
-                    ),
-                    specialized_ty,
-                ))
-            },
-        )
+    ///Neutralizes every generic *component* template: empties its member list
+    ///and retypes it to `void_ty`, then records it as dead code.
+    ///
+    ///After this runs no component declaration in the HIR carries a
+    ///`GenericParam`-typed signature, so codegen never sees one. Templates
+    ///that were instantiated during the pass are neutralized too — their
+    ///concrete specializations exist alongside them and are the declarations
+    ///codegen emits.
+    ///
+    ///# Arguments
+    ///
+    ///* `hir` — the HIR whose component templates are neutralized.
+    ///* `files` — the files to scan for generic templates.
+    ///* `void_ty` — the concrete, non-generic type every neutralized template
+    ///  is retyped to.
+    pub(crate) fn neutralize_generic_components(
+        &mut self,
+        hir: &SlynxHir,
+        files: &[FileId],
+        void_ty: TermId,
+    ) {
+        for template in self.generic_templates::<HirComponentDeclaration>(hir, files) {
+            let mut file = hir.get_file_mut(template.owner);
+            let declaration = file
+                .declarations
+                .declarations
+                .components
+                .get_mut(template.term);
+            declaration.props = Vec::new();
+            declaration.ty = void_ty;
+            self.mark_dead(template);
+        }
     }
 
     ///Rebuilds a component type with `subst` applied to its property types and
     ///its children, resolving any generic object/component references left
     ///over. Returns a fresh component type id.
+    ///
+    ///# Arguments
+    ///
+    ///* `hir` — the HIR whose type pool receives the rebuilt component type.
+    ///* `comp_ty` — the component type to rebuild.
+    ///* `subst` — the substitution of generic parameters for this
+    ///  instantiation.
+    ///* `span` — the use-site span, forwarded when nested property types still
+    ///  reference a specialization.
     pub(crate) fn rebuild_component_type(
         &mut self,
         hir: &SlynxHir,
@@ -145,14 +199,10 @@ impl Monomorphizer {
         let properties = view
             .props()
             .iter()
-            .zip(view.prop_names())
-            .map(|(prop_ty, prop_name)| {
-                let new_ty = self.resolve_expression_type(
-                    hir,
-                    substitute_type(hir, *prop_ty, subst)?,
-                    span,
-                )?;
-                Ok((*prop_name, new_ty))
+            .map(|prop| {
+                let new_ty =
+                    self.resolve_expression_type(hir, substitute_type(hir, prop.ty, subst)?, span)?;
+                Ok((prop.name, new_ty))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -177,6 +227,13 @@ impl Monomorphizer {
 
     ///Rebuilds the member list of a component declaration, substituting the
     ///generic parameters inside property default values and the child tree.
+    ///
+    ///# Arguments
+    ///
+    ///* `hir` — the HIR whose expression pools receive the rebuilt members.
+    ///* `members` — the member list to rebuild.
+    ///* `subst` — the substitution of generic parameters for this
+    ///  instantiation.
     fn build_component_members(
         &mut self,
         hir: &SlynxHir,
@@ -214,21 +271,27 @@ impl Monomorphizer {
 
     ///Rewrites the members of a non-generic component, resolving any generic
     ///object/component usage inside default values and the child tree.
+    ///
+    ///# Arguments
+    ///
+    ///* `hir` — the HIR whose expression pools receive the rebuilt members.
+    ///* `owner` — the file the component lives in.
+    ///* `local_id` — the pool id of the non-generic component to rewrite.
     pub(crate) fn rewrite_non_generic_component(
         &mut self,
         hir: &SlynxHir,
-        file_id: module_loader::FileId,
+        owner: FileId,
         local_id: PoolId<HirComponentDeclaration>,
     ) -> Result<()> {
         let template_members = {
-            let file = hir.get_file(file_id);
+            let file = hir.get_file(owner);
             file.declarations.declarations.components[local_id]
                 .props
                 .clone()
         };
         let new_members =
             self.build_component_members(hir, &template_members, &Substitution::empty())?;
-        let mut file = hir.get_file_mut(file_id);
+        let mut file = hir.get_file_mut(owner);
         file.declarations
             .declarations
             .components

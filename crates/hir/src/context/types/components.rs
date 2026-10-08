@@ -5,17 +5,10 @@ use common::{
     pool::{DedupPool, DedupPoolId},
 };
 
-use crate::{ComponentType, SymbolPointer, term::TermId};
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct ComponentDefinition {
-    pub(crate) name: SymbolPointer,
-    pub(crate) properties: Vec<SymbolPointer>,
-}
+use crate::{ComponentType, StructField, SymbolPointer, Visible, term::TermId};
 
 dedup_pooled!(pub ComponentsPool {
     components: ComponentType,
-    bodies: ComponentDefinition
 });
 
 impl ComponentsPool {
@@ -24,19 +17,24 @@ impl ComponentsPool {
         name: SymbolPointer,
         properties: Vec<(SymbolPointer, TermId)>,
         children: Vec<DedupPoolId<ComponentType>>,
-    ) -> (DedupPoolId<ComponentType>, DedupPoolId<ComponentDefinition>) {
-        let (names, properties) = properties.into_iter().unzip();
-        let def = self.bodies.insert(ComponentDefinition {
-            name,
-            properties: names,
-        });
+    ) -> DedupPoolId<ComponentType> {
         let s = ComponentType {
-            properties,
+            name,
+            properties: properties
+                .into_iter()
+                .map(|property| {
+                    Visible::new(
+                        common::VisibilityModifier::Public,
+                        StructField {
+                            ty: property.1,
+                            name: property.0,
+                        },
+                    )
+                })
+                .collect(),
             children,
-            metadata: def,
         };
-        let comp = self.components.insert(s);
-        (comp, def)
+        self.components.insert(s)
     }
 }
 
@@ -44,7 +42,6 @@ impl Debug for ComponentsPool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ComponentsPools")
             .field("components", &self.components)
-            .field("bodies", &self.bodies)
             .finish()
     }
 }

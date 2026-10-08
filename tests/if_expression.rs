@@ -1,14 +1,11 @@
-use std::path::PathBuf;
 mod common;
 
+/// Compiles `examples/ifExpression.syx` and inspects the generated IR.
 #[test]
 fn lowers_if_else_expression_used_as_variable_value() {
-    let context = slynx::SlynxContext::new(
-        PathBuf::from("examples/ifExpression.syx"),
-        Some(common::STD_PATH.clone()),
-    )
-    .unwrap();
-    let stages = context.build_stages().unwrap();
+    let stages = common::load_example("examples/ifExpression.syx")
+        .build_stages()
+        .unwrap();
     let ir = stages.ir_text();
 
     assert!(
@@ -16,4 +13,10 @@ fn lowers_if_else_expression_used_as_variable_value() {
         "IR should contain main function:\n{ir}"
     );
     assert!(ir.contains("Cbr"), "IR should contain Cbr:\n{ir}");
+}
+
+#[test]
+fn test_if_expression() -> Result<(), color_eyre::Report> {
+    let _ = common::compile_ok("examples/if.syx")?;
+    Ok(())
 }

@@ -1,0 +1,17 @@
+interface Stringifiable {
+    func stringify(&self) -> str
+    func length(&self) -> int
+}
+
+enum Option<T>: Stringifiable {
+    Some(T),
+    None
+    func stringify(&self) -> str { "some" }
+    func length(&self) -> int { 1 }
+}
+
+func main(): void {
+    let some = Option.Some(1);
+    some.stringify();
+    some.length();
+}

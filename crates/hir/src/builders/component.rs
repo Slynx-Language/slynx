@@ -1,17 +1,18 @@
-use common::Span;
-use module_loader::{ASTTypeKind, FileId};
+use module_loader::FileId;
 use slynx_parser::{ComponentDeclaration, ComponentMemberKind, TypeContext};
 
 use crate::{
     ComponentId, ComponentMemberDeclaration, DeclarationId, HIRError, HirComponentDeclaration,
-    Result, SymbolPointer,
+    Owned, Result,
+    attributes::process_attributes,
     builders::{
         HirQueueBuilder, PendantComponent,
         expression::{ExpressionBuilder, ExpressionDescriptor},
+        lowering::lowerer::LowerTypeDeclarationDescriptor,
     },
     components::ComponentExpressionDescriptor,
     context::HirSymbol,
-    id::{AnyLocalDeclarationId, OwnerId},
+    id::OwnerId,
 };
 
 pub struct ComponentBuildResult {
@@ -54,80 +55,53 @@ impl<'a> HirQueueBuilder<'a> {
         queue.bodies_in_progress.remove(&id);
         result.map(|r| r.decls)
     }
-    ///Finds a component with the given `name` on-demand, hoisting it if needed.
-    ///Mirrors the pattern of `find_function_named`.
-    #[allow(dead_code)]
-    pub fn find_component_named(
-        &'a self,
-        name: SymbolPointer,
-        requester: FileId,
-        span: Span,
-    ) -> Result<ComponentId> {
-        // 1. Already hoisted in symbol registry?
-        if let Some(comp) = self
-            .hir
-            .find_component_by_symbol(HirSymbol::new(requester, name))
-        {
-            return Ok(comp);
-        }
 
-        // 2. Already exists in the requester's file pool?
-        if let Some(id) = self.hir.get_file(requester).find_component_with_name(name) {
-            return Ok(id);
-        }
-
-        if let Some(ast_type) = self.modules.find_type(requester, name) {
-            match ast_type.content {
-                ASTTypeKind::Component(component) => {
-                    let component = self
-                        .modules
-                        .get_entry(ast_type.owner)
-                        .component()
-                        .get(component);
-                    let out = self.enqueue_component(component, ast_type.owner)?;
-                    return Ok(out);
-                }
-                _ => {
-                    return Err(HIRError::not_a_component(name, span));
-                }
-            }
-        }
-
-        // 4. Not found anywhere
-        Err(HIRError::name_unrecognized(name, span))
-    }
     pub(crate) fn enqueue_component(
         &self,
         component: &'a ComponentDeclaration,
         node: FileId,
     ) -> Result<DeclarationId<HirComponentDeclaration>> {
-        let node = self.get_node(node);
-        let (owner, ty) = node.find_type_named_as(
-            component.span.make_spanned(component.name),
-            &TypeContext::new(&component.type_params),
+        let ast_type = self
+            .lowerer
+            .lookup
+            .find_type(node, component.name)
+            .ok_or_else(|| HIRError::type_unrecognized(component.name, component.span))?;
+        let lowered = self.lowerer.materialize_type_declaration(
+            self,
+            LowerTypeDeclarationDescriptor {
+                ast_type,
+                context: &TypeContext::new(&component.generics.type_params),
+                span: component.span,
+            },
         )?;
+        let (owner, ty) = (lowered.owner, lowered.term);
 
         let id = self.hir.symbols_registry.get_or_insert_component(
             HirSymbol::new(owner, component.name),
             || {
-                let decl = HirComponentDeclaration {
-                    name: component.name,
-                    generics: component.type_params.clone(),
-                    props: Vec::new(),
-                    ty,
-                    visibility: component.visibility,
-                    attributes: Vec::new(),
-                };
-                let file = self.hir.store.get_or_create_file(node.entry);
-                Ok(file.create_component(decl))
-            },
-        )?;
+                let generics = self.lowerer.generic_parameters_of(
+                    self,
+                    &component.generics,
+                    owner,
+                    &TypeContext::new(&component.generics.type_params),
+                )?;
 
-        // Process attributes after the declaration is registered
-        self.attach_attributes(
-            id.file_id,
-            AnyLocalDeclarationId::Component(id.local_id),
-            &component.attributes,
+                let file = self.hir.store.get_or_create_file(node);
+                let id = file.insert_at_components_with_id(|id| {
+                    let id = Owned::new(node, id);
+                    let attributes = process_attributes(self.hir, id, &component.attributes)?;
+                    Ok(HirComponentDeclaration {
+                        name: component.name,
+                        span: component.span,
+                        generics,
+                        props: Vec::new(),
+                        ty,
+                        visibility: component.visibility,
+                        attributes,
+                    })
+                })?;
+                Ok(Owned::new(node, id))
+            },
         )?;
 
         self.components.send(PendantComponent {
@@ -160,7 +134,7 @@ impl ComponentBuilder {
         };
 
         let mut prop_index = 0;
-        let context = TypeContext::new(&component.type_params);
+        let context = TypeContext::new(&component.generics.type_params);
         for member in &component.members {
             match &member.kind {
                 ComponentMemberKind::Property {
@@ -170,14 +144,19 @@ impl ComponentBuilder {
                     ..
                 } => {
                     let rhs = if let Some(rhs) = rhs {
-                        Some(self.builder.build_expression(
-                            queue,
-                            ExpressionDescriptor {
-                                target: *rhs,
-                                expected: component_type.props().get(prop_index).cloned(),
-                                context: &context,
-                            },
-                        )?)
+                        Some(
+                            self.builder.build_expression(
+                                queue,
+                                ExpressionDescriptor {
+                                    target: *rhs,
+                                    expected: component_type
+                                        .props()
+                                        .get(prop_index)
+                                        .map(|field| field.data.ty),
+                                    context: &context,
+                                },
+                            )?,
+                        )
                     } else {
                         None
                     };

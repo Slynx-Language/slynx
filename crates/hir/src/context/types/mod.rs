@@ -10,17 +10,16 @@ use common::pool::DedupPoolId;
 use dashmap::{DashMap, DashSet};
 
 use crate::{
-    ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, Result,
-    StructType, SymbolPointer, TupleType, VariableId,
+    ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, InterfaceType,
+    Result, StructField, StructType, SymbolPointer, TupleType, VariableId,
     helpers::Visible,
+    interface::InterfaceTerm,
     term::{ExtensionNode, Term, TermId, TermNode},
 };
 
-pub use components::ComponentDefinition;
-pub use methods::MethodTable;
+pub use methods::{InterfaceMethodSignature, MethodTable};
 pub use registry::TypeRegistry;
 pub use storage::TypeStorage;
-pub use structs::StructDefinition;
 
 #[derive(Debug)]
 /// Manages all types in the HIR, including built-ins, user-defined types, and variables.
@@ -96,7 +95,7 @@ impl TypesContext {
         fields: Vec<Visible<(SymbolPointer, TermId)>>,
         methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
     ) -> TermId {
-        let (id, _) = self.storage.structs.insert(name, fields, methods);
+        let id = self.storage.structs.insert(name, fields, methods);
         let id = self.storage.insert_type(Term::struct_type(id));
         self.registry.register(name, id);
         id
@@ -146,17 +145,29 @@ impl TypesContext {
         properties: Vec<(SymbolPointer, TermId)>,
         children: Vec<DedupPoolId<ComponentType>>,
     ) -> TermId {
-        let (comp_ty, _) = self.storage.components.insert(name, properties, children);
+        let comp_ty = self.storage.components.insert(name, properties, children);
         let id = self.storage.insert_type(Term::component_type(comp_ty));
         self.registry.register(name, id);
         id
     }
 
-    pub fn get_component_definition(
+    pub fn create_interface_type(
         &self,
-        comp: DedupPoolId<ComponentType>,
-    ) -> &ComponentDefinition {
-        self.storage.get_component_definition(comp)
+        name: SymbolPointer,
+        methods: Vec<(SymbolPointer, TermId)>,
+        super_interfaces: Vec<TermId>,
+    ) -> TermId {
+        let interface_type = self.storage.interfaces.insert(InterfaceType {
+            name,
+            methods,
+            super_interfaces,
+        });
+        let interface = InterfaceTerm {
+            raw: interface_type,
+        };
+        let id = self.storage.insert_type(Term::extension_type(interface));
+        self.registry.register(name, id);
+        id
     }
 
     pub fn create_alias_type(&self, name: SymbolPointer, ty: Term) -> TermId {
@@ -175,14 +186,8 @@ impl TypesContext {
         self.storage.insert_type(ty)
     }
 
-    ///Returns the inner object from the provided `ty`, returns None if the type is not a object
-    pub fn get_object(&self, ty: TermId) -> Option<TermId> {
-        self.storage.get_object(ty)
-    }
-
-    ///Returns the inner component from the provided `ty`, returns None if the type is not a object
-    pub fn get_component(&self, ty: &TermId) -> Option<TermId> {
-        self.storage.get_component(ty)
+    pub fn get_component_name(&self, ty: DedupPoolId<ComponentType>) -> SymbolPointer {
+        self.storage.components[ty].name
     }
 
     ///Registers a method for the given `ty` on the current declaration context with the given `name` that points to the given `id`. It should be asserted by the HIR to be a function ID
@@ -223,6 +228,29 @@ impl TypesContext {
         self.methods.get_methods_of(ty)
     }
 
+    ///Registers the signature declaration of a method declared by an interface.
+    pub fn create_interface_method(&self, signature: InterfaceMethodSignature) {
+        self.methods.create_interface_method(signature);
+    }
+
+    ///Returns the signature declaration of the method `name` declared by the
+    ///given `interface`, if any.
+    pub fn interface_method_of(
+        &self,
+        interface: DedupPoolId<InterfaceType>,
+        name: SymbolPointer,
+    ) -> Option<DeclarationId<HirFunctionDeclaration>> {
+        self.methods.interface_method_of(interface, name)
+    }
+
+    ///Returns the interface method the given `declaration` is the signature of.
+    pub fn interface_signature(
+        &self,
+        declaration: DeclarationId<HirFunctionDeclaration>,
+    ) -> Option<InterfaceMethodSignature> {
+        self.methods.interface_signature(declaration)
+    }
+
     ///Retrieves the TermId of the provided `name` on the currentContext
     pub fn get_id_of_name(&self, name: &SymbolPointer) -> Option<TermId> {
         self.registry.get_id_of_name(name)
@@ -230,19 +258,8 @@ impl TypesContext {
     pub fn get_struct_name(&self, s: DedupPoolId<StructType>) -> SymbolPointer {
         self.storage.get_struct_name(s)
     }
-    pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[Visible<SymbolPointer>] {
+    pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[Visible<StructField>] {
         self.storage.get_struct_fields(s)
-    }
-
-    pub fn get_struct_field_types(&self, s: DedupPoolId<StructType>) -> &[TermId] {
-        self.storage.get_struct_field_types(s)
-    }
-
-    pub fn get_struct_signature(
-        &self,
-        s: DedupPoolId<StructType>,
-    ) -> Vec<(&Visible<SymbolPointer>, &TermId)> {
-        self.storage.get_struct_signature(s)
     }
 
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
@@ -304,12 +321,4 @@ macro_rules! impl_index {
     };
 }
 
-impl_index!(
-    Term,
-    StructType,
-    StructDefinition,
-    TupleType,
-    EnumType,
-    ComponentType,
-    ComponentDefinition,
-);
+impl_index!(Term, StructType, TupleType, EnumType, ComponentType,);

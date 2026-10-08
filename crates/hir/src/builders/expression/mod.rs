@@ -39,6 +39,7 @@ pub mod field_access;
 pub mod literals;
 pub mod names;
 pub mod objects;
+pub mod resolution;
 pub mod statements;
 pub mod typing;
 
@@ -92,6 +93,16 @@ pub(crate) struct ExpressionBuilder {
     pub(crate) variables: VariablesManager,
     pub(crate) self_type: Option<TermId>,
 }
+///Macro for getting the generic arguments of a function or component inside an expression builder
+#[macro_export]
+macro_rules! generic_args {
+    ($self:ident, $q:ident) => {
+        match $self.target {
+            OwnerId::Function(f) => $q.hir.get_function(f).generics,
+            OwnerId::Component(c) => $q.hir.get_component(c).generics,
+        }
+    };
+}
 
 impl ExpressionBuilder {
     pub fn new(owner: OwnerId, self_type: Option<TermId>) -> Self {
@@ -104,8 +115,8 @@ impl ExpressionBuilder {
 
     pub fn file(&self) -> FileId {
         match self.target {
-            OwnerId::Component(c) => c.file_id,
-            OwnerId::Function(f) => f.file_id,
+            OwnerId::Component(c) => c.owner,
+            OwnerId::Function(f) => f.owner,
         }
     }
 

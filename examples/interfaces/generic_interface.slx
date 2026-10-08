@@ -1,0 +1,6 @@
+// xfail: interfaces do not accept generic parameters.
+interface Stringifiable<T> {
+    func stringify(&self) -> str
+}
+
+func main(): void {}

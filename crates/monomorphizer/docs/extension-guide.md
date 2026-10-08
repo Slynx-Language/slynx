@@ -76,6 +76,25 @@ from `architecture.md` § "The specialization recipe", reusing:
 - the tree builders in `lib.rs` (`build_expression`, `build_statements`, …) to
   rebuild any expressions the declaration contains.
 
+### Step 2a — Teach the shared skeleton about the new kind
+
+`specialize` is generic over the declaration kind, so a new kind needs its
+declaration types in `src/specialization.rs`:
+
+- implement [`NamedDeclaration`](../src/specialization.rs) (gives `specialize`
+  the template's name for diagnostics and mangling);
+- implement [`SpecializableDeclaration`](../src/specialization.rs) — a
+  `TypeDeclaration` impl (usually already present in `slynx_hir`) plus
+  `from_erased`, which narrows the erased cache-hit id back to a typed
+  `DeclarationId<Self>`.
+
+Then write a `resolve_<kind>_target` that builds a
+[`SpecializationDescriptor`](../src/specialization.rs) — typed template id,
+concrete `args`, use-site `span`, and a `build` callback that creates the
+specialized declaration under the mangled name — and hands it to `specialize`.
+The skeleton performs the arity check, cache lookup/hit, cycle guard, mangling,
+cache memoization, and the dead-template mark itself.
+
 ## Step 3 — Wire the trigger into `lib.rs`
 
 The `run` driver must (a) rewrite the places that *use* the generic kind, and
@@ -97,18 +116,26 @@ The `run` driver must (a) rewrite the places that *use* the generic kind, and
 
 ### Neutralization (b)
 
-For each generic template of the new kind, empty its body / reset its type and
-insert its `AnyDeclarationId` into `dead_code`. Codegen skips dead
-declarations, so this is what keeps `GenericParam`-typed data away from it. This
-is the `for ... .filter(|d| !d.generics.is_empty())` loop family in `run`.
+Write a `neutralize_generic_<kind>` method in the kind's module that mirrors the
+existing four: collect the templates with the shared
+[`generic_templates`](../src/lib.rs) scan (every `TypeDeclaration` whose
+`generics()` is non-empty across the files), empty the declaration's body /
+reset its type to `void_ty`, and record each one via
+[`mark_dead`](../src/lib.rs), which erases the typed id to `AnyDeclarationId`
+for the heterogenous dead-code set. Codegen skips dead declarations, so this is
+what keeps `GenericParam`-typed data away from it. Call the new method from step
+4 of `run` alongside `neutralize_generic_functions` / `_objects` /
+`_components` / `_enums`.
 
 ## Step 4 — Naming and dedup
 
 Decide how the new specialization is stored and keyed:
 
 - **Key**: use `(AnyDeclarationId, SmallVec<[DedupPoolId<HirType>; 2]>)` —
-  identical argument lists must map to one specialization. Add the template's
-  `AnyDeclarationId` to `dead_code`.
+  identical argument lists must map to one specialization. Nothing to do beyond
+  implementing `SpecializableDeclaration`: the template's id is erased with
+  `TypeDeclaration::as_any_id` when the key is built and narrowed back with
+  `from_erased` on hits; `mark_dead` adds the template to `dead_code`.
 - **Storage**: insert the specialized declaration into the same per-file
   `DeclarationsPool` as the template (e.g. `file.declarations.objects`), so
   codegen's `hoist_declarations` picks it up automatically. Give it a unique

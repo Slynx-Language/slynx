@@ -1,0 +1,22 @@
+// xfail: two `extend` blocks of the same interface for the same concrete
+// self type must be rejected (coherence rejects duplicate impls).
+interface Stringifiable {
+    func stringify(&self) -> str
+}
+
+object Person {
+    name: str
+}
+
+extend Person: Stringifiable {
+    func stringify(&self) -> str { self.name }
+}
+
+extend Person: Stringifiable {
+    func stringify(&self) -> str { "duplicate" }
+}
+
+func main(): void {
+    let person = Person(name: "ada");
+    person.stringify();
+}

@@ -2,8 +2,8 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
-    builders::HirQueueBuilder,
+    HIRError, HirExpression, HirExpressionKind, Owned, Result, SymbolPointer,
+    builders::{HirQueueBuilder, lowering::lowerer::LowerTypeDeclarationDescriptor},
     generics::GenericTypeArguments,
     term::{Term, TermId},
 };
@@ -35,13 +35,28 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder,
         name: SymbolPointer,
     ) -> Option<(TermId, usize)> {
-        let (owner, enum_id, variant_index) = queue.modules.find_enum_variant(name, self.file())?;
-        let node = queue.get_node(owner);
+        let (
+            Owned {
+                owner,
+                term: enum_id,
+            },
+            variant_index,
+        ) = queue.lowerer.lookup.find_enum_variant(name, self.file())?;
         let enum_decl = queue.modules.get_entry(owner).enums().get(enum_id);
-        let context = TypeContext::new(&enum_decl.type_params);
-        let (_, enum_ty) = node
-            .find_type_named_as(enum_decl.span.make_spanned(enum_decl.name), &context)
-            .ok()?;
+        let context = TypeContext::new(&enum_decl.generics.type_params);
+        let ast_type = queue.lowerer.lookup.find_type(owner, enum_decl.name)?;
+        let enum_ty = queue
+            .lowerer
+            .materialize_type_declaration(
+                queue,
+                LowerTypeDeclarationDescriptor {
+                    ast_type,
+                    context: &context,
+                    span: enum_decl.span,
+                },
+            )
+            .ok()?
+            .term;
         Some((enum_ty, variant_index))
     }
 
@@ -68,9 +83,16 @@ impl ExpressionBuilder {
         //Resolve any explicitly-provided generic arguments, e.g. the `[int, void]`
         //of `Result.Ok<int, void>(5)`, into their HIR type ids. These are the
         //concrete type arguments the enum reference should carry.
-        let explicit = queue
-            .get_node(self.file())
-            .resolve_call_generics(descriptor.generics, descriptor.context)?;
+        let explicit = descriptor
+            .generics
+            .iter()
+            .map(|ty| {
+                queue
+                    .lowerer
+                    .lower_type(queue, self.file(), *ty, descriptor.context)
+                    .map(|owned| owned.term)
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         //The number of generic parameters this enum declares, derived from the
         //highest generic-parameter index referenced by the variant's payload.
@@ -217,7 +239,7 @@ impl ExpressionBuilder {
 
         let expr_view = queue.hir.view(value.data);
         let ty_viewer = expr_view.ty_viewer();
-        let enum_type = ty_viewer.dereference();
+        let enum_type = ty_viewer.nominal();
         let enum_view = enum_type
             .is_enum()
             .ok_or_else(|| HIRError::matches_on_non_enum(enum_type.data, span))?;

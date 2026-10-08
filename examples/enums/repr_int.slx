@@ -1,4 +1,4 @@
-enum Numbers: int {
+enum Numbers(int) {
     One,
     Two,
     Three

@@ -22,12 +22,13 @@ Each source file in `crates/monomorphizer/src/` owns one piece of the pass:
 
 | File | Responsibility |
 |---|---|
-| [`lib.rs`](../src/lib.rs) | Driver. Owns the `Monomorphizer` state (cache, in-progress set, dead-code set), the public [`resolve`](../src/lib.rs) entry point, the `run` driver loop, and the declaration-agnostic expression/statement **tree builders** (`build_expression`, `build_statements`, `build_component_expression`, …). |
-| [`types.rs`](../src/types.rs) | Type machinery shared by every declaration kind: the `Substitution` map, [`mangle_name`](../src/types.rs), and [`substitute_type`](../src/types.rs) (walks an `HirType` and replaces `GenericParam` leaves). |
-| [`functions.rs`](../src/functions.rs) | Function specialization: [`resolve_function_target`](../src/functions.rs) creates/retrieves the concrete copy of a generic function for one set of type arguments, and [`function_return_type`](../src/functions.rs) reads a specialization's return type. |
-| [`structs.rs`](../src/structs.rs) | Struct (object) specialization: [`resolve_object_target`](../src/structs.rs) creates/retrieves a concrete struct type + `HirObjectDeclaration` for one instantiation, and rewrites generic object usage in expression/signature positions. |
-| [`components.rs`](../src/components.rs) | Component specialization: [`resolve_component_target`](../src/components.rs) creates/retrieves a concrete component type + `HirComponentDeclaration` (including rebuilt property defaults and child tree), and rewrites generic component usage. |
-| [`enums.rs`](../src/enums.rs) | Enum specialization: [`resolve_enum_target`](../src/enums.rs) creates/retrieves a concrete enum type + `HirEnumDeclaration` for one instantiation, and [`neutralize_generic_enums`](../src/enums.rs) neutralizes remaining generic enums. |
+| [`lib.rs`](../src/lib.rs) | Driver. Owns the `Monomorphizer` state (cache, in-progress set, dead-code set), the public [`resolve`](../src/lib.rs) entry point, the `run` driver loop, the generic [`specialize`](../src/lib.rs) skeleton every kind's `resolve_*_target` calls, the shared template scan ([`generic_templates`](../src/lib.rs)) / dead-code bookkeeping ([`mark_dead`](../src/lib.rs)), and the declaration-agnostic expression/statement **tree builders** (`build_expression`, `build_statements`, `build_component_expression`, …). |
+| [`specialization.rs`](../src/specialization.rs) | The vocabulary `specialize` is generic over: the [`SpecializationDescriptor`](../src/specialization.rs) request bundle, and the local traits ([`NamedDeclaration`](../src/specialization.rs), [`SpecializableDeclaration`](../src/specialization.rs)) that give every declaration kind its name and its cache-hit erasure narrowing. |
+| [`types.rs`](../src/types.rs) | Type machinery shared by every declaration kind: the `Substitution` map, the `MonomorphizationKey`, [`mangle_name`](../src/types.rs), and [`substitute_type`](../src/types.rs) (walks an `HirType` and replaces `GenericParam` leaves). |
+| [`functions.rs`](../src/functions.rs) | Function specialization: [`resolve_function_target`](../src/functions.rs) creates/retrieves the concrete copy of a generic function for one set of type arguments, [`function_return_type`](../src/functions.rs) reads a specialization's return type, and [`neutralize_generic_functions`](../src/functions.rs) neutralizes the surviving function templates. |
+| [`structs.rs`](../src/structs.rs) | Struct (object) specialization: [`resolve_object_target`](../src/structs.rs) creates/retrieves a concrete struct type + `HirObjectDeclaration` for one instantiation, rewrites generic object usage in expression/signature positions, and [`neutralize_generic_objects`](../src/structs.rs) neutralizes the surviving object templates. |
+| [`components.rs`](../src/components.rs) | Component specialization: [`resolve_component_target`](../src/components.rs) creates/retrieves a concrete component type + `HirComponentDeclaration` (including rebuilt property defaults and child tree), rewrites generic component usage, and [`neutralize_generic_components`](../src/components.rs) neutralizes the surviving component templates. |
+| [`enums.rs`](../src/enums.rs) | Enum specialization: [`resolve_enum_target`](../src/enums.rs) creates/retrieves a concrete enum type + `HirEnumDeclaration` for one instantiation, and [`neutralize_generic_enums`](../src/enums.rs) neutralizes the surviving enum templates. |
 
 ### Why split per declaration kind?
 
@@ -84,10 +85,13 @@ pub struct Monomorphizer {
    template; references are resolved to the concrete specialization.
 4. **Neutralize generic templates.** Every remaining generic declaration gets
    an empty body / neutral type and is inserted into `dead_code`, so codegen
-   never sees a `GenericParam`-typed signature. This covers generic objects
-   (`neutralize_generic_objects`), generic components
-   (`neutralize_generic_components`), and generic enums
-   (`neutralize_generic_enums`).
+   never sees a `GenericParam`-typed signature. The driver calls one
+   per-kind method — `neutralize_generic_functions`,
+   `neutralize_generic_objects`, `neutralize_generic_components`, and
+   `neutralize_generic_enums` — in its own module. They all share the same
+   scan ([`generic_templates`](../src/lib.rs), collects every `TypeDeclaration`
+   with non-empty `generics()` across the files) and the same dead-code mark
+   ([`mark_dead`](../src/lib.rs)).
 
 Steps 1–3 share the same tree builders from `lib.rs`; they differ only in the
 node they rewrite (a `HirFunctionDeclaration` vs a `HirComponentDeclaration`
@@ -95,22 +99,30 @@ vs a `HirType`).
 
 ## The specialization recipe
 
-Every `resolve_*_target` follows the same recipe:
+Every `resolve_*_target` hands a [`SpecializationDescriptor`](../src/specialization.rs)
+— typing the template `DeclarationId`, the concrete `args`, the use-site
+`span`, and a kind-specific `build` callback — to the shared, generic
+[`specialize`](../src/lib.rs) skeleton, which follows the same recipe:
 
-1. Find the **template** declaration (by symbol name for objects/components, by
-   `DeclarationId` for functions).
-2. **Arity check**: the template's type-parameter count must equal the number of
-   supplied type arguments, otherwise `HIRError::generic_arity_mismatch`.
-3. Look up the `MonomorphizationKey` in `cache` → return the cached
-   specialization if present.
+1. Find the **template** declaration (by symbol name for objects/components/
+   enums, by `DeclarationId` for functions).
+2. **Arity check**: the template's `generics()` count must equal the number of
+   supplied `args`, otherwise `HIRError::generic_arity_mismatch`.
+3. Look up the `MonomorphizationKey` in `cache` → narrow the hit back from
+   `AnyDeclarationId` with `SpecializableDeclaration::from_erased` and return it.
 4. Guard against `in_progress` re-entry (cyclic instantiation).
 5. Build the `Substitution` (`parameter index → concrete type`) and mangle the
    specialization name (see below).
-6. Create the specialized declaration **with an empty body** and insert it into
-   the pool, then **cache it before filling the body**. Caching first makes
-   recursion work: a specialization that refers to itself resolves to itself.
-7. Fill the body (substitute + rebuild statements/expressions/members).
-8. Mark the template as dead.
+6. Invoke `build`, which creates the specialized declaration **with an empty
+   body** and inserts it into the pool; generic functions cache it *before*
+   filling the body so recursion resolves to itself.
+7. Memoize the generated id in `cache`.
+8. Mark the template as dead via `mark_dead`.
+
+The template's name and generic arity are read generically inside `specialize`
+through [`NamedDeclaration`](../src/specialization.rs) and
+`TypeDeclaration::generics` — the per-kind modules no longer pass them in, and
+no caller ever sees an `AnyDeclarationId` except at the cache/dead-code borders.
 
 ## Mangling
 

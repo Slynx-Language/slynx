@@ -24,13 +24,13 @@ impl ExpressionBuilder {
         ptr: SymbolPointer,
         span: Span,
     ) -> Result<HirName> {
-        if let Some(var) = self.variables.scope.get_name(&ptr) {
-            Ok(HirName::Variable(var))
-        } else if let Some((file_owner, statik)) = queue.find_static_declaration(ptr, self.file()) {
-            let id = queue.enqueue_static(statik, queue.get_node(file_owner))?;
-            Ok(HirName::Static(id))
-        } else {
-            Err(HIRError::name_unrecognized(ptr, span))
+        match () {
+            _ if let Some(var) = self.variables.scope.get_name(&ptr) => Ok(HirName::Variable(var)),
+            _ if let Some((owner, statik)) = queue.lowerer.lookup.find_static(ptr, self.file()) => {
+                let id = queue.enqueue_static(statik, owner)?;
+                Ok(HirName::Static(id))
+            }
+            _ => Err(HIRError::name_unrecognized(ptr, span)),
         }
     }
 
@@ -66,6 +66,20 @@ impl ExpressionBuilder {
         name: SymbolPointer,
         expression_span: Span,
     ) -> Result<HirExpression> {
+        if name == queue.hir.intern_name("Self")
+            && let Some(self_ty) = self.self_type
+            && let Some(struct_view) = queue.hir.view(self_ty).nominal().is_struct()
+            && struct_view.fields().is_empty()
+        {
+            return Ok(HirExpression {
+                ty: self_ty,
+                kind: HirExpressionKind::Object {
+                    name: self_ty,
+                    fields: Vec::new(),
+                },
+            });
+        }
+
         match self.resolve_name(queue, name, expression_span)? {
             HirName::Variable(v) => {
                 let ty = self

@@ -9,28 +9,25 @@ use common::{
 };
 
 use crate::{
-    ComponentType, DescriptorId, EnumType, EnumVariantType, HIRError, Result, StructType,
-    SymbolPointer, TupleType,
+    ComponentType, DescriptorId, EnumType, EnumVariantType, HIRError, InterfaceType, Result,
+    StructField, StructType, SymbolPointer, TupleType,
     helpers::Visible,
     term::{Term, TermId, TermNode},
 };
 
-use super::{
-    components::{ComponentDefinition, ComponentsPool},
-    enums::EnumsPool,
-    structs::{StructDefinition, StructsPool},
-};
+use super::{components::ComponentsPool, enums::EnumsPool, structs::StructsPool};
 
-#[derive(Debug)]
 /// Owns the deduplicated pools that store every HIR type shape — structs,
 /// components, enums, functions, tuples and the raw `HirType` tags.
 ///
 /// This is pure storage: it has no concept of names ([`super::registry::TypeRegistry`]
 /// maps names to type ids) and no notion of methods ([`super::methods::MethodTable`]).
+#[derive(Debug)]
 pub struct TypeStorage {
     pub structs: StructsPool,
     pub components: ComponentsPool,
     pub enums: EnumsPool,
+    pub interfaces: DedupPool<InterfaceType>,
     pub terms: DedupPool<Term>,
 }
 impl Default for TypeStorage {
@@ -39,6 +36,7 @@ impl Default for TypeStorage {
             terms: DedupPool::new(),
             structs: StructsPool::default(),
             components: ComponentsPool::default(),
+            interfaces: DedupPool::new(),
             enums: EnumsPool::default(),
         }
     }
@@ -62,44 +60,10 @@ impl TypeStorage {
         self.terms.insert(ty)
     }
 
-    ///Returns the inner object from the provided `ty`, returns None if the type is not a object
-    pub fn get_object(&self, ty: TermId) -> Option<TermId> {
-        let mut visited = HashSet::new();
-        let mut current = ty;
-        loop {
-            if !visited.insert(current) {
-                return None;
-            }
-
-            match self[current].node() {
-                TermNode::Data(DescriptorId::Struct(_)) => {
-                    return Some(current);
-                }
-                TermNode::Apply { target, .. } => current = *target,
-                _ => return None,
-            }
-        }
+    ///Returns the name of the interface associated with the given `id`.
+    pub fn get_interface_name(&self, id: DedupPoolId<InterfaceType>) -> SymbolPointer {
+        self.interfaces[id].name
     }
-
-    ///Returns the inner component from the provided `ty`, returns None if the type is not a object
-    pub fn get_component(&self, ty: &TermId) -> Option<TermId> {
-        let mut visited = HashSet::new();
-        let mut current = *ty;
-        loop {
-            if !visited.insert(current) {
-                return None;
-            }
-
-            match self[current].node() {
-                TermNode::Data(DescriptorId::Component(_)) => {
-                    return Some(current);
-                }
-                TermNode::Apply { target, .. } => current = *target,
-                _ => return None,
-            }
-        }
-    }
-
     ///Returns the name of the enum associated with the given `id`.
     pub fn get_enum_name(&self, id: DedupPoolId<EnumType>) -> SymbolPointer {
         self.enums[id].name
@@ -122,35 +86,11 @@ impl TypeStorage {
             .position(|variant| variant.name == name)
     }
 
-    pub fn get_component_definition(
-        &self,
-        comp: DedupPoolId<ComponentType>,
-    ) -> &ComponentDefinition {
-        let meta = self.components[comp].metadata;
-        &self.components[meta]
-    }
-
     pub fn get_struct_name(&self, s: DedupPoolId<StructType>) -> SymbolPointer {
-        let metadata = self.structs[s].metadata;
-        self.structs[metadata].name
+        self.structs[s].name
     }
-    pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[Visible<SymbolPointer>] {
-        let metadata = self.structs[s].metadata;
-        &self.structs[metadata].fields
-    }
-
-    pub fn get_struct_field_types(&self, s: DedupPoolId<StructType>) -> &[TermId] {
+    pub fn get_struct_fields(&self, s: DedupPoolId<StructType>) -> &[Visible<StructField>] {
         &self.structs[s].fields
-    }
-
-    pub fn get_struct_signature(
-        &self,
-        s: DedupPoolId<StructType>,
-    ) -> Vec<(&Visible<SymbolPointer>, &TermId)> {
-        self.get_struct_fields(s)
-            .iter()
-            .zip(&self.structs[s].fields)
-            .collect()
     }
 
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
@@ -190,7 +130,7 @@ impl TypeStorage {
                 }
                 TermNode::Data(DescriptorId::Struct(descriptor)) => {
                     for field in &self[*descriptor].fields {
-                        queue.push_back(*field);
+                        queue.push_back(field.data.ty);
                     }
                 }
                 TermNode::Data(DescriptorId::Enum(descriptor)) => {
@@ -226,9 +166,8 @@ macro_rules! impl_index {
 impl_index!(
     Term => |this, idx| this.terms.get(idx),
     StructType => |this, idx| &this.structs[idx],
-    StructDefinition => |this, idx| &this.structs[idx],
     TupleType => |this, idx| &this.structs[idx],
     EnumType => |this, idx| &this.enums[idx],
     ComponentType => |this, idx| &this.components[idx],
-    ComponentDefinition => |this, idx| &this.components[idx],
+    InterfaceType => |this, idx| &this.interfaces[idx],
 );

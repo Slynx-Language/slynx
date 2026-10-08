@@ -2,6 +2,8 @@ mod declarations;
 mod expressions;
 mod types;
 mod views;
+use std::ops::Deref;
+
 use common::VisibilityModifier;
 pub use views::*;
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -16,5 +18,12 @@ impl<T> Visible<T> {
     }
     pub fn is_visible(&self) -> bool {
         self.visibility == VisibilityModifier::Public
+    }
+}
+
+impl<T> Deref for Visible<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.data
     }
 }

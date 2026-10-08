@@ -1,6 +1,6 @@
 // xfail: only `repr: int` is supported for raw enums; `repr: str` must be
 // rejected with an HIR error.
-enum Names: str {
+enum Names(str) {
     Foo,
     Bar,
     Baz

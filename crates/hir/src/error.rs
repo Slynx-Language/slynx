@@ -35,14 +35,49 @@ pub enum NotMutableReason {
     ExpressionNotAssignable,
 }
 
+#[derive(Debug, Clone)]
+pub enum MissingFeature {
+    ComplexTypeForBounds,
+    GenericInterfaces,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExpectedTypeUsage {
+    InterfaceType,
+}
+
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    UnexpectedTypeUsage {
+        actual: TermId,
+        expected_usage: ExpectedTypeUsage,
+    },
+
+    UnimplementedFeature(MissingFeature),
     ///Error that occurs when a type is used like an enum, but isn't
     InvalidEnumUsage(TermId),
 
-    MethodNotFound(SymbolPointer),
-    StaticMethodNotFound(SymbolPointer),
+    MissingExtensionMethod {
+        method: SymbolPointer,
+    },
+    MethodNotFound(SymbolPointer, TermId),
+    StaticMethodNotFound(SymbolPointer, TermId),
+    /// A concrete type implemented the same interface more than once (coherence).
+    DuplicateInterfaceImplementation {
+        /// The concrete type that was implemented twice.
+        ty: TermId,
+        /// The interface that was implemented more than once.
+        interface: TermId,
+    },
+    /// A deferred interface call could not be discharged: the receiver's
+    /// concrete type has no implementation of the method.
+    UnresolvedInterfaceCall {
+        /// The name of the interface method that could not be dispatched.
+        method: SymbolPointer,
+        /// The concrete receiver type that provides no implementation.
+        receiver: TermId,
+    },
     InvalidTypeAccess,
     ExpressionNotMutable(NotMutableReason),
     InvalidDeref,
@@ -232,16 +267,49 @@ impl HIRError {
         }
     }
 
+    pub fn missing_interface_method(name: SymbolPointer, span: Span) -> Self {
+        Self::new(HIRErrorKind::MissingExtensionMethod { method: name }, span)
+    }
+
+    pub fn expected_interface_type(found: TermId, span: Span) -> Self {
+        Self::new(
+            HIRErrorKind::UnexpectedTypeUsage {
+                expected_usage: ExpectedTypeUsage::InterfaceType,
+                actual: found,
+            },
+            span,
+        )
+    }
+
+    pub fn unimplemented(feature: MissingFeature, span: Span) -> Self {
+        Self::new(HIRErrorKind::UnimplementedFeature(feature), span)
+    }
+
     pub fn not_an_enum(ty: TermId, span: Span) -> Self {
         Self::new(HIRErrorKind::InvalidEnumUsage(ty), span)
     }
 
-    pub fn method_not_found(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::MethodNotFound(name), span)
+    pub fn method_not_found(name: SymbolPointer, target: TermId, span: Span) -> Self {
+        Self::new(HIRErrorKind::MethodNotFound(name, target), span)
     }
 
-    pub fn static_method_not_found(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::StaticMethodNotFound(name), span)
+    pub fn static_method_not_found(name: SymbolPointer, target: TermId, span: Span) -> Self {
+        Self::new(HIRErrorKind::StaticMethodNotFound(name, target), span)
+    }
+
+    pub fn duplicate_interface_implementation(ty: TermId, interface: TermId, span: Span) -> Self {
+        Self::new(
+            HIRErrorKind::DuplicateInterfaceImplementation { ty, interface },
+            span,
+        )
+    }
+
+    ///A deferred interface call on a receiver that no extension implements.
+    pub fn unresolved_interface_call(method: SymbolPointer, receiver: TermId, span: Span) -> Self {
+        Self::new(
+            HIRErrorKind::UnresolvedInterfaceCall { method, receiver },
+            span,
+        )
     }
 
     pub fn invalid_type_access(span: Span) -> Self {
@@ -486,12 +554,34 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::MissingExtensionMethod { .. } => {
+                write!(f, "Method not found for interface",)
+            }
+            HIRErrorKind::UnexpectedTypeUsage {
+                expected_usage,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Unexpected type usage: expected {:?}, got {:?}",
+                    expected_usage, actual
+                )
+            }
+            HIRErrorKind::UnimplementedFeature(feature) => {
+                write!(f, "Unimplemented feature: '{:?}'", feature)
+            }
             HIRErrorKind::InvalidEnumUsage(_) => write!(f, "Invalid enum usage"),
-            HIRErrorKind::MethodNotFound(_) => {
+            HIRErrorKind::MethodNotFound(_, _) => {
                 write!(f, "Method not found")
             }
-            HIRErrorKind::StaticMethodNotFound(_) => {
+            HIRErrorKind::StaticMethodNotFound(_, _) => {
                 write!(f, "Static method not found")
+            }
+            HIRErrorKind::DuplicateInterfaceImplementation { .. } => {
+                write!(f, "Type implements the same interface more than once")
+            }
+            HIRErrorKind::UnresolvedInterfaceCall { .. } => {
+                write!(f, "No implementation of this interface method was found")
             }
             HIRErrorKind::InvalidTypeAccess => write!(f, "Invalid type access"),
             HIRErrorKind::ExpressionNotMutable(_) => write!(f, "Expression not mutable"),

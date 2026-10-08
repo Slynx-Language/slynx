@@ -1,17 +1,37 @@
-use common::Span;
 use dashmap::mapref::one::{Ref, RefMut};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, DescriptorId, HirFunctionDeclaration, Result, SlynxHir, SymbolPointer,
-    VariableId,
+    DeclarationId, DescriptorId, HirFunctionDeclaration, SlynxHir, SymbolPointer, VariableId,
     context::HirSymbol,
     helpers::HirViewer,
-    id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::{TermId, TermNode},
 };
 
 impl SlynxHir<'_> {
+    /// Returns a method that the given `ty` owns with the given `name`. The method MUST be provided by an extension.
+    pub fn get_extension_method(
+        &self,
+        ty: TermId,
+        name: SymbolPointer,
+    ) -> Option<DeclarationId<HirFunctionDeclaration>> {
+        let extensions = self.types.methods.get_extensions_of(ty)?;
+        for extensionid in extensions.iter() {
+            let extension = self.get_extension(*extensionid);
+            if extension.target != ty {
+                continue;
+            }
+            if let Some(method) = extension
+                .methods
+                .iter()
+                .find(|(method_name, _)| *method_name == name)
+            {
+                return Some(method.1);
+            }
+        }
+        None
+    }
+
     pub fn find_function_by_symbol(
         &self,
         symbol: HirSymbol,
@@ -50,38 +70,6 @@ impl SlynxHir<'_> {
         self.store.get_file_mut(id)
     }
 
-    pub fn get_declaration_type(&self, id: AnyDeclarationId) -> TermId {
-        let file = self.store.get_or_create_file(id.file_id);
-        match id.local_id {
-            AnyLocalDeclarationId::Alias(alias) => file.alias.get(alias).ty,
-            AnyLocalDeclarationId::Component(component) => file.components.get(component).ty,
-            AnyLocalDeclarationId::Function(func) => file.functions.get(func).ty,
-            AnyLocalDeclarationId::Object(obj) => file.objects.get(obj).ty,
-            AnyLocalDeclarationId::Static(statik) => file.statik.get(statik).ty,
-            AnyLocalDeclarationId::Enum(enun) => file.enums.get(enun).ty,
-        }
-    }
-
-    pub fn get_declaration_generics(&self, id: AnyDeclarationId) -> Vec<SymbolPointer> {
-        let file = self.store.get_or_create_file(id.file_id);
-        match id.local_id {
-            AnyLocalDeclarationId::Alias(alias) => &file.alias.get(alias).generics,
-            AnyLocalDeclarationId::Component(component) => &file.components.get(component).generics,
-            AnyLocalDeclarationId::Function(func) => &file.functions.get(func).generics,
-            AnyLocalDeclarationId::Object(obj) => &file.objects.get(obj).generics,
-            AnyLocalDeclarationId::Enum(enun) => &file.enums.get(enun).generics,
-            AnyLocalDeclarationId::Static(_) => {
-                unreachable!("An static should not contain generics")
-            }
-        }
-        .to_vec()
-    }
-
-    pub fn type_of_intrinsic(&self, name: SymbolPointer, span: Span) -> Result<TermId> {
-        let id = self.store.lang_items.get(name, span)?;
-        Ok(self.get_declaration_type(id))
-    }
-
     /// Recursively flattens a HIR type to its primitive components.
     /// A struct `Color { inner: int }` flattens to `[int]`.
     /// A struct `Border { color: Color, width: int, radius: int }` flattens to `[int, int, int]`.
@@ -90,9 +78,9 @@ impl SlynxHir<'_> {
             TermNode::Primitive(_) => vec![ty],
             TermNode::Data(DescriptorId::Struct(strukt)) => self
                 .view(*strukt)
-                .field_types()
+                .fields()
                 .iter()
-                .flat_map(|f| self.flatten_type(*f))
+                .flat_map(|f| self.flatten_type(f.ty))
                 .collect(),
             TermNode::Apply { target, .. } => self.flatten_type(*target),
             _ => vec![ty],

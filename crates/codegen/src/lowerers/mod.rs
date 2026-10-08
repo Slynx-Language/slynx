@@ -170,7 +170,8 @@ impl<'a> LoweringState<'a> {
                 )) {
                     continue;
                 }
-                self.types.insert_enum_fields_for(declaration.ty, ir)?;
+                self.types
+                    .insert_enum_fields_for(declaration.ty, declaration.span, ir)?;
             }
         }
         for file in &self.hir.store.files {
@@ -181,7 +182,7 @@ impl<'a> LoweringState<'a> {
                 )) {
                     continue;
                 }
-                self.types.insert_object_fields_for(obj.ty, ir)?;
+                self.types.insert_object_fields_for(obj.ty, obj.span, ir)?;
             }
             for (id, component) in file.declarations.components.iter().with_ids() {
                 if deadcode.contains(&AnyDeclarationId::new(
@@ -194,12 +195,15 @@ impl<'a> LoweringState<'a> {
                     DeclarationId::new(file.file, id),
                     component,
                     &component.props,
+                    component.span,
                     ir,
                 )?;
             }
             for (id, statik) in file.statik.iter().with_ids() {
                 let name = statik.name;
-                let ty = self.types.get_or_create_ir_type(statik.ty, ir)?;
+                let ty = self
+                    .types
+                    .get_or_create_ir_type(statik.ty, statik.span, ir)?;
                 let id = DeclarationId::new(file.file, id);
                 if statik.external {
                     self.external_statics.insert(id, ty);
@@ -224,7 +228,14 @@ impl<'a> LoweringState<'a> {
                         .get(&DeclarationId::new(file.file, id))
                         .expect("Function should have been hoisted");
 
-                    self.initialize_function(*function_ptr, declaration.ty, statements, args, ir)?;
+                    self.initialize_function(
+                        *function_ptr,
+                        declaration.ty,
+                        statements,
+                        args,
+                        declaration.span,
+                        ir,
+                    )?;
                 }
             }
         }

@@ -58,7 +58,12 @@ pub enum TokenKind {
     Return,
     #[token("matches")]
     Matches,
-
+    #[token("interface")]
+    Interface,
+    #[token("extend")]
+    Extend,
+    #[token("where")]
+    Where,
     // Multi-char operators (must come before single-char)
     #[token("&&")]
     And,

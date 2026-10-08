@@ -1,0 +1,21 @@
+interface Stringifiable {
+    func stringify(&self): str;
+    func length(&self): int;
+}
+
+extend str: Stringifiable {
+    func stringify(&self): str -> self;
+    func length(&self): int -> 0;
+}
+
+object Person: Stringifiable {
+    name: str,
+    func stringify(&self): str -> self.name;
+    func length(&self): int -> self.name.length();
+}
+
+func main(): void {
+    let person = Person(name: "ada");
+    person.stringify();
+    person.length();
+}

@@ -2,7 +2,7 @@ use module_loader::{SourceError, SourceErrorKind};
 use slynx_lexer::LexerError;
 
 use crate::{
-    SlynxContext,
+    ErrorPosition, SlynxContext,
     compilation_context::errors::{SlynxError, helpers::suggestions_from_source},
 };
 
@@ -16,8 +16,8 @@ impl SlynxContext {
     }
 
     ///Handles a source error. The `generator` is the path of the file that generated the provided `error`
-    pub fn handle_source_error(&self, error: &SourceError) -> SlynxError {
-        let suggestion = suggestions_from_source(error);
+    pub fn handle_source_error(&self, error: SourceError) -> SlynxError {
+        let suggestion = suggestions_from_source(&error);
         let file_name = error.entry().display().to_string();
         let file_key = self.find_file_key(error.entry());
 
@@ -37,13 +37,16 @@ impl SlynxContext {
                 };
                 let msg = format!("Could not open file '{}': {inner}", error.entry().display());
                 SlynxError::new_compiler(
-                    line,
-                    col_start,
-                    col_end,
+                    ErrorPosition {
+                        line,
+                        column: col_start,
+                        end_column: col_end,
+                    },
                     msg,
                     generator.display().to_string(),
                     src,
                     suggestion,
+                    error.backtrace(),
                 )
             }
             SourceErrorKind::Lexing(lex_err) => {
@@ -63,18 +66,23 @@ impl SlynxContext {
                     (0, 0, 0, String::new())
                 };
                 SlynxError::new_lexer(
-                    line,
-                    col_start,
-                    col_end,
+                    ErrorPosition {
+                        line,
+                        column: col_start,
+                        end_column: col_end,
+                    },
                     lex_err.to_string(),
                     file_name,
                     src,
                     suggestion,
+                    error.backtrace(),
                 )
             }
             SourceErrorKind::Parsing(parse_err) => {
-                let index = match parse_err {
-                    slynx_parser::error::ParseError::UnexpectedToken(token, _) => token.span.start,
+                let index = match &parse_err.kind {
+                    slynx_parser::error::ParseErrorKind::UnexpectedToken(token, _) => {
+                        token.span.start
+                    }
                     _ => 0,
                 };
                 let (line, col_start, col_end, src) = if let Some(ref key) = file_key {
@@ -89,13 +97,16 @@ impl SlynxContext {
                     (0, 0, 0, String::new())
                 };
                 SlynxError::new_parser(
-                    line,
-                    col_start,
-                    col_end,
+                    ErrorPosition {
+                        line,
+                        column: col_start,
+                        end_column: col_end,
+                    },
                     parse_err.to_string(),
                     file_name,
                     src,
                     suggestion,
+                    error.backtrace(),
                 )
             }
         }

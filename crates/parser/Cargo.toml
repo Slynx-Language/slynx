@@ -2,6 +2,8 @@
 name = "slynx-parser"
 version = "0.1.0"
 edition = "2024"
+# Work-in-progress clone of crates/parser (active ParsingContext refactor).
+# Excluded from the workspace ([workspace] exclude) until it compiles again.
 
 [dependencies]
 common = {path="../common"}
@@ -10,3 +12,4 @@ smallvec.workspace=true
 color-eyre.workspace=true
 paste.workspace=true
 ordered-float.workspace=true
+bitflags.workspace=true

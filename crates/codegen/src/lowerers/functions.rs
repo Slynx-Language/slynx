@@ -1,10 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use common::{Spanned, pool::PoolId};
-use slynx_hir::{HirStatement, VariableId};
+use common::{Span, Spanned, pool::PoolId};
+use slynx_hir::{HirStatement, VariableId, term::TermId};
 use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, Label, SlynxIR, Value};
 
-use crate::{CodegenError, TypeId, lowerers::LoweringState};
+use crate::{CodegenError, lowerers::LoweringState};
 
 /// Per-function state during HIR-to-IR lowering.
 pub struct FunctionContext<'a> {
@@ -61,7 +61,8 @@ impl<'a> DerefMut for FunctionContext<'a> {
 impl<'a> LoweringState<'a> {
     fn map_function_type(
         &mut self,
-        func_ty: TypeId,
+        func_ty: TermId,
+        span: Span,
         ir: &mut SlynxIR,
     ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
         let Some((args, return_type)) = self.hir.view(func_ty).is_function() else {
@@ -69,21 +70,22 @@ impl<'a> LoweringState<'a> {
         };
         let args = args
             .iter()
-            .map(|v| self.types.get_or_create_ir_type(*v, ir))
+            .map(|v| self.types.get_or_create_ir_type(*v, span, ir))
             .collect::<Result<Vec<_>, CodegenError>>()?;
-        let return_type = self.types.get_or_create_ir_type(return_type, ir)?;
+        let return_type = self.types.get_or_create_ir_type(return_type, span, ir)?;
         Ok((args, return_type))
     }
 
     pub(crate) fn initialize_function(
         &mut self,
         fptr: IRPointer<Function, 1>,
-        func_ty: TypeId,
+        func_ty: TermId,
         statements: &[Spanned<PoolId<HirStatement>>],
         args: &[VariableId],
+        span: Span,
         ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
-        let (arg_types, return_type) = self.map_function_type(func_ty, ir)?;
+        let (arg_types, return_type) = self.map_function_type(func_ty, span, ir)?;
         let builder = ir.build_function(fptr);
         let mut context = FunctionContext::new(builder);
 

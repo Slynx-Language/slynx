@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    path::PathBuf,
+};
 
 use common::{
     FrontendSymbol, SymbolPointer, SymbolsModule,
@@ -6,7 +9,7 @@ use common::{
 };
 use slynx_parser::{
     ASTExpression, ASTPath, ASTStatement, AliasDeclaration, ComponentDeclaration, EnumDeclaration,
-    ObjectDeclaration, StaticDeclaration, Type,
+    InterfaceDeclaration, ObjectDeclaration, StaticDeclaration, Type,
 };
 
 use crate::{FileId, SourceLoader, SourceNode};
@@ -17,6 +20,7 @@ pub struct Modules<'a> {
     pub(crate) paths: HashMap<PathBuf, FileId>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ASTBuiltin {
     Void,
     Boolean,
@@ -29,15 +33,18 @@ pub enum ASTBuiltin {
     AnyComponent,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ASTTypeKind {
     Struct(PoolId<ObjectDeclaration>),
     Component(PoolId<ComponentDeclaration>),
     Alias(PoolId<AliasDeclaration>),
     Enum(PoolId<EnumDeclaration>),
+    Interface(PoolId<InterfaceDeclaration>),
     Builtin(ASTBuiltin),
 }
 
 ///Represents something that can be interpreted as a type on the AST
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ASTType {
     pub owner: FileId,
     pub content: ASTTypeKind,
@@ -111,13 +118,40 @@ impl<'a> Modules<'a> {
         )
     }
 
+    ///Finds all the contents using the given `finder` by looking through all the modules imported from `module` and the `module` itself.
+    ///For example to find all the interfaces that are implemented to a given type `Foo`(every occurrence of extend Foo: Interface {}).
+    pub fn find_all_in_modules<T>(
+        &self,
+        module: FileId,
+        finder: &dyn Fn(&SourceNode) -> Option<T>,
+    ) -> Vec<(FileId, T)> {
+        let mut results = Vec::new();
+        let mut queue = VecDeque::new();
+        let mut visited = HashSet::new();
+        queue.push_back(module);
+        while let Some(module_id) = queue.pop_front() {
+            if !visited.insert(module_id) {
+                continue;
+            }
+            let module = self.get_entry(module_id);
+            if let Some(result) = finder(module) {
+                results.push((module.id, result));
+            }
+            for imported_modules in &module.import_submodules {
+                queue.extend(imported_modules.iter().copied());
+            }
+        }
+        results
+    }
+
+    ///Finds a content with the given `name` the given `entry` module. If not directly on the module that requested it, checks if it was provided by the other modules it imports from.
     pub fn find_in_modules<T>(
         &self,
         name: SymbolPointer<FrontendSymbol>,
-        module: FileId,
+        entry: FileId,
         finder: &dyn Fn(&SourceNode, SymbolPointer<FrontendSymbol>) -> Option<T>,
     ) -> Option<(FileId, T)> {
-        let module = &self.modules[module.as_raw() as usize];
+        let module = &self.modules[entry.as_raw() as usize];
         if let Some(v) = finder(module, name) {
             return Some((module.id, v));
         }
@@ -128,10 +162,7 @@ impl<'a> Modules<'a> {
                 } else {
                     usage.content_name
                 };
-                // Only search the imported module when it actually exposes the
-                // name we are looking for. Otherwise any unresolved identifier
-                // in a file that imports something would wrongly resolve to the
-                // first imported symbol.
+
                 if visible != name {
                     continue;
                 }
@@ -158,6 +189,33 @@ impl<'a> Modules<'a> {
     ) -> Option<(FileId, usize)> {
         self.find_in_modules(name, module, &|module, name| {
             module.func().iter().position(|func| func.name == name)
+        })
+    }
+
+    pub fn find_interface_declaration(
+        &self,
+        name: SymbolPointer<FrontendSymbol>,
+        module: FileId,
+    ) -> Option<(FileId, usize)> {
+        self.find_in_modules(name, module, &|module, name| {
+            module
+                .interfaces()
+                .iter()
+                .position(|interface| interface.name == name)
+        })
+    }
+
+    ///Finds all the extensions for the given `target` type starting by the given `module` and recursing to every imported module.
+    pub fn find_extend_declaration(
+        &self,
+        target: DedupPoolId<Type>,
+        module: FileId,
+    ) -> Vec<(FileId, usize)> {
+        self.find_all_in_modules(module, &|module| {
+            module
+                .extensions()
+                .iter()
+                .position(|extension| extension.target.data == target)
         })
     }
 
@@ -236,6 +294,14 @@ impl<'a> Modules<'a> {
             {
                 return Some(ASTTypeKind::Enum(id));
             }
+            if let Some((id, _)) = module
+                .interfaces()
+                .iter()
+                .with_ids()
+                .find(|(_, interface)| interface.name == name)
+            {
+                return Some(ASTTypeKind::Interface(id));
+            }
             None
         })
         .map(|(owner, content)| ASTType { owner, content })
@@ -260,6 +326,18 @@ impl<'a> Modules<'a> {
             })
         })
         .map(|(owner, (id, index))| (owner, id, index))
+    }
+
+    pub fn generic_count(&self, ast_type: ASTType) -> usize {
+        let entry = self.get_entry(ast_type.owner);
+        match ast_type.content {
+            ASTTypeKind::Struct(id) => entry.object().get(id).generics.type_params.len(),
+            ASTTypeKind::Component(id) => entry.component().get(id).generics.type_params.len(),
+            ASTTypeKind::Alias(id) => entry.alias().get(id).type_params.len(),
+            ASTTypeKind::Enum(id) => entry.enums().get(id).generics.type_params.len(),
+            ASTTypeKind::Interface(id) => entry.interfaces().get(id).generics.type_params.len(),
+            ASTTypeKind::Builtin(_) => 0,
+        }
     }
 
     fn recreate_pathbuf(&self, entry: FileId, path: &ASTPath) -> PathBuf {

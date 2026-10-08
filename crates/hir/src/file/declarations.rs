@@ -4,8 +4,9 @@ use std::{
 };
 
 use crate::{
-    HirAliasDeclaration, HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, SymbolPointer,
+    HirAliasDeclaration, HirComponentDeclaration, HirDeclarationStorage, HirEnumDeclaration,
+    HirExtendDeclaration, HirFunctionDeclaration, HirObjectDeclaration, HirStaticDeclaration,
+    Result, SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     term::TermId,
 };
@@ -16,14 +17,34 @@ use common::{
 use dashmap::DashMap;
 use module_loader::FileId;
 
+macro_rules! impl_storage {
+    ($($target:ident : $ty:ty),* $(,)?) => {
+        $(impl HirDeclarationStorage<$ty> for DeclarationsPool {
+            fn get_pool(&self) -> &Pool<$ty> {
+                &self.$target
+            }
+        })*
+    };
+}
 pooled!(pub DeclarationsPool {
-    pub objects: HirObjectDeclaration,
-    pub functions: HirFunctionDeclaration,
-    pub components: HirComponentDeclaration,
-    pub alias: HirAliasDeclaration,
-    pub statik: HirStaticDeclaration,
-    pub enums: HirEnumDeclaration,
+    pub objects: HirObjectDeclaration where Err=Result,
+    pub functions: HirFunctionDeclaration where Err=Result,
+    pub components: HirComponentDeclaration where Err=Result,
+    pub alias: HirAliasDeclaration where Err=Result,
+    pub statik: HirStaticDeclaration where Err=Result,
+    pub enums: HirEnumDeclaration where Err=Result,
+    pub extensions: HirExtendDeclaration where Err=Result,
 });
+
+impl_storage!(
+    objects:HirObjectDeclaration,
+    functions:HirFunctionDeclaration,
+    components: HirComponentDeclaration,
+    statik: HirStaticDeclaration,
+    enums: HirEnumDeclaration,
+    extensions: HirExtendDeclaration,
+    alias: HirAliasDeclaration,
+);
 
 impl Debug for DeclarationsPool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

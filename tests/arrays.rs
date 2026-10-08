@@ -1,11 +1,8 @@
-use std::path::PathBuf;
 mod common;
+
+/// Compiles `examples/arrays.syx` end-to-end.
 #[test]
-fn test_arrays_and_slices() {
-    let context = slynx::SlynxContext::new(
-        PathBuf::from("examples/arrays.syx"),
-        Some(common::STD_PATH.clone()),
-    )
-    .unwrap();
-    let _ = context.compile().unwrap();
+fn test_arrays_and_slices() -> color_eyre::Result<()> {
+    common::compile_ok("examples/arrays.syx")?;
+    Ok(())
 }

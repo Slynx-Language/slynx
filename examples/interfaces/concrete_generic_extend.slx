@@ -1,0 +1,18 @@
+// A concrete generic application is valid as an extension target.
+interface Stringifiable {
+    func stringify(&self) -> str
+}
+
+enum Option<T> {
+    Some(T),
+    None
+}
+
+extend Option<int>: Stringifiable {
+    func stringify(&self) -> str { "some" }
+}
+
+func main(): void {
+    let some = Option.Some(1);
+    some.stringify();
+}

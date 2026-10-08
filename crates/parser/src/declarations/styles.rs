@@ -2,8 +2,8 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
-    ASTAttribute, ASTExpression, Parser, StyleBlock, StyleSheet, StyleSheetStatement, StyleState,
-    error::ParseError,
+    ASTAttribute, ASTExpression, GenericsMetadata, Parser, StyleBlock, StyleSheet,
+    StyleSheetStatement, StyleState, error::ParseError, flags::ParserFlags,
 };
 
 impl Parser<'_> {
@@ -23,7 +23,7 @@ impl Parser<'_> {
         {
             self.eat()?;
             let duration = if self.peek()?.kind != TokenKind::RParen {
-                Some(self.parse_expression(&[])?)
+                Some(self.parse_expression(&[], ParserFlags::empty())?)
             } else {
                 None
             };
@@ -66,7 +66,7 @@ impl Parser<'_> {
                     children_blocks.push(block);
                 }
                 _ => {
-                    let stmt = self.parse_named_expr(&[])?;
+                    let stmt = self.parse_named_expr(&[], ParserFlags::empty())?;
                     properties.push(stmt);
                     if let TokenKind::Comma | TokenKind::SemiColon = self.peek()?.kind {
                         self.eat()?;
@@ -113,7 +113,7 @@ impl Parser<'_> {
         match self.peek()?.kind {
             TokenKind::Identifier(ref s) if s == "styles" => self.parse_styles_statement(),
             _ => {
-                let out = self.parse_statement(&[]).map(|arg| {
+                let out = self.parse_statement(&[], ParserFlags::empty()).map(|arg| {
                     let span = arg.span;
                     Spanned::new(StyleSheetStatement::Statement(arg), span)
                 });
@@ -146,7 +146,7 @@ impl Parser<'_> {
     ) -> Result<Vec<Spanned<DedupPoolId<ASTExpression>>>, ParseError> {
         let mut exprs = vec![];
         loop {
-            let usage = self.parse_funcall(&[])?;
+            let usage = self.parse_funcall(&[], ParserFlags::empty())?;
             exprs.push(usage);
             match self.peek()?.kind {
                 TokenKind::Comma => {
@@ -155,7 +155,7 @@ impl Parser<'_> {
                 TokenKind::LBrace => {
                     break {
                         if exprs.is_empty() {
-                            Err(ParseError::NoStyleUsagesProvided)
+                            Err(ParseError::no_style_usages_provided())
                         } else {
                             Ok(exprs)
                         }
@@ -173,7 +173,6 @@ impl Parser<'_> {
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<StyleSheet, ParseError> {
         let (name, generics) = self.parse_generic_name()?;
-
         self.expect(&TokenKind::LParen)?;
         let args = self.parse_separated(TokenKind::RParen, TokenKind::Comma, true, |parser| {
             parser.parse_typedname(&[])
@@ -188,10 +187,18 @@ impl Parser<'_> {
         } else {
             vec![]
         };
+        // Read after the argument list, like every other declaration, so the
+        // `:` of `stylesheet Name(a: int): Interface` starts the interface list.
+        let interface_implementations = self.parse_interface_implementations(&generics)?;
+        let clauses = self.parse_clauses(&generics)?;
         self.expect(&TokenKind::LBrace)?;
         let body = self.parse_stylesheet_body()?;
         let out = StyleSheet {
-            type_params: generics,
+            generics: GenericsMetadata {
+                type_params: generics,
+                interface_implementations,
+                clauses,
+            },
             attributes,
             visibility: Default::default(),
             name,

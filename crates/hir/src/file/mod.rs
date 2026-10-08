@@ -9,8 +9,7 @@ use module_loader::FileId;
 
 use crate::{
     DeclarationId, HirComponentDeclaration, HirEnumDeclaration, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, SymbolPointer,
-    file::declarations::FileDeclarations,
+    HirObjectDeclaration, SymbolPointer, file::declarations::FileDeclarations,
 };
 
 #[derive(Debug)]
@@ -22,7 +21,7 @@ pub struct HirFile {
 macro_rules! create_methods {
     ($($name: ident = $target:ident($typ:ty)),* $(,)?) => {
         $(
-            #[allow(dead_code)]
+
             pub(crate) fn $name(&self, arg: $typ) -> DeclarationId<$typ> {
                 let out = self.$target(arg);
                 DeclarationId::new(self.file, out)
@@ -42,8 +41,8 @@ impl HirFile {
     create_methods!(
         create_function = insert_at_functions(HirFunctionDeclaration),
         create_object = insert_at_objects(HirObjectDeclaration),
-        create_component = insert_at_components(HirComponentDeclaration),
-        create_static = insert_at_statik(HirStaticDeclaration),
+        // create_component = insert_at_components(HirComponentDeclaration),
+        // create_static = insert_at_statik(HirStaticDeclaration),
         create_enum = insert_at_enums(HirEnumDeclaration),
     );
 

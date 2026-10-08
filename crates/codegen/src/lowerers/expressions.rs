@@ -1,15 +1,16 @@
-use common::{Operator, Spanned, pool::PoolId};
+use common::{Operator, Span, Spanned, pool::PoolId};
 use slynx_hir::{
     DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
     SymbolPointer,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::ExpressionUse,
+    term::TermId,
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
 use smallvec::{SmallVec, smallvec};
 
 use crate::{
-    CodegenError, TypeId,
+    CodegenError, CodegenErrorKind,
     lowerers::{LoweringState, functions::FunctionContext},
 };
 
@@ -17,26 +18,22 @@ impl<'a> LoweringState<'a> {
     fn lower_enum(
         &mut self,
         context: &mut FunctionContext,
-        ty: TypeId,
+        ty: TermId,
         variant: usize,
         args: &[Spanned<PoolId<HirExpression>>],
+        span: Span,
     ) -> Result<Value, CodegenError> {
-        // Read the (post-monomorphization) enum type to find the variant's
-        // compile-time discriminant. Enums lower to a struct whose field[0]
-        // holds the discriminant tag and whose field[1] is a union of the
-        // per-variant payload structs. Construction fills the tag plus the
-        // selected variant's payload struct inside that union, using the
-        // centralized `EnumLayout` so construction and matching agree on the
-        // exact shape registered at materialization time.
-        let deref = self.hir.view(ty).dereference();
+        let deref = self.hir.view(ty).nominal();
         let key = deref.data();
-        let enum_view = deref.is_enum().ok_or(CodegenError::NotAnEnum(key))?;
-        let variant_info = enum_view
-            .variants()
-            .get(variant)
-            .ok_or(CodegenError::InvalidVariantIndex(key, variant))?;
+        let enum_view = deref
+            .is_enum()
+            .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key), span))?;
+        let variant_info = enum_view.variants().get(variant).ok_or(CodegenError::new(
+            CodegenErrorKind::InvalidVariantIndex(key, variant),
+            span,
+        ))?;
 
-        let layout = self.types.enum_layout(&key)?.clone();
+        let layout = self.types.enum_layout(&key, span)?.clone();
 
         let int_type = context.ir().types.int_type();
         let tag = context.emit_const(Operand::Int(variant_info.discriminant as i64), int_type);
@@ -50,7 +47,10 @@ impl<'a> LoweringState<'a> {
                 .get(variant)
                 .copied()
                 .flatten()
-                .ok_or(CodegenError::MissingEnumPayload(key))?;
+                .ok_or(CodegenError::new(
+                    CodegenErrorKind::MissingEnumPayload(key),
+                    span,
+                ))?;
             let args = args
                 .iter()
                 .map(|arg| self.lower_expression(*arg, context))
@@ -134,14 +134,15 @@ impl<'a> LoweringState<'a> {
 
     fn lower_struct_literal(
         &mut self,
-        name: TypeId,
+        name: TermId,
         fields: &[Spanned<PoolId<HirExpression>>],
+        span: Span,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
-        let ty = self
-            .types
-            .get_mapped_type(&name)
-            .ok_or(CodegenError::IRTypeNotRecognized(name))?;
+        let ty = self.types.get_mapped_type(&name).ok_or(CodegenError::new(
+            CodegenErrorKind::IRTypeNotRecognized(name),
+            span,
+        ))?;
         let field_values: Vec<Value> = fields
             .iter()
             .map(|v| self.lower_expression(*v, ctx))
@@ -172,7 +173,7 @@ impl<'a> LoweringState<'a> {
             {
                 let field_type =
                     self.types
-                        .deref_field_type(inner.data, field_index as usize, ctx.ir())?;
+                        .deref_field_type(inner, field_index as usize, ctx.ir())?;
                 let base = self.lower_expression(inner, ctx)?;
 
                 let fp = ctx.field_ref(base, field_index);
@@ -269,25 +270,25 @@ impl<'a> LoweringState<'a> {
         let value = match &expression.kind {
             HirExpressionKind::Deref(inner) => {
                 let inner = self.lower_expression(*inner, context)?;
-                let ty = self
-                    .types
-                    .get_or_create_ir_type(expression.ty, context.ir())?;
+                let ty =
+                    self.types
+                        .get_or_create_ir_type(expression.ty, expr.span, context.ir())?;
                 context.emit(Opcode::Deref, smallvec![inner], ty)
             }
             HirExpressionKind::Reference(inner) => {
                 let inner = self.lower_expression(*inner, context)?;
-                let ty = self
-                    .types
-                    .get_or_create_ir_type(expression.ty, context.ir())?;
+                let ty =
+                    self.types
+                        .get_or_create_ir_type(expression.ty, expr.span, context.ir())?;
                 context.emit(Opcode::Ref, smallvec![inner], ty)
             }
 
             HirExpressionKind::ArrayIndex(arr, index) => {
                 let index = self.lower_expression(*index, context)?;
                 let arr = self.lower_expression(*arr, context)?;
-                let ty = self
-                    .types
-                    .get_or_create_ir_type(expression.ty, context.ir())?;
+                let ty =
+                    self.types
+                        .get_or_create_ir_type(expression.ty, expr.span, context.ir())?;
                 context.emit(Opcode::ArrayGet, smallvec![arr, index], ty)
             }
             HirExpressionKind::Array(arr) => {
@@ -295,9 +296,9 @@ impl<'a> LoweringState<'a> {
                     .iter()
                     .map(|expr| self.lower_expression(*expr, context))
                     .collect::<Result<Vec<_>, _>>()?;
-                let value_type = self
-                    .types
-                    .get_or_create_ir_type(expression.ty, context.ir())?;
+                let value_type =
+                    self.types
+                        .get_or_create_ir_type(expression.ty, expr.span, context.ir())?;
                 context.emit(Opcode::Array, values, value_type)
             }
             HirExpressionKind::Vector(vec) => {
@@ -305,29 +306,24 @@ impl<'a> LoweringState<'a> {
                     .iter()
                     .map(|expr| self.lower_expression(*expr, context))
                     .collect::<Result<Vec<_>, _>>()?;
-                let value_type = self
-                    .types
-                    .get_or_create_ir_type(expression.ty, context.ir())?;
+                let value_type =
+                    self.types
+                        .get_or_create_ir_type(expression.ty, expr.span, context.ir())?;
                 context.emit(Opcode::Vector, values, value_type)
             }
             HirExpressionKind::Static { id } => {
                 if let Some(ty) = self.external_statics.get(id) {
-                    let name = self
-                        .hir
-                        .get_name(self.hir.get_file(id.file_id)[id.local_id].name);
+                    let name = self.hir.get_name(self.hir.get_file(id.owner)[id.term].name);
                     let name = context.ir().strings.intern(name);
                     context.emit(Opcode::GlobalExtern(name), SmallVec::new(), *ty)
                 } else {
-                    let id =
-                        *self
-                            .globals
-                            .get(id)
-                            .ok_or(CodegenError::DeclarationNotRecognized(
-                                AnyDeclarationId::new(
-                                    id.file_id,
-                                    AnyLocalDeclarationId::Static(id.local_id),
-                                ),
-                            ))?;
+                    let id = *self.globals.get(id).ok_or(CodegenError::new(
+                        CodegenErrorKind::DeclarationNotRecognized(AnyDeclarationId::new(
+                            id.owner,
+                            AnyLocalDeclarationId::Static(id.term),
+                        )),
+                        expr.span,
+                    ))?;
                     let ty = context.ir().get_view(id).ty();
                     context.emit(Opcode::Global(id), SmallVec::new(), ty)
                 }
@@ -361,11 +357,15 @@ impl<'a> LoweringState<'a> {
                         _ => value,
                     }
                 } else {
-                    return Err(CodegenError::UnrecognizedVariable(*id));
+                    return Err(CodegenError::new(
+                        CodegenErrorKind::UnrecognizedVariable(*id),
+                        expr.span,
+                    ));
                 }
             }
             HirExpressionKind::Object { name, fields } => {
-                self.lower_struct_literal(*name, fields, context)?
+                let name = self.hir.view(*name).nominal().data();
+                self.lower_struct_literal(name, fields, expr.span, context)?
             }
             HirExpressionKind::FieldAccess {
                 expr,
@@ -379,7 +379,7 @@ impl<'a> LoweringState<'a> {
                 else_branch,
             } => self.lower_if_expression(condition, then_branch, else_branch, context)?,
             HirExpressionKind::Enum { variant, args, .. } => {
-                self.lower_enum(context, expression.ty, *variant, args)?
+                self.lower_enum(context, expression.ty, *variant, args, expr.span)?
             }
             HirExpressionKind::Matches {
                 value,
@@ -402,18 +402,31 @@ impl<'a> LoweringState<'a> {
 
         let then_label = ctx.create_label("matches_then");
         let end_label = ctx.create_label("matches_end");
+
         let int_type = ctx.ir().types.int_type();
         let bool_type = ctx.ir().types.bool_type();
+
         let false_value = ctx.emit_const(Operand::Bool(false), bool_type);
+
         let expr_view = self.hir.view(hir_value.data);
-        let enum_type = expr_view.ty_viewer().dereference();
-        let layout = self.types.enum_layout(&enum_type.data())?.clone();
+        let enum_type = expr_view.ty_viewer().nominal();
+        let layout = self
+            .types
+            .enum_layout(&enum_type.data(), hir_value.span)?
+            .clone();
+
         let discriminant = enum_type
             .is_enum()
-            .ok_or(CodegenError::NotAnEnum(enum_type.data()))?
+            .ok_or(CodegenError::new(
+                CodegenErrorKind::NotAnEnum(enum_type.data()),
+                hir_value.span,
+            ))?
             .variants()
             .get(variant)
-            .ok_or(CodegenError::InvalidVariantIndex(enum_type.data(), variant))?
+            .ok_or(CodegenError::new(
+                CodegenErrorKind::InvalidVariantIndex(enum_type.data(), variant),
+                hir_value.span,
+            ))?
             .discriminant;
 
         let cond = {
@@ -428,9 +441,10 @@ impl<'a> LoweringState<'a> {
         // A non-empty pattern implies the matched variant carries a payload, so
         // the enum must have the payload union registered in its layout.
         let key = enum_type.data();
-        layout
-            .union_type
-            .ok_or(CodegenError::MissingEnumPayload(key))?;
+        layout.union_type.ok_or(CodegenError::new(
+            CodegenErrorKind::MissingEnumPayload(key),
+            hir_value.span,
+        ))?;
         ctx.branch_conditional(cond, then_label, end_label, &[], &[false_value]);
         let union_value = ctx.get_field(value, 1);
 

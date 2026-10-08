@@ -43,15 +43,12 @@
 //! - [`crate::hir::modules::TypesModule`] — Type management
 pub mod arrays;
 pub mod generic_component;
+pub mod interface;
 pub mod term;
 #[cfg(test)]
 mod term_tests;
 pub mod vector;
-use crate::{
-    SymbolPointer,
-    context::{ComponentDefinition, StructDefinition},
-    term::TermId,
-};
+use crate::{DeclarationId, HirFunctionDeclaration, SymbolPointer, Visible, term::TermId};
 
 use common::{VisibilityModifier, pool::DedupPoolId};
 use smallvec::SmallVec;
@@ -142,10 +139,23 @@ impl ComponentProperty {
 pub struct TupleType {
     pub(crate) fields: Vec<TermId>,
 }
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub struct StructField {
+    pub ty: TermId,
+    pub name: SymbolPointer,
+}
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub struct StructMethod {
+    pub name: SymbolPointer,
+    pub target: DeclarationId<HirFunctionDeclaration>,
+}
+
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct StructType {
-    pub(crate) fields: Vec<TermId>,
-    pub(crate) metadata: DedupPoolId<StructDefinition>,
+    pub(crate) name: SymbolPointer,
+    pub(crate) fields: Vec<Visible<StructField>>,
+    pub(crate) methods: Vec<Visible<StructMethod>>,
 }
 
 /// A single variant of an enum type.
@@ -176,15 +186,23 @@ pub struct EnumType {
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct ComponentType {
-    pub(crate) properties: Vec<TermId>,
+    pub(crate) name: SymbolPointer,
+    pub(crate) properties: Vec<Visible<StructField>>,
     pub(crate) children: Vec<DedupPoolId<ComponentType>>,
-    pub(crate) metadata: DedupPoolId<ComponentDefinition>,
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct FunctionType {
     pub(crate) args: SmallVec<[TermId; 2]>,
     pub(crate) ret: TermId,
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub struct InterfaceType {
+    pub(crate) name: SymbolPointer,
+    pub(crate) super_interfaces: Vec<TermId>,
+    ///The signature of the methods
+    pub methods: Vec<(SymbolPointer, TermId)>,
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]

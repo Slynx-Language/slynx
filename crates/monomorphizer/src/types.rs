@@ -25,6 +25,15 @@ pub(crate) struct Substitution(HashMap<u8, TermId>);
 
 /// The key of a monomorphization: the generic template declaration together
 /// with the concrete type arguments supplied at a use site.
+///
+/// The template half is an [`AnyDeclarationId`]: this is the key of the
+/// heterogeneous [`Monomorphizer::cache`](crate::Monomorphizer::cache), which
+/// stores specializations of every declaration kind in one map, and of the
+/// companion in-progress cycle-detection set. The typed template id a key was
+/// built from is erased with
+/// [`TypeDeclaration::as_any_id`](slynx_hir::TypeDeclaration::as_any_id) at
+/// that border and narrowed back with
+/// [`SpecializableDeclaration::from_erased`](crate::specialization::SpecializableDeclaration::from_erased).
 pub(crate) type MonomorphizationKey = (AnyDeclarationId, SmallVec<[TermId; 2]>);
 
 impl Substitution {
@@ -60,7 +69,7 @@ pub(crate) fn mangle_name(hir: &SlynxHir, name: SymbolPointer, args: &[TermId]) 
         let mut hasher = DefaultHasher::new();
         hir.view(*arg).raw().hash(&mut hasher);
         out.push('_');
-        out.push_str(&hir.view(*arg).name());
+        out.push_str(&hir.view(*arg).pretty_name());
         out.push_str(&format!("_{:04x}", hasher.finish() & 0xffff));
     }
     out
@@ -120,9 +129,19 @@ pub(crate) fn substitute_type(hir: &SlynxHir, ty: TermId, subst: &Substitution) 
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
-
             Ok(hir.types.create_enum_type(enum_view.name(), variants))
         }
+        TermNode::Ref { mutable, target } => {
+            let target = substitute_type(hir, *target, subst)?;
+            Ok(if *mutable {
+                hir.types.create_term(Term::mutable_reference(target))
+            } else {
+                hir.types.create_term(Term::reference(target))
+            })
+        }
+        TermNode::Extension(ext) => Ok(hir.types.create_term(Term::extension(
+            ext.try_map_children(&mut |child| substitute_type(hir, child, subst))?,
+        ))),
         _ => Ok(ty),
     }
 }
@@ -153,7 +172,7 @@ pub(crate) fn is_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool {
     // built-in extensions and must be handled by the generic `Apply` arm instead:
     // the specialization paths only accept structs, components, and enums, and
     // would otherwise hit `unreachable!` in `resolve_expression_type`.
-    let deref = ty_view.dereference();
+    let deref = ty_view.nominal();
     deref.is_struct().is_some() || deref.is_component().is_some() || deref.is_enum().is_some()
 }
 
@@ -209,7 +228,7 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool 
                     .all(|slot| !contains_generic_param(hir, *slot))
             {
                 let ty_view = hir.view(*target);
-                let deref = ty_view.dereference();
+                let deref = ty_view.nominal();
                 if deref.is_struct().is_some()
                     || deref.is_component().is_some()
                     || deref.is_enum().is_some()
@@ -226,6 +245,7 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool 
             .children()
             .iter()
             .any(|child| contains_resolvable_reference(hir, *child)),
+        TermNode::Ref { target, .. } => contains_resolvable_reference(hir, *target),
 
         TermNode::Func { args, ret } => {
             args.iter()
@@ -239,13 +259,13 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool 
             let view = hir.view(*component);
             view.props()
                 .iter()
-                .any(|prop| contains_resolvable_reference(hir, *prop))
+                .any(|prop| contains_resolvable_reference(hir, prop.ty))
                 || view.children().iter().any(|child| {
                     let child = hir.view(*child);
                     child
                         .props()
                         .iter()
-                        .any(|prop| contains_resolvable_reference(hir, *prop))
+                        .any(|prop| contains_resolvable_reference(hir, prop.ty))
                 })
         }
         _ => false,

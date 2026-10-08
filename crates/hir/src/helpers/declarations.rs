@@ -2,8 +2,8 @@ use module_loader::FileId;
 
 use crate::HirFile;
 use crate::{
-    DeclarationId, HirAliasDeclaration, HirComponentDeclaration, HirFunctionDeclaration,
-    HirObjectDeclaration, HirStaticDeclaration, SlynxHir,
+    DeclarationId, HirComponentDeclaration, HirExtendDeclaration, HirFunctionDeclaration,
+    HirStaticDeclaration, SlynxHir,
 };
 use dashmap::mapref::one::MappedRef;
 
@@ -12,7 +12,7 @@ macro_rules! get_data {
         impl SlynxHir<'_>{
             paste::paste! {
                 $(pub(crate) fn [<get_ $name>](&self, id: DeclarationId<$typ>) -> MappedRef<'_, FileId, HirFile, $typ> {
-                    self.get_file(id.file_id).map(|file| &file[id.local_id])
+                    self.get_file(id.owner).map(|file| &file[id.term])
                 })*
             }
         }
@@ -21,8 +21,9 @@ macro_rules! get_data {
 
 get_data!(
     function(HirFunctionDeclaration),
-    alias(HirAliasDeclaration),
+    //alias(HirAliasDeclaration),
     static(HirStaticDeclaration),
-    object(HirObjectDeclaration),
+    //object(HirObjectDeclaration),
     component(HirComponentDeclaration),
+    extension(HirExtendDeclaration),
 );

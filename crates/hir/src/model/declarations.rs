@@ -30,7 +30,8 @@ use common::{
 use smallvec::SmallVec;
 
 use crate::{
-    SymbolPointer, VariableId,
+    DeclarationId, HirDeclaration, LanguageItem, SymbolPointer, TypeDeclaration, VariableId,
+    interface::InterfaceTerm,
     model::{HirComponentExpression, HirExpression, HirStatement},
     term::TermId,
 };
@@ -57,9 +58,28 @@ pub enum HirAttributeKind {
 }
 
 #[derive(Debug)]
+pub struct HirExtendDeclaration {
+    ///The type being extended.
+    pub target: TermId,
+    pub generics: Vec<GenericParameter>,
+    ///The interface being implemented.
+    pub interfaces: Vec<TermId>,
+    ///Methods provided by this implementation, paired with their source names.
+    pub methods: Vec<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>,
+    pub attributes: Vec<HirAttribute>,
+}
+
+///A generic parameter defined for something. The given `name` is the name of the parameter and bounds are the interfaces that the parameter must implement.
+#[derive(Debug, Clone)]
+pub struct GenericParameter {
+    pub name: SymbolPointer,
+    pub bounds: Vec<InterfaceTerm>,
+}
+
+#[derive(Debug)]
 pub struct HirFunctionDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub generics: Vec<GenericParameter>,
     pub args: SmallVec<[VariableId; 2]>,
     pub statements: Vec<Spanned<PoolId<HirStatement>>>,
     pub ty: TermId,
@@ -72,7 +92,8 @@ pub struct HirFunctionDeclaration {
 #[derive(Debug)]
 pub struct HirObjectDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub span: Span,
+    pub generics: Vec<GenericParameter>,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
     pub external: bool,
@@ -82,6 +103,7 @@ pub struct HirObjectDeclaration {
 #[derive(Debug)]
 pub struct HirStaticDeclaration {
     pub name: SymbolPointer,
+    pub span: Span,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
     pub external: bool,
@@ -91,7 +113,8 @@ pub struct HirStaticDeclaration {
 #[derive(Debug)]
 pub struct HirAliasDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub attributes: Vec<HirAttribute>,
+    pub generics: Vec<GenericParameter>,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
 }
@@ -99,7 +122,8 @@ pub struct HirAliasDeclaration {
 #[derive(Debug)]
 pub struct HirComponentDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub span: Span,
+    pub generics: Vec<GenericParameter>,
     pub props: Vec<ComponentMemberDeclaration>,
     pub ty: TermId,
     pub visibility: VisibilityModifier,
@@ -122,7 +146,8 @@ pub struct HirEnumVariant {
 #[derive(Debug)]
 pub struct HirEnumDeclaration {
     pub name: SymbolPointer,
-    pub generics: Vec<SymbolPointer>,
+    pub span: Span,
+    pub generics: Vec<GenericParameter>,
     pub variants: Vec<Spanned<HirEnumVariant>>,
     pub visibility: VisibilityModifier,
     pub attributes: Vec<HirAttribute>,
@@ -261,3 +286,64 @@ impl ComponentMemberDeclaration {
         Self::Child(child)
     }
 }
+
+macro_rules! impl_hir_decl {
+    ($($t:ty => $name:ident),*$(,)?) => {
+        $(
+            impl HirDeclaration for $t {
+                fn attributes(&self) -> &[HirAttribute] {
+                    &self.attributes
+                }
+                fn attributes_mut(&mut self) -> &mut Vec<HirAttribute> {
+                    &mut self.attributes
+                }
+            }
+            impl LanguageItem for $t {
+                fn map(items: &crate::context::LangItems) -> &crate::context::LangMap<Self> {
+                    &items.$name
+                }
+            }
+        )*
+    };
+}
+
+use crate::id::AnyDeclarationId;
+macro_rules! impl_type_decl {
+    ($($t:ty),*$(,)?) => {
+        $(
+            impl TypeDeclaration for $t {
+                fn hir_type(&self) -> TermId {
+                    self.ty
+                }
+                fn generics(&self) -> &[GenericParameter] {
+                    &self.generics
+                }
+                fn name(&self) -> SymbolPointer {
+                    self.name
+                }
+                fn as_any_id(id: DeclarationId<Self>) -> AnyDeclarationId {
+                    AnyDeclarationId::from(id)
+                }
+            }
+
+        )*
+    };
+}
+
+impl_type_decl!(
+    HirFunctionDeclaration,
+    HirObjectDeclaration,
+    HirComponentDeclaration,
+    HirEnumDeclaration,
+    HirAliasDeclaration,
+);
+
+impl_hir_decl!(
+    HirFunctionDeclaration => functions,
+    HirObjectDeclaration => objects,
+    HirComponentDeclaration => components,
+    HirEnumDeclaration => enums,
+    HirExtendDeclaration => extensions,
+    HirAliasDeclaration => aliases,
+    HirStaticDeclaration => statics,
+);

@@ -7,10 +7,11 @@ use dashmap::DashMap;
 
 pub use crate::pool::id::DedupPoolId;
 pub use crate::pool::id::PoolId;
+use crate::vec::{AppendOnlyVec, TryLike};
 
 #[derive(Default)]
 pub struct DedupPool<T: Eq + Hash> {
-    pub(crate) inner: boxcar::Vec<T>,
+    pub(crate) inner: AppendOnlyVec<T>,
     pub(crate) hashes: DashMap<T, DedupPoolId<T>>,
 }
 
@@ -25,12 +26,12 @@ where
 
 #[derive(Debug, Default)]
 pub struct Pool<T> {
-    pub(crate) inner: boxcar::Vec<T>,
+    pub(crate) inner: AppendOnlyVec<T>,
 }
 impl<T: Hash + Eq + Clone> DedupPool<T> {
     pub fn new() -> Self {
         Self {
-            inner: boxcar::Vec::new(),
+            inner: AppendOnlyVec::new(),
             hashes: DashMap::new(),
         }
     }
@@ -50,29 +51,23 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
     pub fn get(&self, id: DedupPoolId<T>) -> &T {
         unsafe { self.inner.get_unchecked(id.as_raw() as usize) }
     }
+    pub fn get_mut(&mut self, id: DedupPoolId<T>) -> &mut T {
+        unsafe { self.inner.get_unchecked_mut(id.as_raw() as usize) }
+    }
 
     pub fn len(&self) -> usize {
-        self.inner.count()
+        self.inner.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
-    ///Gets a mutable reference to the data that originated the given `id`.
-    ///
-    /// Note: mutating a value that was inserted into a dedup pool invalidates
-    /// its stored hash key. Only mutate values whose hash is stable under the
-    /// mutation (e.g. structs dedup'd by name) and never re-`insert` a value
-    /// that expects to be dedup'd on the mutated fields.
-    pub fn get_mut(&mut self, id: DedupPoolId<T>) -> &mut T {
-        unsafe { self.inner.get_unchecked_mut(id.as_raw() as usize) }
+        self.inner.len() == 0
     }
 
     ///Iterates over all values stored on this pool, yielding their `id` and a reference to the data
     pub fn iter(&self) -> impl Iterator<Item = (DedupPoolId<T>, &T)> {
         self.inner
             .iter()
+            .enumerate()
             .map(|(index, value)| (DedupPoolId::new(index as u32), value))
     }
 }
@@ -80,9 +75,26 @@ impl<T: Hash + Eq + Clone> DedupPool<T> {
 impl<T> Pool<T> {
     pub fn new() -> Self {
         Self {
-            inner: boxcar::Vec::new(),
+            inner: AppendOnlyVec::new(),
         }
     }
+    pub fn push_with_next_id<R>(&self, f: impl FnOnce(usize) -> R) -> <R as TryLike>::Rebuilt<usize>
+    where
+        R: TryLike<Output = T>,
+    {
+        self.inner.push_with_next_id(f)
+    }
+    pub fn insert_with_id<R: TryLike<Output = T>>(
+        &self,
+        f: impl FnOnce(PoolId<T>) -> R,
+    ) -> <R as TryLike>::Rebuilt<PoolId<T>> {
+        let s = self.inner.push_with_next_id(|id| {
+            let id = PoolId::new(id as u32);
+            f(id)
+        });
+        R::map_rebuilt(s, |s| PoolId::new(s as u32))
+    }
+
     ///Inserts the given `data` into this pool. If it was previously inserted returns the ID of the previous value
     pub fn insert(&self, data: T) -> PoolId<T> {
         let idx = self.inner.push(data);
@@ -93,15 +105,14 @@ impl<T> Pool<T> {
     pub fn get(&self, id: PoolId<T>) -> &T {
         unsafe { self.inner.get_unchecked(id.as_raw() as usize) }
     }
+    pub fn get_mut(&mut self, id: PoolId<T>) -> &mut T {
+        unsafe { self.inner.get_unchecked_mut(id.as_raw() as usize) }
+    }
     pub fn iter<'a>(&'a self) -> PoolIterator<'a, T> {
         PoolIterator {
             pool: self,
             current: 0,
         }
-    }
-    ///Gets the data that originated the given `id`
-    pub fn get_mut(&mut self, id: PoolId<T>) -> &mut T {
-        unsafe { self.inner.get_unchecked_mut(id.as_raw() as usize) }
     }
 }
 impl<T> Index<PoolId<T>> for Pool<T> {
@@ -128,9 +139,12 @@ pub struct PoolIterator<'a, T> {
 impl<'a, T> Iterator for PoolIterator<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
-        let out = self.pool.inner.get(self.current);
+        if self.current >= self.pool.inner.len() {
+            return None;
+        }
+        let out = self.pool.get(PoolId::new(self.current as u32));
         self.current += 1;
-        out
+        Some(out)
     }
 }
 
@@ -142,13 +156,13 @@ pub struct IndexedPoolIterator<'a, T> {
 impl<'a, T> Iterator for IndexedPoolIterator<'a, T> {
     type Item = (PoolId<T>, &'a T);
     fn next(&mut self) -> Option<Self::Item> {
-        let out = self
-            .pool
-            .inner
-            .get(self.current)
-            .map(|out| (PoolId::new(self.current as u32), out));
+        if self.current >= self.pool.inner.len() {
+            return None;
+        }
+        let id = PoolId::new(self.current as u32);
+        let out = self.pool.get(id);
         self.current += 1;
-        out
+        Some((id, out))
     }
 }
 

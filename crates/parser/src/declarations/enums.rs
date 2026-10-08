@@ -2,18 +2,20 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
 
 use crate::{
-    ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, Parser, Result, Type,
-    TypeParamScope,
+    ASTAttribute, EnumDeclaration, EnumVariant, EnumVariantKind, GenericsMetadata, ObjectMethod,
+    Parser, Result, SymbolPointer, Type, flags::ParserFlags,
 };
 
 impl Parser<'_> {
     pub fn parse_enum_representation(
         &mut self,
-        generics: TypeParamScope,
+        generics: &[SymbolPointer],
     ) -> Result<Option<Spanned<DedupPoolId<Type>>>> {
-        if self.peek()?.kind == TokenKind::Colon {
+        //enum Slaoq(u8): Interface {}
+        if self.peek()?.kind == TokenKind::LParen {
             self.eat()?;
             let out = self.parse_type(generics)?;
+            self.expect(&TokenKind::RParen)?;
             Ok(Some(out))
         } else {
             Ok(None)
@@ -23,13 +25,13 @@ impl Parser<'_> {
     pub fn parse_enum_variant(
         &mut self,
         attributes: Vec<Spanned<ASTAttribute>>,
-        generics: TypeParamScope,
+        generics: &[SymbolPointer],
     ) -> Result<EnumVariant> {
         let name = self.expect_identifier()?;
         match self.peek()?.kind {
             TokenKind::Eq => {
                 self.eat()?;
-                let rhs = self.parse_expression(generics)?;
+                let rhs = self.parse_expression(generics, ParserFlags::default())?;
                 Ok(EnumVariant {
                     name,
                     kind: EnumVariantKind::RawValued(rhs),
@@ -76,15 +78,30 @@ impl Parser<'_> {
         }
     }
 
-    pub fn parse_enum_variants(&mut self, generics: TypeParamScope) -> Result<Vec<EnumVariant>> {
+    ///Parses the body of an enum, returning its variants and its methods
+    ///separately. Variants and methods share the body, so they are read in one
+    ///loop and split apart by the token that introduces them.
+    pub fn parse_enum_variants(
+        &mut self,
+        generics: &[SymbolPointer],
+    ) -> Result<(Vec<EnumVariant>, Vec<ObjectMethod>)> {
         self.expect(&TokenKind::LBrace)?;
-        let variants =
-            self.parse_separated(TokenKind::RBrace, TokenKind::Comma, true, |parser| {
-                let attributes = parser.parse_attributes()?;
-                parser.parse_enum_variant(attributes, generics)
-            })?;
+        let mut variants = Vec::new();
+        let mut methods = Vec::new();
+        while self.peek()?.kind != TokenKind::RBrace {
+            let attributes = self.parse_attributes()?;
+            if self.peek()?.kind == TokenKind::Func {
+                let start = self.eat()?.span;
+                methods.push(self.parse_method(start, attributes, ParserFlags::empty())?);
+            } else {
+                variants.push(self.parse_enum_variant(attributes, generics)?);
+            }
+            if self.peek()?.kind == TokenKind::Comma {
+                self.eat()?;
+            }
+        }
         self.expect(&TokenKind::RBrace)?;
-        Ok(variants)
+        Ok((variants, methods))
     }
 
     pub fn parse_enum(
@@ -92,18 +109,26 @@ impl Parser<'_> {
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
     ) -> Result<EnumDeclaration> {
+        //enum E(int): InterfaceA, InterfaceB where T: InterfaceC { ... }
         let (name, generics) = self.parse_generic_name()?;
         let representation = self.parse_enum_representation(&generics)?;
-        let variants = self.parse_enum_variants(&generics)?;
+        let interface_implementations = self.parse_interface_implementations(&generics)?;
+        let clauses = self.parse_clauses(&generics)?;
+        let (variants, methods) = self.parse_enum_variants(&generics)?;
 
         Ok(EnumDeclaration {
             name,
-            type_params: generics,
+            generics: GenericsMetadata {
+                type_params: generics,
+                interface_implementations,
+                clauses,
+            },
             representation,
             variants,
             attributes,
             visibility: Default::default(),
             span,
+            methods,
         })
     }
 }

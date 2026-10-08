@@ -1,0 +1,17 @@
+// `Self` is lowered inside type wrappers without replacing the wrapper itself.
+interface Wrapped {
+    func wrapped(&self, items: []Self) -> []Self
+}
+
+object Item {
+    value: int
+}
+
+extend Item: Wrapped {
+    func wrapped(&self, items: []Item) -> []Item { items }
+}
+
+func main(): void {
+    let item = Item(value: 1);
+    item.wrapped({item});
+}

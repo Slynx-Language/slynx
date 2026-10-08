@@ -1,0 +1,19 @@
+// xfail: generic `extend` declarations are intentionally unsupported. A
+// concrete implementation must name a concrete target type instead.
+interface Stringifiable {
+    func stringify(&self) -> str
+}
+
+enum Option<T> {
+    Some(T),
+    None
+}
+
+extend<T> Option<T>: Stringifiable {
+    func stringify(&self) -> str { "some" }
+}
+
+func main(): void {
+    let some = Option.Some(1);
+    some.stringify();
+}

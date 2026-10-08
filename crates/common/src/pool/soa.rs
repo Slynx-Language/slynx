@@ -35,9 +35,35 @@ macro_rules! dedup_pooled {
     };
 }
 #[macro_export]
+#[doc(hidden)]
+macro_rules! __pooled_insert_with_id {
+    // sem errwith: closure infalível
+    ($field:ident, $ty:ty) => {
+        $crate::paste! {
+            pub fn [<insert_at_ $field _with_id>]<F: FnOnce(PoolId<$ty>) -> $ty>(
+                &self,
+                f: F,
+            ) -> PoolId<$ty> {
+                self.$field.insert_with_id(f)
+            }
+        }
+    };
+    // com errwith Result: closure falível
+    ($field:ident, $ty:ty, $err:ident) => {
+        $crate::paste! {
+            pub fn [<insert_at_ $field _with_id>]<F: FnOnce(PoolId<$ty>) -> $err<$ty>>(
+                &self,
+                f: F,
+            ) -> $err<PoolId<$ty>> {
+                self.$field.insert_with_id(f)
+            }
+        }
+    };
+}
+#[macro_export]
 macro_rules! pooled {
     ($v:vis $name: ident {
-        $($fvis:vis $field_name:ident : $ty:ty),* $(,)?
+        $($fvis:vis $field_name:ident : $ty:ty $(where Err=$err:ident)?),* $(,)?
     }) => {
         $v struct $name {
             $($fvis $field_name: Pool<$ty>,)*
@@ -57,21 +83,17 @@ macro_rules! pooled {
                     self.$field_name.get(index)
                 }
             }
-            impl std::ops::IndexMut<PoolId<$ty>> for $name {
-                fn index_mut(&mut self, index: PoolId<$ty>) -> &mut Self::Output {
-                    self.$field_name.get_mut(index)
-                }
-            }
+
         )*
-        $crate::paste!{
-            impl $name {
-                $(
-                    pub fn [<insert_at_ $field_name>](&self, value: $ty) -> PoolId<$ty>{
+        impl $name {
+            $(
+                $crate::paste! {
+                    pub fn [<insert_at_ $field_name>](&self, value: $ty) -> PoolId<$ty> {
                         self.$field_name.insert(value)
                     }
-                )*
-            }
+                }
+                $crate::__pooled_insert_with_id!($field_name, $ty $(, $err)?);
+            )*
         }
-
     };
 }

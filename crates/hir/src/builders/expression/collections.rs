@@ -179,6 +179,7 @@ impl ExpressionBuilder {
                 _ => return Err(HIRError::invalid_indexing(expr_type, span)),
             }
         };
+
         match range {
             RangeType::NoRange(index) => {
                 let index = self.build_expression(
@@ -190,13 +191,13 @@ impl ExpressionBuilder {
                     },
                 )?;
                 let viewer = queue.hir.view(index.data);
-                let ty_viewer = viewer.ty_viewer();
-                match ty_viewer.raw().node() {
+                let ty = viewer.ty();
+                match viewer.ty_viewer().raw().node() {
                     TermNode::Primitive(PrimitiveType::Signed { .. })
                     | TermNode::Primitive(PrimitiveType::Unsigned { .. }) => {}
                     _ => {
                         return Err(HIRError::unexpected_type(
-                            ty_viewer.data,
+                            ty,
                             queue.hir.types.create_type(Term::unsigned_integer_type(32)),
                             index.span,
                         ));

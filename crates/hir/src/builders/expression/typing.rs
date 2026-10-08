@@ -1,15 +1,13 @@
 use common::Span;
 
 use crate::{
-    HIRError, Result,
+    ExpressionBuilder, HIRError, Result,
     builders::HirQueueBuilder,
     term::{Term, TermId, TermNode},
 };
 
-use super::ExpressionBuilder;
-
 impl ExpressionBuilder {
-    pub(super) fn unify_terms(
+    pub fn unify_terms(
         &self,
         queue: &HirQueueBuilder,
         received: TermId,
@@ -55,8 +53,9 @@ impl ExpressionBuilder {
 
                 let mut counter = 0;
                 let aext_mapped = aext.try_map_children(&mut |child| {
+                    let out = self.unify_terms(queue, child, bchildren[counter], span);
                     counter += 1;
-                    self.unify_terms(queue, child, bchildren[counter], span)
+                    out
                 })?;
                 let term = Term::extension(aext_mapped);
                 let target = queue.hir.types.create_type(term);

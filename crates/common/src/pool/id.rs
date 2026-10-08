@@ -1,9 +1,9 @@
 use std::{hash::Hash, marker::PhantomData};
 
 #[derive(Debug)]
-pub struct DedupPoolId<T>(pub(crate) u32, pub(crate) PhantomData<T>);
+pub struct DedupPoolId<T>(pub(crate) u32, pub(crate) PhantomData<fn() -> T>);
 #[derive(Debug)]
-pub struct PoolId<T>(pub(crate) u32, pub(crate) PhantomData<T>);
+pub struct PoolId<T>(pub(crate) u32, pub(crate) PhantomData<fn() -> T>);
 
 macro_rules! impl_derives {
     ($($ty:ident),*$(,)?) => {

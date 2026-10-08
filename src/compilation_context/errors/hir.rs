@@ -1,3 +1,5 @@
+use std::backtrace::Backtrace;
+
 use slynx_hir::{
     SlynxHir,
     error::{HIRError, HIRErrorKind, InvalidWriteReason, NotMutableReason},
@@ -5,24 +7,38 @@ use slynx_hir::{
 };
 
 use crate::{
-    LineInfo, SlynxContext,
+    ErrorPosition, LineInfo, SlynxContext,
     compilation_context::errors::{SlynxError, helpers::suggestions_from_hir},
 };
 
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
-            HIRErrorKind::InvalidEnumUsage(ty) => {
-                format!("Type '{}' is being used as an enum, even though it isn't", hir.view(*ty).name())
+            HIRErrorKind::MissingExtensionMethod { method } => {
+                format!("Method '{}' not found but requested by interface", hir.get_name(*method))
             }
-            HIRErrorKind::MethodNotFound(name) => {
+            HIRErrorKind::UnimplementedFeature(feature) => {
+                format!("Unimplemented feature: {:?}", feature)
+            }
+            HIRErrorKind::UnexpectedTypeUsage { actual, expected_usage } => {
+                format!("Expected type '{expected_usage:?}', but got '{}'", hir.view(*actual).pretty_name())
+            }
+            HIRErrorKind::InvalidEnumUsage(ty) => {
+                format!("Type '{}' is being used as an enum, even though it isn't", hir.view(*ty).pretty_name())
+            }
+            HIRErrorKind::MethodNotFound(name, target) => {
                 format!(
-                    "Method '{}' could not be found on the given struct",
-                    hir.get_name(*name)
+                    "Method '{}' could not be found for type {}",
+                    hir.get_name(*name),
+                    hir.view(*target).pretty_name()
                 )
             }
-            HIRErrorKind::StaticMethodNotFound(name) => {
-                format!("Static method not found: {}", hir.get_name(*name))
+            HIRErrorKind::StaticMethodNotFound(name, target) => {
+                format!(
+                    "Static method '{}' could not be found for type {}",
+                    hir.get_name(*name),
+                    hir.view(*target).pretty_name()
+                )
             }
             HIRErrorKind::InvalidTypeAccess => "Invalid type access".to_string(),
             HIRErrorKind::ExpressionNotMutable(NotMutableReason::ExpressionNotAssignable) => {
@@ -45,7 +61,7 @@ impl SlynxContext {
                 )
             }
             HIRErrorKind::MissingReturn => {
-                "Function does not contain return, but its return type is NOT void".to_string()
+                "Function does not contain return, but its return type is not void".to_string()
             }
             HIRErrorKind::EnumVariantNotAnInt(name) => {
                 format!(
@@ -56,7 +72,7 @@ impl SlynxContext {
             HIRErrorKind::MatchesOnNonEnum(ty) => {
                 format!(
                     "Cannot match on '{}': the `matches` operator requires an enum value on its left-hand side",
-                    hir.view(*ty).name()
+                    hir.view(*ty).pretty_name()
                 )
             }
             HIRErrorKind::InvalidPattern => "Invalid `matches` pattern. Expected a variant name (`Foo`) or a variant call (`Foo(...)`)".to_string(),
@@ -73,8 +89,8 @@ impl SlynxContext {
                 )
             }
             HIRErrorKind::UnexpectedType { expected, received } => {
-                let expected_name = hir.view(*expected).name();
-                let received_name = hir.view(*received).name();
+                let expected_name = hir.view(*expected).pretty_name();
+                let received_name = hir.view(*received).pretty_name();
                 format!(
                     "Received an incorrect type. Expected {expected_name} instead, received type {received_name}"
                 )
@@ -83,7 +99,7 @@ impl SlynxContext {
             HIRErrorKind::InvalidIndexing(ty) => {
                 format!(
                     "Expression cannot be indexed. Type is '{}', instead expected an array/vector type.",
-                    hir.view(*ty).name()
+                    hir.view(*ty).pretty_name()
                 )
             }
             HIRErrorKind::CouldntInfer => "Could not infer the type of expression".to_string(),
@@ -136,11 +152,11 @@ impl SlynxContext {
                 format!("Type with name '{name}' was not defined")
             }
             HIRErrorKind::InvalidFieldAccessTarget { ty } => {
-                let ty = hir.view(*ty).name();
+                let ty = hir.view(*ty).pretty_name();
                 format!("Type '{ty}' does not support field-style access")
             }
             HIRErrorKind::InvalidTupleAccessTarget { ty } => {
-                let ty = hir.view(*ty).name();
+                let ty = hir.view(*ty).pretty_name();
                 format!("Type '{ty}' does not support tuple-style access")
             }
             HIRErrorKind::InvalidTupleIndex { index, length } => {
@@ -183,7 +199,7 @@ impl SlynxContext {
                 } else {
                     "Properties"
                 };
-                let objname = hir.view(*ty).name();
+                let objname = hir.view(*ty).pretty_name();
                 let names = prop_names
                     .iter()
                     .map(|v| format!("'{}'", hir.get_name(*v)))
@@ -193,7 +209,7 @@ impl SlynxContext {
                 format!("{property} {names} are not recognized for object {objname}",)
             }
             HIRErrorKind::RecursiveType { ty } => {
-                let name = hir.view(*ty).name();
+                let name = hir.view(*ty).pretty_name();
                 format!("The type named as '{name}' is recursive at this point")
             }
             HIRErrorKind::InvalidStyleEvent { name } => {
@@ -248,11 +264,23 @@ impl SlynxContext {
                 let name = hir.get_name(*name);
                 format!("'{name}' uses a construct that is not implemented yet")
             }
+            HIRErrorKind::DuplicateInterfaceImplementation { ty, interface } => {
+                let ty = hir.view(*ty).pretty_name();
+                let interface = hir.view(*interface).pretty_name();
+                format!(
+                    "Type '{ty}' implements the interface '{interface}' more than once"
+                )
+            }
+            HIRErrorKind::UnresolvedInterfaceCall { method, receiver } => {
+                let method = hir.get_name(*method);
+                let receiver = hir.view(*receiver).pretty_name();
+                format!("Type '{receiver}' has no implementation of the interface method '{method}'")
+            }
         }
     }
 
-    pub fn handle_hir_error(&self, hir: &SlynxHir, error: &HIRError) -> SlynxError {
-        let suggestion = suggestions_from_hir(hir, error);
+    pub fn handle_hir_error(&self, hir: &SlynxHir, error: HIRError) -> SlynxError {
+        let suggestion = suggestions_from_hir(hir, &error);
         let LineInfo {
             line,
             column_start,
@@ -260,17 +288,25 @@ impl SlynxContext {
             src,
         } = self.get_line_info(&self.entry_point, error.span.start as usize);
         SlynxError::new_hir(
-            line,
-            column_start,
-            column_end,
-            self.hir_error_to_string(hir, error),
+            ErrorPosition {
+                line,
+                column: column_start,
+                end_column: column_end,
+            },
+            self.hir_error_to_string(hir, &error),
             self.file_name(),
             src.to_string(),
             suggestion,
+            error.backtrace,
         )
     }
 
-    pub fn handle_ownership_error(&self, hir: &SlynxHir, error: &OwnershipError) -> SlynxError {
+    pub fn handle_ownership_error(
+        &self,
+        hir: &SlynxHir,
+        error: &OwnershipError,
+        backtrace: std::sync::Arc<Backtrace>,
+    ) -> SlynxError {
         let message = match &error.kind {
             OwnershipErrorKind::UseAfterMove { variable } => {
                 format!(
@@ -310,14 +346,17 @@ impl SlynxContext {
             column_end,
             src,
         } = self.get_line_info(&self.entry_point, error.span.start as usize);
-        SlynxError::new_hir(
-            line,
-            column_start,
-            column_end,
+        SlynxError::new_ownership(
+            ErrorPosition {
+                line,
+                column: column_start,
+                end_column: column_end,
+            },
             message,
             self.file_name(),
             src.to_string(),
             vec![],
+            backtrace,
         )
     }
 }
