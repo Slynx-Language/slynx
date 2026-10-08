@@ -1,17 +1,20 @@
 use std::backtrace::Backtrace;
 
+use common::Span;
 use slynx_hir::{VariableId, id::AnyDeclarationId, term::TermId};
 use slynx_ir::IRError;
 
 #[derive(Debug)]
 pub struct CodegenError {
     pub kind: CodegenErrorKind,
+    pub span: Span,
     pub backtrace: Backtrace,
 }
 
 impl CodegenError {
-    pub fn new(kind: CodegenErrorKind) -> Self {
+    pub fn new(kind: CodegenErrorKind, span: Span) -> Self {
         Self {
+            span,
             kind,
             backtrace: Backtrace::capture(),
         }
@@ -43,6 +46,6 @@ pub enum CodegenErrorKind {
 
 impl From<IRError> for CodegenError {
     fn from(error: IRError) -> Self {
-        CodegenError::new(CodegenErrorKind::IRError(error))
+        CodegenError::new(CodegenErrorKind::IRError(error), Span::default())
     }
 }

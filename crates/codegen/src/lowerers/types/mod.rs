@@ -2,7 +2,7 @@ mod enums;
 mod structs;
 use std::collections::HashMap;
 
-use common::pool::PoolId;
+use common::{Span, Spanned, pool::PoolId};
 use slynx_hir::{
     DescriptorId, HirExpression, SlynxHir,
     term::{PrimitiveType, TermId, TermNode},
@@ -63,14 +63,16 @@ impl<'a> TypeLowerer<'a> {
     ///The registered [`EnumLayout`] for an enum type. Returns a single typed
     ///error rather than letting every consumer construct a near-identical
     ///"layout is not registered" string.
-    pub(crate) fn enum_layout(&self, ty: &TermId) -> Result<&EnumLayout, CodegenError> {
-        self.enum_layouts
-            .get(ty)
-            .ok_or(CodegenError::new(CodegenErrorKind::MissingEnumLayout(*ty)))
+    pub(crate) fn enum_layout(&self, ty: &TermId, span: Span) -> Result<&EnumLayout, CodegenError> {
+        self.enum_layouts.get(ty).ok_or(CodegenError::new(
+            CodegenErrorKind::MissingEnumLayout(*ty),
+            span,
+        ))
     }
     pub(crate) fn get_or_create_ir_type(
         &mut self,
         ty: TermId,
+        span: Span,
         ir: &mut SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
         let deref = self.hir.view(ty).nominal();
@@ -92,22 +94,22 @@ impl<'a> TypeLowerer<'a> {
                 let ir_fields = {
                     let mut out = Vec::with_capacity(fields.len());
                     for field in fields {
-                        out.push(self.get_or_create_ir_type(*field, ir)?);
+                        out.push(self.get_or_create_ir_type(*field, span, ir)?);
                     }
                     out
                 };
                 ir.types.create_or_get_tuple(ir_fields)
             }
             _ if let Some((elem, len)) = deref.is_array() => {
-                let elem_ty = self.get_or_create_ir_type(elem, ir)?;
+                let elem_ty = self.get_or_create_ir_type(elem, span, ir)?;
                 ir.create_array(elem_ty, len)
             }
             _ if let Some(elem) = deref.is_vector() => {
-                let elem_ty = self.get_or_create_ir_type(elem, ir)?;
+                let elem_ty = self.get_or_create_ir_type(elem, span, ir)?;
                 ir.create_vector(elem_ty)
             }
             _ if let Some(target) = deref.is_imutable_ref().or_else(|| deref.is_mutable_ref()) => {
-                let target_ty = self.get_or_create_ir_type(target, ir)?;
+                let target_ty = self.get_or_create_ir_type(target, span, ir)?;
                 ir.types.pointer_type(target_ty)
             }
             TermNode::Data(DescriptorId::Enum(_)) => {
@@ -117,10 +119,15 @@ impl<'a> TypeLowerer<'a> {
                 // payload union and the `EnumLayout` together (idempotently),
                 // so this on-demand branch and the hoist pass agree on the
                 // same shape every time.
-                self.insert_enum_fields_for(key, ir)?
+                self.insert_enum_fields_for(key, span, ir)?
             }
 
-            _ => return Err(CodegenError::new(CodegenErrorKind::IRTypeNotRecognized(ty))),
+            _ => {
+                return Err(CodegenError::new(
+                    CodegenErrorKind::IRTypeNotRecognized(ty),
+                    span,
+                ));
+            }
         };
         Ok(out)
     }
@@ -135,18 +142,19 @@ impl<'a> TypeLowerer<'a> {
     ///pointer-type computation happen in one place.
     pub(crate) fn deref_field_type(
         &mut self,
-        inner: PoolId<HirExpression>,
+        inner: Spanned<PoolId<HirExpression>>,
         field_index: usize,
         ir: &mut SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
-        let expr_view = self.hir.view(inner);
+        let expr_view = self.hir.view(inner.data);
         let concrete = expr_view.ty_viewer().concrete_type();
         let concrete_ty = concrete.data();
-        let struct_view = concrete
-            .is_struct()
-            .ok_or(CodegenError::new(CodegenErrorKind::NotAStruct(concrete_ty)))?;
+        let struct_view = concrete.is_struct().ok_or(CodegenError::new(
+            CodegenErrorKind::NotAStruct(concrete_ty),
+            inner.span,
+        ))?;
         let field_type = struct_view.fields()[field_index].ty;
-        let field_type = self.get_or_create_ir_type(field_type, ir)?;
+        let field_type = self.get_or_create_ir_type(field_type, inner.span, ir)?;
         Ok(ir.types.pointer_type(field_type))
     }
 }

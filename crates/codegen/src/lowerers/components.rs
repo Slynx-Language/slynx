@@ -1,4 +1,4 @@
-use common::{Spanned, pool::PoolId};
+use common::{Span, Spanned, pool::PoolId};
 use slynx_hir::{
     ComponentMemberDeclaration, DeclarationId, HirComponentDeclaration, HirComponentExpression,
     VariableId,
@@ -25,6 +25,7 @@ impl<'a> LoweringState<'a> {
         let (ty, all_values) = {
             let ty = self.types.get_mapped_type(name).ok_or(CodegenError::new(
                 CodegenErrorKind::IRTypeNotRecognized(*name),
+                value.span,
             ))?;
 
             let mut all_values = Vec::new();
@@ -56,13 +57,14 @@ impl<'a> LoweringState<'a> {
     pub(crate) fn get_type_of_component_expression(
         &self,
         expr: &HirComponentExpression,
-        _ir: &SlynxIR,
+        span: Span,
     ) -> Result<IRTypeId, CodegenError> {
         self.types
             .get_mapped_type(&expr.name)
-            .ok_or(CodegenError::new(CodegenErrorKind::IRTypeNotRecognized(
-                expr.name,
-            )))
+            .ok_or(CodegenError::new(
+                CodegenErrorKind::IRTypeNotRecognized(expr.name),
+                span,
+            ))
     }
 
     pub(crate) fn initialize_component(
@@ -70,6 +72,7 @@ impl<'a> LoweringState<'a> {
         id: DeclarationId<HirComponentDeclaration>,
         decl: &HirComponentDeclaration,
         props: &[ComponentMemberDeclaration],
+        span: Span,
         ir: &mut SlynxIR,
     ) -> Result<(), CodegenError> {
         let ptr = *self
@@ -83,7 +86,7 @@ impl<'a> LoweringState<'a> {
         };
         let property_types = component_props
             .iter()
-            .map(|prop| self.types.get_or_create_ir_type(prop.ty, ir))
+            .map(|prop| self.types.get_or_create_ir_type(prop.ty, span, ir))
             .collect::<Result<Vec<_>, CodegenError>>()?;
 
         // For each specialized child with a style usage, build the __child_init function
@@ -101,7 +104,7 @@ impl<'a> LoweringState<'a> {
             .filter_map(|p| match p {
                 ComponentMemberDeclaration::Child(c) => {
                     let comp_expr = &self.hir.store.component_expressions[c.data];
-                    Some(self.get_type_of_component_expression(comp_expr, ir))
+                    Some(self.get_type_of_component_expression(comp_expr, c.span))
                 }
                 ComponentMemberDeclaration::Property { .. } => None,
             })

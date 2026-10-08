@@ -1,3 +1,4 @@
+use common::Span;
 use slynx_hir::term::TermId;
 use slynx_ir::{IRType, IRTypeId};
 
@@ -29,15 +30,17 @@ impl<'a> TypeLowerer<'a> {
     pub(crate) fn insert_enum_fields_for(
         &mut self,
         decl: TermId,
+        span: Span,
         ir: &mut slynx_ir::SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
         let key = self.hir.view(decl).dereference().data();
         if self.enum_layouts.contains_key(&key) {
             // The layout and the struct mapping are registered together, so a
             // registered layout implies the struct is already mapped.
-            return self
-                .get_mapped_type(&key)
-                .ok_or(CodegenError::new(CodegenErrorKind::MissingEnumLayout(key)));
+            return self.get_mapped_type(&key).ok_or(CodegenError::new(
+                CodegenErrorKind::MissingEnumLayout(key),
+                span,
+            ));
         }
         let enum_struct = match self.get_mapped_type(&key) {
             Some(ty) => ty,
@@ -47,7 +50,7 @@ impl<'a> TypeLowerer<'a> {
                     .view(key)
                     .dereference()
                     .is_enum()
-                    .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key)))?;
+                    .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key), span))?;
                 let name = self.hir.get_name(enum_view.name());
                 let ty = ir.create_struct(name);
                 self.types.insert(key, ty);
@@ -55,7 +58,7 @@ impl<'a> TypeLowerer<'a> {
             }
         };
         let IRType::Struct(enum_struct_id) = *ir.types.get_type(enum_struct) else {
-            return Err(CodegenError::new(CodegenErrorKind::NotAStruct(key)));
+            return Err(CodegenError::new(CodegenErrorKind::NotAStruct(key), span));
         };
         if !ir
             .types
@@ -70,7 +73,7 @@ impl<'a> TypeLowerer<'a> {
             .view(decl)
             .dereference()
             .is_enum()
-            .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key)))?;
+            .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key), span))?;
         let enum_name = self.hir.get_name(enum_view.name());
         let int_type = ir.types.int_type();
 
@@ -86,7 +89,10 @@ impl<'a> TypeLowerer<'a> {
             let union_name = format!("{enum_name}_payload");
             let union_ty = ir.create_union(&union_name);
             let IRType::Union(union_id) = *ir.types.get_type(union_ty) else {
-                return Err(CodegenError::new(CodegenErrorKind::MissingEnumPayload(key)));
+                return Err(CodegenError::new(
+                    CodegenErrorKind::MissingEnumPayload(key),
+                    span,
+                ));
             };
             let mut members = Vec::with_capacity(enum_view.variants().len());
             for variant in enum_view.variants() {
@@ -97,7 +103,7 @@ impl<'a> TypeLowerer<'a> {
                     unreachable!("create_struct must produce a struct");
                 };
                 for payload_ty in &variant.payload {
-                    let field_ty = self.get_or_create_ir_type(*payload_ty, ir)?;
+                    let field_ty = self.get_or_create_ir_type(*payload_ty, span, ir)?;
                     ir.types
                         .get_object_type_mut(payload_struct_id)
                         .insert_field(field_ty);
