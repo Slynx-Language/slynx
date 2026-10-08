@@ -72,7 +72,8 @@ impl<'a> TypeLowerer<'a> {
         ty: TermId,
         ir: &mut SlynxIR,
     ) -> Result<IRTypeId, CodegenError> {
-        let deref = self.hir.view(ty).dereference();
+        let deref = self.hir.view(ty).nominal();
+        let nominal = deref.data();
         let out = match deref.raw().node() {
             TermNode::Primitive(PrimitiveType::Signed { .. }) => ir.types.int_type(),
             TermNode::Primitive(PrimitiveType::Unsigned { bitsize: 1 }) => ir.types.bool_type(),
@@ -82,7 +83,9 @@ impl<'a> TypeLowerer<'a> {
             }
             TermNode::Primitive(PrimitiveType::Void) => ir.types.void_type(),
             TermNode::Primitive(PrimitiveType::String) => ir.types.str_type(),
+            TermNode::Var(_) => ir.types.generic_component_type(),
             TermNode::Extension(_) => ir.types.generic_component_type(),
+            _ if let Some(mapped) = self.get_mapped_type(&nominal) => mapped,
             _ if let Some(mapped) = self.get_mapped_type(&ty) => mapped,
             _ if let Some(fields) = deref.is_tuple() => {
                 let ir_fields = {

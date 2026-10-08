@@ -153,10 +153,10 @@ impl ExpressionBuilder {
         let parent_ty = queue.hir[parent.data].ty;
         let parent_view = queue.hir.view(parent_ty);
         let concrete_type = parent_view.concrete_type();
-        let dereferenced_type = parent_view.dereference();
-        match dereferenced_type.is_struct() {
-            Some(view)
-                if let Some(position) = view.fields().iter().position(|f| f.name == field_name) =>
+        let dereferenced_type = parent_view.nominal();
+        match () {
+            _ if let Some(view) = dereferenced_type.is_struct()
+                && let Some(position) = view.fields().iter().position(|f| f.name == field_name) =>
             {
                 let field_ty = view.fields()[position].data.ty;
                 let field_ty = match view.new_with(field_ty).raw().node() {
@@ -174,7 +174,7 @@ impl ExpressionBuilder {
                     },
                 })
             }
-            Some(_) => {
+            _ if dereferenced_type.is_struct().is_some() => {
                 //is struct but could not find any field
                 return Err(HIRError::property_unrecognized(
                     dereferenced_type.data,
@@ -182,8 +182,8 @@ impl ExpressionBuilder {
                     span,
                 ));
             }
-            None if parent_view.dereference().is_ref() //&T where T is a struct
-                && let Some(view) = parent_view.concrete_type().is_struct() =>
+            _ if dereferenced_type.is_ref()
+                && let Some(view) = concrete_type.is_struct() =>
             {
                 let Some(position) = view.fields().iter().position(|f| f.name == field_name) else {
                     return Err(HIRError::property_unrecognized(
@@ -216,7 +216,7 @@ impl ExpressionBuilder {
                     },
                 })
             }
-            None => {
+            _ => {
                 let ty = dereferenced_type.data;
                 return Err(HIRError::not_a_struct(ty, span));
             }

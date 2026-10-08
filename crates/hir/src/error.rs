@@ -58,8 +58,11 @@ pub enum HIRErrorKind {
     ///Error that occurs when a type is used like an enum, but isn't
     InvalidEnumUsage(TermId),
 
-    MethodNotFound(SymbolPointer),
-    StaticMethodNotFound(SymbolPointer),
+    MissingExtensionMethod {
+        method: SymbolPointer,
+    },
+    MethodNotFound(SymbolPointer, TermId),
+    StaticMethodNotFound(SymbolPointer, TermId),
     /// A concrete type implemented the same interface more than once (coherence).
     DuplicateInterfaceImplementation {
         /// The concrete type that was implemented twice.
@@ -281,12 +284,12 @@ impl HIRError {
         Self::new(HIRErrorKind::InvalidEnumUsage(ty), span)
     }
 
-    pub fn method_not_found(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::MethodNotFound(name), span)
+    pub fn method_not_found(name: SymbolPointer, target: TermId, span: Span) -> Self {
+        Self::new(HIRErrorKind::MethodNotFound(name, target), span)
     }
 
-    pub fn static_method_not_found(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::StaticMethodNotFound(name), span)
+    pub fn static_method_not_found(name: SymbolPointer, target: TermId, span: Span) -> Self {
+        Self::new(HIRErrorKind::StaticMethodNotFound(name, target), span)
     }
 
     pub fn duplicate_interface_implementation(ty: TermId, interface: TermId, span: Span) -> Self {
@@ -546,6 +549,9 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::MissingExtensionMethod { .. } => {
+                write!(f, "Method not found for interface",)
+            }
             HIRErrorKind::UnexpectedTypeUsage {
                 expected_usage,
                 actual,
@@ -560,10 +566,10 @@ impl std::fmt::Display for HIRError {
                 write!(f, "Unimplemented feature: '{:?}'", feature)
             }
             HIRErrorKind::InvalidEnumUsage(_) => write!(f, "Invalid enum usage"),
-            HIRErrorKind::MethodNotFound(_) => {
+            HIRErrorKind::MethodNotFound(_, _) => {
                 write!(f, "Method not found")
             }
-            HIRErrorKind::StaticMethodNotFound(_) => {
+            HIRErrorKind::StaticMethodNotFound(_, _) => {
                 write!(f, "Static method not found")
             }
             HIRErrorKind::DuplicateInterfaceImplementation { .. } => {

@@ -172,7 +172,7 @@ pub(crate) fn is_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool {
     // built-in extensions and must be handled by the generic `Apply` arm instead:
     // the specialization paths only accept structs, components, and enums, and
     // would otherwise hit `unreachable!` in `resolve_expression_type`.
-    let deref = ty_view.dereference();
+    let deref = ty_view.nominal();
     deref.is_struct().is_some() || deref.is_component().is_some() || deref.is_enum().is_some()
 }
 
@@ -228,7 +228,7 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool 
                     .all(|slot| !contains_generic_param(hir, *slot))
             {
                 let ty_view = hir.view(*target);
-                let deref = ty_view.dereference();
+                let deref = ty_view.nominal();
                 if deref.is_struct().is_some()
                     || deref.is_component().is_some()
                     || deref.is_enum().is_some()

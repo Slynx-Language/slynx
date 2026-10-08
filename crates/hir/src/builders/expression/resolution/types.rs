@@ -1,6 +1,6 @@
-use common::{Span, VisibilityModifier};
+use common::{Span, VisibilityModifier, pool::PoolId};
 use module_loader::ASTTypeKind;
-use slynx_parser::{ObjectMethod, TypeContext};
+use slynx_parser::{ExtendDeclaration, InterfaceDeclaration, ObjectMethod, TypeContext};
 
 use crate::{
     DeclarationId, DescriptorId, ExpressionBuilder, GenericParameter, HIRError,

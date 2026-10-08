@@ -22,14 +22,7 @@ impl<'a> LoweringState<'a> {
         variant: usize,
         args: &[Spanned<PoolId<HirExpression>>],
     ) -> Result<Value, CodegenError> {
-        // Read the (post-monomorphization) enum type to find the variant's
-        // compile-time discriminant. Enums lower to a struct whose field[0]
-        // holds the discriminant tag and whose field[1] is a union of the
-        // per-variant payload structs. Construction fills the tag plus the
-        // selected variant's payload struct inside that union, using the
-        // centralized `EnumLayout` so construction and matching agree on the
-        // exact shape registered at materialization time.
-        let deref = self.hir.view(ty).dereference();
+        let deref = self.hir.view(ty).nominal();
         let key = deref.data();
         let enum_view = deref
             .is_enum()
@@ -362,7 +355,8 @@ impl<'a> LoweringState<'a> {
                 }
             }
             HirExpressionKind::Object { name, fields } => {
-                self.lower_struct_literal(*name, fields, context)?
+                let name = self.hir.view(*name).nominal().data();
+                self.lower_struct_literal(name, fields, context)?
             }
             HirExpressionKind::FieldAccess {
                 expr,
@@ -403,7 +397,7 @@ impl<'a> LoweringState<'a> {
         let bool_type = ctx.ir().types.bool_type();
         let false_value = ctx.emit_const(Operand::Bool(false), bool_type);
         let expr_view = self.hir.view(hir_value.data);
-        let enum_type = expr_view.ty_viewer().dereference();
+        let enum_type = expr_view.ty_viewer().nominal();
         let layout = self.types.enum_layout(&enum_type.data())?.clone();
         let discriminant = enum_type
             .is_enum()

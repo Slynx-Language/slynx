@@ -239,7 +239,7 @@ impl ExpressionBuilder {
 
         let expr_view = queue.hir.view(value.data);
         let ty_viewer = expr_view.ty_viewer();
-        let enum_type = ty_viewer.dereference();
+        let enum_type = ty_viewer.nominal();
         let enum_view = enum_type
             .is_enum()
             .ok_or_else(|| HIRError::matches_on_non_enum(enum_type.data, span))?;

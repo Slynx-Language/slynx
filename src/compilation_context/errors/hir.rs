@@ -14,6 +14,9 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::MissingExtensionMethod { method } => {
+                format!("Method '{}' not found but requested by interface", hir.get_name(*method))
+            }
             HIRErrorKind::UnimplementedFeature(feature) => {
                 format!("Unimplemented feature: {:?}", feature)
             }
@@ -23,14 +26,19 @@ impl SlynxContext {
             HIRErrorKind::InvalidEnumUsage(ty) => {
                 format!("Type '{}' is being used as an enum, even though it isn't", hir.view(*ty).pretty_name())
             }
-            HIRErrorKind::MethodNotFound(name) => {
+            HIRErrorKind::MethodNotFound(name, target) => {
                 format!(
-                    "Method '{}' could not be found on the given struct",
-                    hir.get_name(*name)
+                    "Method '{}' could not be found for type {}",
+                    hir.get_name(*name),
+                    hir.view(*target).pretty_name()
                 )
             }
-            HIRErrorKind::StaticMethodNotFound(name) => {
-                format!("Static method not found: {}", hir.get_name(*name))
+            HIRErrorKind::StaticMethodNotFound(name, target) => {
+                format!(
+                    "Static method '{}' could not be found for type {}",
+                    hir.get_name(*name),
+                    hir.view(*target).pretty_name()
+                )
             }
             HIRErrorKind::InvalidTypeAccess => "Invalid type access".to_string(),
             HIRErrorKind::ExpressionNotMutable(NotMutableReason::ExpressionNotAssignable) => {

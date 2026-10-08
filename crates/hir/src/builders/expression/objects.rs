@@ -51,7 +51,7 @@ impl ExpressionBuilder {
                 .term
         };
         let ty_view = queue.hir.view(ty);
-        let deref = ty_view.dereference();
+        let deref = ty_view.nominal();
         let obj = deref
             .is_struct()
             .expect("Expected name to generate a struct type");

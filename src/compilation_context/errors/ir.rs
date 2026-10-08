@@ -47,8 +47,8 @@ pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> Strin
             )
         }
         CodegenErrorKind::DeclarationNotRecognized(id) => {
-            let file = hir.get_file(id.file_id);
-            let ty = match id.local_id {
+            let file = hir.get_file(id.owner);
+            let ty = match id.term {
                 AnyLocalDeclarationId::Alias(a) => file[a].ty,
                 AnyLocalDeclarationId::Component(c) => file[c].ty,
                 AnyLocalDeclarationId::Function(f) => file[f].ty,

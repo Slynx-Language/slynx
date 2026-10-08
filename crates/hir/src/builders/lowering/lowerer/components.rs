@@ -32,7 +32,7 @@ impl<'a> ASTLowerer<'a> {
                             .term;
                         let ty_view = queue.hir.view(ty);
                         let view = ty_view.dereference();
-                        if let Some(view) = view.is_component() {
+                        if let Some(view) = view.nominal().is_component() {
                             components.push(view.data);
                         } else {
                             let name = queue.type_name(c.data.name.data);

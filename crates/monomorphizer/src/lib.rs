@@ -489,7 +489,7 @@ impl Monomorphizer {
     ) -> Result<TermId> {
         if is_resolvable_reference(hir, ty) {
             let ty_view = hir.view(ty);
-            let deref = ty_view.dereference();
+            let deref = ty_view.nominal();
             return if deref.is_struct().is_some() {
                 self.resolve_object_target(hir, ty, span)
             } else if deref.is_component().is_some() {
@@ -730,7 +730,7 @@ impl Monomorphizer {
             HirExpressionKind::Object { name, fields } => {
                 let substituted_name = substitute_type(hir, name, subst)?;
                 let ty_view = hir.view(substituted_name);
-                let deref = ty_view.dereference();
+                let deref = ty_view.nominal();
                 let new_name = if is_resolvable_reference(hir, substituted_name)
                     && deref.is_struct().is_some()
                 {

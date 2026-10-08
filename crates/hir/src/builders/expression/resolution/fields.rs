@@ -112,7 +112,7 @@ impl ExpressionBuilder {
         ty: Owned<TermId>,
         span: Span,
     ) -> Result<TypeAccessCategory> {
-        let node = queue.hir.view(ty.term).dereference().raw().node();
+        let node = queue.hir.view(ty.term).nominal().raw().node();
         match queue.get_expr(child.data) {
             ASTExpression::FieldAccess {
                 parent: inner_parent,
@@ -203,7 +203,7 @@ impl ExpressionBuilder {
             ASTExpression::FunctionCall { name, args } => {
                 let name_sym = queue.type_name(name.data);
                 let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
-                let parent_ty = parent_type_view.dereference();
+                let parent_ty = parent_type_view.nominal();
 
                 let inherent = match parent_ty.is_struct() {
                     Some(view) => view
@@ -228,8 +228,12 @@ impl ExpressionBuilder {
                         id
                     }
                     None => {
-                        let concrete_self =
-                            queue.hir.view(parent.data).ty_viewer().dereference().data();
+                        let concrete_self = queue
+                            .hir
+                            .view(parent.data)
+                            .ty_viewer()
+                            .dereference()
+                            .data();
                         let descriptor = FindInterfaceMethodDescriptor {
                             ty: Owned {
                                 owner: self.file(),
@@ -265,8 +269,9 @@ impl ExpressionBuilder {
                                 match bounded {
                                     Some(method) => method,
                                     None => {
-                                        return Err(HIRError::missing_properties(
-                                            vec![name_sym],
+                                        return Err(HIRError::method_not_found(
+                                            name_sym,
+                                            concrete_self,
                                             span,
                                         ));
                                     }

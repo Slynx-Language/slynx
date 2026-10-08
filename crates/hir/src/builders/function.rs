@@ -190,7 +190,8 @@ impl HirFunctionBuilder {
             .view(self.target)
             .get_argument(arg_index)
             .expect("Argument index should be < function argument count");
-        self.builder.create_mapped_variable(name, id, true, ty);
+        
+        self.builder.create_mapped_variable(name, id, false, ty);
         queue.hir.store.variable_names.insert(id, name);
         self.args.push(id);
     }
@@ -200,7 +201,7 @@ impl HirFunctionBuilder {
         body: &[Spanned<DedupPoolId<ASTStatement>>],
         context: &TypeContext,
     ) -> Result<ExpressionBuildResult> {
-        let mut contains_return = true;
+        let mut contains_return = false;
         let statements = {
             let mut statements = Vec::new();
             let len = body.len();
@@ -212,7 +213,7 @@ impl HirFunctionBuilder {
                 let (statment, span) = self
                     .builder
                     .build_statement_data(queue, statment, context)?;
-                let statment = if i + 2 == len
+                let statment = if i + 1 == len
                     && let HirStatement::Expression { expr } = statment
                 {
                     HirStatement::Return { expr: Some(expr) }
