@@ -326,11 +326,11 @@ impl<'a> ASTLowerer<'a> {
             let mut out = Vec::new();
             for param in method.type_params() {
                 if let Some(clause) = clauses.iter().find_map(|clause| {
-                    let res = matches!(
+                    let not_plain = !matches!(
                         queue.modules.get_type(clause.type_to_check.data),
                         Type::Plain(_)
                     );
-                    if res {
+                    if not_plain {
                         return Some(Err(HIRError::unimplemented(
                             MissingFeature::ComplexTypeForBounds,
                             clause.type_to_check.span,
