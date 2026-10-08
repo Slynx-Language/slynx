@@ -65,34 +65,24 @@ impl<'a> HirViewer<'a, TermId> {
         }
     }
 
-    ///Renders the pretty name of this type. The pretty name is a name for the user to read, and should NOT be used to any internal naming
-    pub fn pretty_name(&self) -> String {
-        self.dereference().render_name()
-    }
-
-    ///Makes a dereference for this type. Since a type can be a reference to
-    ///another, this unrolls `Apply` chains (the term form of
-    ///`HirType::Reference`) until it lands on a non-reference node, mirroring
-    ///`HirViewer<TermId>::dereference`. Array/Vector applications
-    ///are not references and are left intact.
+    ///Removes reference wrappers but preserves concrete generic applications such
+    ///as `Option<int>`. The application node is the actual identity of a
+    ///specialized type and must survive method/interface matching.
     pub fn dereference(self) -> HirViewer<'a, TermId> {
         let mut data = self.data;
         loop {
             match self.hir.types.storage.terms[data].node() {
-                TermNode::Apply { target, .. }
-                    if self.new_with(*target).is_extension().is_none() =>
-                {
-                    data = *target;
-                }
+                TermNode::Ref { target, .. } => data = *target,
                 _ => break,
             }
         }
         self.new_with(data)
     }
 
-    ///Gets the concrete type by also unwrapping `&T`/`&mut T` on top of the
-    ///named-type references, mirroring `concrete_type` of the `HirType` viewer.
-    pub fn concrete_type(self) -> HirViewer<'a, TermId> {
+    ///Retrieves the inner nominal type. This is, for any type T, which is being applied or referenced(such as, &int, Vector<i32>, Another<Thing>),
+    ///it getts the base type for them, in case, the oen that contain a meaning and is being used as a base.
+    /// For example `&int -> int`, `Vector<i32> -> Vector`, `Another<THing> -> Another`
+    pub fn nominal(self) -> HirViewer<'a, TermId> {
         let mut data = self.data;
         loop {
             match self.hir.types.storage.terms[data].node() {
@@ -106,6 +96,14 @@ impl<'a> HirViewer<'a, TermId> {
             }
         }
         self.new_with(data)
+    }
+
+    ///Gets the concrete type by also unwrapping `&T`/`&mut T` on top of the
+    ///named-type references, mirroring `concrete_type` of the `HirType` viewer.
+    ///This intentionally preserves `Apply` nodes such as `Option<int>` so the
+    ///specialized receiver identity stays intact for method/interface lookup.
+    pub fn concrete_type(self) -> HirViewer<'a, TermId> {
+        self.dereference()
     }
 
     pub fn is_application(self) -> Option<HirViewer<'a, (TermId, &'a Vec<TermId>)>> {
@@ -216,23 +214,21 @@ impl<'a> HirViewer<'a, TermId> {
         }
         None
     }
-
-    fn render_name(self) -> String {
+    ///Renders the pretty name of this type. The pretty name is a name for the user to read, and should NOT be used to any internal naming
+    pub fn pretty_name(self) -> String {
         let term = self.raw();
         match term.node() {
             TermNode::Primitive(pt) => pt.to_string(),
             TermNode::Var(var) => self.hir.get_name(var.name).into(),
-            TermNode::Data(descriptor) => match descriptor {
-                DescriptorId::Struct(s) => {
-                    let name = self.hir.types.storage.get_struct_name(*s);
-                    self.hir.get_name(name).to_string()
-                }
-                DescriptorId::Enum(e) => {
-                    let name = self.hir.types.storage.get_enum_name(*e);
-                    self.hir.get_name(name).to_string()
-                }
-                DescriptorId::Component(c) => self.new_with(*c).name().to_string(),
-            },
+            TermNode::Data(DescriptorId::Struct(s)) => {
+                let name = self.hir.types.storage.get_struct_name(*s);
+                self.hir.get_name(name).to_string()
+            }
+            TermNode::Data(DescriptorId::Enum(e)) => {
+                let name = self.hir.types.storage.get_enum_name(*e);
+                self.hir.get_name(name).to_string()
+            }
+            TermNode::Data(DescriptorId::Component(c)) => self.new_with(*c).name().to_string(),
             TermNode::Func { args, ret } => {
                 let args = args
                     .iter()
@@ -265,7 +261,7 @@ impl<'a> HirViewer<'a, TermId> {
     }
 
     fn render_apply(self, target: TermId, args: &[TermId]) -> String {
-        match self.is_extension() {
+        match self.new_with(target).is_extension() {
             Some(ext) if ext.dyn_eq(&ArrayTerm) => {
                 let elem = args
                     .first()
