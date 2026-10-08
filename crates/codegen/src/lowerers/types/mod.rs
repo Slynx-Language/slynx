@@ -37,6 +37,7 @@ pub struct EnumLayout {
     pub union_type: Option<IRTypeId>,
 }
 
+#[derive(Debug)]
 pub struct TypeLowerer<'a> {
     hir: &'a SlynxHir<'a>,
     /// IR layouts for enum types.

@@ -156,6 +156,9 @@ pub struct IndexedPoolIterator<'a, T> {
 impl<'a, T> Iterator for IndexedPoolIterator<'a, T> {
     type Item = (PoolId<T>, &'a T);
     fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.pool.inner.len() {
+            return None;
+        }
         let id = PoolId::new(self.current as u32);
         let out = self.pool.get(id);
         self.current += 1;

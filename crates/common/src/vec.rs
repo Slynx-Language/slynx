@@ -301,9 +301,11 @@ impl<T> AppendOnlyVec<T> {
         &self,
         f: impl FnOnce(usize) -> R,
     ) -> <R as TryLike>::Rebuilt<usize> {
-        match f(self.reserved.load(Ordering::Acquire)).branch() {
+        let expected = self.reserved.load(Ordering::Acquire);
+        match f(expected).branch() {
             Ok(val) => {
-                let out = self.pre_push(val);
+                let out = self.push(val);
+                debug_assert_eq!(out, expected, "vec was modified inside push_with_next_id");
                 R::from_output(out)
             }
             Err(residual) => <R as TryLike>::from_residual(residual),
