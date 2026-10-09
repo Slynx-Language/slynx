@@ -1,5 +1,5 @@
 use common::{Spanned, pool::DedupPoolId};
-use module_loader::{ASTType, FileId};
+use module_loader::FileId;
 use slynx_parser::Type;
 
 use crate::{HIRError, HirQueueBuilder, Result, error::InvalidTypeReason};
@@ -13,10 +13,10 @@ impl<'a> HirQueueBuilder<'a> {
     ) -> Result<()> {
         match self.modules.get_type(ty.data) {
             Type::Plain(identifier)
-                if let Some(ASTType { owner, content }) =
+                if let Some(ast_ty) =
                     self.lowerer.lookup.find_type(owner, identifier.identifier) =>
             {
-                let generic_count = self.modules.generic_count(ASTType { owner, content });
+                let generic_count = self.modules.generic_count(ast_ty);
                 if generic_count != identifier.generic.len() {
                     let reason = if identifier.generic.len() < generic_count {
                         InvalidTypeReason::MissingGeneric

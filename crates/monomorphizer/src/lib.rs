@@ -42,13 +42,13 @@ mod types;
 
 use std::collections::{HashMap, HashSet};
 
-use common::{Span, Spanned, pool::PoolId};
+use common::{PoolStorage, Span, Spanned, pool::PoolId};
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationId, DeclarationsPool, DescriptorId, HIRError, HirComponentExpression,
-    HirDeclarationStorage, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
-    PropertyExpression, Result, SlynxHir, SymbolPointer, TypeDeclaration, VariableId,
+    DeclarationId, DeclarationsPool, DescriptorId, HIRError, HirComponentExpression, HirExpression,
+    HirExpressionKind, HirFunctionDeclaration, HirStatement, PropertyExpression, Result, SlynxHir,
+    SymbolPointer, TypeDeclaration, VariableId,
     id::AnyDeclarationId,
     term::{Term, TermId, TermNode},
 };
@@ -317,7 +317,7 @@ impl Monomorphizer {
     ) -> Result<DeclarationId<K>>
     where
         K: SpecializableDeclaration,
-        DeclarationsPool: HirDeclarationStorage<K>,
+        DeclarationsPool: PoolStorage<K>,
         B: FnOnce(
             &mut Monomorphizer,
             &SlynxHir,
@@ -338,7 +338,7 @@ impl Monomorphizer {
         // kind's storage column.
         let (name, generic_count) = {
             let file = hir.get_file(template.owner);
-            let pool = <DeclarationsPool as HirDeclarationStorage<K>>::get_pool(&file.declarations);
+            let pool = <DeclarationsPool as PoolStorage<K>>::get_pool(&file.declarations);
             let declaration = &pool[template.term];
             (declaration.name(), declaration.generics().len())
         };
@@ -378,7 +378,7 @@ impl Monomorphizer {
     /// Finds the declaration of kind `D` named `name` in any file of `hir`.
     ///
     /// The declaration's name is read through [`NamedDeclaration`] and its
-    /// column through [`HirDeclarationStorage`], so the lookup is a plain
+    /// column through [`PoolStorage`], so the lookup is a plain
     /// linear scan with no per-kind selector to keep in sync.
     ///
     /// # Arguments
@@ -397,10 +397,10 @@ impl Monomorphizer {
     ) -> Option<DeclarationId<D>>
     where
         D: TypeDeclaration,
-        DeclarationsPool: HirDeclarationStorage<D>,
+        DeclarationsPool: PoolStorage<D>,
     {
         for file in hir.store.files.iter() {
-            let pool = <DeclarationsPool as HirDeclarationStorage<D>>::get_pool(&file.declarations);
+            let pool = <DeclarationsPool as PoolStorage<D>>::get_pool(&file.declarations);
             for (local_id, declaration) in pool.iter().with_ids() {
                 if declaration.name() == name {
                     return Some(DeclarationId::new(file.file, local_id));
@@ -432,12 +432,12 @@ impl Monomorphizer {
     fn generic_templates<D>(&self, hir: &SlynxHir, files: &[FileId]) -> Vec<DeclarationId<D>>
     where
         D: TypeDeclaration,
-        DeclarationsPool: HirDeclarationStorage<D>,
+        DeclarationsPool: PoolStorage<D>,
     {
         let mut templates = Vec::new();
         for owner in files {
             let file = hir.get_file(*owner);
-            let pool = <DeclarationsPool as HirDeclarationStorage<D>>::get_pool(&file.declarations);
+            let pool = <DeclarationsPool as PoolStorage<D>>::get_pool(&file.declarations);
             templates.extend(
                 pool.iter()
                     .with_ids()

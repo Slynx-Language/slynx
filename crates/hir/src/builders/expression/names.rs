@@ -3,7 +3,7 @@ use module_loader::FileId;
 
 use crate::{
     DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration,
-    HirStaticDeclaration, Result, SymbolPointer, VariableId, builders::HirQueueBuilder,
+    HirStaticDeclaration, Owned, Result, SymbolPointer, VariableId, builders::HirQueueBuilder,
     context::HirSymbol,
 };
 
@@ -26,7 +26,10 @@ impl ExpressionBuilder {
     ) -> Result<HirName> {
         match () {
             _ if let Some(var) = self.variables.scope.get_name(&ptr) => Ok(HirName::Variable(var)),
-            _ if let Some((owner, statik)) = queue.lowerer.lookup.find_static(ptr, self.file()) => {
+            _ if let Some(Owned { owner, term }) =
+                queue.lowerer.lookup.find_static(ptr, self.file()) =>
+            {
+                let statik = queue.modules.get_entry(owner).statics().get(term);
                 let id = queue.enqueue_static(statik, owner)?;
                 Ok(HirName::Static(id))
             }

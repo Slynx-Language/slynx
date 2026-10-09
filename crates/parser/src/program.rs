@@ -1,49 +1,39 @@
 use crate::{
     AliasDeclaration, ComponentDeclaration, EnumDeclaration, ExtendDeclaration, FileImport,
-    FuncDeclaration, InterfaceDeclaration, ObjectDeclaration, StaticDeclaration, StyleSheet,
+    FuncDeclaration, InterfaceDeclaration, ObjectDeclaration, Result, StaticDeclaration,
+    StyleSheet,
 };
-use common::pool::Pool;
-use paste::paste;
+use common::PoolStorage;
+use common::{
+    pool::{Pool, PoolId},
+    pooled,
+};
+pooled!(pub Program{
+    imports: FileImport where Err=Result,
+    alias: AliasDeclaration where Err=Result,
+    object: ObjectDeclaration where Err=Result,
+    component: ComponentDeclaration where Err=Result,
+    func: FuncDeclaration where Err=Result,
+    style: StyleSheet where Err=Result,
+    statics: StaticDeclaration where Err=Result,
+    enums: EnumDeclaration where Err=Result,
+    interfaces: InterfaceDeclaration where Err=Result,
+    extensions: ExtendDeclaration where Err=Result,
+});
 
-macro_rules! program {
-    ($($name:ident : $typ:ty),+ $(,)?) => {
-        #[derive(Debug)]
-        pub struct Program {
-            $(
-                $name: Pool<$typ>,
-            )*
-        }
-        impl Default for Program {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-        impl Program {
-            pub fn new() -> Self {
-                Self {
-                    $($name: Pool::new(),)*
-                }
-            }
-            $(pub fn $name(&self) -> &Pool<$typ> {
-                &self.$name
-            })*
-            $(paste!{
-                pub fn [<append_ $name>](&self, data: $typ) {
-                    self.$name.insert(data);
-                }
-            })*
-        }
-    };
-}
-program! {
-    imports: FileImport,
-    alias: AliasDeclaration,
-    object: ObjectDeclaration,
-    component: ComponentDeclaration,
-    func: FuncDeclaration,
-    style: StyleSheet,
-    statics: StaticDeclaration,
-    enums: EnumDeclaration,
-    interfaces: InterfaceDeclaration,
-    extensions: ExtendDeclaration,
+impl std::fmt::Debug for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Program")
+            .field("imports", &self.imports)
+            .field("alias", &self.alias)
+            .field("object", &self.object)
+            .field("component", &self.component)
+            .field("func", &self.func)
+            .field("style", &self.style)
+            .field("statics", &self.statics)
+            .field("enums", &self.enums)
+            .field("interfaces", &self.interfaces)
+            .field("extensions", &self.extensions)
+            .finish()
+    }
 }

@@ -6,14 +6,14 @@ use common::{
 };
 
 use crate::{EnumType, EnumVariantType, SymbolPointer};
-
+use common::DedupPoolStorage;
 dedup_pooled!(pub EnumsPool {
     enums: EnumType,
 });
 
 impl EnumsPool {
     ///Inserts a new [`EnumType`] into this pool, deduplicating by full equality.
-    pub fn insert(
+    pub fn insert_enum(
         &self,
         name: SymbolPointer,
         variants: Vec<EnumVariantType>,

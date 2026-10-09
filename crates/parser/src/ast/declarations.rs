@@ -2,8 +2,8 @@ use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use smallvec::SmallVec;
 
 use crate::{
-    ASTExpression, ASTStatement, ComponentMember, ObjectField, StyleSheetStatement, SymbolPointer,
-    Type, TypedName,
+    ASTDeclaration, ASTExpression, ASTStatement, ComponentMember, ObjectField, StyleSheetStatement,
+    SymbolPointer, Type, TypedName,
 };
 
 #[derive(Debug)]
@@ -49,7 +49,7 @@ impl GenericsMetadata {
 pub struct ObjectMethod {
     pub visibility: VisibilityModifier,
     pub generics: GenericsMetadata,
-    pub method_name: SymbolPointer,
+    pub name: SymbolPointer,
     pub arguments: Vec<Spanned<TypedName>>,
     pub return_type: Spanned<DedupPoolId<Type>>,
     pub body: Vec<Spanned<DedupPoolId<ASTStatement>>>,
@@ -61,7 +61,7 @@ pub struct AliasDeclaration {
     ///The type parameters declared by this generic function. Each parameter is a
     ///`Type` (e.g. `Plain("T")`), so that use sites may later substitute any
     ///type, such as `[4]int`, for it.
-    pub type_params: Vec<SymbolPointer>,
+    pub generics: GenericsMetadata,
     pub name: SymbolPointer,
     pub target: Spanned<DedupPoolId<Type>>,
     pub span: Span,
@@ -234,7 +234,7 @@ impl ASTFunction for ObjectMethod {
         &self.generics
     }
     fn method_name(&self) -> SymbolPointer {
-        self.method_name
+        self.name
     }
 
     fn arguments(&self) -> &[Spanned<TypedName>] {
@@ -274,3 +274,79 @@ impl ASTFunction for FuncDeclaration {
         self.span
     }
 }
+
+macro_rules! impl_ast_tydecl {
+    ($($name: ty),*$(,)?) => {
+        $(
+            impl TypeASTDeclaration for $name {
+                fn generics(&self) -> &GenericsMetadata {
+                    &self.generics
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! impl_ast_decl {
+    (
+        $(
+            $named:ty => named
+        ),* $(,)?
+        ;
+        $(
+            $unnamed:ty
+        ),* $(,)?
+    ) => {
+        $(
+            impl ASTDeclaration for $named {
+                fn visibility(&self) -> VisibilityModifier {
+                    self.visibility
+                }
+            }
+
+            impl NamedASTDeclaration for $named {
+                fn name(&self) -> SymbolPointer {
+                    self.name
+                }
+            }
+        )*
+
+        $(
+            impl ASTDeclaration for $unnamed {
+
+                fn visibility(&self) -> VisibilityModifier {
+                    VisibilityModifier::default()
+                }
+            }
+        )*
+    };
+}
+
+use super::NamedASTDeclaration;
+use super::TypeASTDeclaration;
+
+impl_ast_decl!(
+    AliasDeclaration => named,
+    ObjectMethod => named,
+    ObjectDeclaration => named,
+    EnumDeclaration => named,
+    StaticDeclaration => named,
+    StyleSheet => named,
+    InterfaceDeclaration => named,
+    FuncDeclaration => named,
+    ComponentDeclaration => named
+    ;
+    ExtendDeclaration
+);
+
+impl_ast_tydecl!(
+    AliasDeclaration,
+    ObjectDeclaration,
+    ObjectMethod,
+    FuncDeclaration,
+    EnumDeclaration,
+    InterfaceDeclaration,
+    StyleSheet,
+    ExtendDeclaration,
+    ComponentDeclaration,
+);

@@ -6,13 +6,14 @@ use common::{
 };
 
 use crate::{ComponentType, StructField, SymbolPointer, Visible, term::TermId};
+use common::DedupPoolStorage;
 
 dedup_pooled!(pub ComponentsPool {
     components: ComponentType,
 });
 
 impl ComponentsPool {
-    pub fn insert(
+    pub fn insert_component(
         &self,
         name: SymbolPointer,
         properties: Vec<(SymbolPointer, TermId)>,

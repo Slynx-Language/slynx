@@ -9,7 +9,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use common::{FrontendSymbol, Span, SymbolsModule, pool::DedupPool};
+use common::{
+    FrontendSymbol, PoolStorage, Span, SymbolsModule,
+    pool::{DedupPool, Pool},
+};
 use slynx_lexer::Lexer;
 use slynx_parser::{ASTExpression, ASTPath, ASTStatement, FileImport, Parser, Type};
 use slynx_parser::{Program, SymbolPointer};
@@ -158,7 +161,7 @@ impl<'a> SourceLoader<'a> {
 
         entry.pop(); //since its a file, we need to track its current folder to be able to get the siblings, and so we pop the name
         let mut pending: Vec<Vec<PathBuf>> = Vec::new();
-        for import in program.imports().iter() {
+        for import in (program.get_pool() as &Pool<FileImport>).iter() {
             let (resolved, is_folder) = self
                 .resolve_path(&import.path, global_entry, &entry, std_path)
                 .map_err(|e| {

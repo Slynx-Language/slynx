@@ -80,10 +80,6 @@ pub trait TypeDeclaration: HirDeclaration + Sized {
     fn name(&self) -> SymbolPointer;
 }
 
-pub trait HirDeclarationStorage<T: HirDeclaration> {
-    fn get_pool(&self) -> &Pool<T>;
-}
-
 pub trait LanguageItem: std::fmt::Debug + Sized + HirDeclaration {
     fn map(items: &LangItems) -> &LangMap<Self>;
 }
