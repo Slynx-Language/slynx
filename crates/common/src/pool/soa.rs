@@ -1,3 +1,14 @@
+use std::hash::Hash;
+
+use crate::pool::{DedupPool, Pool};
+
+pub trait PoolStorage<T> {
+    fn get_pool(&self) -> &Pool<T>;
+}
+pub trait DedupPoolStorage<T: Hash + Eq> {
+    fn get_pool(&self) -> &DedupPool<T>;
+}
+
 #[macro_export]
 macro_rules! dedup_pooled {
     ($v:vis $name: ident {
@@ -21,14 +32,28 @@ macro_rules! dedup_pooled {
                     self.$field_name.get(index)
                 }
             }
+            impl DedupPoolStorage<$ty> for $name {
+                fn get_pool(&self) -> &DedupPool<$ty> {
+                    &self.$field_name
+                }
+            }
         )*
+        impl $name {
+            pub fn insert<T>(&self, data: T) -> DedupPoolId<T> where Self:DedupPoolStorage<T>, T:std::hash::Hash+std::cmp::Eq+Clone{
+                self.get_pool().insert(data)
+            }
+        }
         $crate::paste!{
             impl $name {
                 $(
                     pub fn [<insert_at_ $field_name>](&self, value: $ty) -> DedupPoolId<$ty>{
                         self.$field_name.insert(value)
                     }
+                    pub fn $field_name(&self) -> &DedupPool<$ty> {
+                        &self.$field_name
+                    }
                 )*
+
             }
         }
 
@@ -83,17 +108,31 @@ macro_rules! pooled {
                     self.$field_name.get(index)
                 }
             }
+            impl PoolStorage<$ty> for $name {
+                fn get_pool(&self) -> &Pool<$ty> {
+                    &self.$field_name
+                }
+            }
 
         )*
+        impl $name {
+            pub fn insert<T>(&self, data: T) -> PoolId<T> where Self:PoolStorage<T> {
+                self.get_pool().insert(data)
+            }
+        }
         impl $name {
             $(
                 $crate::paste! {
                     pub fn [<insert_at_ $field_name>](&self, value: $ty) -> PoolId<$ty> {
                         self.$field_name.insert(value)
                     }
+                    pub fn $field_name(&self) -> &Pool<$ty> {
+                        &self.$field_name
+                    }
                 }
                 $crate::__pooled_insert_with_id!($field_name, $ty $(, $err)?);
             )*
         }
+
     };
 }

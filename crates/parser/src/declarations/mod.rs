@@ -181,7 +181,7 @@ impl<'a> Parser<'a> {
             TokenKind::Extend => {
                 let Token { span, .. } = self.eat()?;
                 let extend = self.parse_extend(span, attributes)?;
-                program.append_extensions(extend);
+                program.insert_at_extensions(extend);
             }
             TokenKind::Interface => {
                 let Token { span, .. } = self.eat()?;
@@ -190,48 +190,48 @@ impl<'a> Parser<'a> {
                     attributes,
                     visibility,
                 })?;
-                program.append_interfaces(interface);
+                program.insert_at_interfaces(interface);
             }
             TokenKind::Import => {
                 let span = self.eat()?.span;
                 let import = self.parse_import(span)?;
-                program.append_imports(import);
+                program.insert_at_imports(import);
             }
             TokenKind::Alias => {
                 let Token { span, .. } = self.eat()?;
                 let alias = self.parse_alias(span, visibility)?;
-                program.append_alias(alias);
+                program.insert_at_alias(alias);
             }
             TokenKind::Object => {
                 let Token { span, .. } = self.eat()?;
                 let object = self.parse_object(span, attributes, external, visibility, flags)?;
-                program.append_object(object)
+                program.insert_at_object(object);
             }
             TokenKind::Component => {
                 let Token { span, .. } = self.eat()?;
                 let component = self.parse_component_declaration(span, attributes, visibility)?;
-                program.append_component(component);
+                program.insert_at_component(component);
             }
             TokenKind::Func => {
                 let Token { span, .. } = self.eat()?;
                 let mut func = self.parse_func(span, attributes, visibility, flags)?;
                 func.external = external;
-                program.append_func(func);
+                program.insert_at_func(func);
             }
             TokenKind::StyleSheet => {
                 let Token { span, .. } = self.eat()?;
                 let style = self.parse_stylesheet(span, attributes, visibility)?;
-                program.append_style(style);
+                program.insert_at_style(style);
             }
             TokenKind::Static => {
                 let Token { span, .. } = self.eat()?;
                 let static_decl = self.parse_static(span, external, visibility, flags)?;
-                program.append_statics(static_decl);
+                program.insert_at_statics(static_decl);
             }
             TokenKind::Enum => {
                 let span = self.eat()?.span;
                 let enum_decl = self.parse_enum(span, attributes, visibility)?;
-                program.append_enums(enum_decl);
+                program.insert_at_enums(enum_decl);
             }
             _ => {
                 return self.unexpected(
@@ -262,7 +262,7 @@ impl<'a> Parser<'a> {
     /// The parser will continue parsing until it reaches the end of the input stream.
     /// If it encounters an unexpected token, it will return an error indicating the expected token type.
     pub fn parse_declarations(&mut self) -> Result<Program> {
-        let mut program = Program::new();
+        let mut program = Program::default();
         while let Ok(token) = self.peek() {
             if matches!(token.kind, TokenKind::Extern) {
                 self.eat()?;

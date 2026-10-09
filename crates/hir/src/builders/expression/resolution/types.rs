@@ -1,6 +1,8 @@
 use common::{Span, VisibilityModifier, pool::PoolId};
 use module_loader::ASTTypeKind;
-use slynx_parser::{ExtendDeclaration, InterfaceDeclaration, ObjectMethod, TypeContext};
+use slynx_parser::{
+    ExtendDeclaration, InterfaceDeclaration, NamedASTDeclaration, ObjectMethod, TypeContext,
+};
 
 use crate::{
     DeclarationId, DescriptorId, ExpressionBuilder, GenericParameter, HIRError,
@@ -114,7 +116,7 @@ impl ExpressionBuilder {
 
         let Some(method) = methods
             .iter()
-            .find(|method| method.method_name == descriptor.name)
+            .find(|method| method.name() == descriptor.name)
         else {
             return Ok(None);
         };

@@ -128,7 +128,7 @@ impl ExpressionBuilder {
             if let Some(index) = generic_index
                 && explicit.get(index).is_none()
             {
-                generics.set(index, queue.hir.view(expr.data).ty());
+                generics.set(index, queue.hir.view(expr.data).ty().term);
             }
         }
 
@@ -139,7 +139,7 @@ impl ExpressionBuilder {
 
         let enum_ty = generics.finish_ref(queue.hir, descriptor.enum_type);
         Ok(HirExpression {
-            ty: enum_ty,
+            ty: Owned::new(self.file(), enum_ty),
             kind: HirExpressionKind::Enum {
                 ty: enum_ty,
                 variant: descriptor.variant.variant_id,
@@ -199,16 +199,16 @@ impl ExpressionBuilder {
                     },
                 )?;
                 if let Some(v) = queue.hir.view(*ty).raw().is_var_type() {
-                    generics.set(v.index as usize, queue.hir.view(expr.data).ty());
+                    generics.set(v.index as usize, queue.hir.view(expr.data).ty().term);
                 }
                 Ok(expr)
             })
             .collect::<Result<Vec<_>>>()?;
-        let enum_ty = generics.finish_ref(queue.hir, enum_ty);
+        let resolved_enum_ty = generics.finish_ref(queue.hir, enum_ty);
         Ok(HirExpression {
-            ty: enum_ty,
+            ty: Owned::new(self.file(), resolved_enum_ty),
             kind: HirExpressionKind::Enum {
-                ty: enum_ty,
+                ty: resolved_enum_ty,
                 variant: variant_index,
                 args,
             },
@@ -281,7 +281,10 @@ impl ExpressionBuilder {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let ty = queue.hir.types.create_type(Term::boolean_type());
+        let ty = Owned::new(
+            self.file(),
+            queue.hir.types.create_type(Term::boolean_type()),
+        );
         Ok(HirExpression {
             ty,
             kind: HirExpressionKind::Matches {

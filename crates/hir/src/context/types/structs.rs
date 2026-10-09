@@ -10,13 +10,14 @@ use crate::{
     TupleType, helpers::Visible, term::TermId,
 };
 
+use common::DedupPoolStorage;
 dedup_pooled!(pub StructsPool {
     structs: StructType,
     tuples: TupleType,
 });
 
 impl StructsPool {
-    pub fn insert(
+    pub fn insert_struct(
         &self,
         name: SymbolPointer,
         fields: Vec<Visible<(SymbolPointer, TermId)>>,

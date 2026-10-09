@@ -95,7 +95,7 @@ impl TypesContext {
         fields: Vec<Visible<(SymbolPointer, TermId)>>,
         methods: Vec<Visible<(SymbolPointer, DeclarationId<HirFunctionDeclaration>)>>,
     ) -> TermId {
-        let id = self.storage.structs.insert(name, fields, methods);
+        let id = self.storage.structs.insert_struct(name, fields, methods);
         let id = self.storage.insert_type(Term::struct_type(id));
         self.registry.register(name, id);
         id
@@ -113,7 +113,7 @@ impl TypesContext {
         if let Some(existing) = self.storage.enums.find_by_name(name) {
             return self.storage.insert_type(Term::enum_type(existing));
         }
-        let id = self.storage.enums.insert(name, variants);
+        let id = self.storage.enums.insert_enum(name, variants);
         let id = self.storage.insert_type(Term::enum_type(id));
         self.registry.register(name, id);
         id
@@ -145,7 +145,10 @@ impl TypesContext {
         properties: Vec<(SymbolPointer, TermId)>,
         children: Vec<DedupPoolId<ComponentType>>,
     ) -> TermId {
-        let comp_ty = self.storage.components.insert(name, properties, children);
+        let comp_ty = self
+            .storage
+            .components
+            .insert_component(name, properties, children);
         let id = self.storage.insert_type(Term::component_type(comp_ty));
         self.registry.register(name, id);
         id

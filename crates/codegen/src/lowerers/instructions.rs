@@ -72,7 +72,10 @@ impl<'a> LoweringState<'a> {
                 field_index,
                 field_name,
             } => {
-                let is_external = self.hir.types.is_external(&self.hir[parent_expr.data].ty);
+                let is_external = self
+                    .hir
+                    .types
+                    .is_external(&self.hir[parent_expr.data].ty.term);
 
                 let parent = self.lower_expression(*parent_expr, context)?;
                 match is_external {
@@ -111,7 +114,7 @@ impl<'a> LoweringState<'a> {
             }
             HirStatement::Variable { name, value } => {
                 let vty = self.types.get_or_create_ir_type(
-                    self.hir[value.data].ty,
+                    self.hir[value.data].ty.term,
                     statement.span,
                     context.ir(),
                 ).expect(

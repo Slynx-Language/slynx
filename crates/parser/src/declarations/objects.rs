@@ -27,7 +27,7 @@ impl<'a> Parser<'a> {
         Ok(ObjectMethod {
             visibility,
             generics,
-            method_name: name,
+            name,
             arguments: args,
             return_type,
             body,

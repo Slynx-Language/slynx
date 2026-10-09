@@ -1,5 +1,6 @@
 mod id;
-pub mod soa;
+mod soa;
+pub use soa::*;
 use std::fmt::Debug;
 use std::{hash::Hash, marker::PhantomData, ops::Index};
 

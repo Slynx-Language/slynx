@@ -2,7 +2,7 @@ use common::{Span, Spanned, pool::DedupPoolId};
 use slynx_parser::{ASTExpression, ASTStatement, TypeContext};
 
 use crate::{
-    HirExpression, HirExpressionKind, HirStatement, Result,
+    HirExpression, HirExpressionKind, HirStatement, Owned, Result,
     builders::HirQueueBuilder,
     term::{Term, TermId},
 };
@@ -48,7 +48,7 @@ impl ExpressionBuilder {
             },
         )?;
         let bool_ty = queue.hir.types.create_type(Term::boolean_type());
-        self.unify_terms(queue, queue.hir[condition.data].ty, bool_ty, span)?;
+        self.unify_terms(queue, queue.hir[condition.data].ty.term, bool_ty, span)?;
 
         let then_branch = body
             .iter()
@@ -70,22 +70,26 @@ impl ExpressionBuilder {
             .map(|s| match &queue.hir[s.data] {
                 HirStatement::Expression { expr } => queue.hir[expr.data].ty,
                 HirStatement::Variable { value, .. } => queue.hir[value.data].ty,
-                _ => queue.hir.types.create_type(Term::void_type()),
+                _ => Owned::new(self.file(), queue.hir.types.create_type(Term::void_type())),
             })
-            .unwrap_or_else(|| queue.hir.types.create_type(Term::void_type()));
+            .unwrap_or_else(|| {
+                Owned::new(self.file(), queue.hir.types.create_type(Term::void_type()))
+            });
         let else_ty = else_branch
             .as_ref()
             .and_then(|b| b.last())
             .map(|s| match &queue.hir[s.data] {
                 HirStatement::Expression { expr } => queue.hir[expr.data].ty,
                 HirStatement::Variable { value, .. } => queue.hir[value.data].ty,
-                _ => queue.hir.types.create_type(Term::void_type()),
+                _ => Owned::new(self.file(), queue.hir.types.create_type(Term::void_type())),
             })
-            .unwrap_or_else(|| queue.hir.types.create_type(Term::void_type()));
+            .unwrap_or_else(|| {
+                Owned::new(self.file(), queue.hir.types.create_type(Term::void_type()))
+            });
         self.unify_terms(
             queue,
-            else_ty,
-            then_ty,
+            else_ty.term,
+            then_ty.term,
             else_body
                 .last()
                 .map(|s| s.span)

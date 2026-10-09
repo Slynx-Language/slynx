@@ -1,9 +1,10 @@
 pub use paste::paste;
 pub mod pool;
 mod span;
+pub use pool::DedupPoolStorage;
+pub use pool::PoolStorage;
 pub use span::*;
 pub mod symbols;
-pub use pool::soa;
 pub use symbols::*;
 pub mod vec;
 

@@ -42,13 +42,13 @@ mod types;
 
 use std::collections::{HashMap, HashSet};
 
-use common::{Span, Spanned, pool::PoolId};
+use common::{PoolStorage, Span, Spanned, pool::PoolId};
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    DeclarationId, DeclarationsPool, DescriptorId, HIRError, HirComponentExpression,
-    HirDeclarationStorage, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
-    PropertyExpression, Result, SlynxHir, SymbolPointer, TypeDeclaration, VariableId,
+    DeclarationId, DeclarationsPool, DescriptorId, HIRError, HirComponentExpression, HirExpression,
+    HirExpressionKind, HirFunctionDeclaration, HirStatement, PropertyExpression, Result, SlynxHir,
+    SymbolPointer, TypeDeclaration, VariableId,
     id::AnyDeclarationId,
     term::{Term, TermId, TermNode},
 };
@@ -317,7 +317,7 @@ impl Monomorphizer {
     ) -> Result<DeclarationId<K>>
     where
         K: SpecializableDeclaration,
-        DeclarationsPool: HirDeclarationStorage<K>,
+        DeclarationsPool: PoolStorage<K>,
         B: FnOnce(
             &mut Monomorphizer,
             &SlynxHir,
@@ -338,7 +338,7 @@ impl Monomorphizer {
         // kind's storage column.
         let (name, generic_count) = {
             let file = hir.get_file(template.owner);
-            let pool = <DeclarationsPool as HirDeclarationStorage<K>>::get_pool(&file.declarations);
+            let pool = <DeclarationsPool as PoolStorage<K>>::get_pool(&file.declarations);
             let declaration = &pool[template.term];
             (declaration.name(), declaration.generics().len())
         };
@@ -378,7 +378,7 @@ impl Monomorphizer {
     /// Finds the declaration of kind `D` named `name` in any file of `hir`.
     ///
     /// The declaration's name is read through [`NamedDeclaration`] and its
-    /// column through [`HirDeclarationStorage`], so the lookup is a plain
+    /// column through [`PoolStorage`], so the lookup is a plain
     /// linear scan with no per-kind selector to keep in sync.
     ///
     /// # Arguments
@@ -397,10 +397,10 @@ impl Monomorphizer {
     ) -> Option<DeclarationId<D>>
     where
         D: TypeDeclaration,
-        DeclarationsPool: HirDeclarationStorage<D>,
+        DeclarationsPool: PoolStorage<D>,
     {
         for file in hir.store.files.iter() {
-            let pool = <DeclarationsPool as HirDeclarationStorage<D>>::get_pool(&file.declarations);
+            let pool = <DeclarationsPool as PoolStorage<D>>::get_pool(&file.declarations);
             for (local_id, declaration) in pool.iter().with_ids() {
                 if declaration.name() == name {
                     return Some(DeclarationId::new(file.file, local_id));
@@ -432,12 +432,12 @@ impl Monomorphizer {
     fn generic_templates<D>(&self, hir: &SlynxHir, files: &[FileId]) -> Vec<DeclarationId<D>>
     where
         D: TypeDeclaration,
-        DeclarationsPool: HirDeclarationStorage<D>,
+        DeclarationsPool: PoolStorage<D>,
     {
         let mut templates = Vec::new();
         for owner in files {
             let file = hir.get_file(*owner);
-            let pool = <DeclarationsPool as HirDeclarationStorage<D>>::get_pool(&file.declarations);
+            let pool = <DeclarationsPool as PoolStorage<D>>::get_pool(&file.declarations);
             templates.extend(
                 pool.iter()
                     .with_ids()
@@ -623,9 +623,9 @@ impl Monomorphizer {
                 value: self.build_expression(hir, *value, subst)?,
             },
             HirStatement::Variable { name, value } => {
-                let original = hir[value.data].ty;
+                let original = hir[value.data].ty.term;
                 let value = self.build_expression(hir, *value, subst)?;
-                let rebuilt = hir[value.data].ty;
+                let rebuilt = hir[value.data].ty.term;
                 self.declare_variable(*name, TrackedVariable { original, rebuilt });
                 HirStatement::Variable { name: *name, value }
             }
@@ -671,7 +671,7 @@ impl Monomorphizer {
         subst: &Substitution,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let node = &hir[expression.data];
-        let mut call_ty = node.ty;
+        let mut call_ty = node.ty.term;
 
         let kind = match node.kind.clone() {
             HirExpressionKind::Int(_)
@@ -692,10 +692,10 @@ impl Monomorphizer {
                     // original type, so use the concrete rebuilt type. With an
                     // annotation the identifier already carries the declared
                     // type, which the substitution below resolves.
-                    call_ty = if tracked.original == node.ty {
+                    call_ty = if tracked.original == node.ty.term {
                         tracked.rebuilt
                     } else {
-                        node.ty
+                        node.ty.term
                     };
                 }
                 node.kind.clone()
@@ -714,11 +714,11 @@ impl Monomorphizer {
                 let index = self.build_expression(hir, index, subst)?;
                 let array_ty = hir[array.data].ty;
                 call_ty = hir
-                    .view(array_ty)
+                    .view(array_ty.term)
                     .is_vector()
-                    .or_else(|| hir.view(array_ty).is_array().map(|(inner, _)| inner))
+                    .or_else(|| hir.view(array_ty.term).is_array().map(|(inner, _)| inner))
                     .ok_or_else(|| {
-                        slynx_hir::HIRError::invalid_indexing(array_ty, expression.span)
+                        slynx_hir::HIRError::invalid_indexing(array_ty.term, expression.span)
                     })?;
                 HirExpressionKind::ArrayIndex(array, index)
             }
@@ -751,13 +751,13 @@ impl Monomorphizer {
             } => {
                 let expr = self.build_expression(hir, expr, subst)?;
                 let parent_ty = hir[expr.data].ty;
-                call_ty = match hir.view(parent_ty).dereference().is_struct() {
+                call_ty = match hir.view(parent_ty.term).dereference().is_struct() {
                     Some(struct_view) => struct_view
                         .fields()
                         .get(field_index)
                         .map(|field| field.ty)
-                        .unwrap_or(node.ty),
-                    None => node.ty,
+                        .unwrap_or(node.ty.term),
+                    None => node.ty.term,
                 };
                 HirExpressionKind::FieldAccess {
                     expr,
@@ -814,11 +814,11 @@ impl Monomorphizer {
                         hir,
                         &signature,
                         args.first()
-                            .map(|receiver| hir[receiver.data].ty)
+                            .map(|receiver| hir[receiver.data].ty.term)
                             .ok_or_else(|| {
                                 HIRError::unresolved_interface_call(
                                     signature.name,
-                                    node.ty,
+                                    node.ty.term,
                                     expression.span,
                                 )
                             })?,
@@ -850,7 +850,10 @@ impl Monomorphizer {
         } else {
             substituted_ty
         };
-        let id = hir.store.insert_expression(HirExpression { ty, kind });
+        let id = hir.store.insert_expression(HirExpression {
+            ty: slynx_hir::Owned::new(node.ty.owner, ty),
+            kind,
+        });
         Ok(expression.span.make_spanned(id))
     }
 

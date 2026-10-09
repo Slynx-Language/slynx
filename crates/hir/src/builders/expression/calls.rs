@@ -5,8 +5,8 @@ use common::{
 use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
-    DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration, Result,
-    builders::HirQueueBuilder, generics::GenericTypeArguments,
+    DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration, Owned,
+    Result, builders::HirQueueBuilder, generics::GenericTypeArguments,
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -88,6 +88,7 @@ impl ExpressionBuilder {
         };
 
         let func_viewer = queue.hir.view(target);
+        let func_owner = func_viewer.data().owner;
         let (expected_args, return_type) = func_viewer.type_viewer();
 
         if expected_args.len() != total_arguments {
@@ -131,7 +132,7 @@ impl ExpressionBuilder {
                         },
                     )?;
                     if let Some(var) = queue.hir.view(*ty).raw().is_var_type() {
-                        generics.try_set(var.index as usize, queue.hir.view(expr.data).ty());
+                        generics.try_set(var.index as usize, queue.hir.view(expr.data).ty().term);
                     }
                     Ok(expr)
                 })
@@ -149,7 +150,7 @@ impl ExpressionBuilder {
                 args,
                 generics: generics.into_vec(),
             },
-            ty: return_type,
+            ty: Owned::new(func_owner, return_type),
         })
     }
 }

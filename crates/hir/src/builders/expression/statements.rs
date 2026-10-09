@@ -69,9 +69,9 @@ impl ExpressionBuilder {
                         .lower_type(queue, self.file(), *expected_ty, context)?
                         .term
                 } else {
-                    exprty
+                    exprty.term
                 };
-                let ty = self.unify_terms(queue, exprty, expected_type, statement.span)?;
+                let ty = self.unify_terms(queue, exprty.term, expected_type, statement.span)?;
                 let varid = self.create_variable(
                     *name,
                     matches!(stmt, ASTStatement::MutableVar { .. }),
@@ -104,8 +104,8 @@ impl ExpressionBuilder {
                 )?;
                 self.unify_terms(
                     queue,
-                    queue.hir.view(rhs.data).ty(),
-                    queue.hir.view(lhs.data).ty(),
+                    queue.hir.view(rhs.data).ty().term,
+                    queue.hir.view(lhs.data).ty().term,
                     statement.span,
                 )?;
                 HirStatement::Assign { lhs, value: rhs }
