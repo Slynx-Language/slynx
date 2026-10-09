@@ -42,6 +42,18 @@ enum DrawCommand {
 }
 ```
 
+## Representation
+You can also give the internal representation for the enum. This is good if you want to give it an specific type, and cast numbers -> enum.
+```slx
+enum MyEnum(u8){
+  VariantA,
+  VariantB,
+  VariantC
+}
+```
+For enums with associated values, the representation affects only the size of the enum tag, thus, only how much variants the enum can have.
+For enums with no associated value at all, the representation can be used in a way so a number can be casted to that enum, making it easy for interops
+
 ## Designed features
 In the future, it's idealized to implement a better 'matches' implementation to handle things such as 
 ```slx
