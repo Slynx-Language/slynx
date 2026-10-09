@@ -1,4 +1,4 @@
-use common::{Span, Spanned, VisibilityModifier};
+use common::{Span, Spanned};
 use slynx_lexer::TokenKind;
 
 use crate::{
@@ -46,7 +46,7 @@ impl Parser<'_> {
             super_interfaces: Vec::new(),
             span: context.span.merge_with(end),
             attributes: context.attributes,
-            visibility: VisibilityModifier::default(),
+            visibility: context.visibility,
         })
     }
 
