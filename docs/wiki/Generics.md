@@ -68,3 +68,10 @@ func main(): void {
   let b = a.intoSint32(); //accepted normally
 }
 ```
+
+## Pending
+Due to problems on resolval of methods and how to find them based on the interfaces types, it was preferred to simply not implement generic interfaces, even though they are supported at parsing level, they will throw
+an error of 'unimplemented' when being used.
+So any usage of `Interface<Generic>` is intended to fail at the moment. On the long run, the goal is to make them to be able to handle generics, associated types, and higher kinded types.
+
+The same applies to generic extensions, so any kind of `extend<T>` where this T is used is not supported at the moment, the only support is for raw types.
