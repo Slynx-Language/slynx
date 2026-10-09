@@ -381,6 +381,7 @@ impl ExpressionBuilder {
                     span: target.span,
                     expected,
                     context,
+                    requester: self.file(),
                 },
             )?,
             ASTExpression::Array(expressions) => self.build_sequence(

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
+use module_loader::FileId;
 use slynx_parser::{NamedExpr, Type, TypeContext};
 
 use crate::{
@@ -23,6 +24,7 @@ pub struct ObjectDescriptor<'a> {
     pub expected: Option<TermId>,
     ///The type context used to resolve types
     pub context: &'a TypeContext<'a>,
+    pub requester: FileId,
 }
 
 impl ExpressionBuilder {
@@ -37,6 +39,7 @@ impl ExpressionBuilder {
             span,
             expected,
             context,
+            requester,
         } = descriptor;
 
         let ty = if let Some(self_type) = &self.self_type {
@@ -87,7 +90,7 @@ impl ExpressionBuilder {
                         vec![field.data.name],
                         field.span,
                     ))?;
-            if visibility != VisibilityModifier::Public {
+            if visibility != VisibilityModifier::Public && ty.owner != requester {
                 return Err(HIRError::not_visible_property(field.data.name, field.span));
             }
 
