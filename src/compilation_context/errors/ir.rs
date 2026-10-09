@@ -53,7 +53,7 @@ pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> Strin
                 AnyLocalDeclarationId::Component(c) => file[c].ty,
                 AnyLocalDeclarationId::Function(f) => file[f].ty,
                 AnyLocalDeclarationId::Object(o) => file[o].ty,
-                AnyLocalDeclarationId::Static(s) => file[s].ty,
+                AnyLocalDeclarationId::Static(s) => file[s].ty.term,
                 AnyLocalDeclarationId::Enum(e) => file[e].ty,
             };
 
