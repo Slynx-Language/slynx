@@ -70,12 +70,6 @@ pub fn format_ir_generation_error(error: &CodegenError, hir: &SlynxHir) -> Strin
 impl SlynxContext {
     pub fn build_ir_generation_error(&self, error: CodegenError, hir: &SlynxHir) -> SlynxError {
         let info = self.get_line_info(&self.entry_point, error.span.start as usize);
-        let source_code = self
-            .get_entry_point_source()
-            .lines()
-            .next()
-            .unwrap_or("Internal IR generation error")
-            .to_string();
 
         SlynxError::new_compiler(
             ErrorPosition {
@@ -85,7 +79,7 @@ impl SlynxContext {
             },
             format_ir_generation_error(&error, hir),
             self.file_name(),
-            source_code,
+            info.src,
             suggestions_from_ir(&error),
             error.backtrace,
         )
