@@ -1,4 +1,4 @@
-name: Sync wiki
+name: Publish wiki
 
 on:
   push:
@@ -9,26 +9,13 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: wiki-sync
-  cancel-in-progress: true
-
 jobs:
-  sync:
-    runs-on: ubuntu-latest
+  publish-wiki:
+    if: github.repository == 'Slynx-Language/slynx'
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Publish to wiki
-        run: |
-          git clone "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git" wiki-repo
-          rsync -a --delete --exclude='.git' docs/wiki/ wiki-repo/
-          cd wiki-repo
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No changes atall"; exit 0
-          fi
-          git commit -m "Sync wiki from ${{ github.sha }}"
-          git push
+      - uses: Andrew-Chen-Wang/github-wiki-action@b7e552d7cb0fa7f83e459012ffc6840fd87bcb83
+        with:
+          path: docs/wiki/
