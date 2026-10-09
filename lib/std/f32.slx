@@ -1,0 +1,9 @@
+extend f32 {
+    pub func clamp(self, min: Self, max: Self): Self -> if self < min {
+        min
+    }else if self > max{
+        max
+    }else {
+        self
+    };
+}

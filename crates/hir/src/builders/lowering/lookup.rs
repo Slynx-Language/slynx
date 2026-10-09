@@ -2,7 +2,8 @@ use common::pool::PoolId;
 use dashmap::DashMap;
 use module_loader::{ASTType, FileId, Modules};
 use slynx_parser::{
-    EnumDeclaration, ExtendDeclaration, FuncDeclaration, InterfaceDeclaration, StaticDeclaration,
+    ASTDeclaration, EnumDeclaration, ExtendDeclaration, FuncDeclaration, InterfaceDeclaration,
+    StaticDeclaration,
 };
 
 use crate::{Owned, SymbolPointer};
@@ -15,7 +16,7 @@ pub struct ASTLookup<'a> {
     function_cache: DashMap<Owned<SymbolPointer>, Option<Owned<PoolId<FuncDeclaration>>>>,
     interface_cache: DashMap<Owned<SymbolPointer>, Option<Owned<PoolId<InterfaceDeclaration>>>>,
     enum_cache: DashMap<Owned<SymbolPointer>, Option<EnumVariant>>,
-    static_cache: DashMap<Owned<SymbolPointer>, Option<(FileId, &'a StaticDeclaration)>>,
+    static_cache: DashMap<Owned<SymbolPointer>, Option<Owned<PoolId<StaticDeclaration>>>>,
     extension_method_cache:
         DashMap<FindExtensionsWithMethodDescriptor, Vec<Owned<PoolId<ExtendDeclaration>>>>,
     reachable_modules_cache: DashMap<FileId, Vec<FileId>>,
@@ -69,11 +70,8 @@ impl<'a> ASTLookup<'a> {
         }
         let out = self
             .modules
-            .find_function_declaration(name, requester)
-            .map(|(owner, term)| Owned {
-                owner,
-                term: PoolId::new(term as u32),
-            });
+            .find_declaration(name, requester, requester)
+            .map(|(owner, term)| Owned { owner, term });
 
         self.function_cache.insert(cache_key, out);
         out
@@ -93,11 +91,8 @@ impl<'a> ASTLookup<'a> {
         }
         let out = self
             .modules
-            .find_interface_declaration(name, requester)
-            .map(|(owner, term)| Owned {
-                owner,
-                term: PoolId::new(term as u32),
-            });
+            .find_declaration(name, requester, requester)
+            .map(|(owner, term)| Owned { owner, term });
 
         self.interface_cache.insert(cache_key, out);
         out
@@ -128,7 +123,7 @@ impl<'a> ASTLookup<'a> {
         &self,
         name: SymbolPointer,
         requester: FileId,
-    ) -> Option<(FileId, &'a StaticDeclaration)> {
+    ) -> Option<Owned<PoolId<StaticDeclaration>>> {
         let cache_key = Owned {
             owner: requester,
             term: name,
@@ -136,7 +131,10 @@ impl<'a> ASTLookup<'a> {
         if let Some(cached) = self.static_cache.get(&cache_key) {
             return *cached;
         }
-        let result = self.modules.find_static_declaration(name, requester);
+        let result = self
+            .modules
+            .find_declaration(name, requester, requester)
+            .map(|(owner, term)| Owned { owner, term });
         self.static_cache.insert(cache_key, result);
         result
     }

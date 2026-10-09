@@ -7,7 +7,7 @@ use module_loader::ASTType;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
+    HIRError, HirExpression, HirExpressionKind, Owned, Result, SymbolPointer,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -150,7 +150,7 @@ impl ExpressionBuilder {
         span: Span,
     ) -> Result<HirExpression> {
         let parent_ty = queue.hir[parent.data].ty;
-        let parent_view = queue.hir.view(parent_ty);
+        let parent_view = queue.hir.view(parent_ty.term);
         let concrete_type = parent_view.concrete_type();
         let dereferenced_type = parent_view.nominal();
         match () {
@@ -165,7 +165,7 @@ impl ExpressionBuilder {
                     _ => field_ty,
                 };
                 Ok(HirExpression {
-                    ty: field_ty,
+                    ty: Owned::new(parent_ty.owner, field_ty),
                     kind: HirExpressionKind::FieldAccess {
                         expr: parent,
                         field_index: position,
@@ -192,7 +192,7 @@ impl ExpressionBuilder {
                     ));
                 };
                 let field_ty = view.fields()[position].ty;
-                let field_ty = match queue.hir.view(parent_ty).raw().node() {
+                let field_ty = match queue.hir.view(parent_ty.term).raw().node() {
                     TermNode::Apply { args: generics, .. } => {
                         crate::generics::substitute_terms(queue.hir, generics, field_ty)
                     }
@@ -203,11 +203,11 @@ impl ExpressionBuilder {
                     parent
                         .span
                         .make_spanned(queue.hir.store.insert_expression(HirExpression {
-                            ty: concrete_type.data,
+                            ty: Owned::new(parent_ty.owner, concrete_type.data),
                             kind: HirExpressionKind::Deref(parent),
                         }));
                 Ok(HirExpression {
-                    ty: field_ty,
+                    ty: Owned::new(parent_ty.owner, field_ty),
                     kind: HirExpressionKind::FieldAccess {
                         expr: parent,
                         field_index: position,

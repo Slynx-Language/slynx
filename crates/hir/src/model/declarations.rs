@@ -30,7 +30,7 @@ use common::{
 use smallvec::SmallVec;
 
 use crate::{
-    DeclarationId, HirDeclaration, LanguageItem, SymbolPointer, TypeDeclaration, VariableId,
+    DeclarationId, HirDeclaration, LanguageItem, Owned, SymbolPointer, TypeDeclaration, VariableId,
     interface::InterfaceTerm,
     model::{HirComponentExpression, HirExpression, HirStatement},
     term::TermId,
@@ -104,7 +104,7 @@ pub struct HirObjectDeclaration {
 pub struct HirStaticDeclaration {
     pub name: SymbolPointer,
     pub span: Span,
-    pub ty: TermId,
+    pub ty: Owned<TermId>,
     pub visibility: VisibilityModifier,
     pub external: bool,
     pub attributes: Vec<HirAttribute>,

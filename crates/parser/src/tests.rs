@@ -1,10 +1,13 @@
 use common::pool::{DedupPool, PoolId};
-use common::{FrontendSymbol, Operator, SymbolsModule};
+use common::{FrontendSymbol, Operator, PoolStorage, SymbolsModule};
 use slynx_lexer::Lexer;
 use smallvec::smallvec;
 
 use crate::ast::GenericIdentifier;
-use crate::{ASTExpression, ASTStatement, Parser, Program, Type};
+use crate::{
+    ASTExpression, ASTStatement, EnumDeclaration, FuncDeclaration, InterfaceDeclaration,
+    ObjectDeclaration, Parser, Program, Type,
+};
 
 fn parse_program(
     source: &str,
@@ -30,7 +33,7 @@ fn parse_program(
 fn generic_function_declaration_maps_params_to_indices() {
     let (program, symbols, types, _, _) = parse_program("func identity<T>(x: T): T { return x; }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
     assert_eq!(func.generics.type_params.len(), 1);
 
     let param = func.generics.type_params[0];
@@ -52,7 +55,7 @@ fn generic_function_with_multiple_params() {
     let (program, symbols, types, _, _) =
         parse_program("func transform<T, T1, T2>(x: T, y: T1, z: T2): T1 { return y; }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = &program.get_pool().get(PoolId::new(0));
     assert_eq!(func.generics.type_params.len(), 3);
     assert_eq!(
         types[func.args[0].data.kind.data],
@@ -89,7 +92,7 @@ fn non_generic_function_has_no_type_params() {
     let (program, symbols, _, _, _) =
         parse_program("func add(a: int, b: int): int { return a + b; }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
     assert!(func.generics.type_params.is_empty());
 
     assert_eq!(symbols.get_name(func.name), "add");
@@ -102,7 +105,7 @@ fn generic_function_without_usage_keeps_scope_clean() {
     let (program, symbols, types, _, _) =
         parse_program("func identity<T>(x: T): T { return x; } func get(): T { return t; }");
 
-    let func = &program.func().get(PoolId::new(1));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(1));
     assert!(func.generics.type_params.is_empty());
     assert_eq!(
         types[func.return_type.data],
@@ -140,7 +143,7 @@ fn nested_bounds_do_not_require_a_separator_after_the_last_one() {
     let (program, _, types, _, _) =
         parse_program("interface J where T: I & K, U: I { func m(&self) -> str; }");
 
-    let interface = program.interfaces().iter().next().expect("one interface");
+    let interface: &InterfaceDeclaration = program.get_pool().iter().next().expect("one interface");
     let clauses = &interface.generics.clauses;
     assert_eq!(clauses.len(), 2);
     assert_eq!(clauses[0].data.bounds.len(), 2);
@@ -163,7 +166,7 @@ fn nested_bounds_do_not_require_a_separator_after_the_last_one() {
 fn where_clause_follows_the_return_type_and_precedes_the_body() {
     let (program, _, _, _, _) = parse_program("func m<T>(x: T) -> T where T: int { return x; }");
 
-    let func = program.func().iter().next().expect("one function");
+    let func: &FuncDeclaration = program.get_pool().iter().next().expect("one function");
     assert_eq!(func.generics.clauses.len(), 1);
     assert_eq!(func.body.len(), 1);
 }
@@ -176,7 +179,7 @@ fn object_fields_and_methods_can_be_mixed() {
         "object O { a: int, b: int, func m(&self) -> int { 1 } func n(&self) -> int { 2 } }",
     );
 
-    let object = program.object().iter().next().expect("one object");
+    let object: &ObjectDeclaration = program.get_pool().iter().next().expect("one object");
     assert_eq!(object.fields.len(), 2);
     assert_eq!(object.methods.len(), 2);
 }
@@ -206,11 +209,11 @@ fn object_fields_still_need_a_separator() {
 fn enum_body_accepts_methods() {
     let (program, symbols, _, _, _) = parse_program("enum E { A, func m(&self) -> int { 1 } }");
 
-    let enumeration = program.enums().iter().next().expect("one enum");
+    let enumeration: &EnumDeclaration = program.get_pool().iter().next().expect("one enum");
     assert_eq!(enumeration.variants.len(), 1);
     assert_eq!(symbols.get_name(enumeration.variants[0].name.data), "A");
     assert_eq!(enumeration.methods.len(), 1);
-    assert_eq!(symbols.get_name(enumeration.methods[0].method_name), "m");
+    assert_eq!(symbols.get_name(enumeration.methods[0].name), "m");
 }
 
 ///A stylesheet header is `name(args) uses X, Y: Interfaces where T: U {`, so the
@@ -232,7 +235,7 @@ fn stylesheet_interface_list_follows_arguments_and_uses() {
 fn interface_has_no_super_interface_list() {
     let (program, _, _, _, _) = parse_program("interface I { func m(&self) -> str; }");
 
-    let interface = program.interfaces().iter().next().expect("one interface");
+    let interface: &InterfaceDeclaration = program.get_pool().iter().next().expect("one interface");
     assert!(interface.super_interfaces.is_empty());
 }
 
@@ -241,7 +244,7 @@ fn generic_call_parses_with_explicit_type_args() {
     let (program, symbols, types, statements, expressions) =
         parse_program("func main(): int { identity<i32>(5); }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
     let ASTStatement::Expression(expr) = &statements[func.body[0].data] else {
         panic!("expected an expression statement");
     };
@@ -277,7 +280,7 @@ fn generic_call_accepts_array_type_args() {
     let (program, symbols, types, statements, expressions) =
         parse_program("func main(): int { funcall<[4]int>(data); }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
     let ASTStatement::Expression(expr) = &statements[func.body[0].data] else {
         panic!("expected an expression statement");
     };
@@ -311,7 +314,7 @@ fn generic_call_inside_generic_body_uses_indices() {
     let (program, symbols, types, statements, expressions) =
         parse_program("func outer<T>(x: T): T { inner<T>(x); }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
     let ASTStatement::Expression(expr) = &statements[func.body[0].data] else {
         panic!("expected an expression statement");
     };
@@ -341,7 +344,7 @@ fn comparison_operator_still_parses() {
     let (program, _, _, statements, expressions) =
         parse_program("func main(): bool { let a: bool = x < y; }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
     let ASTStatement::Var { rhs, .. } = &statements[func.body[0].data] else {
         panic!("expected a variable declaration");
     };
@@ -358,7 +361,7 @@ fn right_shift_parses_without_panicking() {
     let (program, symbols, _, statements, expressions) =
         parse_program("func main(): int { let a: int = x >> y; }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
     let ASTStatement::Var { rhs, .. } = &statements[func.body[0].data] else {
         panic!("expected a variable declaration");
     };
@@ -388,7 +391,7 @@ fn chained_right_shift_parses_without_panicking() {
     let (program, symbols, _, statements, expressions) =
         parse_program("func main(): int { let a: int = x >> y >> z; }");
 
-    let func = &program.func().get(PoolId::new(0));
+    let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
     let ASTStatement::Var { rhs, .. } = &statements[func.body[0].data] else {
         panic!("expected a variable declaration");
     };

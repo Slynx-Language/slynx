@@ -51,6 +51,15 @@ const HEADER_END_OR_COMMA: &[TokenKind] = &[
 ];
 
 impl<'a> Parser<'a> {
+    pub fn parse_visibility(&mut self) -> Result<VisibilityModifier> {
+        if matches!(self.peek()?.kind, TokenKind::Pub) {
+            self.eat()?;
+            Ok(VisibilityModifier::Public)
+        } else {
+            Ok(VisibilityModifier::Private)
+        }
+    }
+
     ///Parses the bounds of a single generic clause, the `A & B` of
     ///`where T: A & B`. The list stops at the `,` that separates two clauses and
     ///at whatever ends the clause list itself.
@@ -167,74 +176,62 @@ impl<'a> Parser<'a> {
         flags: ParserFlags,
     ) -> Result<()> {
         let attributes = self.parse_attributes()?;
-        let token = self.peek()?;
-        let visibility = if matches!(token.kind, TokenKind::Pub) {
-            self.eat()?;
-            VisibilityModifier::Public
-        } else {
-            VisibilityModifier::Private
-        };
+        let visibility = self.parse_visibility()?;
         match &self.peek()?.kind {
             TokenKind::Extend => {
                 let Token { span, .. } = self.eat()?;
                 let extend = self.parse_extend(span, attributes)?;
-                program.append_extensions(extend);
+                program.insert_at_extensions(extend);
             }
             TokenKind::Interface => {
                 let Token { span, .. } = self.eat()?;
-                let mut interface = self.parse_interface(ParsingContext { span, attributes })?;
-                interface.visibility = visibility;
-                program.append_interfaces(interface);
+                let interface = self.parse_interface(ParsingContext {
+                    span,
+                    attributes,
+                    visibility,
+                })?;
+                program.insert_at_interfaces(interface);
             }
             TokenKind::Import => {
                 let span = self.eat()?.span;
                 let import = self.parse_import(span)?;
-                program.append_imports(import);
+                program.insert_at_imports(import);
             }
             TokenKind::Alias => {
                 let Token { span, .. } = self.eat()?;
-                let mut alias = self.parse_alias(span)?;
-                alias.visibility = visibility;
-                program.append_alias(alias);
+                let alias = self.parse_alias(span, visibility)?;
+                program.insert_at_alias(alias);
             }
             TokenKind::Object => {
                 let Token { span, .. } = self.eat()?;
-                let mut object = self.parse_object(span, attributes, flags)?;
-                object.external = external;
-                object.visibility = visibility;
-                program.append_object(object)
+                let object = self.parse_object(span, attributes, external, visibility, flags)?;
+                program.insert_at_object(object);
             }
             TokenKind::Component => {
                 let Token { span, .. } = self.eat()?;
-                let mut component = self.parse_component_declaration(span, attributes)?;
-                component.visibility = visibility;
-                program.append_component(component);
+                let component = self.parse_component_declaration(span, attributes, visibility)?;
+                program.insert_at_component(component);
             }
             TokenKind::Func => {
                 let Token { span, .. } = self.eat()?;
-                let mut func = self.parse_func(span, attributes, flags)?;
+                let mut func = self.parse_func(span, attributes, visibility, flags)?;
                 func.external = external;
-                func.visibility = visibility;
-                program.append_func(func);
+                program.insert_at_func(func);
             }
             TokenKind::StyleSheet => {
                 let Token { span, .. } = self.eat()?;
-                let mut style = self.parse_stylesheet(span, attributes)?;
-                style.visibility = visibility;
-                program.append_style(style);
+                let style = self.parse_stylesheet(span, attributes, visibility)?;
+                program.insert_at_style(style);
             }
             TokenKind::Static => {
                 let Token { span, .. } = self.eat()?;
-                let mut static_decl = self.parse_static(span, flags)?;
-                static_decl.external = external;
-                static_decl.visibility = visibility;
-                program.append_statics(static_decl);
+                let static_decl = self.parse_static(span, external, visibility, flags)?;
+                program.insert_at_statics(static_decl);
             }
             TokenKind::Enum => {
                 let span = self.eat()?.span;
-                let mut enum_decl = self.parse_enum(span, attributes)?;
-                enum_decl.visibility = visibility;
-                program.append_enums(enum_decl);
+                let enum_decl = self.parse_enum(span, attributes, visibility)?;
+                program.insert_at_enums(enum_decl);
             }
             _ => {
                 return self.unexpected(
@@ -265,7 +262,7 @@ impl<'a> Parser<'a> {
     /// The parser will continue parsing until it reaches the end of the input stream.
     /// If it encounters an unexpected token, it will return an error indicating the expected token type.
     pub fn parse_declarations(&mut self) -> Result<Program> {
-        let mut program = Program::new();
+        let mut program = Program::default();
         while let Ok(token) = self.peek() {
             if matches!(token.kind, TokenKind::Extern) {
                 self.eat()?;

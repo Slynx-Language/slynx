@@ -33,6 +33,7 @@ pub struct ParsingContext {
     ///Span of the keyword that introduced the declaration.
     pub(crate) span: Span,
     pub(crate) attributes: Vec<Spanned<ASTAttribute>>,
+    pub(crate) visibility: VisibilityModifier,
 }
 
 ///The type parameters of the generic function currently being parsed. Each

@@ -4,7 +4,7 @@ use crate::{FuncDeclaration, Parser, Result};
 use slynx_lexer::tokens::TokenKind;
 
 use crate::ast::{ASTStatement, TypedName};
-use common::{Span, Spanned};
+use common::{Span, Spanned, VisibilityModifier};
 impl Parser<'_> {
     ///Parses the arguments of a function. It parses until the `)` of the function args.
     pub fn parse_args(&mut self, type_params: &[SymbolPointer]) -> Result<Vec<Spanned<TypedName>>> {
@@ -19,6 +19,7 @@ impl Parser<'_> {
         &mut self,
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
+        visibility: VisibilityModifier,
         flags: ParserFlags,
     ) -> Result<FuncDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
@@ -35,16 +36,14 @@ impl Parser<'_> {
         }
         let return_type = self.parse_type(&generics)?;
 
+        let clauses = self.parse_clauses(&generics)?;
         if flags.contains(ParserFlags::ONLY_SIGNATURES) {
-            let clauses = self.parse_clauses(&generics)?;
-            // Interface signatures are written without a trailing ';' in the
-            // corpus and docs, but tolerate it if present.
             if self.peek()?.kind == TokenKind::SemiColon {
                 self.eat()?;
             }
             return Ok(FuncDeclaration {
                 attributes,
-                visibility: Default::default(),
+                visibility,
                 span: span.merge_with(return_type.span),
                 external: false,
                 name,
@@ -58,10 +57,7 @@ impl Parser<'_> {
                 body: vec![],
             });
         }
-        // The `where` clause list has to be read before the body is taken off the
-        // stream: `parse_clauses` looks for a leading `where` and would
-        // otherwise be handed the body token instead.
-        let clauses = self.parse_clauses(&generics)?;
+
         let current = self.eat()?;
         //func main(arg:T):Q ->/{}
         match current.kind {
@@ -76,7 +72,7 @@ impl Parser<'_> {
                 )];
                 Ok(FuncDeclaration {
                     attributes,
-                    visibility: Default::default(),
+                    visibility,
                     span: span.merge_with(end),
                     name,
                     generics: GenericsMetadata {
@@ -108,7 +104,7 @@ impl Parser<'_> {
                 let end = self.expect(&TokenKind::RBrace)?.span;
                 Ok(FuncDeclaration {
                     attributes,
-                    visibility: Default::default(),
+                    visibility,
                     external: false,
                     span: span.merge_with(end),
                     name,

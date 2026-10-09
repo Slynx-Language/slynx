@@ -1,6 +1,6 @@
 use super::Parser;
 use crate::flags::ParserFlags;
-use crate::{ASTExpression, AliasDeclaration, SymbolPointer, Type, TypedName};
+use crate::{ASTExpression, AliasDeclaration, GenericsMetadata, SymbolPointer, Type, TypedName};
 use crate::{Result, ast::GenericIdentifier};
 use common::pool::DedupPoolId;
 use common::{Span, Spanned, VisibilityModifier};
@@ -54,16 +54,24 @@ impl Parser<'_> {
         Ok(Spanned::new(TypedName { name, kind: ty }, name.span))
     }
     ///Parses an alias declaration which follows `alias ty = AnotherType`
-    pub fn parse_alias(&mut self, init: Span) -> Result<AliasDeclaration> {
+    pub fn parse_alias(
+        &mut self,
+        init: Span,
+        visibility: VisibilityModifier,
+    ) -> Result<AliasDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
-
+        let clauses = self.parse_clauses(&generics)?;
         self.expect(&TokenKind::Eq)?;
         let target = self.parse_type(&generics)?;
 
         self.expect(&TokenKind::SemiColon)?;
         Ok(AliasDeclaration {
-            type_params: generics,
-            visibility: VisibilityModifier::default(),
+            generics: GenericsMetadata {
+                type_params: generics,
+                clauses,
+                interface_implementations: Vec::new(),
+            },
+            visibility,
             span: init.merge_with(target.span),
             name,
             target,
