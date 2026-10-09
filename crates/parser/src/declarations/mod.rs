@@ -185,7 +185,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Interface => {
                 let Token { span, .. } = self.eat()?;
-                let mut interface = self.parse_interface(ParsingContext {
+                let interface = self.parse_interface(ParsingContext {
                     span,
                     attributes,
                     visibility,
@@ -199,19 +199,17 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Alias => {
                 let Token { span, .. } = self.eat()?;
-                let mut alias = self.parse_alias(span, visibility)?;
+                let alias = self.parse_alias(span, visibility)?;
                 program.append_alias(alias);
             }
             TokenKind::Object => {
                 let Token { span, .. } = self.eat()?;
-                let mut object =
-                    self.parse_object(span, attributes, external, visibility, flags)?;
+                let object = self.parse_object(span, attributes, external, visibility, flags)?;
                 program.append_object(object)
             }
             TokenKind::Component => {
                 let Token { span, .. } = self.eat()?;
-                let mut component =
-                    self.parse_component_declaration(span, attributes, visibility)?;
+                let component = self.parse_component_declaration(span, attributes, visibility)?;
                 program.append_component(component);
             }
             TokenKind::Func => {
@@ -222,17 +220,17 @@ impl<'a> Parser<'a> {
             }
             TokenKind::StyleSheet => {
                 let Token { span, .. } = self.eat()?;
-                let mut style = self.parse_stylesheet(span, attributes, visibility)?;
+                let style = self.parse_stylesheet(span, attributes, visibility)?;
                 program.append_style(style);
             }
             TokenKind::Static => {
                 let Token { span, .. } = self.eat()?;
-                let mut static_decl = self.parse_static(span, external, visibility, flags)?;
+                let static_decl = self.parse_static(span, external, visibility, flags)?;
                 program.append_statics(static_decl);
             }
             TokenKind::Enum => {
                 let span = self.eat()?.span;
-                let mut enum_decl = self.parse_enum(span, attributes, visibility)?;
+                let enum_decl = self.parse_enum(span, attributes, visibility)?;
                 program.append_enums(enum_decl);
             }
             _ => {
