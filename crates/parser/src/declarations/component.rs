@@ -136,6 +136,7 @@ impl Parser<'_> {
         &mut self,
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
+        visibility: VisibilityModifier,
     ) -> Result<ComponentDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
         let interface_implementations = self.parse_interface_implementations(&generics)?;
@@ -156,7 +157,7 @@ impl Parser<'_> {
                 clauses,
             },
             attributes,
-            visibility: Default::default(),
+            visibility,
             name,
             members: defs,
             span: span.merge_with(end),

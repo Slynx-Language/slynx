@@ -4,7 +4,13 @@ use slynx_lexer::TokenKind;
 use crate::{Parser, Result, StaticDeclaration, flags::ParserFlags};
 
 impl<'a> Parser<'a> {
-    pub fn parse_static(&mut self, span: Span, flags: ParserFlags) -> Result<StaticDeclaration> {
+    pub fn parse_static(
+        &mut self,
+        span: Span,
+        external: bool,
+        visibility: VisibilityModifier,
+        flags: ParserFlags,
+    ) -> Result<StaticDeclaration> {
         let name = self.expect_identifier()?;
         self.expect(&TokenKind::Colon)?;
         let ty = self.parse_type(&[])?;
@@ -16,9 +22,9 @@ impl<'a> Parser<'a> {
         self.expect(&TokenKind::SemiColon)?;
         Ok(StaticDeclaration {
             attributes: vec![],
-            external: false,
+            external,
             span: span.merge_with(expr.as_ref().map(|expr| expr.span).unwrap_or(ty.span)),
-            visibility: VisibilityModifier::Private,
+            visibility,
             name: name.data,
             ty,
             value: expr,

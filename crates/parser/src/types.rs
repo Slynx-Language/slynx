@@ -54,7 +54,11 @@ impl Parser<'_> {
         Ok(Spanned::new(TypedName { name, kind: ty }, name.span))
     }
     ///Parses an alias declaration which follows `alias ty = AnotherType`
-    pub fn parse_alias(&mut self, init: Span) -> Result<AliasDeclaration> {
+    pub fn parse_alias(
+        &mut self,
+        init: Span,
+        visibility: VisibilityModifier,
+    ) -> Result<AliasDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
 
         self.expect(&TokenKind::Eq)?;
@@ -63,7 +67,7 @@ impl Parser<'_> {
         self.expect(&TokenKind::SemiColon)?;
         Ok(AliasDeclaration {
             type_params: generics,
-            visibility: VisibilityModifier::default(),
+            visibility,
             span: init.merge_with(target.span),
             name,
             target,

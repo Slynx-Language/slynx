@@ -1,4 +1,4 @@
-use common::{Span, Spanned, pool::DedupPoolId};
+use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_lexer::{Token, tokens::TokenKind};
 
 use crate::{
@@ -171,6 +171,7 @@ impl Parser<'_> {
         &mut self,
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
+        visibility: VisibilityModifier,
     ) -> Result<StyleSheet, ParseError> {
         let (name, generics) = self.parse_generic_name()?;
         self.expect(&TokenKind::LParen)?;
@@ -200,7 +201,7 @@ impl Parser<'_> {
                 clauses,
             },
             attributes,
-            visibility: Default::default(),
+            visibility,
             name,
             args,
             usages,

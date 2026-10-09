@@ -13,8 +13,9 @@ impl<'a> Parser<'a> {
         start: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
         flags: ParserFlags,
+        visibility: VisibilityModifier,
     ) -> Result<ObjectMethod> {
-        let func = self.parse_func(start, attributes, flags)?;
+        let func = self.parse_func(start, attributes, visibility, flags)?;
         let FuncDeclaration {
             name,
             args,
@@ -24,6 +25,7 @@ impl<'a> Parser<'a> {
             ..
         } = func;
         Ok(ObjectMethod {
+            visibility,
             generics,
             method_name: name,
             arguments: args,
@@ -37,6 +39,8 @@ impl<'a> Parser<'a> {
         &mut self,
         start: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
+        external: bool,
+        visibility: VisibilityModifier,
         flags: ParserFlags,
     ) -> Result<ObjectDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
@@ -48,19 +52,17 @@ impl<'a> Parser<'a> {
 
         while self.peek()?.kind != TokenKind::RBrace {
             let attributes = self.parse_attributes()?;
+            let visibility = self.parse_visibility()?;
             if self.peek()?.kind == TokenKind::Func {
                 let start = self.eat()?.span;
-                methods.push(self.parse_method(start, attributes, flags)?);
+                methods.push(self.parse_method(start, attributes, flags, visibility)?);
                 if self.peek()?.kind == TokenKind::Comma {
                     self.eat()?;
                 }
                 continue;
             }
             let name = self.parse_typedname(&generics)?;
-            fields.push(ObjectField {
-                visibility: VisibilityModifier::Public,
-                name,
-            });
+            fields.push(ObjectField { visibility, name });
 
             // Fields are comma separated, but a method may follow the last one
             // without a comma in between, so `func` ends the field list too.
@@ -84,7 +86,7 @@ impl<'a> Parser<'a> {
                 clauses,
             },
             attributes,
-            visibility: Default::default(),
+            visibility,
             name,
             fields,
             methods,
@@ -92,7 +94,7 @@ impl<'a> Parser<'a> {
                 start: start.start,
                 end: span.end,
             },
-            external: false,
+            external,
         })
     }
 }

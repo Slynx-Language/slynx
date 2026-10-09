@@ -4,7 +4,7 @@ use crate::{FuncDeclaration, Parser, Result};
 use slynx_lexer::tokens::TokenKind;
 
 use crate::ast::{ASTStatement, TypedName};
-use common::{Span, Spanned};
+use common::{Span, Spanned, VisibilityModifier};
 impl Parser<'_> {
     ///Parses the arguments of a function. It parses until the `)` of the function args.
     pub fn parse_args(&mut self, type_params: &[SymbolPointer]) -> Result<Vec<Spanned<TypedName>>> {
@@ -19,6 +19,7 @@ impl Parser<'_> {
         &mut self,
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
+        visibility: VisibilityModifier,
         flags: ParserFlags,
     ) -> Result<FuncDeclaration> {
         let (name, generics) = self.parse_generic_name()?;
@@ -44,7 +45,7 @@ impl Parser<'_> {
             }
             return Ok(FuncDeclaration {
                 attributes,
-                visibility: Default::default(),
+                visibility,
                 span: span.merge_with(return_type.span),
                 external: false,
                 name,
@@ -76,7 +77,7 @@ impl Parser<'_> {
                 )];
                 Ok(FuncDeclaration {
                     attributes,
-                    visibility: Default::default(),
+                    visibility,
                     span: span.merge_with(end),
                     name,
                     generics: GenericsMetadata {
@@ -108,7 +109,7 @@ impl Parser<'_> {
                 let end = self.expect(&TokenKind::RBrace)?.span;
                 Ok(FuncDeclaration {
                     attributes,
-                    visibility: Default::default(),
+                    visibility,
                     external: false,
                     span: span.merge_with(end),
                     name,

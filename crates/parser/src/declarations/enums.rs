@@ -1,4 +1,4 @@
-use common::{Span, Spanned, pool::DedupPoolId};
+use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_lexer::TokenKind;
 
 use crate::{
@@ -90,9 +90,15 @@ impl Parser<'_> {
         let mut methods = Vec::new();
         while self.peek()?.kind != TokenKind::RBrace {
             let attributes = self.parse_attributes()?;
+            let visibility = self.parse_visibility()?;
             if self.peek()?.kind == TokenKind::Func {
                 let start = self.eat()?.span;
-                methods.push(self.parse_method(start, attributes, ParserFlags::empty())?);
+                methods.push(self.parse_method(
+                    start,
+                    attributes,
+                    ParserFlags::empty(),
+                    visibility,
+                )?);
             } else {
                 variants.push(self.parse_enum_variant(attributes, generics)?);
             }
@@ -108,6 +114,7 @@ impl Parser<'_> {
         &mut self,
         span: Span,
         attributes: Vec<Spanned<ASTAttribute>>,
+        visibility: VisibilityModifier,
     ) -> Result<EnumDeclaration> {
         //enum E(int): InterfaceA, InterfaceB where T: InterfaceC { ... }
         let (name, generics) = self.parse_generic_name()?;
@@ -126,7 +133,7 @@ impl Parser<'_> {
             representation,
             variants,
             attributes,
-            visibility: Default::default(),
+            visibility,
             span,
             methods,
         })

@@ -21,9 +21,14 @@ impl Parser<'_> {
 
         while self.peek()?.kind != TokenKind::RBrace {
             let attributes = self.parse_attributes()?;
-            let span = self.peek()?.span;
-            self.expect(&TokenKind::Func)?;
-            methods.push(self.parse_func(span, attributes, ParserFlags::ONLY_SIGNATURES)?);
+            let visibility = self.parse_visibility()?;
+            let span = self.expect(&TokenKind::Func)?.span;
+            methods.push(self.parse_func(
+                span,
+                attributes,
+                visibility,
+                ParserFlags::ONLY_SIGNATURES,
+            )?);
         }
         let end = self.expect(&TokenKind::RBrace)?.span;
 
@@ -79,9 +84,14 @@ impl Parser<'_> {
             let mut methods = Vec::new();
             while self.peek()?.kind != TokenKind::RBrace {
                 let attributes = self.parse_attributes()?;
-                let span = self.peek()?.span;
-                self.expect(&TokenKind::Func)?;
-                methods.push(self.parse_func(span, attributes, ParserFlags::empty())?);
+                let visibility = self.parse_visibility()?;
+                let span = self.expect(&TokenKind::Func)?.span;
+                methods.push(self.parse_func(
+                    span,
+                    attributes,
+                    visibility,
+                    ParserFlags::empty(),
+                )?);
             }
             methods
         };

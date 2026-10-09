@@ -47,6 +47,7 @@ impl GenericsMetadata {
 
 #[derive(Debug)]
 pub struct ObjectMethod {
+    pub visibility: VisibilityModifier,
     pub generics: GenericsMetadata,
     pub method_name: SymbolPointer,
     pub arguments: Vec<Spanned<TypedName>>,
