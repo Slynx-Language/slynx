@@ -70,7 +70,7 @@ impl<'a> ASTLookup<'a> {
         }
         let out = self
             .modules
-            .find_declaration(name, requester)
+            .find_declaration(name, requester, requester)
             .map(|(owner, term)| Owned { owner, term });
 
         self.function_cache.insert(cache_key, out);
@@ -91,7 +91,7 @@ impl<'a> ASTLookup<'a> {
         }
         let out = self
             .modules
-            .find_declaration(name, requester)
+            .find_declaration(name, requester, requester)
             .map(|(owner, term)| Owned { owner, term });
 
         self.interface_cache.insert(cache_key, out);
@@ -133,7 +133,7 @@ impl<'a> ASTLookup<'a> {
         }
         let result = self
             .modules
-            .find_declaration(name, requester)
+            .find_declaration(name, requester, requester)
             .map(|(owner, term)| Owned { owner, term });
         self.static_cache.insert(cache_key, result);
         result

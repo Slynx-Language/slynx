@@ -214,6 +214,7 @@ impl<'a> Modules<'a> {
         &self,
         name: SymbolPointer<FrontendSymbol>,
         requester: FileId,
+        current_entry: FileId,
     ) -> Option<(FileId, PoolId<T>)>
     where
         Program: PoolStorage<T> + PoolStorage<FileImport>,
@@ -221,7 +222,9 @@ impl<'a> Modules<'a> {
     {
         let module = &self.modules[requester.as_raw() as usize];
         if let Some(content) = (module.get_pool() as &Pool<T>).iter().position(|content| {
-            content.name() == name && content.visibility() == VisibilityModifier::Public
+            content.name() == name
+                && (content.visibility() == VisibilityModifier::Public
+                    || requester == current_entry)
         }) {
             return Some((module.id, PoolId::new(content as u32)));
         }
@@ -233,13 +236,13 @@ impl<'a> Modules<'a> {
                 .get(&original)
                 .expect("Expected original path to properly map to some file");
             if import.usages.is_empty()
-                && let Some(out) = self.find_declaration(name, *file)
+                && let Some(out) = self.find_declaration(name, requester, *file)
             {
                 return Some(out);
             }
             for usage in &import.usages {
                 let target = usage.alias.unwrap_or(usage.content_name);
-                if let Some(statik) = self.find_declaration(target, *file) {
+                if let Some(statik) = self.find_declaration(target, requester, *file) {
                     return Some(statik);
                 }
             }
