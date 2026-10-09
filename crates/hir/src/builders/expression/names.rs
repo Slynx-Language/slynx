@@ -75,7 +75,7 @@ impl ExpressionBuilder {
             && struct_view.fields().is_empty()
         {
             return Ok(HirExpression {
-                ty: self_ty,
+                ty: Owned::new(self.file(), self_ty),
                 kind: HirExpressionKind::Object {
                     name: self_ty,
                     fields: Vec::new(),
@@ -91,7 +91,7 @@ impl ExpressionBuilder {
                     .map(|var| var.type_id)
                     .expect("Expected variable to have a type defined on this builder");
                 Ok(HirExpression {
-                    ty,
+                    ty: Owned::new(self.file(), ty),
                     kind: HirExpressionKind::Identifier(v),
                 })
             }

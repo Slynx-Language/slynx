@@ -623,9 +623,9 @@ impl Monomorphizer {
                 value: self.build_expression(hir, *value, subst)?,
             },
             HirStatement::Variable { name, value } => {
-                let original = hir[value.data].ty;
+                let original = hir[value.data].ty.term;
                 let value = self.build_expression(hir, *value, subst)?;
-                let rebuilt = hir[value.data].ty;
+                let rebuilt = hir[value.data].ty.term;
                 self.declare_variable(*name, TrackedVariable { original, rebuilt });
                 HirStatement::Variable { name: *name, value }
             }
@@ -671,7 +671,7 @@ impl Monomorphizer {
         subst: &Substitution,
     ) -> Result<Spanned<PoolId<HirExpression>>> {
         let node = &hir[expression.data];
-        let mut call_ty = node.ty;
+        let mut call_ty = node.ty.term;
 
         let kind = match node.kind.clone() {
             HirExpressionKind::Int(_)
@@ -692,10 +692,10 @@ impl Monomorphizer {
                     // original type, so use the concrete rebuilt type. With an
                     // annotation the identifier already carries the declared
                     // type, which the substitution below resolves.
-                    call_ty = if tracked.original == node.ty {
+                    call_ty = if tracked.original == node.ty.term {
                         tracked.rebuilt
                     } else {
-                        node.ty
+                        node.ty.term
                     };
                 }
                 node.kind.clone()
@@ -714,11 +714,11 @@ impl Monomorphizer {
                 let index = self.build_expression(hir, index, subst)?;
                 let array_ty = hir[array.data].ty;
                 call_ty = hir
-                    .view(array_ty)
+                    .view(array_ty.term)
                     .is_vector()
-                    .or_else(|| hir.view(array_ty).is_array().map(|(inner, _)| inner))
+                    .or_else(|| hir.view(array_ty.term).is_array().map(|(inner, _)| inner))
                     .ok_or_else(|| {
-                        slynx_hir::HIRError::invalid_indexing(array_ty, expression.span)
+                        slynx_hir::HIRError::invalid_indexing(array_ty.term, expression.span)
                     })?;
                 HirExpressionKind::ArrayIndex(array, index)
             }
@@ -751,13 +751,13 @@ impl Monomorphizer {
             } => {
                 let expr = self.build_expression(hir, expr, subst)?;
                 let parent_ty = hir[expr.data].ty;
-                call_ty = match hir.view(parent_ty).dereference().is_struct() {
+                call_ty = match hir.view(parent_ty.term).dereference().is_struct() {
                     Some(struct_view) => struct_view
                         .fields()
                         .get(field_index)
                         .map(|field| field.ty)
-                        .unwrap_or(node.ty),
-                    None => node.ty,
+                        .unwrap_or(node.ty.term),
+                    None => node.ty.term,
                 };
                 HirExpressionKind::FieldAccess {
                     expr,
@@ -814,11 +814,11 @@ impl Monomorphizer {
                         hir,
                         &signature,
                         args.first()
-                            .map(|receiver| hir[receiver.data].ty)
+                            .map(|receiver| hir[receiver.data].ty.term)
                             .ok_or_else(|| {
                                 HIRError::unresolved_interface_call(
                                     signature.name,
-                                    node.ty,
+                                    node.ty.term,
                                     expression.span,
                                 )
                             })?,
@@ -850,7 +850,10 @@ impl Monomorphizer {
         } else {
             substituted_ty
         };
-        let id = hir.store.insert_expression(HirExpression { ty, kind });
+        let id = hir.store.insert_expression(HirExpression {
+            ty: slynx_hir::Owned::new(node.ty.owner, ty),
+            kind,
+        });
         Ok(expression.span.make_spanned(id))
     }
 

@@ -3,11 +3,17 @@ use std::{fmt, sync::Arc};
 use common::pool::DedupPoolId;
 
 use crate::{
-    ComponentType, DescriptorId, EnumType, HirViewer, StructType,
+    ComponentType, DescriptorId, EnumType, HirViewer, Owned, StructType,
     arrays::ArrayTerm,
     term::{ConstantTerm, ExtensionNode, Term, TermId, TermNode, VarTerm},
     vector::VectorTerm,
 };
+
+impl<'a> HirViewer<'a, Owned<TermId>> {
+    pub fn inner_type(self) -> HirViewer<'a, TermId> {
+        self.new_with(self.data().term)
+    }
+}
 
 impl<'a> HirViewer<'a, TermId> {
     pub fn raw(&self) -> &'a Term {

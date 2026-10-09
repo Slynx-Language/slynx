@@ -172,8 +172,7 @@ impl<'a> HirQueueBuilder<'a> {
     ) -> Result<DeclarationId<HirStaticDeclaration>> {
         let ty = self
             .lowerer
-            .lower_type(self, requester, s.ty, &TypeContext::EMPTY)?
-            .term;
+            .lower_type(self, requester, s.ty, &TypeContext::EMPTY)?;
         let name = s.name;
         let id = self.hir.symbols_registry.get_or_insert_static(
             HirSymbol::new(requester, name),

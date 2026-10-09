@@ -65,7 +65,7 @@
 //! - [`crate::hir::implementation::expression::resolve_expr`] — Expression resolution
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, SymbolPointer, VariableId,
+    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, Owned, SymbolPointer, VariableId,
     model::HirStatement, term::TermId,
 };
 
@@ -209,7 +209,7 @@ pub struct HirExpression {
     /// - The special `Infer` type, indicating the type should be inferred
     ///
     /// This field is used during type checking to ensure type correctness.
-    pub ty: TermId,
+    pub ty: Owned<TermId>,
 
     /// The kind of expression this is.
     ///

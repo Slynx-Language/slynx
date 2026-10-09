@@ -4,7 +4,7 @@ use common::{Span, Spanned, VisibilityModifier, pool::DedupPoolId};
 use slynx_parser::{NamedExpr, Type, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, Result,
+    HIRError, HirExpression, HirExpressionKind, Owned, Result,
     builders::HirQueueBuilder,
     term::{TermId, TermNode},
 };
@@ -43,30 +43,28 @@ impl ExpressionBuilder {
             queue
                 .lowerer
                 .lower_type_with_self(queue, self.file(), name, context, *self_type)?
-                .term
         } else {
             queue
                 .lowerer
                 .lower_type(queue, self.file(), name, context)?
-                .term
         };
-        let ty_view = queue.hir.view(ty);
+        let ty_view = queue.hir.view(ty.term);
         let deref = ty_view.nominal();
         let obj = deref
             .is_struct()
             .expect("Expected name to generate a struct type");
 
-        let ty = match ty_view.raw().node() {
-            TermNode::Apply { .. } => ty,
+        let concrete = match ty_view.raw().node() {
+            TermNode::Apply { .. } => ty.term,
             _ if let Some(expected) = expected
                 && queue.hir.view(expected).dereference().data() == deref.data()
                 && let TermNode::Apply { .. } = queue.hir.view(expected).raw().node() =>
             {
                 expected
             }
-            _ => ty,
+            _ => ty.term,
         };
-        let ty_view = queue.hir.view(ty);
+        let ty_view = queue.hir.view(concrete);
         let generics: &[TermId] = match ty_view.raw().node() {
             TermNode::Apply { args, .. } => args.as_slice(),
             _ => &[],
@@ -85,7 +83,7 @@ impl ExpressionBuilder {
                 *type_names
                     .get(&field.data.name)
                     .ok_or(HIRError::property_unrecognized(
-                        ty,
+                        ty.term,
                         vec![field.data.name],
                         field.span,
                     ))?;
@@ -135,8 +133,11 @@ impl ExpressionBuilder {
         };
 
         Ok(HirExpression {
-            ty,
-            kind: HirExpressionKind::Object { name: ty, fields },
+            ty: Owned::new(ty.owner, concrete),
+            kind: HirExpressionKind::Object {
+                name: concrete,
+                fields,
+            },
         })
     }
 }

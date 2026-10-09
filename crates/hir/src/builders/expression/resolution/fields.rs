@@ -203,7 +203,7 @@ impl ExpressionBuilder {
             ASTExpression::FunctionCall { name, args } => {
                 let name_sym = queue.type_name(name.data);
                 let parent_type_view = queue.hir.view(queue.hir[parent.data].ty);
-                let parent_ty = parent_type_view.nominal();
+                let parent_ty = parent_type_view.inner_type().nominal();
 
                 let inherent = match parent_ty.is_struct() {
                     Some(view) => view
@@ -216,10 +216,7 @@ impl ExpressionBuilder {
                     None if let Some(id) = self.find_inherent_method_of(
                         queue,
                         FindInherentMethodDescriptor {
-                            ty: Owned {
-                                owner: self.file(),
-                                term: parent_ty.data,
-                            },
+                            ty: parent_type_view.data,
                             name: name_sym,
                             span,
                         },
@@ -228,13 +225,15 @@ impl ExpressionBuilder {
                         id
                     }
                     None => {
-                        let concrete_self =
-                            queue.hir.view(parent.data).ty_viewer().dereference().data();
+                        let parent_view = queue.hir.view(parent.data);
+
+                        let concrete_self = parent_view.ty_viewer().dereference().data();
                         let descriptor = FindInterfaceMethodDescriptor {
                             ty: Owned {
-                                owner: self.file(),
+                                owner: parent_view.ty().owner,
                                 term: concrete_self,
                             },
+
                             name: name_sym,
                             span,
                         };

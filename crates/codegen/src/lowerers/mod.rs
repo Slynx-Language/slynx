@@ -203,7 +203,7 @@ impl<'a> LoweringState<'a> {
                 let name = statik.name;
                 let ty = self
                     .types
-                    .get_or_create_ir_type(statik.ty, statik.span, ir)?;
+                    .get_or_create_ir_type(statik.ty.term, statik.span, ir)?;
                 let id = DeclarationId::new(file.file, id);
                 if statik.external {
                     self.external_statics.insert(id, ty);

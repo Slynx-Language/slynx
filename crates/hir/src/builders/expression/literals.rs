@@ -6,7 +6,7 @@ use either::Either;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, Result, SymbolPointer,
+    HIRError, HirExpression, HirExpressionKind, Owned, Result, SymbolPointer,
     builders::HirQueueBuilder,
     error::NotMutableReason,
     term::{Term, TermId, TermNode},
@@ -47,14 +47,14 @@ impl ExpressionBuilder {
             },
         )?;
         let expr_ty = queue.hir.view(build_expr.data).ty();
-        let expr_ty = match queue.hir.view(expr_ty).raw().node() {
-            TermNode::Ref { target, .. } => target,
+        let inner = match queue.hir.view(expr_ty.term).raw().node() {
+            TermNode::Ref { target, .. } => *target,
             _ => {
                 return Err(HIRError::invalid_deref(descriptor.target.span));
             }
         };
         Ok(HirExpression {
-            ty: *expr_ty,
+            ty: Owned::new(expr_ty.owner, inner),
             kind: HirExpressionKind::Deref(build_expr),
         })
     }
@@ -78,12 +78,12 @@ impl ExpressionBuilder {
         let expression_viewer = queue.hir.view(hir_expression.data);
         let final_type = {
             let ty = expression_viewer.ty();
-            let ty = if descriptor.mutable {
-                Term::mutable_reference(ty)
+            let reference = if descriptor.mutable {
+                Term::mutable_reference(ty.term)
             } else {
-                Term::reference(ty)
+                Term::reference(ty.term)
             };
-            queue.hir.types.create_type(ty)
+            Owned::new(ty.owner, queue.hir.types.create_type(reference))
         };
         let able_to_mutate = expression_viewer.is_able_to_mutability(&self.variables);
         let out = HirExpression {
@@ -112,7 +112,10 @@ impl ExpressionBuilder {
     }
 
     pub(super) fn build_bool(&self, queue: &HirQueueBuilder, value: bool) -> HirExpression {
-        let ty = queue.hir.types.create_type(Term::boolean_type());
+        let ty = Owned::new(
+            self.file(),
+            queue.hir.types.create_type(Term::boolean_type()),
+        );
         HirExpression {
             ty,
             kind: if value {
@@ -124,11 +127,11 @@ impl ExpressionBuilder {
     }
 
     pub(super) fn build_int_literal(&self, queue: &HirQueueBuilder, value: i32) -> HirExpression {
-        queue.hir.create_int_expression(value, 32)
+        queue.hir.create_int_expression(self.file(), value, 32)
     }
 
     pub(super) fn build_float_literal(&self, queue: &HirQueueBuilder, value: f32) -> HirExpression {
-        queue.hir.create_float_expression(value)
+        queue.hir.create_float_expression(self.file(), value)
     }
 
     pub(super) fn build_str_literal(
@@ -136,6 +139,6 @@ impl ExpressionBuilder {
         queue: &HirQueueBuilder,
         value: SymbolPointer,
     ) -> HirExpression {
-        queue.hir.create_strliteral_expression(value)
+        queue.hir.create_strliteral_expression(self.file(), value)
     }
 }

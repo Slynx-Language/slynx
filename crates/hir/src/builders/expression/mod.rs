@@ -12,7 +12,8 @@ use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirStatement, Result, SymbolPointer, VariableId,
+    HIRError, HirExpression, HirExpressionKind, HirStatement, Owned, Result, SymbolPointer,
+    VariableId,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -304,13 +305,15 @@ impl ExpressionBuilder {
                 )?;
                 let lhs_ty = queue.hir.view(lhs.data).ty();
                 let rhs_ty = queue.hir.view(rhs.data).ty();
-                let ty = self.unify_terms(queue, lhs_ty, rhs_ty, target.span)?;
+                let ty = self.unify_terms(queue, lhs_ty.term, rhs_ty.term, target.span)?;
                 let ty = if op.is_logical() {
                     queue.hir.types.create_type(Term::boolean_type())
                 } else {
                     ty
                 };
-                queue.hir.create_binary_expression(lhs, rhs, *op, ty)
+                queue
+                    .hir
+                    .create_binary_expression(self.file(), lhs, rhs, *op, ty)
             }
             ASTExpression::FunctionCall { name, args } => {
                 let identifier = queue.get_plain_type(*name);
@@ -366,7 +369,7 @@ impl ExpressionBuilder {
                     },
                 )?;
                 HirExpression {
-                    ty: queue.hir[child.data].name,
+                    ty: Owned::new(self.file(), queue.hir[child.data].name),
                     kind: HirExpressionKind::Component(child),
                 }
             }
