@@ -146,15 +146,18 @@ impl<'a> Modules<'a> {
     }
 
     ///Finds a content with the given `name` inside the given `entry` module. If not directly on the module that requested it, checks if it was provided by the other modules it imports from.
-    ///This method is internal, since the `finder` might simply ignore the whether its public or not
+    ///This method is internal, since the `finder` might simply ignore the whether its public or not.
+    ///The `requester`parameter is the original file that made this request and the `entry` is the current file we are looking at.
+    ///The finder receives 3 parameters, the Source we are at, the initial requester, and the name its searching for
     fn find_in_modules<T>(
         &self,
         name: SymbolPointer<FrontendSymbol>,
+        requester: FileId,
         entry: FileId,
-        finder: &dyn Fn(&SourceNode, SymbolPointer<FrontendSymbol>) -> Option<T>,
+        finder: &dyn Fn(&SourceNode, FileId, SymbolPointer<FrontendSymbol>) -> Option<T>,
     ) -> Option<(FileId, T)> {
         let module = &self.modules[entry.as_raw() as usize];
-        if let Some(v) = finder(module, name) {
+        if let Some(v) = finder(module, requester, name) {
             return Some((module.id, v));
         }
         let imports: &Pool<FileImport> = module.get_pool();
@@ -165,7 +168,7 @@ impl<'a> Modules<'a> {
                 .get(&original)
                 .expect("Expected original path to properly map to some file");
             if import.usages.is_empty() {
-                let out = finder(&self.modules[file.as_raw() as usize], name);
+                let out = finder(&self.modules[file.as_raw() as usize], requester, name);
                 if let Some(out) = out {
                     return Some((*file, out));
                 }
@@ -183,7 +186,9 @@ impl<'a> Modules<'a> {
 
                 // Look the symbol up under its real name inside the imported
                 // module so aliased imports (`using {X as Y}`) still resolve.
-                if let Some(func) = self.find_in_modules(usage.content_name, *file, finder) {
+                if let Some(func) =
+                    self.find_in_modules(usage.content_name, requester, *file, finder)
+                {
                     return Some(func);
                 };
             }
@@ -254,12 +259,14 @@ impl<'a> Modules<'a> {
                 content: ASTTypeKind::Builtin(kind),
             });
         };
-        self.find_in_modules(name, module, &|module, name| {
+        self.find_in_modules(name, module, module, &|module, requester, name| {
             if let Some((id, _)) = (module.get_pool() as &Pool<ObjectDeclaration>)
                 .iter()
                 .with_ids()
                 .find(|(_, strukt)| {
-                    strukt.name == name && strukt.visibility == VisibilityModifier::Public
+                    strukt.name == name
+                        && (strukt.visibility == VisibilityModifier::Public
+                            || requester == module.id)
                 })
             {
                 return Some(ASTTypeKind::Struct(id));
@@ -268,7 +275,9 @@ impl<'a> Modules<'a> {
                 .iter()
                 .with_ids()
                 .find(|(_, component)| {
-                    component.name == name && component.visibility == VisibilityModifier::Public
+                    component.name == name
+                        && (component.visibility == VisibilityModifier::Public
+                            || requester == module.id)
                 })
             {
                 return Some(ASTTypeKind::Component(id));
@@ -277,7 +286,9 @@ impl<'a> Modules<'a> {
                 .iter()
                 .with_ids()
                 .find(|(_, alias)| {
-                    alias.name == name && alias.visibility == VisibilityModifier::Public
+                    alias.name == name
+                        && (alias.visibility == VisibilityModifier::Public
+                            || requester == module.id)
                 })
             {
                 return Some(ASTTypeKind::Alias(id));
@@ -286,7 +297,9 @@ impl<'a> Modules<'a> {
                 .iter()
                 .with_ids()
                 .find(|(_, enumer)| {
-                    enumer.name == name && enumer.visibility == VisibilityModifier::Public
+                    enumer.name == name
+                        && (enumer.visibility == VisibilityModifier::Public
+                            || requester == module.id)
                 })
             {
                 return Some(ASTTypeKind::Enum(id));
@@ -295,7 +308,9 @@ impl<'a> Modules<'a> {
                 .iter()
                 .with_ids()
                 .find(|(_, interface)| {
-                    interface.name == name && interface.visibility == VisibilityModifier::Public
+                    interface.name == name
+                        && (interface.visibility == VisibilityModifier::Public
+                            || requester == module.id)
                 })
             {
                 return Some(ASTTypeKind::Interface(id));
@@ -314,7 +329,7 @@ impl<'a> Modules<'a> {
         name: SymbolPointer<FrontendSymbol>,
         module: FileId,
     ) -> Option<(FileId, PoolId<EnumDeclaration>, usize)> {
-        self.find_in_modules(name, module, &|module, name| {
+        self.find_in_modules(name, module, module, &|module, _, name| {
             let enums: &Pool<EnumDeclaration> = module.get_pool();
             enums.iter().with_ids().find_map(|(id, enumer)| {
                 enumer
