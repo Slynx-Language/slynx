@@ -3,9 +3,7 @@ enum Thing<T> {
     None
 }
 
-func println(msg: str): void {
-
-}
+func println(msg: str): void {}
 
 func main(): void {
     let thing = Thing.Some(12);
