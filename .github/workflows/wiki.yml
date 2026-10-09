@@ -22,7 +22,7 @@ jobs:
       - name: Publish to wiki
         run: |
           git clone "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git" wiki-repo
-          rsync -a --delete --exclude='.git' wiki/ wiki-repo/
+          rsync -a --delete --exclude='.git' docs/wiki/ wiki-repo/
           cd wiki-repo
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
