@@ -146,7 +146,8 @@ impl<'a> Modules<'a> {
     }
 
     ///Finds a content with the given `name` inside the given `entry` module. If not directly on the module that requested it, checks if it was provided by the other modules it imports from.
-    pub fn find_in_modules<T>(
+    ///This method is internal, since the `finder` might simply ignore the whether its public or not
+    fn find_in_modules<T>(
         &self,
         name: SymbolPointer<FrontendSymbol>,
         entry: FileId,
@@ -158,6 +159,17 @@ impl<'a> Modules<'a> {
         }
         let imports: &Pool<FileImport> = module.get_pool();
         for import in imports.iter() {
+            let original = self.recreate_pathbuf(module.id, &import.path);
+            let file = self
+                .paths
+                .get(&original)
+                .expect("Expected original path to properly map to some file");
+            if import.usages.is_empty() {
+                let out = finder(&self.modules[file.as_raw() as usize], name);
+                if let Some(out) = out {
+                    return Some((*file, out));
+                }
+            }
             for usage in &import.usages {
                 let visible = if let Some(alias) = usage.alias {
                     alias
@@ -168,11 +180,7 @@ impl<'a> Modules<'a> {
                 if visible != name {
                     continue;
                 }
-                let original = self.recreate_pathbuf(module.id, &import.path);
-                let file = self
-                    .paths
-                    .get(&original)
-                    .expect("Expected original path to properly map to some file");
+
                 // Look the symbol up under its real name inside the imported
                 // module so aliased imports (`using {X as Y}`) still resolve.
                 if let Some(func) = self.find_in_modules(usage.content_name, *file, finder) {
