@@ -46,6 +46,7 @@ impl<'a> LoweringState<'a> {
                 let slot = context.get_variable(*id).ok_or(CodegenError::new(
                     CodegenErrorKind::UnrecognizedVariable(*id),
                     lhs.span,
+                    context.file(),
                 ))?;
                 context.write(slot, value);
             }
@@ -56,9 +57,10 @@ impl<'a> LoweringState<'a> {
             } if let HirExpressionKind::Deref(inner) =
                 self.hir.store.expressions[expr.data].kind =>
             {
-                let field_type = self
-                    .types
-                    .deref_field_type(inner, *field_index, context.ir())?;
+                let file = context.file();
+                let field_type =
+                    self.types
+                        .deref_field_type(inner, *field_index, context.ir(), file)?;
                 let parent = self.lower_expression(inner, context)?;
                 let parent = context.emit(
                     Opcode::FieldRef(*field_index as u16),
@@ -113,10 +115,12 @@ impl<'a> LoweringState<'a> {
                 Ok(None)
             }
             HirStatement::Variable { name, value } => {
+                let file = context.file();
                 let vty = self.types.get_or_create_ir_type(
                     self.hir[value.data].ty.term,
                     statement.span,
                     context.ir(),
+                    file,
                 ).expect(
                     "Type of variable creation should be hoisted before mapping function bodies",
                 );

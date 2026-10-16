@@ -1,5 +1,5 @@
 use common::Span;
-use slynx_hir::term::TermId;
+use slynx_hir::{FileId, term::TermId};
 use slynx_ir::{IRType, IRTypeId};
 
 use crate::{
@@ -32,6 +32,7 @@ impl<'a> TypeLowerer<'a> {
         decl: TermId,
         span: Span,
         ir: &mut slynx_ir::SlynxIR,
+        file: FileId,
     ) -> Result<IRTypeId, CodegenError> {
         let key = self.hir.view(decl).dereference().data();
         if self.enum_layouts.contains_key(&key) {
@@ -40,17 +41,22 @@ impl<'a> TypeLowerer<'a> {
             return self.get_mapped_type(&key).ok_or(CodegenError::new(
                 CodegenErrorKind::MissingEnumLayout(key),
                 span,
+                file,
             ));
         }
         let enum_struct = match self.get_mapped_type(&key) {
             Some(ty) => ty,
             None => {
-                let enum_view = self
-                    .hir
-                    .view(key)
-                    .dereference()
-                    .is_enum()
-                    .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key), span))?;
+                let enum_view =
+                    self.hir
+                        .view(key)
+                        .dereference()
+                        .is_enum()
+                        .ok_or(CodegenError::new(
+                            CodegenErrorKind::NotAnEnum(key),
+                            span,
+                            file,
+                        ))?;
                 let name = self.hir.get_name(enum_view.name());
                 let ty = ir.create_struct(name);
                 self.types.insert(key, ty);
@@ -58,7 +64,11 @@ impl<'a> TypeLowerer<'a> {
             }
         };
         let IRType::Struct(enum_struct_id) = *ir.types.get_type(enum_struct) else {
-            return Err(CodegenError::new(CodegenErrorKind::NotAStruct(key), span));
+            return Err(CodegenError::new(
+                CodegenErrorKind::NotAStruct(key),
+                span,
+                file,
+            ));
         };
         if !ir
             .types
@@ -73,7 +83,11 @@ impl<'a> TypeLowerer<'a> {
             .view(decl)
             .dereference()
             .is_enum()
-            .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key), span))?;
+            .ok_or(CodegenError::new(
+                CodegenErrorKind::NotAnEnum(key),
+                span,
+                file,
+            ))?;
         let enum_name = self.hir.get_name(enum_view.name());
         let int_type = ir.types.int_type();
 
@@ -92,6 +106,7 @@ impl<'a> TypeLowerer<'a> {
                 return Err(CodegenError::new(
                     CodegenErrorKind::MissingEnumPayload(key),
                     span,
+                    file,
                 ));
             };
             let mut members = Vec::with_capacity(enum_view.variants().len());
@@ -103,7 +118,7 @@ impl<'a> TypeLowerer<'a> {
                     unreachable!("create_struct must produce a struct");
                 };
                 for payload_ty in &variant.payload {
-                    let field_ty = self.get_or_create_ir_type(*payload_ty, span, ir)?;
+                    let field_ty = self.get_or_create_ir_type(*payload_ty, span, ir, file)?;
                     ir.types
                         .get_object_type_mut(payload_struct_id)
                         .insert_field(field_ty);

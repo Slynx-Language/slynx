@@ -48,7 +48,7 @@ impl ExpressionBuilder {
                 }
                 let bchildren = bext.children();
                 if aext.children().len() != bchildren.len() {
-                    return Err(HIRError::unexpected_type(a.data, b.data, span));
+                    return Err(HIRError::unexpected_type(self.file(), a.data, b.data, span));
                 }
 
                 let mut counter = 0;
@@ -62,6 +62,7 @@ impl ExpressionBuilder {
                 Ok(target)
             }
             (received, expected) => Err(HIRError::unexpected_type(
+                self.file(),
                 received.data,
                 expected.data,
                 span,

@@ -94,6 +94,7 @@ impl ExpressionBuilder {
         if expected_args.len() != total_arguments {
             let name = func_viewer.name();
             return Err(HIRError::invalid_funcall_arg_length(
+                self.file(),
                 name,
                 expected_args.len(),
                 total_arguments,

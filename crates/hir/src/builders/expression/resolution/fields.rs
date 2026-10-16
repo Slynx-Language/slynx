@@ -131,6 +131,7 @@ impl ExpressionBuilder {
                     Ok(TypeAccessCategory::EnumVariant(variant_id))
                 } else {
                     Err(HIRError::invalid_funcall_arg_length(
+                        self.file(),
                         *name,
                         raw_variant.payload.len(),
                         0,
@@ -180,7 +181,7 @@ impl ExpressionBuilder {
                 })
             }
 
-            _ => Err(HIRError::invalid_type_access(span)),
+            _ => Err(HIRError::invalid_type_access(self.file(), span)),
         }
     }
 
@@ -225,7 +226,9 @@ impl ExpressionBuilder {
                     // A method is visible when it is `pub`, or when the call
                     // site sits in the file that declared it.
                     Some(method) if method.is_visible(self.file()) => method.data,
-                    Some(_) => return Err(HIRError::not_visible_method(name_sym, span)),
+                    Some(_) => {
+                        return Err(HIRError::not_visible_method(self.file(), name_sym, span));
+                    }
                     None => {
                         let parent_view = queue.hir.view(parent.data);
 
@@ -267,6 +270,7 @@ impl ExpressionBuilder {
                                     Some(method) => method,
                                     None => {
                                         return Err(HIRError::method_not_found(
+                                            self.file(),
                                             name_sym,
                                             concrete_self,
                                             span,
@@ -284,7 +288,7 @@ impl ExpressionBuilder {
                     args: args.to_vec(),
                 }
             }
-            _ => return Err(HIRError::invalid_field_access(span)),
+            _ => return Err(HIRError::invalid_field_access(self.file(), span)),
         };
         Ok(category)
     }

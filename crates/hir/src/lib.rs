@@ -83,7 +83,10 @@ pub use helpers::{HirViewer, Visible};
 
 pub use id::{ComponentId, DeclarationId, ExpressionId, VariableId};
 pub use model::*;
-use module_loader::{FileId, Modules};
+/// Re-exported so downstream crates (codegen, the compilation context) can name
+/// the file a span belongs to without depending on the module loader directly.
+pub use module_loader::FileId;
+use module_loader::Modules;
 
 /// Result type for HIR operations.
 ///

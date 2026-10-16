@@ -8,7 +8,7 @@ object Person {
 }
 
 extend Person: Stringifiable {
-    func stringify(&self) -> str { self.name }
+    func stringify(&self): str -> self.name;
 }
 
 func main(): void {

@@ -53,6 +53,7 @@ impl Monomorphizer {
         receiver: TermId,
         subst: &Substitution,
         span: Span,
+        site: FileId,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
         // The receiver is passed by reference when the method takes one, and the
         // extension is keyed by the type being extended.
@@ -60,15 +61,18 @@ impl Monomorphizer {
         let receiver = substitute_type(hir, receiver, subst)?;
         let receiver = if contains_generic_param(hir, receiver) {
             return Err(HIRError::unresolved_interface_call(
+                site,
                 signature.name,
                 receiver,
                 span,
             ));
         } else {
-            self.resolve_expression_type(hir, receiver, span)?
+            self.resolve_expression_type(hir, receiver, span, site)?
         };
         hir.get_extension_method(receiver, signature.name)
-            .ok_or_else(|| HIRError::unresolved_interface_call(signature.name, receiver, span))
+            .ok_or_else(|| {
+                HIRError::unresolved_interface_call(site, signature.name, receiver, span)
+            })
     }
 
     ///Generates (or retrieves from the cache) the specialization of the generic
@@ -99,6 +103,7 @@ impl Monomorphizer {
         template: DeclarationId<HirFunctionDeclaration>,
         args: Vec<TermId>,
         span: Span,
+        site: FileId,
     ) -> Result<DeclarationId<HirFunctionDeclaration>> {
         let owner = template.owner;
         let (fargs, fty, statements, visibility, external, attributes, self_type) = {
@@ -134,6 +139,7 @@ impl Monomorphizer {
                         hir,
                         substitute_type(hir, fty, subst)?,
                         span,
+                        owner,
                     )?;
 
                     let specialized_local = {
@@ -162,7 +168,8 @@ impl Monomorphizer {
                         .cache
                         .insert(key.clone(), HirFunctionDeclaration::as_any_id(specialized));
 
-                    let new_statements = monomorphizer.build_statements(hir, &statements, subst)?;
+                    let new_statements =
+                        monomorphizer.build_statements(hir, &statements, subst, owner)?;
                     {
                         let mut file = hir.get_file_mut(owner);
                         file.declarations
@@ -175,6 +182,7 @@ impl Monomorphizer {
                     Ok(specialized)
                 },
             },
+            site,
         )
     }
 

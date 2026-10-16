@@ -8,7 +8,8 @@ use std::collections::{HashMap, HashSet};
 
 use common::{FrontendSymbol, SymbolPointer};
 use slynx_hir::{
-    DeclarationId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration, SlynxHir,
+    DeclarationId, FileId, HirComponentDeclaration, HirFunctionDeclaration, HirStaticDeclaration,
+    SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::OwnershipAnalysis,
     term::TermNode,
@@ -104,6 +105,7 @@ impl<'a> LoweringState<'a> {
         &mut self,
         id: DeclarationId<HirStaticDeclaration>,
         ir: &mut SlynxIR,
+        file: FileId,
     ) -> Result<StaticStorage, CodegenError> {
         if let Some(ty) = self.external_statics.get(&id) {
             return Ok(StaticStorage::Extern(*ty));
@@ -117,7 +119,7 @@ impl<'a> LoweringState<'a> {
         let statik = &self.hir.get_file(id.owner)[id.term];
         let ty = self
             .types
-            .get_or_create_ir_type(statik.ty.term, statik.span, ir)?;
+            .get_or_create_ir_type(statik.ty.term, statik.span, ir, file)?;
 
         let storage = if statik.external {
             self.external_statics.insert(id, ty);
@@ -226,8 +228,12 @@ impl<'a> LoweringState<'a> {
                 )) {
                     continue;
                 }
-                self.types
-                    .insert_enum_fields_for(declaration.ty, declaration.span, ir)?;
+                self.types.insert_enum_fields_for(
+                    declaration.ty,
+                    declaration.span,
+                    ir,
+                    file.file,
+                )?;
             }
         }
         for file in &self.hir.store.files {
@@ -238,7 +244,8 @@ impl<'a> LoweringState<'a> {
                 )) {
                     continue;
                 }
-                self.types.insert_object_fields_for(obj.ty, obj.span, ir)?;
+                self.types
+                    .insert_object_fields_for(obj.ty, obj.span, ir, file.file)?;
             }
             for (id, component) in file.declarations.components.iter().with_ids() {
                 if deadcode.contains(&AnyDeclarationId::new(
@@ -253,6 +260,7 @@ impl<'a> LoweringState<'a> {
                     &component.props,
                     component.span,
                     ir,
+                    file.file,
                 )?;
             }
             // Statics are deliberately absent here. They are materialized by
@@ -281,6 +289,7 @@ impl<'a> LoweringState<'a> {
                         args,
                         declaration.span,
                         ir,
+                        file.file,
                     )?;
                 }
             }

@@ -60,6 +60,7 @@ impl<'a> ASTLowerer<'a> {
         let declaration = queue.modules.get_entry(owner).interfaces().get(interface);
         if !declaration.generics.type_params.is_empty() {
             return Err(HIRError::unimplemented(
+                owner,
                 MissingFeature::GenericInterfaces,
                 span,
             ));
@@ -70,6 +71,7 @@ impl<'a> ASTLowerer<'a> {
             .find(|method| !method.generics.type_params.is_empty())
         {
             return Err(HIRError::unimplemented(
+                owner,
                 MissingFeature::GenericInterfaces,
                 method.span,
             ));
@@ -212,6 +214,7 @@ impl<'a> ASTLowerer<'a> {
                 ) => {}
                 _ => {
                     return Err(HIRError::invalid_enum_representation(
+                        owner,
                         declaration.name,
                         representation.span,
                     ));
@@ -229,6 +232,7 @@ impl<'a> ASTLowerer<'a> {
                         ASTExpression::IntLiteral(value) => *value,
                         _ => {
                             return Err(HIRError::enum_variant_must_be_an_int(
+                                owner,
                                 variant.name.data,
                                 variant.span,
                             ));
@@ -338,6 +342,7 @@ impl<'a> ASTLowerer<'a> {
                     );
                     if not_plain {
                         return Some(Err(HIRError::unimplemented(
+                            entry,
                             MissingFeature::ComplexTypeForBounds,
                             clause.type_to_check.span,
                         )));
@@ -357,7 +362,9 @@ impl<'a> ASTLowerer<'a> {
                             {
                                 Ok(interface.clone())
                             } else {
-                                Err(HIRError::expected_interface_type(ty.term, bound.span))
+                                Err(HIRError::expected_interface_type(
+                                    entry, ty.term, bound.span,
+                                ))
                             }
                         })
                         .collect::<Result<Vec<_>>>()?;

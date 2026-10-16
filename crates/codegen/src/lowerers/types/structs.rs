@@ -1,5 +1,5 @@
 use common::Span;
-use slynx_hir::term::TermId;
+use slynx_hir::{FileId, term::TermId};
 use slynx_ir::IRType;
 
 use crate::{CodegenError, CodegenErrorKind, lowerers::TypeLowerer};
@@ -10,22 +10,32 @@ impl<'a> TypeLowerer<'a> {
         decl: TermId,
         span: Span,
         ir: &mut slynx_ir::SlynxIR,
+        file: FileId,
     ) -> Result<(), CodegenError> {
         let obj_handle = self.get_mapped_type(&decl).ok_or(CodegenError::new(
             CodegenErrorKind::IRTypeNotRecognized(decl),
             span,
+            file,
         ))?;
         let IRType::Struct(obj) = *ir.types.get_type(obj_handle) else {
-            return Err(CodegenError::new(CodegenErrorKind::NotAStruct(decl), span));
+            return Err(CodegenError::new(
+                CodegenErrorKind::NotAStruct(decl),
+                span,
+                file,
+            ));
         };
         let fields = if let Some(viewer) = self.hir.view(decl).dereference().is_struct() {
             viewer.fields().to_vec()
         } else {
-            return Err(CodegenError::new(CodegenErrorKind::NotAStruct(decl), span));
+            return Err(CodegenError::new(
+                CodegenErrorKind::NotAStruct(decl),
+                span,
+                file,
+            ));
         };
 
         for field in &fields {
-            let ty = self.get_or_create_ir_type(field.ty, span, ir)?;
+            let ty = self.get_or_create_ir_type(field.ty, span, ir, file)?;
             let obj_ty = ir.types.get_object_type_mut(obj);
             obj_ty.insert_field(ty);
         }

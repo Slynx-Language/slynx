@@ -1,8 +1,8 @@
 // A concrete interface call — a method from an `extend` block invoked on a
 // concrete self type — dispatches through the interface.
 interface Stringifiable {
-    func stringify(&self) -> str
-    func length(&self) -> int
+    func stringify(&self): str
+    func length(&self): int
 }
 
 object Person {
@@ -10,8 +10,8 @@ object Person {
 }
 
 extend Person: Stringifiable {
-    func stringify(&self) -> str { self.name }
-    func length(&self) -> int { 1 }
+    func stringify(&self): str -> self.name;
+    func length(&self): int -> 1;
 }
 
 func main(): void {

@@ -29,6 +29,7 @@ impl<'a> HirQueueBuilder<'a> {
             for interface in module.interfaces().iter() {
                 if !interface.generics.type_params.is_empty() {
                     return Err(HIRError::unimplemented(
+                        owner,
                         MissingFeature::GenericInterfaces,
                         interface.span,
                     ));
@@ -39,6 +40,7 @@ impl<'a> HirQueueBuilder<'a> {
                     .find(|method| !method.generics.type_params.is_empty())
                 {
                     return Err(HIRError::unimplemented(
+                        owner,
                         MissingFeature::GenericInterfaces,
                         method.span,
                     ));
@@ -48,6 +50,7 @@ impl<'a> HirQueueBuilder<'a> {
             for extension in module.extensions().iter() {
                 if !extension.generics.type_params.is_empty() {
                     return Err(HIRError::unimplemented(
+                        owner,
                         MissingFeature::GenericInterfaces,
                         extension.span,
                     ));
@@ -58,6 +61,7 @@ impl<'a> HirQueueBuilder<'a> {
                     .find(|method| !method.generics.type_params.is_empty())
                 {
                     return Err(HIRError::unimplemented(
+                        owner,
                         MissingFeature::GenericInterfaces,
                         method.span,
                     ));
@@ -67,12 +71,14 @@ impl<'a> HirQueueBuilder<'a> {
                     if let Type::Plain(identifier) = self.modules.get_type(interface.data) {
                         if !identifier.generic.is_empty() {
                             return Err(HIRError::unimplemented(
+                                owner,
                                 MissingFeature::GenericInterfaces,
                                 interface.span,
                             ));
                         }
                     } else {
                         return Err(HIRError::unimplemented(
+                            owner,
                             MissingFeature::GenericInterfaces,
                             interface.span,
                         ));
@@ -208,6 +214,7 @@ impl<'a> HirQueueBuilder<'a> {
 
         if !extension.generics.type_params.is_empty() {
             return Err(HIRError::unimplemented(
+                descriptor.extension.owner,
                 MissingFeature::GenericInterfaces,
                 extension.span,
             ));
@@ -215,6 +222,7 @@ impl<'a> HirQueueBuilder<'a> {
         for method in &extension.methods {
             if !method.generics.type_params.is_empty() {
                 return Err(HIRError::unimplemented(
+                    descriptor.extension.owner,
                     MissingFeature::GenericInterfaces,
                     method.span,
                 ));
@@ -234,6 +242,7 @@ impl<'a> HirQueueBuilder<'a> {
                     }
                     _ => {
                         return Err(HIRError::unimplemented(
+                            descriptor.extension.owner,
                             MissingFeature::GenericInterfaces,
                             interface.span,
                         ));
@@ -247,7 +256,11 @@ impl<'a> HirQueueBuilder<'a> {
                     .lookup
                     .find_interface(interface_name, descriptor.extension.owner)
                 else {
-                    return Err(HIRError::type_unrecognized(interface_name, interface.span));
+                    return Err(HIRError::type_unrecognized(
+                        descriptor.extension.owner,
+                        interface_name,
+                        interface.span,
+                    ));
                 };
                 let interface_declaration = self
                     .modules
@@ -279,6 +292,7 @@ impl<'a> HirQueueBuilder<'a> {
                         let existing_impl = self.hir.get_extension(*existing_id);
                         if existing_impl.interfaces.contains(&interface_term) {
                             return Err(HIRError::duplicate_interface_implementation(
+                                descriptor.extension.owner,
                                 descriptor.target,
                                 interface_term,
                                 interface.span,
@@ -361,6 +375,7 @@ impl<'a> HirQueueBuilder<'a> {
             // Exist only because the codebase does not support `extend<T,L> MyType<T>: Interface<L> {}` yet. After so, all this can be removed
             if !interface.generics.type_params.is_empty() {
                 return Err(HIRError::unimplemented(
+                    interface_file,
                     MissingFeature::GenericInterfaces,
                     interface.span,
                 ));
@@ -368,6 +383,7 @@ impl<'a> HirQueueBuilder<'a> {
             for method in &interface.methods {
                 if !method.generics.type_params.is_empty() {
                     return Err(HIRError::unimplemented(
+                        interface_file,
                         MissingFeature::GenericInterfaces,
                         method.span,
                     ));
@@ -378,7 +394,11 @@ impl<'a> HirQueueBuilder<'a> {
         let mut seen = std::collections::HashMap::new();
         for method in &extension.methods {
             if seen.insert(method.name, method).is_some() {
-                return Err(HIRError::already_defined(method.name, method.span));
+                return Err(HIRError::already_defined(
+                    extension_file,
+                    method.name,
+                    method.span,
+                ));
             }
         }
 
@@ -388,6 +408,7 @@ impl<'a> HirQueueBuilder<'a> {
                 let actual = self.method_signature(extension_file, *implementation, target)?;
                 if expected != actual {
                     return Err(HIRError::unexpected_type(
+                        extension_file,
                         actual,
                         expected,
                         implementation.span,
@@ -395,6 +416,7 @@ impl<'a> HirQueueBuilder<'a> {
                 }
             } else {
                 return Err(HIRError::missing_interface_method(
+                    extension_file,
                     required.name,
                     extension.span,
                 ));

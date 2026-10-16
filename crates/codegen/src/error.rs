@@ -1,23 +1,36 @@
 use std::backtrace::Backtrace;
 
 use common::Span;
-use slynx_hir::{VariableId, id::AnyDeclarationId, term::TermId};
+use slynx_hir::{FileId, VariableId, id::AnyDeclarationId, term::TermId};
 use slynx_ir::IRError;
 
+/// An error raised while lowering the HIR into the IR.
+///
+/// `file` is the file the offending code was written in. Spans are offsets into
+/// a single file, so it is what makes the span resolvable to a line and column.
 #[derive(Debug)]
 pub struct CodegenError {
     pub kind: CodegenErrorKind,
+    pub file: FileId,
     pub span: Span,
     pub backtrace: Backtrace,
 }
 
 impl CodegenError {
-    pub fn new(kind: CodegenErrorKind, span: Span) -> Self {
+    pub fn new(kind: CodegenErrorKind, span: Span, file: FileId) -> Self {
         Self {
             span,
             kind,
+            file,
             backtrace: Backtrace::capture(),
         }
+    }
+
+    ///Sets the file on an error that was converted from another error type and
+    ///so had no file to carry through the conversion.
+    pub fn in_file(mut self, file: FileId) -> Self {
+        self.file = file;
+        self
     }
 }
 
@@ -46,6 +59,10 @@ pub enum CodegenErrorKind {
 
 impl From<IRError> for CodegenError {
     fn from(error: IRError) -> Self {
-        CodegenError::new(CodegenErrorKind::IRError(error), Span::default())
+        CodegenError::new(
+            CodegenErrorKind::IRError(error),
+            Span::default(),
+            FileId::from_raw(0),
+        )
     }
 }

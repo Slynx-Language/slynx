@@ -85,9 +85,10 @@ impl<'a> Parser<'a> {
         self.expect(&TokenKind::Colon)?;
         let bounds = self.parse_clause_bounds(generics)?;
         if bounds.is_empty() {
-            return Err(crate::ParseError::new(ParseErrorKind::ExpectedBounds(
+            return Err(crate::ParseError::new(
+                ParseErrorKind::ExpectedBounds,
                 type_to_check.span,
-            )));
+            ));
         }
         Ok(Spanned {
             span: type_to_check.span.merge_with(bounds.last().unwrap().span),

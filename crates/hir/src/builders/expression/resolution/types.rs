@@ -90,6 +90,7 @@ impl ExpressionBuilder {
         };
         let Some(asttype) = queue.lowerer.lookup.find_type(owner, descriptor_name) else {
             return Err(HIRError::type_unrecognized(
+                self.file(),
                 descriptor_name,
                 descriptor.span,
             ));
@@ -181,6 +182,7 @@ impl ExpressionBuilder {
                         }
                         _ => {
                             return Err(HIRError::unimplemented(
+                                self.file(),
                                 MissingFeature::GenericInterfaces,
                                 interface.span,
                             ));
@@ -226,6 +228,7 @@ impl ExpressionBuilder {
         )? {
             if let Some(interface_type) = implemented_interfaces.get(&result.extension) {
                 return Err(HIRError::duplicate_interface_implementation(
+                    self.file(),
                     descriptor.ty.term,
                     *interface_type,
                     descriptor.span,

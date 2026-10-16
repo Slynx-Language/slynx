@@ -4,6 +4,7 @@ use slynx_lexer::LexerError;
 use crate::{
     ErrorPosition, SlynxContext,
     compilation_context::errors::{SlynxError, helpers::suggestions_from_source},
+    helpers::suggestions_from_parser,
 };
 
 impl SlynxContext {
@@ -79,32 +80,18 @@ impl SlynxContext {
                 )
             }
             SourceErrorKind::Parsing(parse_err) => {
-                let index = match &parse_err.kind {
-                    slynx_parser::error::ParseErrorKind::UnexpectedToken(token, _) => {
-                        token.span.start
-                    }
-                    _ => 0,
-                };
-                let (line, col_start, col_end, src) = if let Some(ref key) = file_key {
-                    let info = self.get_line_info(key, index as usize);
-                    (
-                        info.line,
-                        info.column_start,
-                        info.column_end,
-                        info.src.to_string(),
-                    )
-                } else {
-                    (0, 0, 0, String::new())
-                };
+                let suggestion = suggestions_from_parser(&parse_err);
+                let info = self.get_line_info(&self.entry_point, parse_err.span.start as usize);
+
                 SlynxError::new_parser(
                     ErrorPosition {
-                        line,
-                        column: col_start,
-                        end_column: col_end,
+                        line: info.line,
+                        column: info.column_start,
+                        end_column: info.column_end,
                     },
                     parse_err.to_string(),
-                    file_name,
-                    src,
+                    self.file_name(),
+                    info.src.to_string(),
                     suggestion,
                     error.backtrace(),
                 )

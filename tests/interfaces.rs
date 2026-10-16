@@ -26,7 +26,7 @@ fn bounded_generic_dispatches_per_receiver() {
     common::compile_source_ok(
         r#"
 interface Stringifiable {
-    func stringify(&self) -> str
+    func stringify(&self): str
 }
 
 object Person {
@@ -62,7 +62,7 @@ fn bounded_generic_selects_each_implementation() {
     let sir = common::compile_source_ok_sir(
         r#"
 interface Stringifiable {
-    func stringify(&self) -> str
+    func stringify(&self): str;
 }
 
 object Person {
@@ -106,7 +106,7 @@ fn bounded_generic_self_return_type() {
     common::compile_source_ok(
         r#"
 interface Cloneable {
-    func clone(&self) -> Self
+    func clone(&self): Self
 }
 
 object Counter {
@@ -114,7 +114,7 @@ object Counter {
 }
 
 extend Counter: Cloneable {
-    func clone(&self) -> Self {
+    func clone(&self): Self {
         Counter(value: self.value)
     }
 }
@@ -166,7 +166,7 @@ fn bounded_generic_without_implementation_is_rejected() {
     common::compile_source_err_contains(
         r#"
 interface Stringifiable {
-    func stringify(&self) -> str
+    func stringify(&self): str
 }
 
 object Person {
@@ -189,7 +189,7 @@ fn unbounded_generic_call_is_rejected() {
     common::compile_source_err(
         r#"
 interface Stringifiable {
-    func stringify(&self) -> str
+    func stringify(&self): str
 }
 
 func describe<T>(x: T): str -> x.stringify();

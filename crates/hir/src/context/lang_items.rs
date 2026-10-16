@@ -39,7 +39,7 @@ where
         span: Span,
     ) -> Result<()> {
         if self.0.insert(name, content).is_some() {
-            Err(HIRError::already_defined(name, span))
+            Err(HIRError::already_defined(content.owner, name, span))
         } else {
             Ok(())
         }
@@ -62,12 +62,18 @@ impl LangItems {
     pub fn try_get<T: LanguageItem>(&self, name: SymbolPointer) -> Option<DeclarationId<T>> {
         T::map(self).0.get(&name).map(|value| *value)
     }
+    /// Looks a language item up, failing when it was never registered.
+    ///
+    /// `file` is the file the lookup was requested from: an unregistered
+    /// intrinsic is reported against the code that used it, not against
+    /// whichever file the registry happens to live in.
     pub fn get<T: LanguageItem>(
         &self,
         name: SymbolPointer,
         span: common::Span,
+        file: module_loader::FileId,
     ) -> Result<DeclarationId<T>> {
         self.try_get(name)
-            .ok_or_else(|| HIRError::intrinsic_not_registered(name, span))
+            .ok_or_else(|| HIRError::intrinsic_not_registered(file, name, span))
     }
 }

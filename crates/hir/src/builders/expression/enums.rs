@@ -73,6 +73,7 @@ impl ExpressionBuilder {
         let variant = &enum_view.variants()[descriptor.variant.variant_id];
         if variant.payload.len() != descriptor.variant.arguments.len() {
             return Err(HIRError::invalid_funcall_arg_length(
+                self.file(),
                 enum_view.name(),
                 variant.payload.len(),
                 descriptor.variant.arguments.len(),
@@ -159,7 +160,7 @@ impl ExpressionBuilder {
     ) -> Result<HirExpression> {
         let (enum_ty, variant_index) = self
             .resolve_enum_variant(queue, name)
-            .ok_or(HIRError::name_unrecognized(name, span))?;
+            .ok_or(HIRError::name_unrecognized(self.file(), name, span))?;
         let enum_ty_view = queue.hir.view(enum_ty);
         let enum_type = enum_ty_view.dereference();
         let enum_view = enum_type
@@ -168,9 +169,10 @@ impl ExpressionBuilder {
         let variant = enum_view
             .variants()
             .get(variant_index)
-            .ok_or(HIRError::variant_unrecognized(name, span))?;
+            .ok_or(HIRError::variant_unrecognized(self.file(), name, span))?;
         if variant.payload.len() != arguments.len() {
             return Err(HIRError::invalid_funcall_arg_length(
+                self.file(),
                 name,
                 variant.payload.len(),
                 arguments.len(),
@@ -242,7 +244,7 @@ impl ExpressionBuilder {
         let enum_type = ty_viewer.nominal();
         let enum_view = enum_type
             .is_enum()
-            .ok_or_else(|| HIRError::matches_on_non_enum(enum_type.data, span))?;
+            .ok_or_else(|| HIRError::matches_on_non_enum(self.file(), enum_type.data, span))?;
 
         let (variant_name, pattern_args) = match queue.get_expr(pattern.data) {
             ASTExpression::Identifier(name) => (*name, &[][..]),
@@ -250,15 +252,16 @@ impl ExpressionBuilder {
                 let identifier = queue.get_plain_type(*name);
                 (identifier.identifier, args.as_slice())
             }
-            _ => return Err(HIRError::invalid_pattern(pattern.span)),
+            _ => return Err(HIRError::invalid_pattern(self.file(), pattern.span)),
         };
 
         let variant_index = enum_view
             .find_variant(variant_name)
-            .ok_or_else(|| HIRError::variant_unrecognized(variant_name, span))?;
+            .ok_or_else(|| HIRError::variant_unrecognized(self.file(), variant_name, span))?;
         let variant = &enum_view.variants()[variant_index];
         if variant.payload.len() != pattern_args.len() {
             return Err(HIRError::invalid_funcall_arg_length(
+                self.file(),
                 variant_name,
                 variant.payload.len(),
                 pattern_args.len(),

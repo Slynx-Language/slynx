@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use common::{
@@ -88,6 +88,16 @@ impl<'a> Modules<'a> {
 
     pub fn entries(&self) -> &[SourceNode] {
         &self.modules
+    }
+    ///The path of the file behind `id`, as it was canonicalized while loading.
+    ///
+    ///Spans are offsets into a single file's source, so any diagnostic raised
+    ///outside of the entry point needs this to be resolved against the file it
+    ///actually came from.
+    pub fn path_of(&self, id: FileId) -> Option<&Path> {
+        self.paths
+            .iter()
+            .find_map(|(path, file)| (*file == id).then_some(path.as_path()))
     }
     pub fn symbols(&self) -> &SymbolsModule<FrontendSymbol> {
         self.loader.symbols

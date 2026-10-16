@@ -1,0 +1,16 @@
+component Counter {
+    prop value: int;
+
+    func double(&self): int {
+        self.value + self.value
+    }
+
+    func quadruple(&self): int {
+        self.double() + self.double()
+    }
+}
+
+func main(): int {
+    let counter = Counter { value: 3 };
+    counter.quadruple()
+}

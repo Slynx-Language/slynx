@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use common::{Span, Spanned, pool::PoolId};
 use slynx_hir::{
-    DescriptorId, HirExpression, SlynxHir,
+    DescriptorId, FileId, HirExpression, SlynxHir,
     term::{PrimitiveType, TermId, TermNode},
 };
 use slynx_ir::{IRTypeId, SlynxIR};
@@ -63,10 +63,16 @@ impl<'a> TypeLowerer<'a> {
     ///The registered [`EnumLayout`] for an enum type. Returns a single typed
     ///error rather than letting every consumer construct a near-identical
     ///"layout is not registered" string.
-    pub(crate) fn enum_layout(&self, ty: &TermId, span: Span) -> Result<&EnumLayout, CodegenError> {
+    pub(crate) fn enum_layout(
+        &self,
+        ty: &TermId,
+        span: Span,
+        file: FileId,
+    ) -> Result<&EnumLayout, CodegenError> {
         self.enum_layouts.get(ty).ok_or(CodegenError::new(
             CodegenErrorKind::MissingEnumLayout(*ty),
             span,
+            file,
         ))
     }
     pub(crate) fn get_or_create_ir_type(
@@ -74,6 +80,7 @@ impl<'a> TypeLowerer<'a> {
         ty: TermId,
         span: Span,
         ir: &mut SlynxIR,
+        file: FileId,
     ) -> Result<IRTypeId, CodegenError> {
         let deref = self.hir.view(ty).nominal();
         let nominal = deref.data();
@@ -94,22 +101,22 @@ impl<'a> TypeLowerer<'a> {
                 let ir_fields = {
                     let mut out = Vec::with_capacity(fields.len());
                     for field in fields {
-                        out.push(self.get_or_create_ir_type(*field, span, ir)?);
+                        out.push(self.get_or_create_ir_type(*field, span, ir, file)?);
                     }
                     out
                 };
                 ir.types.create_or_get_tuple(ir_fields)
             }
             _ if let Some((elem, len)) = deref.is_array() => {
-                let elem_ty = self.get_or_create_ir_type(elem, span, ir)?;
+                let elem_ty = self.get_or_create_ir_type(elem, span, ir, file)?;
                 ir.create_array(elem_ty, len)
             }
             _ if let Some(elem) = deref.is_vector() => {
-                let elem_ty = self.get_or_create_ir_type(elem, span, ir)?;
+                let elem_ty = self.get_or_create_ir_type(elem, span, ir, file)?;
                 ir.create_vector(elem_ty)
             }
             _ if let Some(target) = deref.is_imutable_ref().or_else(|| deref.is_mutable_ref()) => {
-                let target_ty = self.get_or_create_ir_type(target, span, ir)?;
+                let target_ty = self.get_or_create_ir_type(target, span, ir, file)?;
                 ir.types.pointer_type(target_ty)
             }
             TermNode::Data(DescriptorId::Enum(_)) => {
@@ -119,13 +126,14 @@ impl<'a> TypeLowerer<'a> {
                 // payload union and the `EnumLayout` together (idempotently),
                 // so this on-demand branch and the hoist pass agree on the
                 // same shape every time.
-                self.insert_enum_fields_for(key, span, ir)?
+                self.insert_enum_fields_for(key, span, ir, file)?
             }
 
             _ => {
                 return Err(CodegenError::new(
                     CodegenErrorKind::IRTypeNotRecognized(ty),
                     span,
+                    file,
                 ));
             }
         };
@@ -145,6 +153,7 @@ impl<'a> TypeLowerer<'a> {
         inner: Spanned<PoolId<HirExpression>>,
         field_index: usize,
         ir: &mut SlynxIR,
+        file: FileId,
     ) -> Result<IRTypeId, CodegenError> {
         let expr_view = self.hir.view(inner.data);
         let concrete = expr_view.ty_viewer().concrete_type();
@@ -152,9 +161,10 @@ impl<'a> TypeLowerer<'a> {
         let struct_view = concrete.is_struct().ok_or(CodegenError::new(
             CodegenErrorKind::NotAStruct(concrete_ty),
             inner.span,
+            file,
         ))?;
         let field_type = struct_view.fields()[field_index].ty;
-        let field_type = self.get_or_create_ir_type(field_type, inner.span, ir)?;
+        let field_type = self.get_or_create_ir_type(field_type, inner.span, ir, file)?;
         Ok(ir.types.pointer_type(field_type))
     }
 }

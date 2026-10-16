@@ -41,18 +41,34 @@ impl Parser<'_> {
         })
     }
 
-    /// Parses a component member, which can be either a child component or a property. It first checks for any visibility modifiers (like 'pub'), then determines if the member is a child component (identified by an identifier followed by an expression) or a property (identified by the 'prop' keyword followed by an identifier and optional type and default value). The function constructs and returns a `ComponentMember` based on the parsed information, including its kind and span.
-    fn parse_component_member(&mut self, type_params: &[SymbolPointer]) -> Result<ComponentMember> {
+    /// Parses a component member, which can be either a child component or a property. The visibility `modifier` has already been consumed by the caller. It determines if the member is a child component (identified by an identifier followed by an expression) or a property (identified by the 'prop' keyword followed by an identifier and optional type and default value). The function constructs and returns a `ComponentMember` based on the parsed information, including its kind and span.
+    fn parse_component_member(
+        &mut self,
+        modifier: VisibilityModifier,
+        type_params: &[SymbolPointer],
+    ) -> Result<ComponentMember> {
         let mut span = self.peek()?.span;
-        let modifier = self.parse_modifier()?;
         let curr = self.peek()?;
         match curr.kind {
+            TokenKind::Identifier(_) if self.peek_at(1)?.kind == TokenKind::Eq => {
+                //checks for 'name='
+                let name = self.expect_identifier()?;
+                self.eat()?;
+                let expr = self.parse_component_expr(type_params, ParserFlags::empty())?;
+                Ok(ComponentMember {
+                    span: name.span.merge_with(expr.span),
+                    kind: ComponentMemberKind::NamedChild {
+                        name: name.data,
+                        child: expr,
+                    },
+                })
+            }
             TokenKind::Identifier(_) => {
                 let span = curr.span;
                 let expr = self.parse_component_expr(type_params, ParserFlags::empty())?;
                 Ok(ComponentMember {
+                    span: span.merge_with(expr.span),
                     kind: ComponentMemberKind::Child(expr),
-                    span,
                 })
             }
             TokenKind::Prop => {
@@ -144,9 +160,25 @@ impl Parser<'_> {
 
         self.expect(&TokenKind::LBrace)?;
         let mut defs = Vec::new();
+        let mut methods = Vec::new();
 
         while self.peek()?.kind != TokenKind::RBrace {
-            defs.push(self.parse_component_member(&generics)?);
+            let attributes = self.parse_attributes()?;
+            let modifier = self.parse_modifier()?;
+            if self.peek()?.kind == TokenKind::Func {
+                let start = self.eat()?.span;
+                methods.push(self.parse_method(
+                    start,
+                    attributes,
+                    ParserFlags::empty(),
+                    modifier,
+                )?);
+                if self.peek()?.kind == TokenKind::Comma {
+                    self.eat()?;
+                }
+                continue;
+            }
+            defs.push(self.parse_component_member(modifier, &generics)?);
         }
         let Token { span: end, .. } = self.expect(&TokenKind::RBrace)?;
 
@@ -161,7 +193,7 @@ impl Parser<'_> {
             name,
             members: defs,
             span: span.merge_with(end),
-            methods: Vec::new(),
+            methods,
         })
     }
 }

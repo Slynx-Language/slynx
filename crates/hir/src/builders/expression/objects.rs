@@ -86,6 +86,7 @@ impl ExpressionBuilder {
                 *type_names
                     .get(&field.data.name)
                     .ok_or(HIRError::property_unrecognized(
+                        self.file(),
                         ty.term,
                         vec![field.data.name],
                         field.span,
@@ -93,11 +94,19 @@ impl ExpressionBuilder {
             // A field is visible when it is `pub`, or when the literal sits in
             // the file that declared it.
             if !visible.is_visible(requester) {
-                return Err(HIRError::not_visible_property(field.data.name, field.span));
+                return Err(HIRError::not_visible_property(
+                    self.file(),
+                    field.data.name,
+                    field.span,
+                ));
             }
 
             if ordered[idx].replace(field).is_some() {
-                return Err(HIRError::already_defined(field.data.name, field.span));
+                return Err(HIRError::already_defined(
+                    self.file(),
+                    field.data.name,
+                    field.span,
+                ));
             }
         }
 
@@ -132,7 +141,7 @@ impl ExpressionBuilder {
             }
 
             if !missing.is_empty() {
-                return Err(HIRError::missing_properties(missing, span));
+                return Err(HIRError::missing_properties(self.file(), missing, span));
             }
             fields
         };

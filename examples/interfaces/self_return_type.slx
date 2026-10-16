@@ -1,7 +1,7 @@
 // An interface method whose return type is `Self` (`= Var(0)`) substitutes
 // to the concrete self type when the impl method is specialized.
 interface Cloneable {
-    func clone(&self) -> Self
+    func clone(&self): Self;
 }
 
 object Counter {
@@ -9,7 +9,7 @@ object Counter {
 }
 
 extend Counter: Cloneable {
-    func clone(&self) -> Self {
+    func clone(&self): Self {
         Counter(value: self.value)
     }
 }

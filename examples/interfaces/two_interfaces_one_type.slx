@@ -1,11 +1,11 @@
 // A single type with two interfaces compiles; each interface's methods
 // resolve through their own `extend` block.
 interface Stringifiable {
-    func stringify(&self) -> str
+    func stringify(&self): str
 }
 
 interface Formattable {
-    func to_json(&self) -> str
+    func to_json(&self): str
 }
 
 object Person {
@@ -13,11 +13,11 @@ object Person {
 }
 
 extend Person: Stringifiable {
-    func stringify(&self) -> str { self.name }
+    func stringify(&self): str { self.name }
 }
 
 extend Person: Formattable {
-    func to_json(&self) -> str { self.name }
+    func to_json(&self): str { self.name }
 }
 
 func main(): void {

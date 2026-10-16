@@ -261,7 +261,9 @@ pub(crate) fn contains_resolvable_reference(hir: &SlynxHir, ty: TermId) -> bool 
                 .iter()
                 .any(|prop| contains_resolvable_reference(hir, prop.ty))
                 || view.children().iter().any(|child| {
-                    let child = hir.view(*child);
+                    let child = hir.view(child.ty).nominal().is_component().expect(
+                        "HIR generated component incorrectly with child not being an component",
+                    );
                     child
                         .props()
                         .iter()

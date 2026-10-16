@@ -1,0 +1,8 @@
+component Box<T> {
+    prop value: T;
+}
+
+func main(): int {
+    let box = Box<int> { value: 3 };
+    box.value
+}

@@ -200,7 +200,6 @@ pub struct HirEnumDeclaration {
 ///
 /// A specialized component like `Text` or `Div` with predefined behavior.
 #[derive(Debug, Clone)]
-
 pub enum ComponentMemberDeclaration {
     /// A property declaration with an optional default value.
     ///
@@ -240,68 +239,6 @@ pub enum ComponentMemberDeclaration {
     /// - `values` — The child's property values
     /// - `span` — Source location for error reporting
     Child(Spanned<PoolId<HirComponentExpression>>),
-}
-
-impl ComponentMemberDeclaration {
-    /// Creates a new property declaration.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` — The property's position in the component's property list
-    /// * `value` — The optional default value expression
-    /// * `span` — The source location of the property
-    ///
-    /// # Returns
-    ///
-    /// A new [`ComponentMemberDeclaration::Property`] instance.
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// let prop = ComponentMemberDeclaration::new_property(
-    ///     name,
-    ///     modifier,
-    ///     index,
-    ///     value, // default value, if any
-    ///     span,
-    /// );
-    /// ```
-    pub fn new_property(
-        name: SymbolPointer,
-        modifier: VisibilityModifier,
-        index: usize,
-        value: Option<Spanned<PoolId<HirExpression>>>,
-        span: Span,
-    ) -> Self {
-        Self::Property {
-            name,
-            modifier,
-            index,
-            value,
-            span,
-        }
-    }
-
-    /// Creates a new child component declaration.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` — The child component's type ID
-    /// * `values` — The child's property values
-    /// * `span` — The source location of the child declaration
-    ///
-    /// # Returns
-    ///
-    /// A new [`ComponentMemberDeclaration::Child`] instance.
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// let child = ComponentMemberDeclaration::new_child(child_expr);
-    /// ```
-    pub fn new_child(child: Spanned<PoolId<HirComponentExpression>>) -> Self {
-        Self::Child(child)
-    }
 }
 
 macro_rules! impl_hir_decl {

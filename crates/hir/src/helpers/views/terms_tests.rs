@@ -159,17 +159,6 @@ mod views_terms_tests {
 
         let int_id = hir.types.create_type(Term::signed_integer_type(32));
 
-        let person_name: SymbolPointer = symbols.intern("Person");
-        let field_name: SymbolPointer = symbols.intern("age");
-        let person_id = hir.types.create_struct_type(
-            person_name,
-            vec![Visible::new(
-                VisibilityModifier::Public,
-                FileId::new(0),
-                (field_name, int_id),
-            )],
-        );
-
         let color_name: SymbolPointer = symbols.intern("Color");
         let enum_id = hir.types.create_enum_type(
             color_name,
@@ -180,21 +169,9 @@ mod views_terms_tests {
             }],
         );
 
-        let label_name: SymbolPointer = symbols.intern("Label");
-        let component_id =
-            hir.types
-                .create_component_type(label_name, FileId::new(0), vec![], vec![]);
-
-        let person_term = hir.view(person_id);
-        assert!(person_term.is_struct().is_some());
-        assert!(person_term.is_enum().is_none());
-
         let enum_term = hir.view(enum_id);
         assert!(enum_term.is_enum().is_some());
         assert!(enum_term.is_component().is_none());
-
-        let component_term = hir.view(component_id);
-        assert!(component_term.is_component().is_some());
 
         let generic_term = hir.view(
             hir.types

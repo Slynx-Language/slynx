@@ -11,8 +11,9 @@ use dashmap::{DashMap, DashSet};
 use module_loader::FileId;
 
 use crate::{
-    ComponentType, DeclarationId, EnumType, EnumVariantType, HirFunctionDeclaration, InterfaceType,
-    Result, StructField, StructType, SymbolPointer, TupleType, VariableId,
+    ComponentChild, ComponentType, DeclarationId, EnumType, EnumVariantType,
+    HirFunctionDeclaration, InterfaceType, Result, StructField, StructType, SymbolPointer,
+    TupleType, VariableId,
     helpers::Visible,
     interface::InterfaceTerm,
     term::{ExtensionNode, Term, TermId, TermNode},
@@ -145,7 +146,7 @@ impl TypesContext {
         name: SymbolPointer,
         owner: FileId,
         properties: Vec<(SymbolPointer, TermId)>,
-        children: Vec<DedupPoolId<ComponentType>>,
+        children: Vec<ComponentChild>,
     ) -> TermId {
         let comp_ty = self
             .storage
@@ -304,8 +305,13 @@ impl TypesContext {
     }
 
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
-    pub fn get_type_from_ref(&self, ref_ty: TermId, span: &common::Span) -> Result<TermId> {
-        self.storage.get_type_from_ref(ref_ty, span)
+    pub fn get_type_from_ref(
+        &self,
+        ref_ty: TermId,
+        span: &common::Span,
+        file: module_loader::FileId,
+    ) -> Result<TermId> {
+        self.storage.get_type_from_ref(ref_ty, span, file)
     }
 
     pub fn is_cyclic(&self, ty: TermId) -> bool {

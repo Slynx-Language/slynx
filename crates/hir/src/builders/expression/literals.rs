@@ -50,7 +50,7 @@ impl ExpressionBuilder {
         let inner = match queue.hir.view(expr_ty.term).raw().node() {
             TermNode::Ref { target, .. } => *target,
             _ => {
-                return Err(HIRError::invalid_deref(descriptor.target.span));
+                return Err(HIRError::invalid_deref(self.file(), descriptor.target.span));
             }
         };
         Ok(HirExpression {
@@ -96,11 +96,13 @@ impl ExpressionBuilder {
                     .variable_name(var)
                     .expect("Variable should contain a name");
                 Err(HIRError::expression_not_mutable(
+                    self.file(),
                     NotMutableReason::ImmutableVariable(name),
                     hir_expression.span,
                 ))
             }
             (true, false) => Err(HIRError::expression_not_mutable(
+                self.file(),
                 NotMutableReason::ExpressionNotAssignable,
                 hir_expression.span,
             )),

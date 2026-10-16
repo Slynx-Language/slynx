@@ -1,0 +1,11 @@
+component Counter {
+    prop value: int;
+
+    func new(): Self {
+        Self { value: 0 }
+    }
+}
+
+func main(): void {
+    let counter = Counter.new();
+}

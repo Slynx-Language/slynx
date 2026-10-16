@@ -1,0 +1,18 @@
+interface Stringifiable {
+    func stringify(&self): str;
+}
+
+component Counter {
+    prop value: int;
+}
+
+extend Counter: Stringifiable {
+    func stringify(&self): str -> "counter";
+}
+
+func describe<T>(x: T): str where T: Stringifiable -> x.stringify();
+
+func main(): void {
+    let counter = Counter { value: 3 };
+    describe(counter);
+}

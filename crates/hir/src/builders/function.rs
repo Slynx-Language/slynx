@@ -190,7 +190,7 @@ impl<'a> HirQueueBuilder<'a> {
             let func = self.modules.get_entry(id.owner).func().get(id.term);
             self.enqueue_function(func, id.owner)
         } else {
-            Err(HIRError::name_unrecognized(name, span))
+            Err(HIRError::name_unrecognized(requester, name, span))
         }
     }
 }
@@ -255,7 +255,10 @@ impl HirFunctionBuilder {
             && !contains_return
             && func_view.return_type() != queue.hir.types.create_type(Term::void_type())
         {
-            Err(HIRError::missing_return(func_view.raw_declaration().span))
+            Err(HIRError::missing_return(
+                self.target.owner,
+                func_view.raw_declaration().span,
+            ))
         } else {
             Ok(ExpressionBuildResult {
                 args: self.args,

@@ -94,14 +94,19 @@ impl TypeStorage {
     }
 
     ///Retrieves the type of something by asserting the provided `ref_ty` is a reference type to it
-    pub fn get_type_from_ref(&self, ref_ty: TermId, span: &Span) -> Result<TermId> {
+    pub fn get_type_from_ref(
+        &self,
+        ref_ty: TermId,
+        span: &Span,
+        file: module_loader::FileId,
+    ) -> Result<TermId> {
         let mut visited = HashSet::new();
         let mut current = ref_ty;
         loop {
             match self[current].node() {
                 TermNode::Apply { target, .. } => {
                     if !visited.insert(current) {
-                        return Err(HIRError::recursive(current, *span));
+                        return Err(HIRError::recursive(file, current, *span));
                     }
                     current = *target;
                 }

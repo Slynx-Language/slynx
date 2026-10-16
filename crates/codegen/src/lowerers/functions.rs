@@ -1,23 +1,32 @@
 use std::ops::{Deref, DerefMut};
 
 use common::{Span, Spanned, pool::PoolId};
-use slynx_hir::{HirStatement, VariableId, term::TermId};
+use slynx_hir::{FileId, HirStatement, VariableId, term::TermId};
 use slynx_ir::{Function, FunctionBuilder, IRPointer, IRTypeId, Label, SlynxIR, Value};
 
 use crate::{CodegenError, lowerers::LoweringState};
 
 /// Per-function state during HIR-to-IR lowering.
 pub struct FunctionContext<'a> {
+    ///The file this function's body was written in. Every span reached from
+    ///here is an offset into that file's source.
+    file: FileId,
     function_builder: FunctionBuilder<'a>,
     args: Vec<(VariableId, Value)>,
 }
 
 impl<'a> FunctionContext<'a> {
-    pub(crate) fn new(function_builder: FunctionBuilder<'a>) -> Self {
+    pub(crate) fn new(function_builder: FunctionBuilder<'a>, file: FileId) -> Self {
         Self {
+            file,
             function_builder,
             args: Vec::new(),
         }
+    }
+
+    ///The file the body being lowered was written in.
+    pub fn file(&self) -> FileId {
+        self.file
     }
 
     pub fn get_variable(&self, id: VariableId) -> Option<Value> {
@@ -31,7 +40,8 @@ impl<'a> FunctionContext<'a> {
     /// Switches the active block, propagating errors from the IR builder
     /// instead of panicking on corrupt builder state.
     pub fn block(&mut self, label: IRPointer<Label, 1>) -> Result<(), CodegenError> {
-        self.switch_to_block(label).map_err(CodegenError::from)
+        self.switch_to_block(label)
+            .map_err(|e| CodegenError::from(e).in_file(self.file))
     }
 
     pub fn ir(&mut self) -> &mut SlynxIR {
@@ -64,15 +74,18 @@ impl<'a> LoweringState<'a> {
         func_ty: TermId,
         span: Span,
         ir: &mut SlynxIR,
+        file: FileId,
     ) -> Result<(Vec<IRTypeId>, IRTypeId), CodegenError> {
         let Some((args, return_type)) = self.hir.view(func_ty).is_function() else {
             unreachable!("Initialize function should initialize with the type of a function");
         };
         let args = args
             .iter()
-            .map(|v| self.types.get_or_create_ir_type(*v, span, ir))
+            .map(|v| self.types.get_or_create_ir_type(*v, span, ir, file))
             .collect::<Result<Vec<_>, CodegenError>>()?;
-        let return_type = self.types.get_or_create_ir_type(return_type, span, ir)?;
+        let return_type = self
+            .types
+            .get_or_create_ir_type(return_type, span, ir, file)?;
         Ok((args, return_type))
     }
 
@@ -84,10 +97,11 @@ impl<'a> LoweringState<'a> {
         args: &[VariableId],
         span: Span,
         ir: &mut SlynxIR,
+        file: FileId,
     ) -> Result<(), CodegenError> {
-        let (arg_types, return_type) = self.map_function_type(func_ty, span, ir)?;
+        let (arg_types, return_type) = self.map_function_type(func_ty, span, ir, file)?;
         let builder = ir.build_function(fptr);
-        let mut context = FunctionContext::new(builder);
+        let mut context = FunctionContext::new(builder, file);
 
         // Switch to entry block
         let entry = context.create_label("entry");

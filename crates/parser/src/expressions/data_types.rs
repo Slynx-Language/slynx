@@ -39,6 +39,15 @@ impl Parser<'_> {
                         self.eat()?;
                     }
                 }
+                TokenKind::Eq => {
+                    let ident = self.expect_identifier()?;
+                    self.expect(&TokenKind::Eq)?;
+                    let val = self.parse_component_expr(type_params, flags)?;
+                    values.push(ComponentMemberValue::NamedChild {
+                        name: ident.data,
+                        child: val.data,
+                    });
+                }
                 _ => {
                     let val = self.parse_component_expr(type_params, flags)?;
                     values.push(ComponentMemberValue::Child(val.data));

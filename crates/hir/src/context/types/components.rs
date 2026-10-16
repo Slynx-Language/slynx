@@ -6,7 +6,7 @@ use common::{
 };
 use module_loader::FileId;
 
-use crate::{ComponentType, StructField, SymbolPointer, Visible, term::TermId};
+use crate::{ComponentChild, ComponentType, StructField, SymbolPointer, Visible, term::TermId};
 use common::DedupPoolStorage;
 
 dedup_pooled!(pub ComponentsPool {
@@ -19,7 +19,7 @@ impl ComponentsPool {
         name: SymbolPointer,
         owner: FileId,
         properties: Vec<(SymbolPointer, TermId)>,
-        children: Vec<DedupPoolId<ComponentType>>,
+        children: Vec<ComponentChild>,
     ) -> DedupPoolId<ComponentType> {
         let s = ComponentType {
             name,

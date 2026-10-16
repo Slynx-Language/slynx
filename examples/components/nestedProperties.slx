@@ -1,0 +1,31 @@
+object StyleContext {
+    paint: int,
+}
+
+object DrawingContext {
+    scale: int,
+
+    func render(&self, text: str, paint: int): void {
+    }
+}
+
+component Text {
+    prop text: str;
+    prop style: StyleContext;
+
+    func onMount(scene: int): void {
+    }
+
+    func render(&self, context: DrawingContext): void {
+        context.render(self.text, self.style.paint);
+    }
+}
+
+func main(): void {
+    let text = Text {
+        text: "hi",
+        style: StyleContext(paint: 1)
+    };
+    Text.onMount(0);
+    text.render(DrawingContext(scale: 2));
+}

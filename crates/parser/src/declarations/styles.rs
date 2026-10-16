@@ -142,7 +142,7 @@ impl Parser<'_> {
     ///Parses the usages of the stylesheet. Thus, the `uses` until the `{` without consuming the `{`. The given `span` is the `uses` identifier span
     pub fn parse_usages(
         &mut self,
-        _: Span,
+        span: Span,
     ) -> Result<Vec<Spanned<DedupPoolId<ASTExpression>>>, ParseError> {
         let mut exprs = vec![];
         loop {
@@ -155,7 +155,7 @@ impl Parser<'_> {
                 TokenKind::LBrace => {
                     break {
                         if exprs.is_empty() {
-                            Err(ParseError::no_style_usages_provided())
+                            Err(ParseError::no_style_usages_provided(span))
                         } else {
                             Ok(exprs)
                         }

@@ -33,7 +33,7 @@ impl ExpressionBuilder {
                 let id = queue.enqueue_static(statik, owner)?;
                 Ok(HirName::Static(id))
             }
-            _ => Err(HIRError::name_unrecognized(ptr, span)),
+            _ => Err(HIRError::name_unrecognized(self.file(), ptr, span)),
         }
     }
 

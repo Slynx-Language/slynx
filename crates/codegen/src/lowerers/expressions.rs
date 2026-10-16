@@ -22,15 +22,18 @@ impl<'a> LoweringState<'a> {
     ) -> Result<Value, CodegenError> {
         let deref = self.hir.view(ty).nominal();
         let key = deref.data();
-        let enum_view = deref
-            .is_enum()
-            .ok_or(CodegenError::new(CodegenErrorKind::NotAnEnum(key), span))?;
+        let enum_view = deref.is_enum().ok_or(CodegenError::new(
+            CodegenErrorKind::NotAnEnum(key),
+            span,
+            context.file(),
+        ))?;
         let variant_info = enum_view.variants().get(variant).ok_or(CodegenError::new(
             CodegenErrorKind::InvalidVariantIndex(key, variant),
             span,
+            context.file(),
         ))?;
 
-        let layout = self.types.enum_layout(&key, span)?.clone();
+        let layout = self.types.enum_layout(&key, span, context.file())?.clone();
 
         let int_type = context.ir().types.int_type();
         let tag = context.emit_const(Operand::Int(variant_info.discriminant as i64), int_type);
@@ -47,6 +50,7 @@ impl<'a> LoweringState<'a> {
                 .ok_or(CodegenError::new(
                     CodegenErrorKind::MissingEnumPayload(key),
                     span,
+                    context.file(),
                 ))?;
             let args = args
                 .iter()
@@ -147,6 +151,7 @@ impl<'a> LoweringState<'a> {
         let ty = self.types.get_mapped_type(&name).ok_or(CodegenError::new(
             CodegenErrorKind::IRTypeNotRecognized(name),
             span,
+            ctx.file(),
         ))?;
         let field_values: Vec<Value> = fields
             .iter()
@@ -176,9 +181,10 @@ impl<'a> LoweringState<'a> {
             _ if let HirExpressionKind::Deref(inner) =
                 self.hir.store.expressions[expr.data].kind =>
             {
+                let file = ctx.file();
                 let field_type =
                     self.types
-                        .deref_field_type(inner, field_index as usize, ctx.ir())?;
+                        .deref_field_type(inner, field_index as usize, ctx.ir(), file)?;
                 let base = self.lower_expression(inner, ctx)?;
 
                 let fp = ctx.field_ref(base, field_index);
@@ -261,6 +267,7 @@ impl<'a> LoweringState<'a> {
         expr: Spanned<PoolId<HirExpression>>,
         context: &mut FunctionContext<'b>,
     ) -> Result<Value, CodegenError> {
+        let file = context.file();
         // Pre-compute type IDs from the ir to avoid borrow conflicts
         let (bool_ty, float_ty, int_ty) = {
             let ir = context.ir();
@@ -279,15 +286,18 @@ impl<'a> LoweringState<'a> {
                     expression.ty.term,
                     expr.span,
                     context.ir(),
+                    file,
                 )?;
                 context.emit(Opcode::Deref, smallvec![inner], ty)
             }
+
             HirExpressionKind::Reference(inner) => {
                 let inner = self.lower_expression(*inner, context)?;
                 let ty = self.types.get_or_create_ir_type(
                     expression.ty.term,
                     expr.span,
                     context.ir(),
+                    file,
                 )?;
                 context.emit(Opcode::Ref, smallvec![inner], ty)
             }
@@ -299,6 +309,7 @@ impl<'a> LoweringState<'a> {
                     expression.ty.term,
                     expr.span,
                     context.ir(),
+                    file,
                 )?;
                 context.emit(Opcode::ArrayGet, smallvec![arr, index], ty)
             }
@@ -311,6 +322,7 @@ impl<'a> LoweringState<'a> {
                     expression.ty.term,
                     expr.span,
                     context.ir(),
+                    file,
                 )?;
                 context.emit(Opcode::Array, values, value_type)
             }
@@ -323,20 +335,23 @@ impl<'a> LoweringState<'a> {
                     expression.ty.term,
                     expr.span,
                     context.ir(),
+                    file,
                 )?;
                 context.emit(Opcode::Vector, values, value_type)
             }
-            HirExpressionKind::Static { id } => match self.ensure_static(*id, context.ir())? {
-                StaticStorage::Extern(ty) => {
-                    let name = self.hir.get_name(self.hir.get_file(id.owner)[id.term].name);
-                    let name = context.ir().strings.intern(name);
-                    context.emit(Opcode::GlobalExtern(name), SmallVec::new(), ty)
+            HirExpressionKind::Static { id } => {
+                match self.ensure_static(*id, context.ir(), file)? {
+                    StaticStorage::Extern(ty) => {
+                        let name = self.hir.get_name(self.hir.get_file(id.owner)[id.term].name);
+                        let name = context.ir().strings.intern(name);
+                        context.emit(Opcode::GlobalExtern(name), SmallVec::new(), ty)
+                    }
+                    StaticStorage::Global(global) => {
+                        let ty = context.ir().get_view(global).ty();
+                        context.emit(Opcode::Global(global), SmallVec::new(), ty)
+                    }
                 }
-                StaticStorage::Global(global) => {
-                    let ty = context.ir().get_view(global).ty();
-                    context.emit(Opcode::Global(global), SmallVec::new(), ty)
-                }
-            },
+            }
             HirExpressionKind::Tuple(vector) => self.lower_tuple_expression(vector, context)?,
             HirExpressionKind::StringLiteral(v) => {
                 let string = self.intern_to_ir(context.ir(), *v);
@@ -369,6 +384,7 @@ impl<'a> LoweringState<'a> {
                     return Err(CodegenError::new(
                         CodegenErrorKind::UnrecognizedVariable(*id),
                         expr.span,
+                        context.file(),
                     ));
                 }
             }
@@ -382,6 +398,16 @@ impl<'a> LoweringState<'a> {
                 field_name,
             } => self.lower_field_access(*expr, *field_index as u16, *field_name, context)?,
             HirExpressionKind::Component(c) => self.get_component_expression(*c, context)?,
+            HirExpressionKind::ChildAccess { expr, child_index } => {
+                let parent = self.lower_expression(*expr, context)?;
+                let ty = self.types.get_or_create_ir_type(
+                    expression.ty.term,
+                    expr.span,
+                    context.ir(),
+                    file,
+                )?;
+                context.emit(Opcode::GetChild(*child_index as u16), smallvec![parent], ty)
+            }
             HirExpressionKind::If {
                 condition,
                 then_branch,
@@ -421,7 +447,7 @@ impl<'a> LoweringState<'a> {
         let enum_type = expr_view.ty_viewer().nominal();
         let layout = self
             .types
-            .enum_layout(&enum_type.data(), hir_value.span)?
+            .enum_layout(&enum_type.data(), hir_value.span, ctx.file())?
             .clone();
 
         let discriminant = enum_type
@@ -429,12 +455,14 @@ impl<'a> LoweringState<'a> {
             .ok_or(CodegenError::new(
                 CodegenErrorKind::NotAnEnum(enum_type.data()),
                 hir_value.span,
+                ctx.file(),
             ))?
             .variants()
             .get(variant)
             .ok_or(CodegenError::new(
                 CodegenErrorKind::InvalidVariantIndex(enum_type.data(), variant),
                 hir_value.span,
+                ctx.file(),
             ))?
             .discriminant;
 
@@ -453,6 +481,7 @@ impl<'a> LoweringState<'a> {
         layout.union_type.ok_or(CodegenError::new(
             CodegenErrorKind::MissingEnumPayload(key),
             hir_value.span,
+            ctx.file(),
         ))?;
         ctx.branch_conditional(cond, then_label, end_label, &[], &[false_value]);
         let union_value = ctx.get_field(value, 1);

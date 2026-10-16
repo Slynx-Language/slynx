@@ -107,8 +107,8 @@ impl SlynxContext {
                 "Component named as '{}' could not be found",
                 hir.get_name(*name)
             ),
-            HIRErrorKind::NotAComponent(name) => {
-                let name = hir.get_name(*name);
+            HIRErrorKind::NotAComponent(ty) => {
+                let name = hir.view(*ty).pretty_name();
                 format!("'{name}' is not a component")
             }
             HIRErrorKind::ComponentPropertyMissingType => {
@@ -198,10 +198,10 @@ impl SlynxContext {
                 format!("{property} {names} is required but wasn't provided")
             }
             HIRErrorKind::PropertyNotRecognized { prop_names, ty } => {
-                let property = if prop_names.len() == 1 {
-                    "Property"
+                let (property, is) = if prop_names.len() == 1 {
+                    ("Property", "is")
                 } else {
-                    "Properties"
+                    ("Properties", "are")
                 };
                 let objname = hir.view(*ty).pretty_name();
                 let names = prop_names
@@ -210,7 +210,7 @@ impl SlynxContext {
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                format!("{property} {names} are not recognized for object {objname}",)
+                format!("{property} {names} {is} not recognized for type '{objname}'",)
             }
             HIRErrorKind::RecursiveType { ty } => {
                 let name = hir.view(*ty).pretty_name();

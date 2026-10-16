@@ -52,15 +52,16 @@ impl Monomorphizer {
         hir: &SlynxHir,
         ty: TermId,
         span: Span,
+        site: FileId,
     ) -> Result<TermId> {
         let view = hir.view(ty);
         let TermNode::Apply { target, args } = view.raw().node() else {
-            return Err(HIRError::not_an_enum(ty, span));
+            return Err(HIRError::not_an_enum(site, ty, span));
         };
         let reference_view = hir.view(*target);
         let deref = reference_view.dereference();
         let Some(enum_view) = deref.is_enum() else {
-            return Err(HIRError::not_an_enum(*target, span));
+            return Err(HIRError::not_an_enum(site, *target, span));
         };
         let name = enum_view.name();
 
@@ -106,7 +107,7 @@ impl Monomorphizer {
                                     .iter()
                                     .map(|ty| {
                                         let ty = substitute_type(hir, *ty, subst)?;
-                                        monomorphizer.resolve_expression_type(hir, ty, span)
+                                        monomorphizer.resolve_expression_type(hir, ty, span, owner)
                                     })
                                     .collect::<Result<Vec<_>>>()?;
                                 Ok(EnumVariantType {
@@ -139,6 +140,7 @@ impl Monomorphizer {
                     Ok(DeclarationId::new(owner, specialized_local))
                 },
             },
+            site,
         )?;
 
         let file = hir.get_file(specialized.owner);

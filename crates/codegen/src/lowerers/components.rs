@@ -1,7 +1,7 @@
 use common::{Span, Spanned, pool::PoolId};
 use slynx_hir::{
-    ComponentMemberDeclaration, DeclarationId, HirComponentDeclaration, HirComponentExpression,
-    VariableId,
+    ComponentMemberDeclaration, DeclarationId, FileId, HirComponentDeclaration,
+    HirComponentExpression, VariableId,
 };
 use slynx_ir::{ComponentBuilder, ComponentValueBuilder, IRTypeId, SlynxIR, Value};
 
@@ -26,6 +26,7 @@ impl<'a> LoweringState<'a> {
             let ty = self.types.get_mapped_type(name).ok_or(CodegenError::new(
                 CodegenErrorKind::IRTypeNotRecognized(*name),
                 value.span,
+                ctx.file(),
             ))?;
 
             let mut all_values = Vec::new();
@@ -58,12 +59,14 @@ impl<'a> LoweringState<'a> {
         &self,
         expr: &HirComponentExpression,
         span: Span,
+        file: FileId,
     ) -> Result<IRTypeId, CodegenError> {
         self.types
             .get_mapped_type(&expr.name)
             .ok_or(CodegenError::new(
                 CodegenErrorKind::IRTypeNotRecognized(expr.name),
                 span,
+                file,
             ))
     }
 
@@ -74,6 +77,7 @@ impl<'a> LoweringState<'a> {
         props: &[ComponentMemberDeclaration],
         span: Span,
         ir: &mut SlynxIR,
+        file: FileId,
     ) -> Result<(), CodegenError> {
         let ptr = *self
             .components
@@ -86,7 +90,7 @@ impl<'a> LoweringState<'a> {
         };
         let property_types = component_props
             .iter()
-            .map(|prop| self.types.get_or_create_ir_type(prop.ty, span, ir))
+            .map(|prop| self.types.get_or_create_ir_type(prop.ty, span, ir, file))
             .collect::<Result<Vec<_>, CodegenError>>()?;
 
         // For each specialized child with a style usage, build the __child_init function
@@ -104,7 +108,7 @@ impl<'a> LoweringState<'a> {
             .filter_map(|p| match p {
                 ComponentMemberDeclaration::Child(c) => {
                     let comp_expr = &self.hir.store.component_expressions[c.data];
-                    Some(self.get_type_of_component_expression(comp_expr, c.span))
+                    Some(self.get_type_of_component_expression(comp_expr, c.span, file))
                 }
                 ComponentMemberDeclaration::Property { .. } => None,
             })

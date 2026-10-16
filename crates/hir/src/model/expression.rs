@@ -478,6 +478,12 @@ pub enum HirExpressionKind {
         field_name: Option<SymbolPointer>,
     },
 
+    ///An expression that represents the access on a child on some component.
+    ChildAccess {
+        expr: Spanned<PoolId<HirExpression>>,
+        child_index: usize,
+    },
+
     /// A function call expression.
     ///
     /// Invokes a function with the provided arguments.

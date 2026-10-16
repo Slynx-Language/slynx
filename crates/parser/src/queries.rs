@@ -24,7 +24,7 @@ impl<'a> Parser<'a> {
     pub fn eat(&mut self) -> Result<Token> {
         self.stream
             .next()
-            .ok_or(ParseError::unexpected_end_of_input())
+            .ok_or(ParseError::unexpected_end_of_input(Span::default()))
     }
 
     /// Peeks at the token at the specified index without consuming it.
@@ -33,7 +33,7 @@ impl<'a> Parser<'a> {
         self.stream
             .stream
             .get(idx)
-            .ok_or(ParseError::unexpected_end_of_input())
+            .ok_or(ParseError::unexpected_end_of_input(Span::default()))
     }
 
     /// Peeks at the next token without consuming it.

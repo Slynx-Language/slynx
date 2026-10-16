@@ -1,0 +1,13 @@
+component Counter {
+    pub prop value: int = 0;
+}
+
+component CounterUsage {
+    counter=Counter {}
+    pub func getCount(&self): int -> self.counter.value;
+}
+
+func main(): int {
+    let c=CounterUsage {};
+    c.getCount()
+}

@@ -11,12 +11,16 @@ pub type ComponentKey = (FileId, SymbolPointer);
 
 /// An error produced during HIR generation or type checking.
 ///
-/// Each error carries a [`HIRErrorKind`] describing what went wrong and a
-/// [`Span`] pointing to the relevant source location.
+/// Each error carries a [`HIRErrorKind`] describing what went wrong, the
+/// [`FileId`] of the file the offending code was written in, and a [`Span`]
+/// pointing to the relevant source location. Spans are offsets into a single
+/// file, so the file is what makes the span resolvable.
 #[derive(Debug)]
 pub struct HIRError {
     /// The specific kind of error that occurred.
     pub kind: HIRErrorKind,
+    /// The file the offending code was written in.
+    pub file: FileId,
     /// The source location associated with this error.
     pub span: Span,
     pub backtrace: Backtrace,
@@ -113,7 +117,7 @@ pub enum HIRErrorKind {
     InvalidIndexing(TermId),
     ///Couldnt infer is an error when the type of something could not be inferred
     CouldntInfer,
-    NotAComponent(SymbolPointer),
+    NotAComponent(TermId),
     ComponentPropertyMissingType,
     ComponentNotFound(SymbolPointer),
 
@@ -264,20 +268,26 @@ pub enum HIRErrorKind {
 }
 
 impl HIRError {
-    pub fn new(err: impl Into<HIRErrorKind>, span: Span) -> Self {
+    pub fn new(file: FileId, err: impl Into<HIRErrorKind>, span: Span) -> Self {
         Self {
             kind: err.into(),
+            file,
             span,
             backtrace: Backtrace::capture(),
         }
     }
 
-    pub fn missing_interface_method(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::MissingExtensionMethod { method: name }, span)
+    pub fn missing_interface_method(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(
+            file,
+            HIRErrorKind::MissingExtensionMethod { method: name },
+            span,
+        )
     }
 
-    pub fn expected_interface_type(found: TermId, span: Span) -> Self {
+    pub fn expected_interface_type(file: FileId, found: TermId, span: Span) -> Self {
         Self::new(
+            file,
             HIRErrorKind::UnexpectedTypeUsage {
                 expected_usage: ExpectedTypeUsage::InterfaceType,
                 actual: found,
@@ -286,120 +296,149 @@ impl HIRError {
         )
     }
 
-    pub fn unimplemented(feature: MissingFeature, span: Span) -> Self {
-        Self::new(HIRErrorKind::UnimplementedFeature(feature), span)
+    pub fn unimplemented(file: FileId, feature: MissingFeature, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::UnimplementedFeature(feature), span)
     }
 
-    pub fn not_an_enum(ty: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidEnumUsage(ty), span)
+    pub fn not_an_enum(file: FileId, ty: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidEnumUsage(ty), span)
     }
 
-    pub fn method_not_found(name: SymbolPointer, target: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::MethodNotFound(name, target), span)
+    pub fn method_not_found(file: FileId, name: SymbolPointer, target: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::MethodNotFound(name, target), span)
     }
 
-    pub fn static_method_not_found(name: SymbolPointer, target: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::StaticMethodNotFound(name, target), span)
+    pub fn static_method_not_found(
+        file: FileId,
+        name: SymbolPointer,
+        target: TermId,
+        span: Span,
+    ) -> Self {
+        Self::new(file, HIRErrorKind::StaticMethodNotFound(name, target), span)
     }
 
-    pub fn duplicate_interface_implementation(ty: TermId, interface: TermId, span: Span) -> Self {
+    pub fn duplicate_interface_implementation(
+        file: FileId,
+        ty: TermId,
+        interface: TermId,
+        span: Span,
+    ) -> Self {
         Self::new(
+            file,
             HIRErrorKind::DuplicateInterfaceImplementation { ty, interface },
             span,
         )
     }
 
     ///A deferred interface call on a receiver that no extension implements.
-    pub fn unresolved_interface_call(method: SymbolPointer, receiver: TermId, span: Span) -> Self {
+    pub fn unresolved_interface_call(
+        file: FileId,
+        method: SymbolPointer,
+        receiver: TermId,
+        span: Span,
+    ) -> Self {
         Self::new(
+            file,
             HIRErrorKind::UnresolvedInterfaceCall { method, receiver },
             span,
         )
     }
 
-    pub fn invalid_type_access(span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidTypeAccess, span)
+    pub fn invalid_type_access(file: FileId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidTypeAccess, span)
     }
 
-    pub fn expression_not_mutable(reason: NotMutableReason, span: Span) -> Self {
-        Self::new(HIRErrorKind::ExpressionNotMutable(reason), span)
+    pub fn expression_not_mutable(file: FileId, reason: NotMutableReason, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::ExpressionNotMutable(reason), span)
     }
 
-    pub fn invalid_deref(span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidDeref, span)
+    pub fn invalid_deref(file: FileId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidDeref, span)
     }
-    pub fn array_length_mismatch(expected: usize, actual: usize, span: Span) -> Self {
-        Self::new(HIRErrorKind::ArrayLengthMismatch { expected, actual }, span)
-    }
-    pub fn missing_return(span: Span) -> Self {
-        Self::new(HIRErrorKind::MissingReturn, span)
-    }
-
-    pub fn enum_variant_must_be_an_int(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::EnumVariantNotAnInt(name), span)
-    }
-
-    pub fn matches_on_non_enum(ty: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::MatchesOnNonEnum(ty), span)
-    }
-
-    pub fn invalid_pattern(span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidPattern, span)
-    }
-
-    pub fn variant_unrecognized(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::VariantNotRecognized(name), span)
-    }
-
-    pub fn invalid_enum_representation(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidEnumRepresentation(name), span)
-    }
-
-    pub fn invalid_indexing(expr_type: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidIndexing(expr_type), span)
-    }
-
-    pub fn unexpected_type(received: TermId, expected: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::UnexpectedType { received, expected }, span)
-    }
-    pub fn couldnt_infer(span: Span) -> Self {
-        Self::new(HIRErrorKind::CouldntInfer, span)
-    }
-    pub fn component_not_found(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::ComponentNotFound(name), span)
-    }
-
-    pub fn component_missing_prop_type(span: Span) -> Self {
-        Self::new(HIRErrorKind::ComponentPropertyMissingType, span)
-    }
-
-    pub fn invalid_ref_write(span: Span) -> Self {
+    pub fn array_length_mismatch(file: FileId, expected: usize, actual: usize, span: Span) -> Self {
         Self::new(
+            file,
+            HIRErrorKind::ArrayLengthMismatch { expected, actual },
+            span,
+        )
+    }
+    pub fn missing_return(file: FileId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::MissingReturn, span)
+    }
+
+    pub fn enum_variant_must_be_an_int(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::EnumVariantNotAnInt(name), span)
+    }
+
+    pub fn matches_on_non_enum(file: FileId, ty: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::MatchesOnNonEnum(ty), span)
+    }
+
+    pub fn invalid_pattern(file: FileId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidPattern, span)
+    }
+
+    pub fn variant_unrecognized(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::VariantNotRecognized(name), span)
+    }
+
+    pub fn invalid_enum_representation(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidEnumRepresentation(name), span)
+    }
+
+    pub fn invalid_indexing(file: FileId, expr_type: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidIndexing(expr_type), span)
+    }
+
+    pub fn unexpected_type(file: FileId, received: TermId, expected: TermId, span: Span) -> Self {
+        Self::new(
+            file,
+            HIRErrorKind::UnexpectedType { received, expected },
+            span,
+        )
+    }
+    pub fn couldnt_infer(file: FileId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::CouldntInfer, span)
+    }
+    pub fn component_not_found(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::ComponentNotFound(name), span)
+    }
+
+    pub fn component_missing_prop_type(file: FileId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::ComponentPropertyMissingType, span)
+    }
+
+    pub fn invalid_ref_write(file: FileId, span: Span) -> Self {
+        Self::new(
+            file,
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ReferenceImmutable),
             span,
         )
     }
 
-    pub fn invalid_variable_write(name: SymbolPointer, span: Span) -> Self {
+    pub fn invalid_variable_write(file: FileId, name: SymbolPointer, span: Span) -> Self {
         Self::new(
+            file,
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ImmutableVariable(name)),
             span,
         )
     }
-    pub fn invalid_expr_write(span: Span) -> Self {
+    pub fn invalid_expr_write(file: FileId, span: Span) -> Self {
         Self::new(
+            file,
             HIRErrorKind::InvalidWrite(InvalidWriteReason::ExpressionNotAssignable),
             span,
         )
     }
-    pub fn invalid_field_access(span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidFieldAccess, span)
+    pub fn invalid_field_access(file: FileId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidFieldAccess, span)
     }
 
     /// Creates a new [`HIRErrorKind::InvalidTupleIndex`] error for a tuple index out of bounds,
     /// where the given `span` is the span on the code that generated it.
-    pub fn invalid_tuple_index(index: usize, max_index: usize, span: Span) -> Self {
+    pub fn invalid_tuple_index(file: FileId, index: usize, max_index: usize, span: Span) -> Self {
         Self::new(
+            file,
             HIRErrorKind::InvalidTupleIndex {
                 index,
                 length: max_index,
@@ -409,60 +448,87 @@ impl HIRError {
     }
     /// Creates a new [`HIRErrorKind::InvalidTupleAccessTarget`] error for accessing a non-tuple
     /// type as a tuple, where the given `span` is the span on the code that generated it.
-    pub fn invalid_tuple_target(target: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidTupleAccessTarget { ty: target }, span)
+    pub fn invalid_tuple_target(file: FileId, target: TermId, span: Span) -> Self {
+        Self::new(
+            file,
+            HIRErrorKind::InvalidTupleAccessTarget { ty: target },
+            span,
+        )
     }
-    pub fn invalid_style_definition(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidStyleDefinition { name }, span)
+    pub fn invalid_style_definition(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidStyleDefinition { name }, span)
     }
     /// Creates a new [`HIRErrorKind::InvalidStyleEvent`] error, where the `name` is the invalid style event
-    pub fn invalid_style_event(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidStyleEvent { name }, span)
+    pub fn invalid_style_event(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidStyleEvent { name }, span)
     }
 
     /// Creates a [`HIRErrorKind::RecursiveType`] error for the given type symbol.
-    pub fn recursive(ty: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::RecursiveType { ty }, span)
+    pub fn recursive(file: FileId, ty: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::RecursiveType { ty }, span)
     }
     /// Creates a [`HIRErrorKind::TypeNotRecognized`] error for the given type name.
-    pub fn type_unrecognized(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::TypeNotRecognized(name), span)
+    pub fn type_unrecognized(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::TypeNotRecognized(name), span)
     }
     /// Creates a [`HIRErrorKind::NameNotRecognized`] error for the given identifier.
-    pub fn name_unrecognized(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::NameNotRecognized(name), span)
+    pub fn name_unrecognized(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::NameNotRecognized(name), span)
     }
     /// Creates a [`HIRErrorKind::PropertyNotVisible`] error for the given property name.
-    pub fn not_visible_property(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::PropertyNotVisible { prop_name: name }, span)
+    pub fn not_visible_property(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(
+            file,
+            HIRErrorKind::PropertyNotVisible { prop_name: name },
+            span,
+        )
     }
     /// Creates a [`HIRErrorKind::MethodNotVisible`] error for the given method name.
-    pub fn not_visible_method(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::MethodNotVisible { method_name: name }, span)
+    pub fn not_visible_method(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(
+            file,
+            HIRErrorKind::MethodNotVisible { method_name: name },
+            span,
+        )
     }
     /// Creates a [`HIRErrorKind::InvalidFieldAccessTarget`] for accessing a non-struct type as a struct.
-    pub fn not_a_struct(ty: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidFieldAccessTarget { ty }, span)
+    pub fn not_a_struct(file: FileId, ty: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidFieldAccessTarget { ty }, span)
     }
     /// Creates a [`HIRErrorKind::InvalidFieldAccessTarget`] for accessing a non-struct type as a struct.
-    pub fn not_a_component(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::NotAComponent(name), span)
+    pub fn not_a_component(file: FileId, name: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::NotAComponent(name), span)
     }
     /// Creates a [`HIRErrorKind::InvalidTupleAccessTarget`] for accessing a non-tuple type as a tuple.
-    pub fn not_a_tuple(ty: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidTupleAccessTarget { ty }, span)
+    pub fn not_a_tuple(file: FileId, ty: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::InvalidTupleAccessTarget { ty }, span)
     }
     /// Creates a [`HIRErrorKind::InvalidType`] error for the given type symbol and reason.
-    pub fn invalid_type(name: SymbolPointer, reason: InvalidTypeReason, span: Span) -> Self {
-        Self::new(HIRErrorKind::InvalidType { ty: name, reason }, span)
+    pub fn invalid_type(
+        file: FileId,
+        name: SymbolPointer,
+        reason: InvalidTypeReason,
+        span: Span,
+    ) -> Self {
+        Self::new(file, HIRErrorKind::InvalidType { ty: name, reason }, span)
     }
     /// Creates a [`HIRErrorKind::MissingProperty`] error listing the missing property names.
-    pub fn missing_properties(names: Vec<SymbolPointer>, span: Span) -> Self {
-        Self::new(HIRErrorKind::MissingProperty { prop_names: names }, span)
+    pub fn missing_properties(file: FileId, names: Vec<SymbolPointer>, span: Span) -> Self {
+        Self::new(
+            file,
+            HIRErrorKind::MissingProperty { prop_names: names },
+            span,
+        )
     }
     /// Creates a [`HIRErrorKind::PropertyNotRecognized`] error listing the unrecognized property names.
-    pub fn property_unrecognized(ty: TermId, names: Vec<SymbolPointer>, span: Span) -> Self {
+    pub fn property_unrecognized(
+        file: FileId,
+        ty: TermId,
+        names: Vec<SymbolPointer>,
+        span: Span,
+    ) -> Self {
         Self::new(
+            file,
             HIRErrorKind::PropertyNotRecognized {
                 prop_names: names,
                 ty,
@@ -472,12 +538,14 @@ impl HIRError {
     }
     /// Creates a [`HIRErrorKind::InvalidFuncallArgLength`] error for a call with the wrong number of arguments.
     pub fn invalid_funcall_arg_length(
+        file: FileId,
         func: SymbolPointer,
         expected: usize,
         received: usize,
         span: Span,
     ) -> Self {
         Self::new(
+            file,
             HIRErrorKind::InvalidFuncallArgLength {
                 func_name: func,
                 expected_length: expected,
@@ -487,42 +555,46 @@ impl HIRError {
         )
     }
     /// Creates a [`HIRErrorKind::NotAFunction`] error for a call to a non-function value.
-    pub fn not_a_func(func: SymbolPointer, ty: TermId, span: Span) -> Self {
-        Self::new(HIRErrorKind::NotAFunction(func, ty), span)
+    pub fn not_a_func(file: FileId, func: SymbolPointer, ty: TermId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::NotAFunction(func, ty), span)
     }
     /// Creates a [`HIRErrorKind::NameAlreadyDefined`] error for a duplicate declaration.
-    pub fn already_defined(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::NameAlreadyDefined(name), span)
+    pub fn already_defined(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::NameAlreadyDefined(name), span)
     }
     /// Creates a [`HIRErrorKind::IntrinsicNotRegistered`] error for the given intrinsic name.
-    pub fn intrinsic_not_registered(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::IntrinsicNotRegistered { name }, span)
+    pub fn intrinsic_not_registered(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::IntrinsicNotRegistered { name }, span)
     }
     /// Creates a [`HIRErrorKind::CyclicComponentSignature`] error.
     pub fn cyclic_component_signature(
+        file: FileId,
         component: SymbolPointer,
         chain: Vec<ComponentKey>,
         span: Span,
     ) -> Self {
         Self::new(
+            file,
             HIRErrorKind::CyclicComponentSignature { component, chain },
             span,
         )
     }
 
     /// Creates a [`HIRErrorKind::CyclicComponentBody`] error.
-    pub fn cyclic_component_body(component: ComponentId, span: Span) -> Self {
-        Self::new(HIRErrorKind::CyclicComponentBody { component }, span)
+    pub fn cyclic_component_body(file: FileId, component: ComponentId, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::CyclicComponentBody { component }, span)
     }
 
     /// Creates a [`HIRErrorKind::GenericArityMismatch`] error.
     pub fn generic_arity_mismatch(
+        file: FileId,
         func: SymbolPointer,
         declared: usize,
         supplied: usize,
         span: Span,
     ) -> Self {
         Self::new(
+            file,
             HIRErrorKind::GenericArityMismatch {
                 func,
                 declared,
@@ -533,18 +605,29 @@ impl HIRError {
     }
 
     /// Creates a [`HIRErrorKind::CyclicMonomorphization`] error.
-    pub fn cyclic_monomorphization(func: SymbolPointer, args: Vec<TermId>, span: Span) -> Self {
-        Self::new(HIRErrorKind::CyclicMonomorphization { func, args }, span)
+    pub fn cyclic_monomorphization(
+        file: FileId,
+        func: SymbolPointer,
+        args: Vec<TermId>,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            file,
+            HIRErrorKind::CyclicMonomorphization { func, args },
+            span,
+        )
     }
 
     /// Creates a [`HIRErrorKind::AmbiguousDeclaration`] error.
     pub fn ambiguous_declaration(
+        file: FileId,
         name: SymbolPointer,
         first: FileId,
         second: FileId,
         span: Span,
     ) -> Self {
         Self::new(
+            file,
             HIRErrorKind::AmbiguousDeclaration {
                 name,
                 first,
@@ -555,8 +638,8 @@ impl HIRError {
     }
 
     /// Creates a [`HIRErrorKind::NotImplemented`] error for the given declaration.
-    pub fn not_implemented(name: SymbolPointer, span: Span) -> Self {
-        Self::new(HIRErrorKind::NotImplemented(name), span)
+    pub fn not_implemented(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::NotImplemented(name), span)
     }
 }
 

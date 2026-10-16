@@ -122,12 +122,13 @@ impl ExpressionBuilder {
         let ty = match resolved.is_tuple() {
             None => {
                 let ty = resolved.data;
-                return Err(HIRError::not_a_tuple(ty, span));
+                return Err(HIRError::not_a_tuple(self.file(), ty, span));
             }
             Some(fields) => {
                 let field_index = index;
                 if field_index >= fields.len() {
                     return Err(HIRError::invalid_tuple_index(
+                        self.file(),
                         field_index,
                         fields.len(),
                         span,
@@ -176,7 +177,13 @@ impl ExpressionBuilder {
                     Owned::new(expr_type.owner, args[0])
                 }
 
-                _ => return Err(HIRError::invalid_indexing(expr_type.term, span)),
+                _ => {
+                    return Err(HIRError::invalid_indexing(
+                        self.file(),
+                        expr_type.term,
+                        span,
+                    ));
+                }
             }
         };
 
@@ -197,6 +204,7 @@ impl ExpressionBuilder {
                     | TermNode::Primitive(PrimitiveType::Unsigned { .. }) => {}
                     _ => {
                         return Err(HIRError::unexpected_type(
+                            self.file(),
                             ty.term,
                             queue.hir.types.create_type(Term::unsigned_integer_type(32)),
                             index.span,
@@ -240,7 +248,7 @@ impl ExpressionBuilder {
                         SequenceKind::Vector => HirExpressionKind::Vector(exprs),
                     },
                 }),
-                Some(_) | None => Err(HIRError::couldnt_infer(span)),
+                Some(_) | None => Err(HIRError::couldnt_infer(self.file(), span)),
             };
         };
         let (inner_type, expected_len) = match kind {
@@ -288,6 +296,7 @@ impl ExpressionBuilder {
                     && final_length != expected_len
                 {
                     return Err(HIRError::array_length_mismatch(
+                        self.file(),
                         expected_len,
                         final_length,
                         span,

@@ -78,7 +78,7 @@ impl<'a> ASTLowerer<'a> {
         let ast_type = self
             .lookup
             .find_type(requester, generic.identifier)
-            .ok_or_else(|| HIRError::type_unrecognized(generic.identifier, span))?;
+            .ok_or_else(|| HIRError::type_unrecognized(requester, generic.identifier, span))?;
         let Owned { owner, term: ty } = self.materialize_type_declaration(
             queue,
             LowerTypeDeclarationDescriptor {
@@ -171,6 +171,7 @@ impl<'a> ASTLowerer<'a> {
                     ) =>
             {
                 Err(HIRError::unimplemented(
+                    descriptor.requester,
                     MissingFeature::GenericInterfaces,
                     descriptor.ty.span,
                 ))

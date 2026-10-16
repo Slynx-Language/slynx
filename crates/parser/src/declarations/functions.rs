@@ -1,5 +1,5 @@
 use crate::flags::ParserFlags;
-use crate::{ASTAttribute, GenericsMetadata, SymbolPointer};
+use crate::{ASTAttribute, GenericsMetadata, ParseError, SymbolPointer};
 use crate::{FuncDeclaration, Parser, Result};
 use slynx_lexer::tokens::TokenKind;
 
@@ -26,14 +26,11 @@ impl Parser<'_> {
         self.expect(&TokenKind::LParen)?;
         let args = self.parse_args(&generics)?;
         self.expect(&TokenKind::RParen)?;
-        // The return type may follow either ':' or '->'. Object, interface and
-        // `extend` methods conventionally write `func f(&self) -> str`, while
-        // standalone functions write `func f(): void`.
-        if matches!(self.peek()?.kind, TokenKind::Colon | TokenKind::Arrow) {
-            self.eat()?;
-        } else {
-            self.expect(&TokenKind::Colon)?;
+        if self.peek()?.kind != TokenKind::Colon {
+            return Err(ParseError::missing_return_type(span));
         }
+        self.expect(&TokenKind::Colon)?;
+
         let return_type = self.parse_type(&generics)?;
 
         let clauses = self.parse_clauses(&generics)?;

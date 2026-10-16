@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use common::{Span, Spanned, pool::PoolId};
+use module_loader::FileId;
 
 use crate::{
     DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
@@ -66,13 +67,14 @@ impl OwnershipAnalysis {
         func_id: DeclarationId<HirFunctionDeclaration>,
         func: &HirFunctionDeclaration,
     ) {
+        let file = func_id.owner;
         let mut state = FunctionOwnershipState::new();
 
         for arg in &func.args {
             state.get_variable_state(*arg);
         }
         for stmt in &func.statements {
-            self.analyze_statement(hir, stmt, &mut state);
+            self.analyze_statement(file, hir, stmt, &mut state);
         }
 
         self.function_states.insert(func_id, state);
@@ -81,6 +83,7 @@ impl OwnershipAnalysis {
     /// Analyzes a statement.
     fn analyze_statement(
         &mut self,
+        file: FileId,
         hir: &SlynxHir,
         stmt: &Spanned<PoolId<HirStatement>>,
         state: &mut FunctionOwnershipState,
@@ -89,26 +92,26 @@ impl OwnershipAnalysis {
         match stmt_data {
             HirStatement::Variable { name, value } => {
                 // RHS consumes (moves) variables
-                self.analyze_expression(hir, value, state);
+                self.analyze_expression(file, hir, value, state);
                 state.get_variable_state(*name);
             }
             HirStatement::Assign { lhs, value } => {
-                self.analyze_expression_as_place(hir, lhs, state);
+                self.analyze_expression_as_place(file, hir, lhs, state);
                 // RHS consumes (moves) variables
-                self.analyze_expression(hir, value, state);
+                self.analyze_expression(file, hir, value, state);
             }
             HirStatement::Expression { expr } => {
-                self.analyze_expression(hir, expr, state);
+                self.analyze_expression(file, hir, expr, state);
             }
             HirStatement::Return { expr } => {
                 if let Some(expr) = expr {
-                    self.analyze_expression(hir, expr, state);
+                    self.analyze_expression(file, hir, expr, state);
                 }
             }
             HirStatement::While { condition, body } => {
-                self.analyze_expression_read(hir, condition, state);
+                self.analyze_expression_read(file, hir, condition, state);
                 for stmt in body {
-                    self.analyze_statement(hir, stmt, state);
+                    self.analyze_statement(file, hir, stmt, state);
                 }
             }
         }
@@ -117,6 +120,7 @@ impl OwnershipAnalysis {
     /// Analyze an expression that is used as a place (lvalue).
     fn analyze_expression_as_place(
         &mut self,
+        file: FileId,
         hir: &SlynxHir,
         expr: &Spanned<PoolId<HirExpression>>,
         state: &mut FunctionOwnershipState,
@@ -128,14 +132,15 @@ impl OwnershipAnalysis {
                     self.errors.push(OwnershipError::new(
                         OwnershipErrorKind::UseAfterMove { variable: *id },
                         expr.span,
+                        file,
                     ));
                 }
             }
             HirExpressionKind::FieldAccess { expr: parent, .. } => {
-                self.analyze_expression_as_place(hir, parent, state);
+                self.analyze_expression_as_place(file, hir, parent, state);
             }
             HirExpressionKind::Deref(inner) => {
-                self.analyze_expression_as_place(hir, inner, state);
+                self.analyze_expression_as_place(file, hir, inner, state);
             }
             _ => {}
         }
@@ -144,6 +149,7 @@ impl OwnershipAnalysis {
     /// Analyze a consuming expression (assignment RHS, function arg, return value), if the value is being used as a place, then its moved. This is not true for expressions whose types are &/&mut
     fn analyze_expression(
         &mut self,
+        file: FileId,
         hir: &SlynxHir,
         expr: &Spanned<PoolId<HirExpression>>,
         state: &mut FunctionOwnershipState,
@@ -151,13 +157,13 @@ impl OwnershipAnalysis {
         let expr_data = &hir[expr.data];
         match &expr_data.kind {
             HirExpressionKind::Identifier(id) => {
-                let use_kind = self.analyze_variable_use(*id, expr.span, state);
+                let use_kind = self.analyze_variable_use(file, *id, expr.span, state);
                 self.expression_uses.insert(expr.data, use_kind);
             }
             //HirExpressionKind::Static { id } => {}
             HirExpressionKind::Reference(inner) => {
                 let mutable = hir.view(expr.data).ty_viewer().is_mutable_ref().is_some();
-                self.analyze_reference(hir, inner, mutable, expr.span, state);
+                self.analyze_reference(file, hir, inner, mutable, expr.span, state);
             }
             HirExpressionKind::FunctionCall { args, name, .. } => {
                 let ty = hir.get_file(name.owner)[name.term].ty;
@@ -168,9 +174,9 @@ impl OwnershipAnalysis {
 
                 for (arg, param) in args.iter().zip(arguments) {
                     if hir.view(*param).is_ref() {
-                        self.analyze_expression_read(hir, arg, state);
+                        self.analyze_expression_read(file, hir, arg, state);
                     } else {
-                        self.analyze_expression(hir, arg, state);
+                        self.analyze_expression(file, hir, arg, state);
                     }
                 }
             }
@@ -179,19 +185,19 @@ impl OwnershipAnalysis {
                 then_branch,
                 else_branch,
             } => {
-                self.analyze_expression_read(hir, condition, state);
+                self.analyze_expression_read(file, hir, condition, state);
                 for stmt in then_branch {
-                    self.analyze_statement(hir, stmt, state);
+                    self.analyze_statement(file, hir, stmt, state);
                 }
                 if let Some(else_branch) = else_branch {
                     for stmt in else_branch {
-                        self.analyze_statement(hir, stmt, state);
+                        self.analyze_statement(file, hir, stmt, state);
                     }
                 }
             }
             // All other expression kinds are composite — their sub-expressions
             // are READ, not consumed. Delegate to analyze_expression_read.
-            _ => self.analyze_expression_read(hir, expr, state),
+            _ => self.analyze_expression_read(file, hir, expr, state),
         }
     }
 
@@ -200,6 +206,7 @@ impl OwnershipAnalysis {
     /// Identifiers referenced here are READ (not moved).
     fn analyze_expression_read(
         &mut self,
+        file: FileId,
         hir: &SlynxHir,
         expr: &Spanned<PoolId<HirExpression>>,
         state: &mut FunctionOwnershipState,
@@ -212,52 +219,53 @@ impl OwnershipAnalysis {
                     self.errors.push(OwnershipError::new(
                         OwnershipErrorKind::UseAfterMove { variable: *id },
                         expr.span,
+                        file,
                     ));
                 }
                 self.expression_uses.insert(expr.data, ExpressionUse::Read);
             }
             HirExpressionKind::FieldAccess { expr: parent, .. } => {
-                self.analyze_expression_read(hir, parent, state);
+                self.analyze_expression_read(file, hir, parent, state);
             }
             HirExpressionKind::Deref(inner) => {
-                self.analyze_expression_read(hir, inner, state);
+                self.analyze_expression_read(file, hir, inner, state);
             }
             HirExpressionKind::Reference(inner) => {
                 // Taking a reference reads the inner, doesn't consume it
-                self.analyze_expression_read(hir, inner, state);
+                self.analyze_expression_read(file, hir, inner, state);
             }
             HirExpressionKind::Binary { lhs, rhs, .. } => {
-                self.analyze_expression_read(hir, lhs, state);
-                self.analyze_expression_read(hir, rhs, state);
+                self.analyze_expression_read(file, hir, lhs, state);
+                self.analyze_expression_read(file, hir, rhs, state);
             }
             HirExpressionKind::ArrayIndex(arr, index) => {
-                self.analyze_expression_read(hir, arr, state);
-                self.analyze_expression_read(hir, index, state);
+                self.analyze_expression_read(file, hir, arr, state);
+                self.analyze_expression_read(file, hir, index, state);
             }
             HirExpressionKind::Tuple(elements) => {
                 for elem in elements {
-                    self.analyze_expression_read(hir, elem, state);
+                    self.analyze_expression_read(file, hir, elem, state);
                 }
             }
             HirExpressionKind::Object { fields, .. } => {
                 for field in fields {
-                    self.analyze_expression_read(hir, field, state);
+                    self.analyze_expression_read(file, hir, field, state);
                 }
             }
             HirExpressionKind::Enum { args, .. } => {
                 for arg in args {
-                    self.analyze_expression_read(hir, arg, state);
+                    self.analyze_expression_read(file, hir, arg, state);
                 }
             }
             HirExpressionKind::Matches { value, args, .. } => {
-                self.analyze_expression_read(hir, value, state);
+                self.analyze_expression_read(file, hir, value, state);
                 for arg in args {
-                    self.analyze_expression_read(hir, arg, state);
+                    self.analyze_expression_read(file, hir, arg, state);
                 }
             }
             HirExpressionKind::Array(elements) | HirExpressionKind::Vector(elements) => {
                 for elem in elements {
-                    self.analyze_expression_read(hir, elem, state);
+                    self.analyze_expression_read(file, hir, elem, state);
                 }
             }
             HirExpressionKind::If {
@@ -265,13 +273,13 @@ impl OwnershipAnalysis {
                 then_branch,
                 else_branch,
             } => {
-                self.analyze_expression_read(hir, condition, state);
+                self.analyze_expression_read(file, hir, condition, state);
                 for stmt in then_branch {
-                    self.analyze_statement(hir, stmt, state);
+                    self.analyze_statement(file, hir, stmt, state);
                 }
                 if let Some(else_branch) = else_branch {
                     for stmt in else_branch {
-                        self.analyze_statement(hir, stmt, state);
+                        self.analyze_statement(file, hir, stmt, state);
                     }
                 }
             }
@@ -283,6 +291,7 @@ impl OwnershipAnalysis {
     /// Analyze a variable being used as a move.
     fn analyze_variable_use(
         &mut self,
+        file: FileId,
         id: VariableId,
         span: Span,
         state: &mut FunctionOwnershipState,
@@ -291,6 +300,7 @@ impl OwnershipAnalysis {
             self.errors.push(OwnershipError::new(
                 OwnershipErrorKind::UseAfterMove { variable: id },
                 span,
+                file,
             ));
         } else {
             state.mark_variable_moved(id);
@@ -301,6 +311,7 @@ impl OwnershipAnalysis {
     /// Analyze a reference being taken.
     fn analyze_reference(
         &mut self,
+        file: FileId,
         hir: &SlynxHir,
         inner: &Spanned<PoolId<HirExpression>>,
         mutable: bool,
@@ -322,6 +333,7 @@ impl OwnershipAnalysis {
                     self.errors.push(OwnershipError::new(
                         OwnershipErrorKind::UseAfterMove { variable: *id },
                         span,
+                        file,
                     ));
                     return;
                 }
@@ -343,6 +355,7 @@ impl OwnershipAnalysis {
                             new_borrow: kind,
                         },
                         span,
+                        file,
                     ));
                     return;
                 }
@@ -350,6 +363,6 @@ impl OwnershipAnalysis {
         }
 
         // The inner expression is READ, not consumed (taking a ref borrows it)
-        self.analyze_expression_read(hir, inner, state);
+        self.analyze_expression_read(file, hir, inner, state);
     }
 }

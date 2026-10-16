@@ -1,0 +1,21 @@
+component Counter {
+    prop value: int;
+
+    func new(): Self {
+        Self { value: 0 }
+    }
+
+    func increment(&mut self, amount: int): void {
+        self.value = self.value + amount;
+    }
+
+    func getValue(&self): int {
+        self.value
+    }
+}
+
+func main(): void {
+    let mut v = Counter.new();
+    v.increment(5);
+    let val = v.getValue();
+}

@@ -70,6 +70,7 @@ impl<'a> ComponentBuilder<'a> {
         val
     }
 
+    ///Emits an `Opcode::GetChild` instruction to get the given `index`th child of this component
     pub fn emit_child(&mut self, index: u16) -> Value {
         if self.preamble_start.is_none() {
             self.preamble_start = Some(self.ir.instructions.len());

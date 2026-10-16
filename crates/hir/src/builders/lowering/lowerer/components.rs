@@ -1,7 +1,8 @@
 use slynx_parser::{ComponentDeclaration, ComponentMemberKind, TypeContext};
 
 use crate::{
-    HIRError, HirNode, HirQueueBuilder, Result, builders::lowering::ASTLowerer, term::TermId,
+    ComponentChild, HIRError, HirNode, HirQueueBuilder, Result, builders::lowering::ASTLowerer,
+    term::TermId,
 };
 
 impl<'a> ASTLowerer<'a> {
@@ -23,20 +24,33 @@ impl<'a> ASTLowerer<'a> {
                             let field = self.lower_type(queue, requester, *ty, &context)?.term;
                             properties.push((*name, field));
                         } else {
-                            return Err(HIRError::component_missing_prop_type(member.span));
+                            return Err(HIRError::component_missing_prop_type(
+                                requester,
+                                member.span,
+                            ));
                         }
+                    }
+                    ComponentMemberKind::NamedChild { name, child: c } => {
+                        let ty = self
+                            .lower_type(queue, requester, c.data.name, &context)?
+                            .term;
+                        if let Some(_) = queue.hir.view(ty).nominal().is_component() {
+                            components.push(ComponentChild {
+                                name: Some(*name),
+                                ty,
+                            });
+                        } else {
+                            return Err(HIRError::not_a_component(requester, ty, c.span));
+                        };
                     }
                     ComponentMemberKind::Child(c) => {
                         let ty = self
                             .lower_type(queue, requester, c.data.name, &context)?
                             .term;
-                        let ty_view = queue.hir.view(ty);
-                        let view = ty_view.dereference();
-                        if let Some(view) = view.nominal().is_component() {
-                            components.push(view.data);
+                        if let Some(_) = queue.hir.view(ty).nominal().is_component() {
+                            components.push(ComponentChild { name: None, ty });
                         } else {
-                            let name = queue.type_name(c.data.name.data);
-                            return Err(HIRError::not_a_component(name, c.span));
+                            return Err(HIRError::not_a_component(requester, ty, c.span));
                         };
                     }
                 }
@@ -66,6 +80,7 @@ impl<'a> ASTLowerer<'a> {
             let chain = node.pendings.signature_stack.borrow().clone();
             node.pendings.signature_stack.borrow_mut().pop();
             return Err(HIRError::cyclic_component_signature(
+                node.entry,
                 component.name,
                 chain,
                 component.span,

@@ -30,6 +30,7 @@ impl<'a> HirQueueBuilder<'a> {
                         InvalidTypeReason::IncorrectUsage
                     };
                     return Err(HIRError::invalid_type(
+                        owner,
                         identifier.identifier,
                         reason,
                         ty.span,
@@ -41,7 +42,11 @@ impl<'a> HirQueueBuilder<'a> {
             }
             Type::Plain(identifier) => {
                 //couldnt find any type
-                return Err(HIRError::type_unrecognized(identifier.identifier, ty.span));
+                return Err(HIRError::type_unrecognized(
+                    owner,
+                    identifier.identifier,
+                    ty.span,
+                ));
             }
             Type::Array(element, _) | Type::Vector(element) => {
                 self.assert_concrete_type_generic_count(owner, ty.span.make_spanned(*element))?;

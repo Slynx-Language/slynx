@@ -60,17 +60,22 @@ pub enum ExpressionUse {
 }
 
 /// An error produced during ownership analysis.
+///
+/// `file` is the file the offending code was written in: the spans of a body
+/// are offsets into that file, so it is what makes them resolvable.
 #[derive(Debug)]
 pub struct OwnershipError {
     pub kind: OwnershipErrorKind,
+    pub file: module_loader::FileId,
     pub span: common::Span,
     pub backtrace: Arc<Backtrace>,
 }
 
 impl OwnershipError {
-    pub fn new(kind: OwnershipErrorKind, span: common::Span) -> Self {
+    pub fn new(kind: OwnershipErrorKind, span: common::Span, file: module_loader::FileId) -> Self {
         Self {
             kind,
+            file,
             span,
             backtrace: Arc::new(Backtrace::capture()),
         }

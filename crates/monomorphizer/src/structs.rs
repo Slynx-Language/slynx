@@ -54,6 +54,7 @@ impl Monomorphizer {
         hir: &SlynxHir,
         ty: TermId,
         span: Span,
+        site: FileId,
     ) -> Result<TermId> {
         let ty_view = hir.view(ty);
         let TermNode::Apply { target, args } = ty_view.raw().node() else {
@@ -64,6 +65,7 @@ impl Monomorphizer {
         let deref = rf_view.dereference();
         let struct_view = deref.is_struct().ok_or_else(|| {
             HIRError::generic_arity_mismatch(
+                site,
                 hir.intern_name(&deref.pretty_name()),
                 0,
                 args.iter().filter(|slot| !slot.is_null()).count(),
@@ -113,6 +115,7 @@ impl Monomorphizer {
                                 hir,
                                 substitute_type(hir, field.ty, subst)?,
                                 span,
+                                owner,
                             )?;
                             Ok(Visible::new(field.visibility, owner, (field.name, new_ty)))
                         })
@@ -140,6 +143,7 @@ impl Monomorphizer {
                     Ok(DeclarationId::new(owner, specialized_local))
                 },
             },
+            site,
         )?;
 
         let file = hir.get_file(specialized.owner);

@@ -47,7 +47,11 @@ impl<'a> HirQueueBuilder<'a> {
 
         // Mark body as in-progress (simple cycle guard — body never demands body of another)
         if !queue.bodies_in_progress.insert(id) {
-            return Err(HIRError::cyclic_component_body(id, component_decl.span));
+            return Err(HIRError::cyclic_component_body(
+                id.owner,
+                id,
+                component_decl.span,
+            ));
         }
 
         let result = ComponentBuilder::new(id).resolve_body(queue, component_decl);
@@ -65,7 +69,7 @@ impl<'a> HirQueueBuilder<'a> {
             .lowerer
             .lookup
             .find_type(node, component.name)
-            .ok_or_else(|| HIRError::type_unrecognized(component.name, component.span))?;
+            .ok_or_else(|| HIRError::type_unrecognized(node, component.name, component.span))?;
         let lowered = self.lowerer.materialize_type_declaration(
             self,
             LowerTypeDeclarationDescriptor {
@@ -168,6 +172,17 @@ impl ComponentBuilder {
                         span: member.span,
                     });
                     prop_index += 1;
+                }
+                ComponentMemberKind::NamedChild { child, .. } => {
+                    let expr = self.builder.build_component_expression(
+                        queue,
+                        ComponentExpressionDescriptor {
+                            component: &child.data,
+                            span: child.span,
+                            context: &context,
+                        },
+                    )?;
+                    decls.push(ComponentMemberDeclaration::Child(expr));
                 }
                 ComponentMemberKind::Child(c) => {
                     let expr = self.builder.build_component_expression(

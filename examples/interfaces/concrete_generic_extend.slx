@@ -1,6 +1,6 @@
 // A concrete generic application is valid as an extension target.
 interface Stringifiable {
-    func stringify(&self) -> str
+    func stringify(&self): str
 }
 
 enum Option<T> {
@@ -9,7 +9,7 @@ enum Option<T> {
 }
 
 extend Option<int>: Stringifiable {
-    func stringify(&self) -> str { "some" }
+    func stringify(&self): str { "some" }
 }
 
 func main(): void {

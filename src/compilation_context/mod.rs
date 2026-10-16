@@ -1,6 +1,7 @@
 mod errors;
 
 use std::{
+    backtrace::Backtrace,
     collections::HashSet,
     ops::Deref,
     path::{Path, PathBuf},
@@ -17,6 +18,7 @@ use slynx_monomorphizer::Monomorphizer;
 use slynx_parser::{ASTExpression, ASTStatement, Type};
 
 pub use crate::compilation_context::errors::*;
+use crate::helpers::SlynxSuggestion;
 
 #[derive(Debug)]
 pub struct CompilationOutput {
@@ -192,7 +194,7 @@ impl SlynxContext {
             std: Self::std_dir(std_path),
             pools: GlobalPools::new(),
         };
-        out.insert_file(&entry_point);
+        out.insert_file(&entry_point)?;
         Ok(out)
     }
 
@@ -219,8 +221,22 @@ impl SlynxContext {
     }
 
     ///Inserts the file with provided `path` if it exists.
-    pub fn insert_file(&mut self, path: &Path) {
-        self.files.read(path).unwrap();
+    pub fn insert_file(&mut self, path: &Path) -> Result<(), SlynxError> {
+        if let Err(e) = self.files.read(path) {
+            Err(SlynxError::new_entry(
+                e,
+                format!("Could not insert file '{}'", path.display().to_string()),
+                path.file_name()
+                    .expect("No file provided".into())
+                    .to_string_lossy()
+                    .to_string(),
+                "".to_string(),
+                vec![],
+                Arc::new(Backtrace::capture()),
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     ///Registers a file that was already loaded by the source loader.
@@ -239,13 +255,6 @@ impl SlynxContext {
             .nth(char_index)
             .map(|(offset, _)| offset)
             .unwrap_or(source.len())
-    }
-
-    fn entry_point_eof_index(&self) -> usize {
-        self.get_entry_point_source()
-            .chars()
-            .count()
-            .saturating_sub(1)
     }
 
     ///Based on the provided `index`, which is the index of a char on the source code of `path`, returns the line where it's located on the file of the provided `path`.

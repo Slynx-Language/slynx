@@ -176,6 +176,53 @@ impl ExpressionBuilder {
             _ if dereferenced_type.is_struct().is_some() => {
                 //is struct but could not find any field
                 Err(HIRError::property_unrecognized(
+                    self.file(),
+                    dereferenced_type.data,
+                    vec![field_name],
+                    span,
+                ))
+            }
+            _ if let Some(view) = dereferenced_type.is_component()
+                && let Some(position) = view.props().iter().position(|f| f.name == field_name) =>
+            {
+                let field_ty = view.props()[position].data.ty;
+                let field_ty = match view.new_with(field_ty).raw().node() {
+                    TermNode::Apply { args: generics, .. } => {
+                        crate::generics::substitute_terms(queue.hir, generics, field_ty)
+                    }
+                    _ => field_ty,
+                };
+                Ok(HirExpression {
+                    ty: Owned::new(parent_ty.owner, field_ty),
+                    kind: HirExpressionKind::FieldAccess {
+                        expr: parent,
+                        field_index: position,
+                        field_name: Some(field_name),
+                    },
+                })
+            }
+            _ if let Some(view) = dereferenced_type.is_component()
+                && let Some(position) = view
+                    .children()
+                    .iter()
+                    .position(|c| matches!(c.name, Some(name) if name == field_name)) =>
+            {
+                let child_ty = view.children()[position].ty;
+                Ok(HirExpression {
+                    ty: Owned {
+                        owner: parent_ty.owner,
+                        term: child_ty,
+                    },
+                    kind: HirExpressionKind::ChildAccess {
+                        expr: parent,
+                        child_index: position,
+                    },
+                })
+            }
+            _ if dereferenced_type.is_component().is_some() => {
+                //is component but could not find any property
+                Err(HIRError::property_unrecognized(
+                    self.file(),
                     dereferenced_type.data,
                     vec![field_name],
                     span,
@@ -186,6 +233,7 @@ impl ExpressionBuilder {
             {
                 let Some(position) = view.fields().iter().position(|f| f.name == field_name) else {
                     return Err(HIRError::property_unrecognized(
+                        self.file(),
                         dereferenced_type.data,
                         vec![field_name],
                         span,
@@ -217,7 +265,7 @@ impl ExpressionBuilder {
             }
             _ => {
                 let ty = dereferenced_type.data;
-                Err(HIRError::not_a_struct(ty, span))
+                Err(HIRError::not_a_struct(self.file(), ty, span))
             }
         }
     }
