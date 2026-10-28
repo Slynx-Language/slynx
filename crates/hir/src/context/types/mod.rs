@@ -1,3 +1,4 @@
+mod callbacks;
 mod components;
 mod enums;
 mod methods;
@@ -19,6 +20,7 @@ use crate::{
     term::{ExtensionNode, Term, TermId, TermNode},
 };
 
+pub use callbacks::CallbackTable;
 pub use methods::{InterfaceMethodSignature, MethodTable};
 pub use registry::TypeRegistry;
 pub use storage::TypeStorage;
@@ -42,6 +44,9 @@ pub struct TypesContext {
     /// Methods attached to types. Methods may be registered on any type id,
     /// so any value can carry methods.
     pub methods: MethodTable,
+    /// Callback contracts and property callback implementations. These are
+    /// intentionally separate from [`MethodTable`].
+    pub callbacks: CallbackTable,
     /// Set of TermIds that are external (from JS/interop).
     /// When a type is marked external, all references to it are also external.
     externals: DashSet<TermId>,
@@ -59,6 +64,7 @@ impl TypesContext {
             storage: TypeStorage::default(),
             registry: TypeRegistry::new(),
             methods: MethodTable::new(),
+            callbacks: CallbackTable::new(),
             externals: DashSet::new(),
         }
     }
