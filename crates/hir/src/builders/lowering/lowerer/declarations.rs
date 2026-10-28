@@ -8,9 +8,12 @@ use slynx_parser::{
     GenericsMetadata, InterfaceDeclaration, ObjectDeclaration, Type, TypeContext,
 };
 
+use std::collections::HashMap;
+
 use crate::{
-    EnumVariantType, GenericParameter, HIRError, HirEnumDeclaration, HirObjectDeclaration,
-    HirQueueBuilder, Owned, Result, Visible,
+    CallbackArgument, CallbackOrder as HirCallbackOrder, EnumVariantType, GenericParameter,
+    HIRError, HirCallbackDefinition, HirEnumDeclaration, HirObjectDeclaration, HirQueueBuilder,
+    Owned, Result, SymbolPointer, Visible,
     builders::lowering::ASTLowerer,
     error::MissingFeature,
     interface::InterfaceTerm,
@@ -137,6 +140,144 @@ impl<'a> ASTLowerer<'a> {
         self.lower_type(queue, owner, target, context)
     }
 
+    fn lower_callback_definitions(
+        &self,
+        queue: &HirQueueBuilder<'a>,
+        owner: FileId,
+        declaration: &ObjectDeclaration,
+        context: &TypeContext,
+        self_type: TermId,
+    ) -> Result<HashMap<SymbolPointer, Vec<HirCallbackDefinition>>> {
+        let self_name = queue.hir.intern_name("self");
+        let return_name = queue.hir.intern_name("return");
+        let mut definitions: HashMap<SymbolPointer, Vec<HirCallbackDefinition>> = HashMap::new();
+
+        for callback in &declaration.callbacks {
+            let (order, target) = match &callback.order {
+                slynx_parser::CallbackOrder::Before(target) => (HirCallbackOrder::Before, target),
+                slynx_parser::CallbackOrder::After(target) => (HirCallbackOrder::After, target),
+            };
+            let method = declaration
+                .methods
+                .iter()
+                .find(|method| method.name == target.target_function.data)
+                .ok_or_else(|| {
+                    HIRError::new(
+                        owner,
+                        crate::HIRErrorKind::CallbackTargetNotFound {
+                            callback: callback.name,
+                            target: target.target_function.data,
+                        },
+                        target.target_function.span,
+                    )
+                })?;
+            let method_args: Vec<_> = method
+                .arguments
+                .iter()
+                .filter(|argument| argument.data.name.data != self_name)
+                .collect();
+
+            let mut mapping = Vec::with_capacity(target.order.len());
+            for mapped in &target.order {
+                if mapped.data == return_name {
+                    if matches!(order, HirCallbackOrder::Before) {
+                        return Err(HIRError::new(
+                            owner,
+                            crate::HIRErrorKind::CallbackReturnInBefore {
+                                callback: callback.name,
+                            },
+                            mapped.span,
+                        ));
+                    }
+                    mapping.push(CallbackArgument::MethodReturn);
+                    continue;
+                }
+                let index = method_args
+                    .iter()
+                    .position(|argument| argument.data.name.data == mapped.data)
+                    .ok_or_else(|| {
+                        HIRError::new(
+                            owner,
+                            crate::HIRErrorKind::CallbackArgumentNotFound {
+                                callback: callback.name,
+                                argument: mapped.data,
+                            },
+                            mapped.span,
+                        )
+                    })?;
+                mapping.push(CallbackArgument::MethodArgument(index as u16));
+            }
+
+            let argument_types = callback
+                .argument_types
+                .iter()
+                .map(|ty| {
+                    self.lower_type(queue, owner, *ty, context)
+                        .map(|owned| owned.term)
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let return_type = self
+                .lower_type(queue, owner, callback.return_type, context)?
+                .term;
+            if argument_types.len() != mapping.len() {
+                return Err(HIRError::new(
+                    owner,
+                    crate::HIRErrorKind::CallbackContractArgumentCountMismatch {
+                        callback: callback.name,
+                        declared: argument_types.len(),
+                        mapped: mapping.len(),
+                    },
+                    callback.span,
+                ));
+            }
+            for (position, mapped) in mapping.iter().enumerate() {
+                let source_type = match mapped {
+                    CallbackArgument::MethodArgument(index) => {
+                        method_args[*index as usize].data.kind
+                    }
+                    CallbackArgument::MethodReturn => method.return_type,
+                };
+                let source_type = self
+                    .lower_type_with_self(queue, owner, source_type, context, self_type)?
+                    .term;
+                let contract_type = argument_types[position];
+                if source_type != contract_type {
+                    return Err(HIRError::unexpected_type(
+                        owner,
+                        contract_type,
+                        source_type,
+                        callback
+                            .argument_types
+                            .get(position)
+                            .map(|ty| ty.span)
+                            .unwrap_or(callback.span),
+                    ));
+                }
+            }
+            if return_type != queue.hir.types.create_type(Term::void_type()) {
+                return Err(HIRError::new(
+                    owner,
+                    crate::HIRErrorKind::CallbackMustReturnVoid {
+                        callback: callback.name,
+                    },
+                    callback.return_type.span,
+                ));
+            }
+            definitions
+                .entry(target.target_function.data)
+                .or_default()
+                .push(HirCallbackDefinition {
+                    name: callback.name,
+                    argument_types,
+                    return_type,
+                    order,
+                    mapping,
+                    span: callback.span,
+                });
+        }
+        Ok(definitions)
+    }
+
     fn lower_struct(
         &self,
         queue: &HirQueueBuilder<'a>,
@@ -164,6 +305,15 @@ impl<'a> ASTLowerer<'a> {
             .hir
             .types
             .create_struct_type(owner, declaration.name, fields);
+        let callback_definitions =
+            self.lower_callback_definitions(queue, owner, declaration, &context, struct_type)?;
+        for (method, definitions) in callback_definitions {
+            queue
+                .hir
+                .types
+                .callbacks
+                .set_definitions(struct_type, method, definitions);
+        }
         queue
             .hir
             .store
