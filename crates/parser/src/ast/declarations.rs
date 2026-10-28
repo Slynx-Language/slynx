@@ -7,6 +7,33 @@ use crate::{
 };
 
 #[derive(Debug)]
+///Represents the function a callback runs after/before of. Represents the syntax `target(name1,name2) => (name2,name1)`
+pub struct CallbackTarget {
+    ///The name of the function
+    pub target_function: Spanned<SymbolPointer>,
+    ///The argument of the names mainly to give an order
+    pub arg_names: Vec<Spanned<SymbolPointer>>,
+    ///The order the arguments are inserted on the callback
+    pub order: Vec<Spanned<SymbolPointer>>,
+}
+
+#[derive(Debug)]
+pub enum CallbackOrder {
+    After(CallbackTarget),
+    Before(CallbackTarget),
+}
+
+#[derive(Debug)]
+pub struct CallbackDefinition {
+    pub attributes: Vec<Spanned<ASTAttribute>>,
+    pub name: SymbolPointer,
+    pub argument_types: Vec<Spanned<DedupPoolId<Type>>>,
+    pub return_type: Spanned<DedupPoolId<Type>>,
+    pub order: CallbackOrder,
+    pub span: Span,
+}
+
+#[derive(Debug)]
 ///Represents a @name(...args). An Attribute is mainly used to define some metadata about the given declaration.
 pub struct ASTAttribute {
     pub name: SymbolPointer,
@@ -73,6 +100,7 @@ pub struct ObjectDeclaration {
     pub name: SymbolPointer,
     pub fields: Vec<ObjectField>,
     pub methods: Vec<ObjectMethod>,
+    pub callbacks: Vec<CallbackDefinition>,
     pub attributes: Vec<Spanned<ASTAttribute>>,
     pub span: Span,
     pub visibility: VisibilityModifier,

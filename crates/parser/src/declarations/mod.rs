@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
     ///block, and is what makes bodies optional.
     fn parse_declaration(
         &mut self,
-        program: &mut Program,
+        program: &Program,
         external: bool,
         flags: ParserFlags,
     ) -> Result<()> {
