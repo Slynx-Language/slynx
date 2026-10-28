@@ -65,8 +65,8 @@
 //! - [`crate::hir::implementation::expression::resolve_expr`] — Expression resolution
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, Owned, SymbolPointer, VariableId,
-    model::HirStatement, term::TermId,
+    DeclarationId, HirCallbackInvocation, HirFunctionDeclaration, HirStaticDeclaration, Owned,
+    SymbolPointer, VariableId, model::HirStatement, term::TermId,
 };
 
 use common::{Operator, Spanned, pool::PoolId};
@@ -628,4 +628,18 @@ pub enum HirExpressionKind {
     ),
     Deref(Spanned<PoolId<HirExpression>>),
     Reference(Spanned<PoolId<HirExpression>>),
+    /// A method call whose receiver is a direct component property field access,
+    /// instrumented with zero or more property callbacks.
+    CallWithCallbacks {
+        /// The enclosing component expression (for example `self` or `self.child`).
+        component: Spanned<PoolId<HirExpression>>,
+        /// The property index inside the enclosing component.
+        property_index: usize,
+        /// The resolved method being called.
+        method: DeclarationId<HirFunctionDeclaration>,
+        /// The explicit method arguments, without the property receiver.
+        args: Vec<Spanned<PoolId<HirExpression>>>,
+        /// Before/after callbacks in declaration order.
+        callbacks: Vec<HirCallbackInvocation>,
+    },
 }
