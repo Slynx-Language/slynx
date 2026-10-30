@@ -261,6 +261,7 @@ impl Monomorphizer {
                     modifier,
                     index,
                     value,
+                    callbacks,
                     span,
                 } => {
                     let value = value
@@ -271,6 +272,7 @@ impl Monomorphizer {
                         modifier: *modifier,
                         index: *index,
                         value,
+                        callbacks: callbacks.clone(),
                         span: *span,
                     })
                 }

@@ -830,6 +830,19 @@ impl Monomorphizer {
                 variant: *variant,
                 args: self.build_expressions(hir, args, subst, site)?,
             },
+            HirExpressionKind::CallWithCallbacks {
+                component,
+                property_index,
+                method,
+                args,
+                callbacks,
+            } => HirExpressionKind::CallWithCallbacks {
+                component: self.build_expression(hir, *component, subst, site)?,
+                property_index: *property_index,
+                method: *method,
+                args: self.build_expressions(hir, args, subst, site)?,
+                callbacks: callbacks.clone(),
+            },
             HirExpressionKind::FunctionCall {
                 name,
                 args,
