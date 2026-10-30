@@ -7,7 +7,8 @@ use module_loader::ASTType;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, Owned, Result, SymbolPointer,
+    HIRError, HirCallbackInvocation, HirExpression, HirExpressionKind, Owned, Result,
+    SymbolPointer,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -302,34 +303,107 @@ impl ExpressionBuilder {
                 name,
                 ref args,
             } => {
-                let prepend_args = vec![if let Some(ty) =
-                    queue.hir.view(target).get_argument_type(0)
-                    && let TermNode::Ref { mutable, .. } = queue.hir.view(ty).raw().node()
+                let callback_plan = if let HirExpressionKind::FieldAccess {
+                    expr: component,
+                    field_index,
+                    ..
+                } = &queue.hir[parent.data].kind
                 {
-                    self.build_reference_expression(
+                    let component_ty = queue.hir[component.data].ty.term;
+                    let component_view = queue.hir.view(component_ty).dereference();
+                    if component_view.is_component().is_some() {
+                        let component_term = component_view.data();
+                        let property_ty = queue.hir[parent.data].ty.term;
+                        let method_name = queue.type_name(name.data);
+                        let contracts = queue
+                            .hir
+                            .types
+                            .callbacks
+                            .definitions_of(property_ty, method_name);
+                        if !contracts.is_empty() {
+                            let implementations = queue
+                                .hir
+                                .types
+                                .callbacks
+                                .property_callbacks_of(component_term, *field_index);
+                            let callbacks = implementations
+                                .into_iter()
+                                .filter_map(|implementation| {
+                                    let definition = contracts.iter().find(|definition| {
+                                        definition.name == implementation.name
+                                    })?;
+                                    Some(HirCallbackInvocation {
+                                        function: implementation.function,
+                                        order: definition.order,
+                                        mapping: definition.mapping.clone(),
+                                    })
+                                })
+                                .collect::<Vec<_>>();
+                            if callbacks.is_empty() {
+                                None
+                            } else {
+                                Some((*component, *field_index, callbacks))
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                if let Some((component, property_index, callbacks)) = callback_plan {
+                    let type_arguments = &queue.get_plain_type(name).generic;
+                    let (args, return_type) = self.build_resolved_method_arguments(
                         queue,
-                        ReferenceExpressionDescriptor {
-                            target: Either::Right(parent),
-                            mutable: *mutable,
+                        target,
+                        type_arguments,
+                        args,
+                        span,
+                        context,
+                    )?;
+                    HirExpression {
+                        ty: Owned::new(target.owner, return_type),
+                        kind: HirExpressionKind::CallWithCallbacks {
+                            component,
+                            property_index,
+                            method: target,
+                            args,
+                            callbacks,
+                        },
+                    }
+                } else {
+                    let prepend_args = vec![if let Some(ty) =
+                        queue.hir.view(target).get_argument_type(0)
+                        && let TermNode::Ref { mutable, .. } = queue.hir.view(ty).raw().node()
+                    {
+                        self.build_reference_expression(
+                            queue,
+                            ReferenceExpressionDescriptor {
+                                target: Either::Right(parent),
+                                mutable: *mutable,
+                                context,
+                            },
+                        )?
+                    } else {
+                        parent
+                    }];
+                    self.build_function_call(
+                        queue,
+                        FunctionCallDescriptor {
+                            target: FunctionTarget::Resolved {
+                                target,
+                                type_arguments: &queue.get_plain_type(name).generic,
+                            },
+                            arguments: args,
+                            prepended_arguments: &prepend_args,
+                            span,
                             context,
                         },
                     )?
-                } else {
-                    parent
-                }];
-                self.build_function_call(
-                    queue,
-                    FunctionCallDescriptor {
-                        target: FunctionTarget::Resolved {
-                            target,
-                            type_arguments: &queue.get_plain_type(name).generic,
-                        },
-                        arguments: args,
-                        prepended_arguments: &prepend_args,
-                        span,
-                        context,
-                    },
-                )?
+                }
             }
         };
 
