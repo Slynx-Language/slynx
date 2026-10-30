@@ -1,7 +1,7 @@
 use common::{Operator, Span, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
-    SymbolPointer, ownership::ExpressionUse, term::TermId,
+    DeclarationId, HirCallbackInvocation, HirExpression, HirExpressionKind, HirFunctionDeclaration,
+    HirStatement, SymbolPointer, ownership::ExpressionUse, term::TermId,
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
 use smallvec::{SmallVec, smallvec};
@@ -140,6 +140,152 @@ impl<'a> LoweringState<'a> {
         } else {
             Ok(ctx.call(func, &arg_values, ret_ty))
         }
+    }
+
+    fn ir_function_return_type(
+        &self,
+        func: IRPointer<slynx_ir::Function, 1>,
+        ctx: &mut FunctionContext,
+    ) -> IRTypeId {
+        let ty = ctx.ir().get(func).ty();
+        let IRType::Function(fid) = ctx.ir().types.get_type(ty) else {
+            unreachable!()
+        };
+        let fid = *fid;
+        ctx.ir().types.get_function_type(fid).get_return_type()
+    }
+
+    fn callback_receiver(
+        &mut self,
+        callback: &HirCallbackInvocation,
+        component: Spanned<PoolId<HirExpression>>,
+        component_value: Value,
+        span: Span,
+        ctx: &mut FunctionContext,
+    ) -> Result<Value, CodegenError> {
+        let expected = self
+            .hir
+            .view(callback.function)
+            .get_argument_type(0)
+            .expect("callback functions always have a receiver argument");
+        let actual = self.hir[component.data].ty.term;
+        if actual == expected || self.hir.view(actual).is_ref() {
+            return Ok(component_value);
+        }
+        let file = ctx.file();
+        let ty = self
+            .types
+            .get_or_create_ir_type(expected, span, ctx.ir(), file)?;
+        Ok(ctx.emit(Opcode::Ref, smallvec![component_value], ty))
+    }
+
+    fn lower_callback_call(
+        &mut self,
+        callback: &HirCallbackInvocation,
+        component: Spanned<PoolId<HirExpression>>,
+        component_value: Value,
+        explicit_values: &[Value],
+        result: Option<Value>,
+        span: Span,
+        ctx: &mut FunctionContext,
+    ) -> Result<(), CodegenError> {
+        let receiver = self.callback_receiver(callback, component, component_value, span, ctx)?;
+        let mut args = Vec::with_capacity(1 + callback.mapping.len());
+        args.push(receiver);
+        for mapped in &callback.mapping {
+            let value = match mapped {
+                slynx_hir::CallbackArgument::MethodArgument(index) => explicit_values
+                    .get(*index as usize)
+                    .copied()
+                    .expect("callback mapping index must refer to a method argument"),
+                slynx_hir::CallbackArgument::MethodReturn => result.expect(
+                    "after callbacks are only emitted after the instrumented method returns",
+                ),
+            };
+            args.push(value);
+        }
+        let func = self.functions[&callback.function];
+        let ret_ty = self.ir_function_return_type(func, ctx);
+        ctx.call(func, &args, ret_ty);
+        Ok(())
+    }
+
+    fn lower_call_with_callbacks(
+        &mut self,
+        component: Spanned<PoolId<HirExpression>>,
+        property_index: usize,
+        method: DeclarationId<HirFunctionDeclaration>,
+        args: &[Spanned<PoolId<HirExpression>>],
+        callbacks: &[HirCallbackInvocation],
+        span: Span,
+        ctx: &mut FunctionContext,
+    ) -> Result<Value, CodegenError> {
+        let component_value = self.lower_expression(component, ctx)?;
+        let property_value = ctx.get_field(component_value, property_index as u16);
+
+        let receiver = if let Some(receiver_ty) = self.hir.view(method).get_argument_type(0)
+            && let slynx_hir::term::TermNode::Ref { .. } = self.hir.view(receiver_ty).raw().node()
+        {
+            let file = ctx.file();
+            let ty = self
+                .types
+                .get_or_create_ir_type(receiver_ty, span, ctx.ir(), file)?;
+            ctx.emit(Opcode::Ref, smallvec![property_value], ty)
+        } else {
+            property_value
+        };
+
+        let mut explicit_values = Vec::with_capacity(args.len());
+        for arg in args {
+            explicit_values.push(self.lower_expression(*arg, ctx)?);
+        }
+
+        for callback in callbacks
+            .iter()
+            .filter(|callback| callback.order == slynx_hir::CallbackOrder::Before)
+        {
+            self.lower_callback_call(
+                callback,
+                component,
+                component_value,
+                &explicit_values,
+                None,
+                span,
+                ctx,
+            )?;
+        }
+
+        let func = self.functions[&method];
+        let ret_ty = self.ir_function_return_type(func, ctx);
+        let mut method_args = Vec::with_capacity(1 + explicit_values.len());
+        method_args.push(receiver);
+        method_args.extend_from_slice(&explicit_values);
+        let result = if ctx.ir().get(func).is_external()
+            && let Some((first, rest)) = method_args.split_first()
+        {
+            let return_type = ctx.ir().get_view(func).get_return_type();
+            let func_name = ctx.ir().get_view(func).name();
+            ctx.dyn_method_call(*first, func_name, rest, return_type)
+        } else {
+            ctx.call(func, &method_args, ret_ty)
+        };
+
+        for callback in callbacks
+            .iter()
+            .filter(|callback| callback.order == slynx_hir::CallbackOrder::After)
+        {
+            self.lower_callback_call(
+                callback,
+                component,
+                component_value,
+                &explicit_values,
+                Some(result),
+                span,
+                ctx,
+            )?;
+        }
+
+        Ok(result)
     }
 
     fn lower_struct_literal(
@@ -368,6 +514,21 @@ impl<'a> LoweringState<'a> {
             HirExpressionKind::FunctionCall { name, args, .. } => {
                 self.lower_function_call(*name, args, context)?
             }
+            HirExpressionKind::CallWithCallbacks {
+                component,
+                property_index,
+                method,
+                args,
+                callbacks,
+            } => self.lower_call_with_callbacks(
+                *component,
+                *property_index,
+                *method,
+                args,
+                callbacks,
+                expr.span,
+                context,
+            )?,
             HirExpressionKind::Binary { lhs, op, rhs } => {
                 self.handle_binary_expression(*lhs, *rhs, op, context)?
             }

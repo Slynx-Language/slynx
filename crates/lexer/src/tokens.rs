@@ -64,6 +64,8 @@ pub enum TokenKind {
     Extend,
     #[token("where")]
     Where,
+    #[token("callback")]
+    Callback,
     // Multi-char operators (must come before single-char)
     #[token("&&")]
     And,
@@ -87,6 +89,8 @@ pub enum TokenKind {
     SlashEq,
     #[token("->")]
     Arrow,
+    #[token("=>")]
+    FatArrow,
 
     // Single-char operators
     #[token("&")]
