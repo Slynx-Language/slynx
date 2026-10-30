@@ -124,6 +124,76 @@ impl<'a> HirQueueBuilder<'a> {
         Ok(Visible::new(visibility, entry, declaration_id))
     }
 
+    /// Creates a hidden receiver-bearing function that is not registered as a
+    /// method and cannot be found by source name. Used for property callbacks.
+    pub(crate) fn insert_hidden_function(
+        &self,
+        entry: FileId,
+        method: &'a FuncDeclaration,
+        self_type: TermId,
+        declaration_name: SymbolPointer,
+    ) -> Result<DeclarationId<HirFunctionDeclaration>> {
+        let context = TypeContext::new(method.generics().type_params());
+        let lower_type = |ty: Spanned<DedupPoolId<Type>>| {
+            self.lowerer
+                .lower_type_with_self(self, entry, ty, &context, self_type)
+                .map(|owned| owned.term)
+        };
+        let args = method
+            .arguments()
+            .iter()
+            .map(|arg| lower_type(arg.data.kind))
+            .collect::<Result<Vec<_>>>()?;
+        let return_type = lower_type(method.return_type())?;
+        if return_type != self.hir.types.create_type(Term::void_type()) {
+            return Err(HIRError::new(
+                entry,
+                crate::HIRErrorKind::CallbackMustReturnVoid {
+                    callback: method.method_name(),
+                },
+                method.return_type().span,
+            ));
+        }
+        let function_type = self.hir.types.create_function_type(args, return_type);
+        let declaration = HirFunctionDeclaration {
+            name: declaration_name,
+            self_type: Some(self_type),
+            generics: self.lowerer.generic_parameters_of(
+                self,
+                method.generics(),
+                entry,
+                &context,
+            )?,
+            args: Default::default(),
+            ty: function_type,
+            statements: Vec::new(),
+            visibility: VisibilityModifier::Private,
+            external: false,
+            attributes: Vec::new(),
+            span: method.span(),
+        };
+        let declaration_id = self
+            .hir
+            .store
+            .get_or_create_file(entry)
+            .create_function(declaration);
+
+        let argument_names = method
+            .arguments()
+            .iter()
+            .map(|arg| arg.data.name.data)
+            .collect();
+        self.bodies.send(PendantFunction {
+            context,
+            func_id: declaration_id,
+            body: method.body(),
+            argument_names,
+            self_type: Some(self_type),
+        });
+
+        Ok(declaration_id)
+    }
+
     ///Hoists the given function, and then enqueues it so its body can be checked. Off being processed, this function might generate more than simply the given `f` function since it will generate all the dependencies of `f` to work. Including impures
     pub(crate) fn enqueue_function(
         &self,

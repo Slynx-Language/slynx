@@ -4,7 +4,7 @@ use common::{
 };
 use either::Either;
 use module_loader::ASTType;
-use slynx_parser::{ASTExpression, TypeContext};
+use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
     HIRError, HirCallbackInvocation, HirExpression, HirExpressionKind, Owned, Result,
@@ -271,6 +271,67 @@ impl ExpressionBuilder {
         }
     }
 
+    fn get_callback_plan(
+        &mut self,
+        queue: &HirQueueBuilder,
+        parent: Spanned<PoolId<HirExpression>>,
+        name: Spanned<DedupPoolId<Type>>,
+    ) -> Option<(
+        Spanned<PoolId<HirExpression>>,
+        usize,
+        Vec<HirCallbackInvocation>,
+    )> {
+        match &queue.hir[parent.data].kind {
+            HirExpressionKind::FieldAccess {
+                expr: component,
+                field_index,
+                ..
+            } => {
+                let component_view = queue
+                    .hir
+                    .view(queue.hir[component.data].ty.term)
+                    .dereference();
+                let is_component = component_view.is_component().is_some();
+                let method_name = queue.type_name(name.data);
+                match () {
+                    _ if !is_component => None,
+                    _ if is_component
+                        && let callbacks = queue
+                            .hir
+                            .view(parent.data)
+                            .ty_viewer()
+                            .callbacks_of(method_name)
+                        && !callbacks.is_empty() =>
+                    {
+                        let implementations = queue
+                            .hir
+                            .types
+                            .callbacks
+                            .property_callbacks_of(component_view.data(), *field_index);
+                        let callbacks = implementations
+                            .into_iter()
+                            .filter_map(|implementation| {
+                                let definition = callbacks
+                                    .iter()
+                                    .find(|definition| definition.name == implementation.name)?;
+                                Some(HirCallbackInvocation {
+                                    function: implementation.function,
+                                    order: definition.order,
+                                    mapping: definition.mapping.clone(),
+                                })
+                            })
+                            .collect::<Vec<_>>();
+                        callbacks
+                            .is_empty()
+                            .then_some((*component, *field_index, callbacks))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     ///Builds a member access against an already-built parent expression.
     fn build_field_access_impl(
         &mut self,
@@ -303,58 +364,9 @@ impl ExpressionBuilder {
                 name,
                 ref args,
             } => {
-                let callback_plan = if let HirExpressionKind::FieldAccess {
-                    expr: component,
-                    field_index,
-                    ..
-                } = &queue.hir[parent.data].kind
+                if let Some((component, property_index, callbacks)) =
+                    self.get_callback_plan(queue, parent, name)
                 {
-                    let component_ty = queue.hir[component.data].ty.term;
-                    let component_view = queue.hir.view(component_ty).dereference();
-                    if component_view.is_component().is_some() {
-                        let component_term = component_view.data();
-                        let property_ty = queue.hir[parent.data].ty.term;
-                        let method_name = queue.type_name(name.data);
-                        let contracts = queue
-                            .hir
-                            .types
-                            .callbacks
-                            .definitions_of(property_ty, method_name);
-                        if !contracts.is_empty() {
-                            let implementations = queue
-                                .hir
-                                .types
-                                .callbacks
-                                .property_callbacks_of(component_term, *field_index);
-                            let callbacks = implementations
-                                .into_iter()
-                                .filter_map(|implementation| {
-                                    let definition = contracts.iter().find(|definition| {
-                                        definition.name == implementation.name
-                                    })?;
-                                    Some(HirCallbackInvocation {
-                                        function: implementation.function,
-                                        order: definition.order,
-                                        mapping: definition.mapping.clone(),
-                                    })
-                                })
-                                .collect::<Vec<_>>();
-                            if callbacks.is_empty() {
-                                None
-                            } else {
-                                Some((*component, *field_index, callbacks))
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
-
-                if let Some((component, property_index, callbacks)) = callback_plan {
                     let type_arguments = &queue.get_plain_type(name).generic;
                     let (args, return_type) = self.build_resolved_method_arguments(
                         queue,
