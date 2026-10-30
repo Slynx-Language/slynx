@@ -176,8 +176,18 @@ impl<'a> LoweringState<'a> {
                 )) {
                     continue;
                 }
-                let name = self.hir.get_name(declaration.name);
-                let ptr = ir.create_function(name, declaration.external);
+                let name = match declaration.self_type {
+                    Some(owner) if !declaration.external => {
+                        format!(
+                            "{}_{}",
+                            self.hir.view(owner).nominal().internal_name(),
+                            self.hir.get_name(declaration.name)
+                        )
+                    }
+                    _ => self.hir.get_name(declaration.name).to_owned(),
+                };
+
+                let ptr = ir.create_function(&name, declaration.external);
                 let ty = ir.get(ptr).ty();
                 self.types.register_mapping(declaration.ty, ty);
                 self.functions

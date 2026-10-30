@@ -318,7 +318,7 @@ impl<'a> LoweringState<'a> {
         let ty = self.hir[expr.data].ty.term;
 
         match () {
-            _ if self.hir.types.is_external(&ty) => {
+            _ if self.hir.is_external_type(ty) => {
                 let name = self.intern_to_ir(
                     ctx.ir(),
                     field_name.expect("External field access must have a field name"),

@@ -76,8 +76,7 @@ impl<'a> LoweringState<'a> {
             } => {
                 let is_external = self
                     .hir
-                    .types
-                    .is_external(&self.hir[parent_expr.data].ty.term);
+                    .is_external_type(self.hir[parent_expr.data].ty.term);
 
                 let parent = self.lower_expression(*parent_expr, context)?;
                 match is_external {
