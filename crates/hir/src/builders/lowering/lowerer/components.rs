@@ -15,62 +15,66 @@ impl<'a> ASTLowerer<'a> {
     ) -> Result<TermId> {
         let context = TypeContext::new(&component.generics.type_params);
         let mut properties = Vec::with_capacity(component.members.len());
-        let mut children = Vec::with_capacity(component.members.len());
-        let mut callback_groups: Vec<(usize, SymbolPointer, TermId, Vec<&FuncDeclaration>)> =
-            Vec::new();
-        let mut property_index = 0;
-        for member in &component.members {
-            match &member.kind {
-                ComponentMemberKind::Property {
-                    name,
-                    ty,
-                    callbacks,
-                    ..
-                } => {
-                    if let Some(ty) = ty {
-                        let field = self.lower_type(queue, requester, *ty, &context)?.term;
-                        properties.push((*name, field));
-                        if !callbacks.is_empty() {
-                            callback_groups.push((
-                                property_index,
-                                *name,
-                                field,
-                                callbacks.iter().collect(),
+
+        let (callback_groups, children) = {
+            let mut children = Vec::with_capacity(component.members.len());
+            let mut callback_groups: Vec<(usize, SymbolPointer, TermId, Vec<&FuncDeclaration>)> =
+                Vec::new();
+            let mut property_index = 0;
+            for member in &component.members {
+                match &member.kind {
+                    ComponentMemberKind::Property {
+                        name,
+                        ty,
+                        callbacks,
+                        ..
+                    } => {
+                        if let Some(ty) = ty {
+                            let field = self.lower_type(queue, requester, *ty, &context)?.term;
+                            properties.push((*name, field));
+                            if !callbacks.is_empty() {
+                                callback_groups.push((
+                                    property_index,
+                                    *name,
+                                    field,
+                                    callbacks.iter().collect(),
+                                ));
+                            }
+                            property_index += 1;
+                        } else {
+                            return Err(HIRError::component_missing_prop_type(
+                                requester,
+                                member.span,
                             ));
                         }
-                        property_index += 1;
-                    } else {
-                        return Err(HIRError::component_missing_prop_type(
-                            requester,
-                            member.span,
-                        ));
+                    }
+                    ComponentMemberKind::NamedChild { name, child: c } => {
+                        let ty = self
+                            .lower_type(queue, requester, c.data.name, &context)?
+                            .term;
+                        if queue.hir.view(ty).nominal().is_component().is_some() {
+                            children.push(ComponentChild {
+                                name: Some(*name),
+                                ty,
+                            });
+                        } else {
+                            return Err(HIRError::not_a_component(requester, ty, c.span));
+                        };
+                    }
+                    ComponentMemberKind::Child(c) => {
+                        let ty = self
+                            .lower_type(queue, requester, c.data.name, &context)?
+                            .term;
+                        if queue.hir.view(ty).nominal().is_component().is_some() {
+                            children.push(ComponentChild { name: None, ty });
+                        } else {
+                            return Err(HIRError::not_a_component(requester, ty, c.span));
+                        };
                     }
                 }
-                ComponentMemberKind::NamedChild { name, child: c } => {
-                    let ty = self
-                        .lower_type(queue, requester, c.data.name, &context)?
-                        .term;
-                    if queue.hir.view(ty).nominal().is_component().is_some() {
-                        children.push(ComponentChild {
-                            name: Some(*name),
-                            ty,
-                        });
-                    } else {
-                        return Err(HIRError::not_a_component(requester, ty, c.span));
-                    };
-                }
-                ComponentMemberKind::Child(c) => {
-                    let ty = self
-                        .lower_type(queue, requester, c.data.name, &context)?
-                        .term;
-                    if queue.hir.view(ty).nominal().is_component().is_some() {
-                        children.push(ComponentChild { name: None, ty });
-                    } else {
-                        return Err(HIRError::not_a_component(requester, ty, c.span));
-                    };
-                }
             }
-        }
+            (callback_groups, children)
+        };
 
         let component_type =
             queue
@@ -120,11 +124,10 @@ impl<'a> ASTLowerer<'a> {
                     ));
                 }
                 let declaration_name = queue.hir.intern_name(&format!(
-                    "__callback_{}_{}_{}_{}",
+                    "{}_callback{index}Of{}_{}",
                     queue.hir.get_name(component.name),
                     queue.hir.get_name(property_name),
                     queue.hir.get_name(callback.name),
-                    index,
                 ));
                 let function = queue.insert_hidden_function(
                     requester,

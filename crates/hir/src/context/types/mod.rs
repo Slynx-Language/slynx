@@ -8,7 +8,7 @@ mod structs;
 use std::ops::Index;
 
 use common::pool::DedupPoolId;
-use dashmap::{DashMap, DashSet};
+use dashmap::DashMap;
 use module_loader::FileId;
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
     TupleType, VariableId,
     helpers::Visible,
     interface::InterfaceTerm,
-    term::{ExtensionNode, Term, TermId, TermNode},
+    term::{ExtensionNode, Term, TermId},
 };
 
 pub use callbacks::CallbackTable;
@@ -33,7 +33,7 @@ pub use storage::TypeStorage;
 /// - [`TypeRegistry`] — the name→type-id mapping,
 /// - [`MethodTable`] — methods attached to any type.
 ///
-/// It additionally tracks variables and externally-marked types.
+/// It additionally tracks variables.
 pub struct TypesContext {
     ///Maps a variable to it's type
     pub variables: DashMap<VariableId, TermId>,
@@ -47,9 +47,6 @@ pub struct TypesContext {
     /// Callback contracts and property callback implementations. These are
     /// intentionally separate from [`MethodTable`].
     pub callbacks: CallbackTable,
-    /// Set of TermIds that are external (from JS/interop).
-    /// When a type is marked external, all references to it are also external.
-    externals: DashSet<TermId>,
 }
 impl Default for TypesContext {
     fn default() -> Self {
@@ -65,7 +62,6 @@ impl TypesContext {
             registry: TypeRegistry::new(),
             methods: MethodTable::new(),
             callbacks: CallbackTable::new(),
-            externals: DashSet::new(),
         }
     }
 
@@ -324,37 +320,6 @@ impl TypesContext {
         self.storage.is_cyclic(ty)
     }
 
-    /// Mark a type as external. Also traverses `Reference` wrappers to mark
-    /// the inner struct type, so that all layers of indirection are covered.
-    pub fn mark_external(&self, ty: TermId) {
-        self.externals.insert(ty);
-        let mut current = ty;
-        while let TermNode::Apply { target, .. } = self[current].node() {
-            self.externals.insert(*target);
-            current = *target;
-        }
-    }
-
-    /// Returns `true` if the given type (or any `Reference` it wraps) has
-    /// been marked as external.
-    pub fn is_external(&self, ty: &TermId) -> bool {
-        if self.externals.contains(ty) {
-            return true;
-        }
-
-        let mut current = *ty;
-        loop {
-            match self[current].node() {
-                TermNode::Apply { target, .. } => {
-                    if self.externals.contains(target) {
-                        return true;
-                    }
-                    current = *target;
-                }
-                _ => return false,
-            }
-        }
-    }
     pub fn create_term(&self, term: Term) -> TermId {
         self.storage.terms.insert(term)
     }
