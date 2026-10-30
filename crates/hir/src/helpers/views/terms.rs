@@ -3,7 +3,8 @@ use std::{fmt, sync::Arc};
 use common::pool::DedupPoolId;
 
 use crate::{
-    ComponentType, DescriptorId, EnumType, HirViewer, Owned, StructType,
+    ComponentType, DescriptorId, EnumType, HirCallbackDefinition, HirViewer, Owned, StructType,
+    SymbolPointer,
     arrays::ArrayTerm,
     helpers::IntegerTypeInfo,
     term::{ConstantTerm, ExtensionNode, PrimitiveType, Term, TermId, TermNode, VarTerm},
@@ -32,6 +33,11 @@ impl<'a> HirViewer<'a, TermId> {
 
     pub fn children(&self) -> Vec<TermId> {
         self.raw().children()
+    }
+
+    ///Gets all the callbacks of the method with the given `method` name
+    pub fn callbacks_of(&self, method: SymbolPointer) -> Vec<HirCallbackDefinition> {
+        self.hir.types.callbacks.definitions_of(self.data, method)
     }
     fn render_apply_internal(self, target: TermId, args: &[TermId]) -> String {
         match self.new_with(target).is_extension() {
