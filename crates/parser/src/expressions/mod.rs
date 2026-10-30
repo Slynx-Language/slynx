@@ -88,6 +88,17 @@ impl Parser<'_> {
                 Ok(Some(Spanned::new(id, component.span)))
             }
             TokenKind::LParen => {
+                // `Self()` is an empty object expression, not a function call.
+                let is_empty_self = matches!(
+                    &self.peek()?.kind,
+                    TokenKind::Identifier(name) if name == "Self"
+                ) && self
+                    .peek_at_opt(2)
+                    .is_some_and(|token| token.kind == TokenKind::RParen);
+                if is_empty_self {
+                    return Ok(Some(self.parse_object_expression(type_params, flags)?));
+                }
+
                 //check if its name(a,b) or name(a:b), or name(.a:b)
                 match (
                     self.peek_at_opt(2).map(|token| &token.kind),
