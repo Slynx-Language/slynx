@@ -143,7 +143,7 @@ impl<'a> ComponentBuilder<'a> {
 pub struct ComponentValueBuilder<'f, 'ir> {
     func: &'f mut FunctionBuilder<'ir>,
     ty: IRTypeId,
-    args: Vec<Value>,
+    values: Vec<Value>,
 }
 
 impl<'f, 'ir> ComponentValueBuilder<'f, 'ir> {
@@ -151,15 +151,16 @@ impl<'f, 'ir> ComponentValueBuilder<'f, 'ir> {
         Self {
             func: function,
             ty,
-            args: Vec::new(),
+            values: Vec::new(),
         }
     }
 
+    /// Add a component field value first, followed by child values in slot order.
     pub fn add_argument(&mut self, arg: Value) {
-        self.args.push(arg);
+        self.values.push(arg);
     }
 
     pub fn generate(self) -> Value {
-        self.func.emit(Opcode::Component, self.args, self.ty)
+        self.func.emit(Opcode::Component, self.values, self.ty)
     }
 }

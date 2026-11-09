@@ -236,8 +236,8 @@ component %Counter(i32) {
 
 AnyComponent main() {
 $entry:
-  Counter0 = %Counter{0}; //0 = default value
-  Counter1 = %Counter{12};
+  Counter0 = %Counter {%f0=0}; //0 = default value
+  Counter1 = %Counter {%f0=12};
   ret Counter1
 }
 ```
@@ -309,8 +309,8 @@ component %Counter(i32) {
 
 AnyComponent main() {
 $entry:
-  Counter0 = %Counter{0}; //0 = default value
-  Counter1 = %Counter{12};
+  Counter0 = %Counter {%f0=0}; //0 = default value
+  Counter1 = %Counter {%f0=12};
   ret Counter1;
 }
 ```
