@@ -321,9 +321,7 @@ impl ExpressionBuilder {
                                 })
                             })
                             .collect::<Vec<_>>();
-                        callbacks
-                            .is_empty()
-                            .then_some((*component, *field_index, callbacks))
+                        (!callbacks.is_empty()).then_some((*component, *field_index, callbacks))
                     }
                     _ => None,
                 }
