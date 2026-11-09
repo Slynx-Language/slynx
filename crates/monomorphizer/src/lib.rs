@@ -46,9 +46,10 @@ use common::{PoolStorage, Span, Spanned, pool::PoolId};
 use dashmap::DashMap;
 use module_loader::FileId;
 use slynx_hir::{
-    ComponentMemberDeclaration, DeclarationId, DeclarationsPool, DescriptorId, HIRError,
-    HirComponentExpression, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
-    PropertyExpression, Result, SlynxHir, SymbolPointer, TypeDeclaration, VariableId,
+    ComponentChildExpression, ComponentMemberDeclaration, DeclarationId, DeclarationsPool,
+    DescriptorId, HIRError, HirComponentExpression, HirExpression, HirExpressionKind,
+    HirFunctionDeclaration, HirStatement, PropertyExpression, Result, SlynxHir, SymbolPointer,
+    TypeDeclaration, VariableId,
     id::AnyDeclarationId,
     term::{Term, TermId, TermNode},
 };
@@ -928,7 +929,7 @@ impl Monomorphizer {
     }
 
     ///Rebuilds a component expression (its name type, property values, and
-    ///child tree) under `subst`.
+    ///child slots) under `subst`.
     ///
     ///When the component name is a resolvable reference to a generic
     ///component, it is specialized through
@@ -976,14 +977,28 @@ impl Monomorphizer {
             site,
         )?;
 
+        let mut children = node
+            .children
+            .iter()
+            .map(|child| {
+                let expr = self.build_component_expression(hir, *child.expr(), subst, site)?;
+                Ok(ComponentChildExpression::new(child.index(), expr))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        self.fill_missing_component_children(
+            hir,
+            new_name,
+            &mut children,
+            subst,
+            component.span,
+            site,
+        )?;
+        children.sort_by_key(ComponentChildExpression::index);
+
         let new_component = HirComponentExpression {
             name: new_name,
             properties,
-            children: node
-                .children
-                .iter()
-                .map(|child| self.build_component_expression(hir, *child, subst, site))
-                .collect::<Result<Vec<_>>>()?,
+            children,
         };
         let id = hir.store.insert_component_expression(new_component);
         Ok(component.span.make_spanned(id))
@@ -1070,6 +1085,87 @@ impl Monomorphizer {
         }
 
         properties.extend(filled);
+        Ok(())
+    }
+
+    ///Fills child slots omitted from a component expression with the child
+    ///expressions declared by that component.
+    fn fill_missing_component_children(
+        &mut self,
+        hir: &SlynxHir,
+        name: TermId,
+        children: &mut Vec<ComponentChildExpression>,
+        subst: &Substitution,
+        span: Span,
+        site: FileId,
+    ) -> Result<()> {
+        let view = hir.view(name);
+        let deref = view.nominal();
+        let Some(component_view) = deref.is_component() else {
+            return Ok(());
+        };
+        let child_count = component_view.children().len();
+        if child_count == 0 {
+            return Ok(());
+        }
+        let component_name = hir.types.get_component_name(component_view.data());
+        let owner = hir.types.get_component_owner(component_view.data());
+
+        let provided: HashSet<usize> = children
+            .iter()
+            .map(ComponentChildExpression::index)
+            .collect();
+        if provided.len() != children.len() || provided.iter().any(|index| *index >= child_count) {
+            return Err(HIRError::new(
+                site,
+                slynx_hir::HIRErrorKind::InvalidChild,
+                span,
+            ));
+        }
+        if provided.len() == child_count {
+            return Ok(());
+        }
+
+        let defaults = {
+            let file = hir.get_file(owner);
+            let Some(declaration) = file
+                .declarations
+                .declarations
+                .components
+                .iter()
+                .find(|declaration| declaration.name == component_name)
+            else {
+                return Err(HIRError::new(
+                    site,
+                    slynx_hir::HIRErrorKind::InvalidChild,
+                    span,
+                ));
+            };
+            declaration
+                .props
+                .iter()
+                .filter_map(|member| match member {
+                    ComponentMemberDeclaration::Child(expr) => Some(*expr),
+                    ComponentMemberDeclaration::Property { .. } => None,
+                })
+                .enumerate()
+                .collect::<Vec<_>>()
+        };
+        let missing: Vec<_> = defaults
+            .into_iter()
+            .filter(|(index, _)| !provided.contains(index))
+            .collect();
+        for (index, default) in missing {
+            let expr = self.build_component_expression(hir, default, subst, site)?;
+            children.push(ComponentChildExpression::new(index, expr));
+        }
+        if children.len() != child_count {
+            return Err(HIRError::new(
+                site,
+                slynx_hir::HIRErrorKind::InvalidChild,
+                span,
+            ));
+        }
         Ok(())
     }
 }
