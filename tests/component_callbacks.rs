@@ -43,18 +43,21 @@ func main(): sint32 {
 #[test]
 fn before_and_after_callbacks_wrap_the_method_in_order() {
     let sir = common::compile_source_ok_sir(ORDERED);
-    let run = sir.split("i32 run(").nth(1).expect("run should be emitted");
+    let run = sir
+        .split("i32 View_run(")
+        .nth(1)
+        .expect("run should be emitted");
 
     let before = run
-        .find("__callback_View_model_beforeSet")
+        .find("View_View_callback1Ofmodel_beforeSet")
         .expect("before callback should be called");
-    let method = run.find("= set(").expect("set should be called");
+    let method = run.find("Model_set(").expect("set should be called");
     let after = run
-        .find("__callback_View_model_changed")
+        .find("View_View_callback1Ofmodel_changed")
         .expect("after callback should be called");
-    let get = run.find("= get(").expect("get should be called");
+    let get = run.find("Model_get(").expect("get should be called");
     let after_return = run
-        .find("__callback_View_model_read")
+        .find("View_View_callback1Ofmodel_read")
         .expect("after-return callback should be called");
 
     assert!(
@@ -107,7 +110,7 @@ func main(): sint32 {
 "#,
     );
     assert_eq!(
-        sir.matches("= __callback_View_model_changed").count(),
+        sir.matches("= View_View_callback1Ofmodel_changed").count(),
         4,
         "each call-site expression position must run the callback"
     );
@@ -151,16 +154,85 @@ func main(): sint32 {
 "#,
     );
     assert!(
-        sir.contains("__callback_Child_model_changed"),
+        sir.contains("Child_Child_callback1Ofmodel_changed"),
         "the callback implementation belongs to the child component"
     );
     let run = sir
-        .split("i32 run(")
+        .split("i32 Parent_run(")
         .nth(1)
         .expect("parent run should be emitted");
     assert!(
-        run.contains("__callback_Child_model_changed"),
+        run.contains("Child_Child_callback1Ofmodel_changed"),
         "a direct nested child property call must be instrumented"
+    );
+}
+
+#[test]
+fn nested_component_method_runs_its_property_callback() {
+    let sir = common::compile_source_ok_sir(
+        r#"
+extern {
+    object Console {
+        func log(&self, s: str): void;
+    }
+    pub static console: Console;
+}
+
+object S {
+    s: str,
+    callback onChange(str): void after update() => (content);
+
+    func empty(): Self {
+        Self(s: "")
+    }
+
+    func update(&mut self, content: str): void {
+        self.s = content;
+    }
+}
+
+component Text {
+    pub prop v: S = S.empty() {
+        func onChange(&mut self, newvalue: str): void {
+            console.log(newvalue);
+        }
+    }
+
+    pub func update(&mut self, n: str): void {
+        self.v.update(n);
+    }
+}
+
+component Main {
+    prop value: sint32 = 0;
+    t=Text {}
+
+    func init(&mut self): void {
+        self.t.update("Jorginho");
+    }
+}
+
+func main(): Main {
+    let mut m = Main {};
+    m.init();
+    return m;
+}
+"#,
+    );
+    let text_update = sir
+        .split("void Text_update(")
+        .nth(1)
+        .expect("Text.update should be emitted");
+    let update = text_update
+        .find("S_update(")
+        .expect("property method should be called");
+    let callback = text_update
+        .find("Text_Text_callback0Ofv_onChange(")
+        .expect("property callback should be called");
+
+    assert!(
+        update < callback,
+        "after callback must follow the property method call:\n{text_update}"
     );
 }
 
@@ -249,7 +321,7 @@ func main(): sint32 {
 "#,
     );
     assert!(
-        !sir.contains("= __callback_View_model_changed"),
+        !sir.contains("= View_View_callback1Ofmodel_changed"),
         "only direct property receivers should be instrumented"
     );
 }
@@ -346,11 +418,11 @@ func main(): void {
 "#,
     );
     let run = sir
-        .split("void run(")
+        .split("void View_run(")
         .nth(1)
         .expect("run should be emitted");
     assert!(
-        run.contains("__callback_View_pair_swapped_1(p0, 10, 1)"),
+        run.contains("View_View_callback1Ofpair_swapped(p0, 10, 1)"),
         "mapped arguments must be passed in contract order: {run}"
     );
 }
