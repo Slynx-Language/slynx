@@ -1,5 +1,5 @@
 use crate::{
-    SymbolPointer,
+    FuncDeclaration, SymbolPointer,
     ast::{ASTExpression, Type, VisibilityModifier},
 };
 use common::{Span, Spanned, pool::DedupPoolId};
@@ -9,12 +9,14 @@ pub struct ComponentMember {
     pub kind: ComponentMemberKind,
     pub span: Span,
 }
+
 #[derive(Debug)]
 pub enum ComponentMemberKind {
     ///Represents the definition of a property inside a component. Such as component C {prop value=5;}
     Property {
         name: SymbolPointer,
         modifier: VisibilityModifier,
+        callbacks: Vec<FuncDeclaration>,
         ty: Option<Spanned<DedupPoolId<Type>>>,
         rhs: Option<Spanned<DedupPoolId<ASTExpression>>>,
     },

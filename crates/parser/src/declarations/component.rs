@@ -1,5 +1,6 @@
 use crate::{
-    ASTAttribute, ComponentDeclaration, GenericsMetadata, Result, SymbolPointer,
+    ASTAttribute, ComponentDeclaration, FuncDeclaration, GenericsMetadata,
+    ParseCollectionDescriptor, Result, SymbolPointer,
     ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
     flags::ParserFlags,
 };
@@ -41,6 +42,39 @@ impl Parser<'_> {
         })
     }
 
+    fn parse_callbacks(&mut self) -> Result<Vec<FuncDeclaration>> {
+        self.parse_collection(ParseCollectionDescriptor {
+            stop_tokens: &[TokenKind::RBrace],
+            separator_token: None,
+            parse_item: |parser| {
+                let start = parser.expect(&TokenKind::Func)?;
+                let callback = parser.parse_func(
+                    start.span,
+                    vec![],
+                    VisibilityModifier::Private,
+                    ParserFlags::empty(),
+                )?;
+                if parser.peek()?.kind == TokenKind::SemiColon {
+                    parser.eat()?;
+                }
+                Ok(callback)
+            },
+        })
+    }
+
+    fn parse_optional_callbacks(&mut self) -> Result<Vec<FuncDeclaration>> {
+        if self.peek()?.kind != TokenKind::LBrace {
+            return Ok(Vec::new());
+        }
+        self.eat()?;
+        let callbacks = self.parse_callbacks()?;
+        self.expect(&TokenKind::RBrace)?;
+        if self.peek()?.kind == TokenKind::SemiColon {
+            self.eat()?;
+        }
+        Ok(callbacks)
+    }
+
     /// Parses a component member, which can be either a child component or a property. The visibility `modifier` has already been consumed by the caller. It determines if the member is a child component (identified by an identifier followed by an expression) or a property (identified by the 'prop' keyword followed by an identifier and optional type and default value). The function constructs and returns a `ComponentMember` based on the parsed information, including its kind and span.
     fn parse_component_member(
         &mut self,
@@ -75,34 +109,40 @@ impl Parser<'_> {
                 self.eat()?;
                 let ident = self.expect_identifier()?;
                 match self.peek()?.kind {
-                    TokenKind::SemiColon => {
-                        span.end = self.eat()?.span.end;
-                        Ok(ComponentMember {
-                            kind: ComponentMemberKind::Property {
-                                name: ident.data,
-                                modifier,
-                                ty: None,
-                                rhs: None,
-                            },
-                            span,
-                        })
-                    }
 
                     TokenKind::Colon => {
                         self.eat()?;
                         let ty = self.parse_type(type_params)?;
-
                         let curr = self.eat()?;
-                        let rhs = match curr.kind {
+                        let (rhs, callbacks) = match curr.kind {
+                            TokenKind::LBrace => {
+                                // `prop x: T { func ... }`
+                                let callbacks = self.parse_callbacks()?;
+                                span.end = self.expect(&TokenKind::RBrace)?.span.end;
+                                if self.peek()?.kind == TokenKind::SemiColon {
+                                    span.end = self.eat()?.span.end;
+                                }
+                                (None, callbacks)
+                            }
                             TokenKind::SemiColon => {
                                 span.end = curr.span.end;
-                                None
+                                (None, Vec::new())
                             }
                             TokenKind::Eq => {
                                 let expr = self.parse_expression(type_params, ParserFlags::empty())?;
-
-                                span.end = self.expect(&TokenKind::SemiColon)?.span.end;
-                                Some(expr)
+                                if self.peek()?.kind == TokenKind::LBrace {
+                                    // `prop x: T = expr { func ... }`
+                                    self.eat()?;
+                                    let callbacks = self.parse_callbacks()?;
+                                    span.end = self.expect(&TokenKind::RBrace)?.span.end;
+                                    if self.peek()?.kind == TokenKind::SemiColon {
+                                        span.end = self.eat()?.span.end;
+                                    }
+                                    (Some(expr), callbacks)
+                                } else {
+                                    span.end = self.expect(&TokenKind::SemiColon)?.span.end;
+                                    (Some(expr), Vec::new())
+                                }
                             }
                             _ => {
                                 return self.unexpected_with(
@@ -114,6 +154,7 @@ impl Parser<'_> {
                         Ok(ComponentMember {
                             kind: ComponentMemberKind::Property {
                                 name: ident.data,
+                                callbacks,
                                 modifier,
                                 ty: Some(ty),
                                 rhs,
@@ -124,9 +165,13 @@ impl Parser<'_> {
                     TokenKind::Eq => {
                         self.eat()?;
                         let expr = self.parse_expression(type_params, ParserFlags::empty())?;
-                        span.end = self.expect(&TokenKind::SemiColon)?.span.end;
+                        let callbacks = self.parse_optional_callbacks()?;
+                        if callbacks.is_empty() {
+                            span.end = self.expect(&TokenKind::SemiColon)?.span.end;
+                        }
                         Ok(ComponentMember {
                             kind: ComponentMemberKind::Property {
+                                callbacks,
                                 name: ident.data,
                                 modifier,
                                 ty: None,

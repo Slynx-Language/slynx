@@ -65,8 +65,8 @@
 //! - [`crate::hir::implementation::expression::resolve_expr`] — Expression resolution
 
 use crate::{
-    DeclarationId, HirFunctionDeclaration, HirStaticDeclaration, Owned, SymbolPointer, VariableId,
-    model::HirStatement, term::TermId,
+    DeclarationId, HirCallbackInvocation, HirFunctionDeclaration, HirStaticDeclaration, Owned,
+    SymbolPointer, VariableId, model::HirStatement, term::TermId,
 };
 
 use common::{Operator, Spanned, pool::PoolId};
@@ -101,6 +101,29 @@ impl PropertyExpression {
     }
 }
 
+/// A child assignment within a component construction expression.
+///
+/// Links a child slot index to the component expression that initializes it.
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct ComponentChildExpression {
+    index: usize,
+    expr: Spanned<PoolId<HirComponentExpression>>,
+}
+
+impl ComponentChildExpression {
+    pub fn new(index: usize, expr: Spanned<PoolId<HirComponentExpression>>) -> Self {
+        Self { index, expr }
+    }
+
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
+    pub fn expr(&self) -> &Spanned<PoolId<HirComponentExpression>> {
+        &self.expr
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct HirComponentExpression {
     /// The type of the component.
@@ -108,7 +131,7 @@ pub struct HirComponentExpression {
     /// The properties of this component
     pub properties: Vec<PropertyExpression>,
     /// The children of this component
-    pub children: Vec<Spanned<PoolId<HirComponentExpression>>>,
+    pub children: Vec<ComponentChildExpression>,
 }
 
 /// A place represents a memory location that can be read from, written to,
@@ -628,4 +651,18 @@ pub enum HirExpressionKind {
     ),
     Deref(Spanned<PoolId<HirExpression>>),
     Reference(Spanned<PoolId<HirExpression>>),
+    /// A method call whose receiver is a direct component property field access,
+    /// instrumented with zero or more property callbacks.
+    CallWithCallbacks {
+        /// The enclosing component expression (for example `self` or `self.child`).
+        component: Spanned<PoolId<HirExpression>>,
+        /// The property index inside the enclosing component.
+        property_index: usize,
+        /// The resolved method being called.
+        method: DeclarationId<HirFunctionDeclaration>,
+        /// The explicit method arguments, without the property receiver.
+        args: Vec<Spanned<PoolId<HirExpression>>>,
+        /// Before/after callbacks in declaration order.
+        callbacks: Vec<HirCallbackInvocation>,
+    },
 }

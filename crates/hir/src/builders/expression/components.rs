@@ -3,7 +3,8 @@ use module_loader::{ASTType, ASTTypeKind};
 use slynx_parser::{ComponentExpression, ComponentMemberValue, TypeContext};
 
 use crate::{
-    HIRError, HirComponentExpression, PropertyExpression, Result,
+    ComponentChildExpression, HIRError, HIRErrorKind, HirComponentExpression, PropertyExpression,
+    Result,
     builders::HirQueueBuilder,
     context::HirSymbol,
     generics::GenericTypeArguments,
@@ -109,7 +110,13 @@ impl ExpressionBuilder {
         generics.merge_explicit(explicit);
 
         let mut properties = Vec::new();
-        let mut children = Vec::new();
+        let has_declared_children = !comp_view.children().is_empty();
+        let mut children: Vec<Option<Spanned<PoolId<HirComponentExpression>>>> =
+            if has_declared_children {
+                vec![None; comp_view.children().len()]
+            } else {
+                Vec::new()
+            };
         for value in &component.values {
             match value {
                 ComponentMemberValue::Assign { prop_name, rhs }
@@ -153,40 +160,81 @@ impl ExpressionBuilder {
                     ));
                 }
                 ComponentMemberValue::Child(child) => {
-                    let child_expr = self.build_component_expression(
-                        queue,
-                        ComponentExpressionDescriptor {
-                            component: child,
-                            span,
-                            expected: None,
-                            context,
-                        },
-                    )?;
-                    children.push(child_expr);
-                }
-                ComponentMemberValue::NamedChild { name, child } => {
-                    if let Some(position) = comp_view
-                        .children()
-                        .iter()
-                        .position(|child| matches!(child.name, Some(cname) if cname == *name))
-                    {
-                        let expected = queue
-                            .hir
-                            .view(comp_view.children()[position].ty)
-                            .raw()
-                            .is_var_type()
-                            .and_then(|var| generics.get(var.index as usize));
+                    if !has_declared_children {
                         let child_expr = self.build_component_expression(
                             queue,
                             ComponentExpressionDescriptor {
                                 component: child,
                                 span,
-                                expected,
+                                expected: None,
                                 context,
                             },
                         )?;
-                        children.push(child_expr);
+                        children.push(Some(child_expr));
+                        continue;
                     }
+                    let position = children.iter().position(Option::is_none).ok_or_else(|| {
+                        HIRError::new(self.file(), HIRErrorKind::InvalidChild, span)
+                    })?;
+                    let child_type =
+                        generics.substitute(queue.hir, comp_view.children()[position].ty);
+                    let child_expr = self.build_component_expression(
+                        queue,
+                        ComponentExpressionDescriptor {
+                            component: child,
+                            span,
+                            expected: Some(child_type),
+                            context,
+                        },
+                    )?;
+                    let actual_type = queue.hir[child_expr.data].name;
+                    self.unify_terms(queue, actual_type, child_type, span)?;
+                    if let Some(var) = queue
+                        .hir
+                        .view(comp_view.children()[position].ty)
+                        .raw()
+                        .is_var_type()
+                    {
+                        generics.try_set(var.index as usize, actual_type);
+                    }
+                    children[position] = Some(child_expr);
+                }
+                ComponentMemberValue::NamedChild { name, child } => {
+                    if !has_declared_children {
+                        return Err(HIRError::new(self.file(), HIRErrorKind::InvalidChild, span));
+                    }
+                    let position = comp_view
+                        .children()
+                        .iter()
+                        .position(|child| matches!(child.name, Some(cname) if cname == *name))
+                        .ok_or_else(|| {
+                            HIRError::new(self.file(), HIRErrorKind::InvalidChild, span)
+                        })?;
+                    if children[position].is_some() {
+                        return Err(HIRError::already_defined(self.file(), *name, span));
+                    }
+                    let child_type =
+                        generics.substitute(queue.hir, comp_view.children()[position].ty);
+                    let child_expr = self.build_component_expression(
+                        queue,
+                        ComponentExpressionDescriptor {
+                            component: child,
+                            span,
+                            expected: Some(child_type),
+                            context,
+                        },
+                    )?;
+                    let actual_type = queue.hir[child_expr.data].name;
+                    self.unify_terms(queue, actual_type, child_type, span)?;
+                    if let Some(var) = queue
+                        .hir
+                        .view(comp_view.children()[position].ty)
+                        .raw()
+                        .is_var_type()
+                    {
+                        generics.try_set(var.index as usize, actual_type);
+                    }
+                    children[position] = Some(child_expr);
                 }
             }
         }
@@ -203,6 +251,13 @@ impl ExpressionBuilder {
         } else {
             lowered.term
         };
+        let children = children
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, child)| {
+                child.map(|child| ComponentChildExpression::new(index, child))
+            })
+            .collect();
 
         let id = queue
             .hir

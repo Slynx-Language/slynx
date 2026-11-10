@@ -6,7 +6,7 @@ use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
     DeclarationId, HIRError, HirExpression, HirExpressionKind, HirFunctionDeclaration, Owned,
-    Result, builders::HirQueueBuilder, generics::GenericTypeArguments,
+    Result, builders::HirQueueBuilder, generics::GenericTypeArguments, term::TermId,
 };
 
 use super::{ExpressionBuilder, ExpressionDescriptor};
@@ -52,7 +52,66 @@ impl FunctionCallDescriptor<'_> {
 }
 
 impl ExpressionBuilder {
-    /// Builds a function call expression from a descriptor. This is the single
+    /// Builds the explicit (non-receiver) arguments of an already-resolved
+    /// method call. Returns the argument list and the method return type.
+    pub(super) fn build_resolved_method_arguments(
+        &mut self,
+        queue: &HirQueueBuilder<'_>,
+        target: DeclarationId<HirFunctionDeclaration>,
+        type_arguments: &[Spanned<DedupPoolId<Type>>],
+        arguments: &[Spanned<DedupPoolId<ASTExpression>>],
+        span: Span,
+        context: &TypeContext,
+    ) -> Result<(Vec<Spanned<PoolId<HirExpression>>>, TermId)> {
+        let func_viewer = queue.hir.view(target);
+        let (expected_args, return_type) = func_viewer.type_viewer();
+        if expected_args.len() != arguments.len() + 1 {
+            return Err(HIRError::invalid_funcall_arg_length(
+                self.file(),
+                func_viewer.name(),
+                expected_args.len(),
+                arguments.len() + 1,
+                span,
+            ));
+        }
+        let explicit_expected = &expected_args[1..];
+        let mut generics = GenericTypeArguments::from_explicit(
+            type_arguments
+                .iter()
+                .map(|ty| {
+                    queue
+                        .lowerer
+                        .lower_type(queue, self.file(), *ty, context)
+                        .map(|owned| owned.term)
+                })
+                .collect::<Result<Vec<_>>>()?,
+        );
+        let args = arguments
+            .iter()
+            .zip(explicit_expected)
+            .map(|(arg, ty)| {
+                let expected_ty = match queue.hir.view(*ty).raw().is_var_type() {
+                    Some(var) => generics.get(var.index as usize),
+                    None => Some(*ty),
+                };
+                let expr = self.build_expression(
+                    queue,
+                    ExpressionDescriptor {
+                        target: *arg,
+                        expected: expected_ty,
+                        context,
+                    },
+                )?;
+                self.unify_terms(queue, queue.hir.view(expr.data).ty().term, *ty, span)?;
+                if let Some(var) = queue.hir.view(*ty).raw().is_var_type() {
+                    generics.try_set(var.index as usize, queue.hir.view(expr.data).ty().term);
+                }
+                Ok(expr)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok((args, return_type))
+    }
+
     /// entry point for building function calls: it resolves the target when
     /// given by name, checks the argument count, resolves the explicit generic
     /// type arguments, infers any that are missing from the arguments, and

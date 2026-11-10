@@ -77,7 +77,7 @@ pub enum Opcode {
     /// Construct a struct literal.  Operands are the field values.
     Struct,
 
-    /// Construct a component.  Operands are the component field values.
+    /// Construct a component. Operands are its field values followed by its child-component values.
     Component,
 
     /// Extract field `index` from a struct/component.
@@ -411,10 +411,10 @@ impl Instruction {
         }
     }
 
-    pub fn component(ty: IRTypeId, fields: SmallVec<[Value; 4]>) -> Self {
+    pub fn component(ty: IRTypeId, values: SmallVec<[Value; 4]>) -> Self {
         Instruction {
             opcode: Opcode::Component,
-            operands: fields,
+            operands: values,
             value_type: ty,
         }
     }

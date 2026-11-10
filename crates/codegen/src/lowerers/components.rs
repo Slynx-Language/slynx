@@ -40,8 +40,10 @@ impl<'a> LoweringState<'a> {
                 }
                 all_values.extend(prop_values);
             }
-            for child in children {
-                let child_value = self.get_component_expression(*child, ctx)?;
+            let mut ordered_children: Vec<_> = children.iter().collect();
+            ordered_children.sort_by_key(|child| child.index());
+            for child in ordered_children {
+                let child_value = self.get_component_expression(*child.expr(), ctx)?;
                 all_values.push(child_value);
             }
             (ty, all_values)

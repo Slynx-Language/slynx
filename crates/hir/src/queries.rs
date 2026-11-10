@@ -70,6 +70,26 @@ impl SlynxHir<'_> {
         self.store.get_file_mut(id)
     }
 
+    /// Returns whether `ty` is a struct declared by an `extern object`.
+    ///
+    /// Externality belongs to the declaration, so this resolves the nominal
+    /// struct back to its owning file and checks the matching
+    /// `HirObjectDeclaration.external` flag.
+    pub fn is_external_type(&self, ty: TermId) -> bool {
+        let nominal = self.view(ty).nominal();
+        let Some(struct_type) = nominal.is_struct() else {
+            return false;
+        };
+        let owner = self.types.get_struct_owner(struct_type.data());
+        self.get_file(owner)
+            .declarations
+            .objects
+            .iter()
+            .any(|object| {
+                object.external && self.view(object.ty).nominal().data() == nominal.data()
+            })
+    }
+
     /// Recursively flattens a HIR type to its primitive components.
     /// A struct `Color { inner: int }` flattens to `[int]`.
     /// A struct `Border { color: Color, width: int, radius: int }` flattens to `[int, int, int]`.

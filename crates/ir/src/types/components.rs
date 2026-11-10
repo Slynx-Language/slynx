@@ -1,4 +1,5 @@
 use std::hash::{Hash, Hasher};
+use std::ops::Range;
 
 use common::pool::DedupPoolId;
 use smallvec::SmallVec;
@@ -51,6 +52,16 @@ impl IRComponent {
 
     pub fn children(&self) -> &[IRTypeId] {
         &self.children
+    }
+
+    /// Operand indices occupied by component fields in a `Component` instruction.
+    pub fn fields_range(&self) -> Range<usize> {
+        0..self.fields.len()
+    }
+
+    /// Operand indices occupied by declared child components in a `Component` instruction.
+    pub fn children_range(&self) -> Range<usize> {
+        self.fields.len()..self.fields.len() + self.children.len()
     }
 }
 

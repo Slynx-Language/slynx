@@ -268,6 +268,17 @@ impl OwnershipAnalysis {
                     self.analyze_expression_read(file, hir, elem, state);
                 }
             }
+            HirExpressionKind::CallWithCallbacks {
+                component, args, ..
+            } => {
+                // The component and the explicit arguments are evaluated once and
+                // reused by both the method and its callbacks. Treat them as reads
+                // so callback instrumentation never introduces a second move.
+                self.analyze_expression_read(file, hir, component, state);
+                for arg in args {
+                    self.analyze_expression_read(file, hir, arg, state);
+                }
+            }
             HirExpressionKind::If {
                 condition,
                 then_branch,

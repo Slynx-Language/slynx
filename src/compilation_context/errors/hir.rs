@@ -274,6 +274,58 @@ impl SlynxContext {
                 let func = hir.get_name(*func);
                 format!("Monomorphization of generic function '{func}' does not terminate")
             }
+            HIRErrorKind::CallbackTargetNotFound { callback, target } => {
+                format!(
+                    "Callback '{}' targets method '{}', which does not exist",
+                    hir.get_name(*callback),
+                    hir.get_name(*target)
+                )
+            }
+            HIRErrorKind::CallbackArgumentNotFound {
+                callback,
+                argument,
+            } => {
+                format!(
+                    "Callback '{}' maps argument '{}', which is not a parameter of the target method",
+                    hir.get_name(*callback),
+                    hir.get_name(*argument)
+                )
+            }
+            HIRErrorKind::CallbackReturnInBefore { callback } => {
+                format!(
+                    "Before callback '{}' cannot map the method return value",
+                    hir.get_name(*callback)
+                )
+            }
+            HIRErrorKind::CallbackContractNotFound { callback } => {
+                format!(
+                    "Callback '{}' is not declared by the property type",
+                    hir.get_name(*callback)
+                )
+            }
+            HIRErrorKind::CallbackArgumentCountMismatch {
+                callback,
+                expected,
+                actual,
+            } => {
+                format!(
+                    "Callback '{}' expects {expected} mapped argument(s), but its implementation has {actual}",
+                    hir.get_name(*callback)
+                )
+            }
+            HIRErrorKind::CallbackContractArgumentCountMismatch {
+                callback,
+                declared,
+                mapped,
+            } => {
+                format!(
+                    "Callback '{}' declares {declared} parameter type(s) but maps {mapped}",
+                    hir.get_name(*callback)
+                )
+            }
+            HIRErrorKind::CallbackMustReturnVoid { callback } => {
+                format!("Callback '{}' must return 'void'", hir.get_name(*callback))
+            }
             HIRErrorKind::NotImplemented(name) => {
                 let name = hir.get_name(*name);
                 format!("'{name}' uses a construct that is not implemented yet")

@@ -276,6 +276,54 @@ pub enum HIRErrorKind {
         /// The generic type arguments that keep growing.
         args: Vec<TermId>,
     },
+    /// A callback contract targets a method that does not exist on its type.
+    CallbackTargetNotFound {
+        /// The callback being declared.
+        callback: SymbolPointer,
+        /// The target method name.
+        target: SymbolPointer,
+    },
+    /// A callback mapping names an argument that the target method does not have.
+    CallbackArgumentNotFound {
+        /// The callback being declared.
+        callback: SymbolPointer,
+        /// The mapped argument name.
+        argument: SymbolPointer,
+    },
+    /// A `before` callback tried to map the method return value.
+    CallbackReturnInBefore {
+        /// The callback being declared.
+        callback: SymbolPointer,
+    },
+    /// A callback implementation has no matching contract on the property type.
+    CallbackContractNotFound {
+        /// The callback implementation name.
+        callback: SymbolPointer,
+    },
+    /// A callback implementation's parameter count does not match its contract.
+    CallbackArgumentCountMismatch {
+        /// The callback being implemented.
+        callback: SymbolPointer,
+        /// Number of values required by the contract mapping.
+        expected: usize,
+        /// Number of parameters on the implementation (excluding `self`).
+        actual: usize,
+    },
+    /// A callback contract declares a different number of parameter types than
+    /// its ordering clause supplies.
+    CallbackContractArgumentCountMismatch {
+        /// The callback being declared.
+        callback: SymbolPointer,
+        /// Number of types declared in the callback signature.
+        declared: usize,
+        /// Number of values supplied by the ordering clause.
+        mapped: usize,
+    },
+    /// A callback contract or implementation returns something other than `void`.
+    CallbackMustReturnVoid {
+        /// The callback being declared or implemented.
+        callback: SymbolPointer,
+    },
     /// A construct that is not yet supported was encountered. The named
     /// declaration cannot be processed by the current implementation.
     NotImplemented(SymbolPointer),
@@ -879,6 +927,53 @@ impl std::fmt::Display for HIRError {
                     f,
                     "monomorphization of generic function '{func:?}' does not terminate"
                 )
+            }
+            HIRErrorKind::CallbackTargetNotFound { callback, target } => {
+                write!(
+                    f,
+                    "callback '{callback:?}' targets unknown method '{target:?}'"
+                )
+            }
+            HIRErrorKind::CallbackArgumentNotFound { callback, argument } => {
+                write!(
+                    f,
+                    "callback '{callback:?}' maps unknown method argument '{argument:?}'"
+                )
+            }
+            HIRErrorKind::CallbackReturnInBefore { callback } => {
+                write!(
+                    f,
+                    "before callback '{callback:?}' cannot map the method return value"
+                )
+            }
+            HIRErrorKind::CallbackContractNotFound { callback } => {
+                write!(
+                    f,
+                    "callback '{callback:?}' is not declared by the property type"
+                )
+            }
+            HIRErrorKind::CallbackArgumentCountMismatch {
+                callback,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "callback '{callback:?}' expects {expected} argument(s), implementation has {actual}"
+                )
+            }
+            HIRErrorKind::CallbackContractArgumentCountMismatch {
+                callback,
+                declared,
+                mapped,
+            } => {
+                write!(
+                    f,
+                    "callback '{callback:?}' declares {declared} parameter type(s) but maps {mapped}"
+                )
+            }
+            HIRErrorKind::CallbackMustReturnVoid { callback } => {
+                write!(f, "callback '{callback:?}' must return void")
             }
             HIRErrorKind::NotImplemented(name) => {
                 write!(f, "'{name:?}' uses a construct that is not implemented yet")

@@ -24,6 +24,8 @@ pub struct ParseError {
 
 #[derive(Debug)]
 pub enum ParseErrorKind {
+    ExpectedCallbackOrder,
+    UnsupportedCallbackGenerics,
     MissingReturnType,
     ExpectedBounds,
     ///An error that occurs when the provided `Token` is received when not intended. The provided `String` is a text to explain what was being expected instead. It's shown as 'Instead, was expecting `string`'
@@ -57,12 +59,21 @@ impl ParseError {
     pub fn no_style_usages_provided(span: Span) -> Self {
         Self::new(ParseErrorKind::NoStyleUsagesProvided, span)
     }
+    pub fn expected_callback_ordering(span: Span) -> Self {
+        Self::new(ParseErrorKind::ExpectedCallbackOrder, span)
+    }
 }
 
 impl std::fmt::Display for ParseError {
     ///Formats the `ParseError` into a human-readable string. It matches on the type of error and constructs an appropriate message. For `UnexpectedToken`, it includes the unexpected token and what was expected. For `UnexpectedEndOfInput`, it simply states that the end of input was unexpected.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match &self.kind {
+            ParseErrorKind::ExpectedCallbackOrder => {
+                write!(f, "Expected callback order('after' or 'before')")
+            }
+            ParseErrorKind::UnsupportedCallbackGenerics => {
+                write!(f, "Generic callback definitions are not supported")
+            }
             ParseErrorKind::MissingReturnType => {
                 write!(f, "Was expecting a type to determine what return")
             }

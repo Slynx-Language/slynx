@@ -171,6 +171,63 @@ pub struct HirEnumDeclaration {
     pub ty: TermId,
 }
 
+/// When a property callback runs relative to the instrumented method call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CallbackOrder {
+    Before,
+    After,
+}
+
+/// Where a callback argument comes from at the instrumented call site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CallbackArgument {
+    /// The explicit method argument at this index (the receiver is excluded).
+    MethodArgument(u16),
+    /// The instrumented method's return value. Only valid for `after`.
+    MethodReturn,
+}
+
+/// A callback contract attached to an object method.
+#[derive(Debug, Clone)]
+pub struct HirCallbackDefinition {
+    /// The callback name implemented by a component property.
+    pub name: SymbolPointer,
+    /// The types the callback receives after the enclosing component receiver.
+    pub argument_types: Vec<TermId>,
+    /// The callback return type. Callbacks must currently return `void`.
+    pub return_type: TermId,
+    /// Whether the callback runs before or after the instrumented method.
+    pub order: CallbackOrder,
+    /// How each callback argument is selected from the method call.
+    pub mapping: Vec<CallbackArgument>,
+    /// Source location of the contract.
+    pub span: Span,
+}
+
+/// A callback implementation attached to a component property.
+#[derive(Debug, Clone)]
+pub struct PropertyCallback {
+    /// The callback name declared by the property type.
+    pub name: SymbolPointer,
+    /// The hidden function implementing the callback.
+    pub function: DeclarationId<HirFunctionDeclaration>,
+    /// Whether the callback runs before or after the instrumented method.
+    pub order: CallbackOrder,
+    /// How each callback argument is selected from the method call.
+    pub mapping: Vec<CallbackArgument>,
+}
+
+/// A resolved callback invocation planned for a method call.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HirCallbackInvocation {
+    /// The hidden callback implementation.
+    pub function: DeclarationId<HirFunctionDeclaration>,
+    /// Whether the callback runs before or after the instrumented method.
+    pub order: CallbackOrder,
+    /// How each callback argument is selected from the method call.
+    pub mapping: Vec<CallbackArgument>,
+}
+
 /// A member of a component declaration.
 ///
 /// Component members can be either properties (with optional default values)
@@ -226,6 +283,7 @@ pub enum ComponentMemberDeclaration {
         ///
         /// If `None`, the property must be provided when the component is used.
         value: Option<Spanned<PoolId<HirExpression>>>,
+        callbacks: Vec<PropertyCallback>,
 
         /// The source location of this property declaration.
         span: Span,

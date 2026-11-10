@@ -130,9 +130,8 @@ impl ComponentBuilder {
         component: &ComponentDeclaration,
     ) -> Result<ComponentBuildResult> {
         let mut decls = Vec::new();
-        let raw_type = queue
-            .hir
-            .view(queue.hir.get_component(self.target).value().ty);
+        let component_term = queue.hir.get_component(self.target).value().ty;
+        let raw_type = queue.hir.view(component_term);
         let Some(component_type) = raw_type.is_component() else {
             unreachable!("Wtf. Component declaration should contain a component type");
         };
@@ -169,6 +168,11 @@ impl ComponentBuilder {
                         modifier: *modifier,
                         index: prop_index,
                         value: rhs,
+                        callbacks: queue
+                            .hir
+                            .types
+                            .callbacks
+                            .property_callbacks_of(component_term, prop_index),
                         span: member.span,
                     });
                     prop_index += 1;

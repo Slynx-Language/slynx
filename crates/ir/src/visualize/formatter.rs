@@ -586,10 +586,43 @@ impl<'a> Formatter<'a> {
                 let name = view.get_name();
                 format!("@initcall {name}, {comp};")
             }
-            Opcode::Struct | Opcode::Component => {
+            Opcode::Struct => {
                 let ty_str = self.fmt_type(self.types.get_type(instr.value_type));
                 let args = self.fmt_operands(&instr.operands);
                 format!("{ty_str}{{{args}}}")
+            }
+            Opcode::Component => {
+                let ty = self.types.get_type(instr.value_type);
+                let ty_str = self.fmt_type(ty);
+                let (fields_range, children_range) = match ty {
+                    IRType::Component(component) => {
+                        let component = self.types.get_component_type(*component);
+                        (component.fields_range(), component.children_range())
+                    }
+                    _ => (0..0, 0..0),
+                };
+                let values = instr
+                    .operands
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| {
+                        if fields_range.contains(&index) {
+                            format!(
+                                "%f{}={}",
+                                index - fields_range.start,
+                                self.fmt_value(*value)
+                            )
+                        } else {
+                            format!(
+                                "%c{}={}",
+                                index - children_range.start,
+                                self.fmt_value(*value)
+                            )
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{ty_str} {{{values}}}")
             }
             Opcode::GetChild(index) => format!("#c{index}"),
         }
