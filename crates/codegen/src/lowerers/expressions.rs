@@ -10,6 +10,23 @@ use crate::{
     CodegenError, CodegenErrorKind,
     lowerers::{LoweringState, StaticStorage, functions::FunctionContext},
 };
+pub struct LowerCallWithCallbackDescriptor<'a> {
+    pub component: Spanned<PoolId<HirExpression>>,
+    pub property_index: usize,
+    pub method: DeclarationId<HirFunctionDeclaration>,
+    pub args: &'a [Spanned<PoolId<HirExpression>>],
+    pub callbacks: &'a [HirCallbackInvocation],
+    pub span: Span,
+}
+
+pub struct LowerCallbackCall<'a> {
+    pub callback: &'a HirCallbackInvocation,
+    pub component: Spanned<PoolId<HirExpression>>,
+    pub component_value: Value,
+    pub explicit_values: &'a [Value],
+    pub result: Option<Value>,
+    pub span: Span,
+}
 
 impl<'a> LoweringState<'a> {
     fn lower_enum(
@@ -181,12 +198,15 @@ impl<'a> LoweringState<'a> {
 
     fn lower_callback_call(
         &mut self,
-        callback: &HirCallbackInvocation,
-        component: Spanned<PoolId<HirExpression>>,
-        component_value: Value,
-        explicit_values: &[Value],
-        result: Option<Value>,
-        span: Span,
+        LowerCallbackCall {
+            callback,
+            component,
+            component_value,
+            explicit_values,
+            result,
+            span,
+        }: LowerCallbackCall,
+
         ctx: &mut FunctionContext,
     ) -> Result<(), CodegenError> {
         let receiver = self.callback_receiver(callback, component, component_value, span, ctx)?;
@@ -212,12 +232,14 @@ impl<'a> LoweringState<'a> {
 
     fn lower_call_with_callbacks(
         &mut self,
-        component: Spanned<PoolId<HirExpression>>,
-        property_index: usize,
-        method: DeclarationId<HirFunctionDeclaration>,
-        args: &[Spanned<PoolId<HirExpression>>],
-        callbacks: &[HirCallbackInvocation],
-        span: Span,
+        LowerCallWithCallbackDescriptor {
+            component,
+            property_index,
+            method,
+            args,
+            callbacks,
+            span,
+        }: LowerCallWithCallbackDescriptor,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
         let component_value = self.lower_expression(component, ctx)?;
@@ -245,12 +267,14 @@ impl<'a> LoweringState<'a> {
             .filter(|callback| callback.order == slynx_hir::CallbackOrder::Before)
         {
             self.lower_callback_call(
-                callback,
-                component,
-                component_value,
-                &explicit_values,
-                None,
-                span,
+                LowerCallbackCall {
+                    callback,
+                    component,
+                    component_value,
+                    explicit_values: &explicit_values,
+                    result: None,
+                    span,
+                },
                 ctx,
             )?;
         }
@@ -275,12 +299,14 @@ impl<'a> LoweringState<'a> {
             .filter(|callback| callback.order == slynx_hir::CallbackOrder::After)
         {
             self.lower_callback_call(
-                callback,
-                component,
-                component_value,
-                &explicit_values,
-                Some(result),
-                span,
+                LowerCallbackCall {
+                    callback,
+                    component,
+                    component_value,
+                    explicit_values: &explicit_values,
+                    result: Some(result),
+                    span,
+                },
                 ctx,
             )?;
         }
@@ -521,12 +547,14 @@ impl<'a> LoweringState<'a> {
                 args,
                 callbacks,
             } => self.lower_call_with_callbacks(
-                *component,
-                *property_index,
-                *method,
-                args,
-                callbacks,
-                expr.span,
+                LowerCallWithCallbackDescriptor {
+                    component: *component,
+                    property_index: *property_index,
+                    method: *method,
+                    args,
+                    callbacks,
+                    span: expr.span,
+                },
                 context,
             )?,
             HirExpressionKind::Binary { lhs, op, rhs } => {

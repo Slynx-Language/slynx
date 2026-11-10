@@ -273,7 +273,7 @@ impl<'a> Parser<'a> {
             // Top level declarations are read in the empty context: no enclosing
             // `extern` block, so `ONLY_SIGNATURES` is absent. Blocks request
             // `COMPONENT_EXPR` themselves when they are parsed.
-            self.parse_declaration(&mut program, false, ParserFlags::empty())?;
+            self.parse_declaration(&program, false, ParserFlags::empty())?;
         }
         Ok(program)
     }
