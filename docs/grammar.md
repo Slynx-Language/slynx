@@ -60,7 +60,8 @@ Statements are separated by semicolons (`;`).
 <type_opt> ::= ":" <type> | <empty>
 <while_stmt> ::= "while" <expr> <block>
 <return_stmt> ::= "return" <expr> ";" | "return" ";"
-<assign_stmt> ::= <assignable_expr> "=" <expr> ";"
+<assign_stmt> ::= <assignable_expr> <assign_op> <expr> ";"
+<assign_op> ::= "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&&=" | "||=" | "&=" | "|=" | "<<=" | ">>=" | "^="
 <expr_stmt> ::= <expr> ";"
 <assignable_expr> ::= <id> | <field_access> | <index_access> | <deref_expr>
 <block> ::= "{" { <statement> } "}"
@@ -347,7 +348,7 @@ Notes:
 - `>>` (right shift) is **not** a lexer token. It was removed because `A<B>>` in expression context conflicts with generic type syntax. There is no `ShiftRight` token.
 - `!=` is **not** supported. There is no not-equal token or production.
 - Unary bitwise negation (`~`) is lexed as `BitNot` but **not** parsed.
-- Compound assignment (`+=`, `-=`, `*=`, `/=`) is lexed (`PlusEq`, `SubEq`, `StarEq`, `SlashEq`) but **not** parsed.
+- Compound assignment (`+=`, `-=`, `*=`, `/=`, `%=`, `&&=`, `||=`, `&=`, `|=`, `<<=`, `>>=`, `^=`) is lexed and parsed as an assignment whose right-hand side is the corresponding binary expression.
 - `for` loops, and `break`/`continue`, are **not** implemented.
 
 ## Unimplemented Constructs
@@ -357,7 +358,6 @@ The following appear in design material but are not part of the parsed grammar:
 - `&atomic T` reference type
 - `~` unary not
 - `!=` not-equal
-- compound assignment operators
 - `for` loops
 - `break` / `continue`
 - `>>` shift right (removed due to generic syntax conflict)
