@@ -15,28 +15,7 @@ impl Parser<'_> {
         Ok(match self.peek()?.kind {
             TokenKind::Pub => {
                 self.eat()?;
-                if self.peek()?.kind == TokenKind::LParen {
-                    self.eat()?;
-                    let modifier = self.expect_identifier()?;
-
-                    let modifier = if modifier.data == self.intern("parent") {
-                        VisibilityModifier::ParentPublic
-                    } else if modifier.data == self.intern("child") {
-                        VisibilityModifier::ChildrenPublic
-                    } else {
-                        return self.unexpected_with(
-                            "Instead was expecting child' or 'parent' to determine who will be able to access it",
-                            Token {
-                                kind: TokenKind::Identifier(self.symbols.get_name(modifier.data).to_string()),
-                                span: modifier.span,
-                            },
-                        );
-                    };
-                    self.expect(&TokenKind::RParen)?;
-                    modifier
-                } else {
-                    VisibilityModifier::Public
-                }
+                VisibilityModifier::Public
             }
             _ => VisibilityModifier::Private,
         })

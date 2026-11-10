@@ -16,10 +16,7 @@ pub enum VisibilityModifier {
     /// Visible only within the defining file.
     #[default]
     Private,
-    /// Visible only to children (components only).
-    ChildrenPublic,
-    /// Visible only to parents (components only).
-    ParentPublic,
+    
 }
 
 ///Some operator on the code. Something like, +, - , *, /, &, &&, etc
