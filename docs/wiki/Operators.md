@@ -1,8 +1,8 @@
 # Operators
 
-Operators are symbols that combine values into expressions. Slynx uses conventional operator syntax for arithmetic, comparison, logical, and bitwise operations. The operators described on this page are binary: each one takes a left-hand operand and a right-hand operand.
+Operators are symbols that combine values into expressions. Slynx uses conventional operator syntax for arithmetic, comparison, logical, and bitwise operations. The binary operators described on this page each take a left-hand operand and a right-hand operand; compound assignment operators additionally write the result back to the left-hand operand.
 
-This page documents the binary operators currently supported by Slynx. Assignment (`=`) is not one of them; the equality operator is `==`. Unary operators are outside the scope of this page. Compound assignment operators such as `+=` are supported and are equivalent to assigning the corresponding binary expression back to the left-hand side (for example, `lhs += rhs` is `lhs = lhs + rhs`).
+This page documents the binary and compound assignment operators currently supported by Slynx. Plain assignment (`=`) is not a binary operator; the equality operator is `==`. Unary operators are outside the scope of this page. Compound assignment operators such as `+=` are equivalent to assigning the corresponding binary expression back to the left-hand side (for example, `lhs += rhs` is `lhs = lhs + rhs`).
 
 ## Arithmetic operators
 
@@ -204,6 +204,42 @@ The `>>` operator shifts the bits of the left-hand operand to the right.
 func shift_right(value: uint8, amount: uint8): uint8 -> value >> amount;
 ```
 
+## Compound assignment operators
+
+Compound assignment operators combine a binary operation with an assignment. The syntax `lhs op= rhs` is equivalent to assigning the corresponding binary expression back to the left-hand side:
+
+```text
+lhs += rhs   is equivalent to   lhs = lhs + rhs
+```
+
+The left-hand side must be an assignable expression, such as a mutable variable, a field access, or a dereference. Compound assignment is a statement form; it is not an expression and therefore has no place in the expression precedence table. There are no compound forms for the comparison operators.
+
+```slx
+func accumulate(): void {
+    let mut total: sint32 = 0;
+    total += 10;
+    total *= 2;
+    total %= 7;
+}
+```
+
+The supported compound operators are:
+
+| Syntax | Equivalent to | Category |
+|--------|---------------|----------|
+| `+=` | `lhs = lhs + rhs` | Arithmetic |
+| `-=` | `lhs = lhs - rhs` | Arithmetic |
+| `*=` | `lhs = lhs * rhs` | Arithmetic |
+| `/=` | `lhs = lhs / rhs` | Arithmetic |
+| `%=` | `lhs = lhs % rhs` | Arithmetic |
+| `&&=` | `lhs = lhs && rhs` | Logical |
+| `\|\|=` | `lhs = lhs \|\| rhs` | Logical |
+| `&=` | `lhs = lhs & rhs` | Bitwise |
+| `\|=` | `lhs = lhs \| rhs` | Bitwise |
+| `^=` | `lhs = lhs ^ rhs` | Bitwise |
+| `<<=` | `lhs = lhs << rhs` | Bitwise shift |
+| `>>=` | `lhs = lhs >> rhs` | Bitwise shift |
+
 ## Operator precedence and associativity
 
 The current parser groups binary operators into the following precedence levels. Operators in a higher row bind more tightly.
@@ -228,15 +264,18 @@ The following restrictions are known from the current type checker:
 - The logical operators `&&` and `||` require `bool` operands and produce a `bool`.
 - The comparison operators `==`, `>`, `>=`, `<`, and `<=` produce a `bool`.
 - The arithmetic operators `+`, `-`, `*`, `/`, and `%`, as well as the bitwise operators `&`, `|`, `^`, `<<`, and `>>`, produce a value of the common operand type.
+- Compound assignment operators follow the same operand and result-type rules as their corresponding binary operators. The result must also be assignable to the left-hand side, which must be a mutable place.
 - Operator overloading is not supported.
 
 The full set of concrete types accepted by each operator is not yet documented. In particular, this page does not specify whether every arithmetic or bitwise operator is valid for every numeric type.
 
 ## Not currently supported
 
-Compound assignment is available for every non-comparison binary operator: `+=`, `-=`, `*=`, `/=`, `%=`, `&&=`, `||=`, `&=`, `|=`, `^=`, `<<=`, and `>>=`. Operator overloading is not supported. Any binary operator form that is not listed in the summary table below is not part of the current operator set.
+Operator overloading is not supported. Compound assignment is also not available for comparison operators (`==`, `>`, `>=`, `<`, `<=`), since those produce a `bool` rather than updating the left-hand operand. Any binary operator form that is not listed in the summary tables below is not part of the current operator set.
 
 ## Summary
+
+### Binary operators
 
 | Operator | Syntax | Category |
 |----------|--------|----------|
@@ -257,3 +296,20 @@ Compound assignment is available for every non-comparison binary operator: `+=`,
 | `RightShift` | `>>` | Bitwise shift |
 | `LeftShift` | `<<` | Bitwise shift |
 | `Xor` | `^` | Bitwise |
+
+### Compound assignment operators
+
+| Syntax | Equivalent to | Category |
+|--------|---------------|----------|
+| `+=` | `lhs = lhs + rhs` | Arithmetic |
+| `-=` | `lhs = lhs - rhs` | Arithmetic |
+| `*=` | `lhs = lhs * rhs` | Arithmetic |
+| `/=` | `lhs = lhs / rhs` | Arithmetic |
+| `%=` | `lhs = lhs % rhs` | Arithmetic |
+| `&&=` | `lhs = lhs && rhs` | Logical |
+| `\|\|=` | `lhs = lhs \|\| rhs` | Logical |
+| `&=` | `lhs = lhs & rhs` | Bitwise |
+| `\|=` | `lhs = lhs \| rhs` | Bitwise |
+| `^=` | `lhs = lhs ^ rhs` | Bitwise |
+| `<<=` | `lhs = lhs << rhs` | Bitwise shift |
+| `>>=` | `lhs = lhs >> rhs` | Bitwise shift |
