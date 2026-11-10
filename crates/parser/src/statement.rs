@@ -1,8 +1,8 @@
 use crate::{Parser, Result, SymbolPointer, flags::ParserFlags};
 use slynx_lexer::tokens::TokenKind;
 
-use crate::ast::ASTStatement;
-use common::{Span, Spanned, pool::DedupPoolId};
+use crate::ast::{ASTExpression, ASTStatement};
+use common::{Operator, Span, Spanned, pool::DedupPoolId};
 
 impl Parser<'_> {
     ///Parses a let Statement. Until now it's only for variable declaration, so, this only parses 'let name: t = value;' or 'let name = value;', same for mut variants
@@ -107,8 +107,34 @@ impl Parser<'_> {
 
             _ => {
                 let expr = self.parse_expression(type_params, flags)?;
+                let compound_op = match self.peek()?.kind {
+                    TokenKind::PlusEq => Some(Operator::Add),
+                    TokenKind::SubEq => Some(Operator::Sub),
+                    TokenKind::StarEq => Some(Operator::Star),
+                    TokenKind::SlashEq => Some(Operator::Slash),
+                    TokenKind::PercentEq => Some(Operator::Remainder),
+                    TokenKind::AndEq => Some(Operator::LogicAnd),
+                    TokenKind::OrEq => Some(Operator::LogicOr),
+                    TokenKind::BitAndEq => Some(Operator::And),
+                    TokenKind::BitOrEq => Some(Operator::Or),
+                    TokenKind::XorEq => Some(Operator::Xor),
+                    TokenKind::ShiftLeftEq => Some(Operator::LeftShift),
+                    TokenKind::ShiftRightEq => Some(Operator::RightShift),
+                    _ => None,
+                };
 
-                if matches!(self.peek()?.kind, TokenKind::Eq)
+                if let Some(op) = compound_op
+                    && self.expressions.get(expr.data).is_assignable()
+                {
+                    self.eat()?;
+                    let rhs = self.parse_expression(type_params, flags)?;
+                    let span = expr.span.merge_with(rhs.span);
+                    let value =
+                        self.intern_expression(ASTExpression::Binary { lhs: expr, op, rhs });
+                    let rhs = Spanned::new(value, span);
+                    let id = self.intern_statement(ASTStatement::Assign { lhs: expr, rhs });
+                    Ok(Spanned::new(id, span))
+                } else if matches!(self.peek()?.kind, TokenKind::Eq)
                     && self.expressions.get(expr.data).is_assignable()
                 {
                     self.eat()?;

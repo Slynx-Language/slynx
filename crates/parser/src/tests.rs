@@ -355,6 +355,53 @@ fn comparison_operator_still_parses() {
 }
 
 #[test]
+fn compound_assignment_desugars_to_assignment_with_binary_expression() {
+    let cases = [
+        ("+=", Operator::Add),
+        ("-=", Operator::Sub),
+        ("*=", Operator::Star),
+        ("/=", Operator::Slash),
+        ("%=", Operator::Remainder),
+        ("&&=", Operator::LogicAnd),
+        ("||=", Operator::LogicOr),
+        ("&=", Operator::And),
+        ("|=", Operator::Or),
+        ("<<=", Operator::LeftShift),
+        (">>=", Operator::RightShift),
+        ("^=", Operator::Xor),
+    ];
+
+    for (compound, expected) in cases {
+        let source = format!("func main(): int {{ let mut x: int = 1; x {compound} y; }}");
+        let (program, symbols, _, statements, expressions) = parse_program(&source);
+
+        let func: &FuncDeclaration = program.get_pool().get(PoolId::new(0));
+        let ASTStatement::Assign { lhs, rhs } = &statements[func.body[1].data] else {
+            panic!("expected {compound} to parse as an assignment");
+        };
+        let ASTExpression::Binary {
+            lhs: binary_lhs,
+            op,
+            rhs: binary_rhs,
+        } = &expressions[rhs.data]
+        else {
+            panic!("expected {compound} to produce a binary expression");
+        };
+
+        assert_eq!(binary_lhs.data, lhs.data);
+        assert_eq!(*op, expected);
+        let ASTExpression::Identifier(lhs_name) = &expressions[binary_lhs.data] else {
+            panic!("expected the left operand to be an identifier");
+        };
+        let ASTExpression::Identifier(rhs_name) = &expressions[binary_rhs.data] else {
+            panic!("expected the right operand to be an identifier");
+        };
+        assert_eq!(symbols.get_name(*lhs_name), "x");
+        assert_eq!(symbols.get_name(*rhs_name), "y");
+    }
+}
+
+#[test]
 fn unary_minus_binds_tighter_than_multiplication() {
     let (program, symbols, _, statements, expressions) = parse_program(
         "func main(): sint32 {

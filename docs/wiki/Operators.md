@@ -2,7 +2,7 @@
 
 Operators are symbols that combine values into expressions. Slynx uses conventional operator syntax for arithmetic, comparison, logical, and bitwise operations. The operators described on this page are binary: each one takes a left-hand operand and a right-hand operand.
 
-This page documents the binary operators currently supported by Slynx. Assignment (`=`) is not one of them; the equality operator is `==`. Unary operators are outside the scope of this page, and compound assignment operators such as `+=` are not supported yet (see [Not currently supported](#not-currently-supported)).
+This page documents the binary operators currently supported by Slynx. Assignment (`=`) is not one of them; the equality operator is `==`. Unary operators are outside the scope of this page. Compound assignment operators such as `+=` are supported and are equivalent to assigning the corresponding binary expression back to the left-hand side (for example, `lhs += rhs` is `lhs = lhs + rhs`).
 
 ## Arithmetic operators
 
@@ -234,7 +234,7 @@ The full set of concrete types accepted by each operator is not yet documented. 
 
 ## Not currently supported
 
-Compound assignment operators such as `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` are not supported yet. Operator overloading is also not supported. Any binary operator form that is not listed in the summary table below is not part of the current operator set.
+Compound assignment is available for every non-comparison binary operator: `+=`, `-=`, `*=`, `/=`, `%=`, `&&=`, `||=`, `&=`, `|=`, `^=`, `<<=`, and `>>=`. Operator overloading is not supported. Any binary operator form that is not listed in the summary table below is not part of the current operator set.
 
 ## Summary
 
