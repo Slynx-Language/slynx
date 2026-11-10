@@ -499,6 +499,7 @@ impl<'a> Formatter<'a> {
             Opcode::Sub => self.fmt_binary("sub", instr),
             Opcode::Mul => self.fmt_binary("mul", instr),
             Opcode::Div => self.fmt_binary("div", instr),
+            Opcode::Rem => self.fmt_binary("rem", instr),
             Opcode::Cmp => self.fmt_binary("cmp", instr),
             Opcode::Gt => self.fmt_binary("cmpgt", instr),
             Opcode::Gte => self.fmt_binary("cmpgte", instr),

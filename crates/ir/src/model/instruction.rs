@@ -59,6 +59,7 @@ pub enum Opcode {
     Sub,
     Mul,
     Div,
+    Rem,
     Cmp,
     Gt,
     Gte,

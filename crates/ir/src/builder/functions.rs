@@ -281,6 +281,7 @@ impl_binop! {
     sub => Sub,
     mul => Mul,
     div => Div,
+    rem => Rem,
     cmp => Cmp,
     gt => Gt,
     gte => Gte,
