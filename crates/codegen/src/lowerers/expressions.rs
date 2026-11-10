@@ -423,6 +423,7 @@ impl<'a> LoweringState<'a> {
             Operator::Add => context.add(a, b),
             Operator::Sub => context.sub(a, b),
             Operator::Star => context.mul(a, b),
+            Operator::Remainder => context.rem(a, b),
             Operator::Slash => context.div(a, b),
             Operator::Equals => context.cmp(a, b),
             Operator::GreaterThan => context.gt(a, b),

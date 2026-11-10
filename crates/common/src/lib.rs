@@ -29,6 +29,7 @@ pub enum Operator {
     Sub,
     Star,
     Slash,
+    Remainder,
     Equals,
     GreaterThan,
     GreaterThanOrEqual,

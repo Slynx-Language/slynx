@@ -72,6 +72,7 @@ impl<'a> Parser<'a> {
                 let op = match parser.peek()?.kind {
                     TokenKind::Star => Operator::Star,
                     TokenKind::Slash => Operator::Slash,
+                    TokenKind::Percent => Operator::Remainder,
                     _ => return Ok(None),
                 };
                 parser.eat()?;

@@ -131,6 +131,8 @@ pub enum TokenKind {
     Star,
     #[token("/")]
     Slash,
+    #[token("%")]
+    Percent,
     #[token(",")]
     Comma,
     #[token(":")]
