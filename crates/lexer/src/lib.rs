@@ -120,6 +120,35 @@ mod tests {
     use super::{Lexer, error::LexerError, tokens::TokenKind};
 
     #[test]
+    fn lexes_compound_assignment_operators_as_single_tokens() {
+        let tokens = Lexer::tokenize("+= -= *= /= %= &&= ||= &= |= <<= >>= ^=")
+            .expect("compound operators should tokenize");
+        let kinds = tokens
+            .stream
+            .into_iter()
+            .map(|token| token.kind)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            kinds,
+            vec![
+                TokenKind::PlusEq,
+                TokenKind::SubEq,
+                TokenKind::StarEq,
+                TokenKind::SlashEq,
+                TokenKind::PercentEq,
+                TokenKind::AndEq,
+                TokenKind::OrEq,
+                TokenKind::BitAndEq,
+                TokenKind::BitOrEq,
+                TokenKind::ShiftLeftEq,
+                TokenKind::ShiftRightEq,
+                TokenKind::XorEq,
+            ]
+        );
+    }
+
+    #[test]
     fn lexes_tuple_access_index_as_a_standalone_integer() {
         let tokens = Lexer::tokenize("pair.0.age")
             .expect("tuple access should keep the numeric index separate from dots");

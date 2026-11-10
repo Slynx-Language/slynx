@@ -67,6 +67,14 @@ pub enum TokenKind {
     #[token("callback")]
     Callback,
     // Multi-char operators (must come before single-char)
+    #[token("&&=")]
+    AndEq,
+    #[token("||=")]
+    OrEq,
+    #[token("<<=")]
+    ShiftLeftEq,
+    #[token(">>=")]
+    ShiftRightEq,
     #[token("&&")]
     And,
     #[token("||")]
@@ -87,6 +95,14 @@ pub enum TokenKind {
     StarEq,
     #[token("/=")]
     SlashEq,
+    #[token("%=")]
+    PercentEq,
+    #[token("&=")]
+    BitAndEq,
+    #[token("|=")]
+    BitOrEq,
+    #[token("^=")]
+    XorEq,
     #[token("->")]
     Arrow,
     #[token("=>")]
