@@ -18,6 +18,10 @@ pub enum TokenKind {
     #[token("@")]
     At,
     // Keywords
+    #[token("in")]
+    In,
+    #[token("view")]
+    View,
     #[token("while")]
     While,
     #[token("if")]

@@ -4,6 +4,7 @@ use crate::{
     ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
     flags::ParserFlags,
 };
+use bitflags::Flags;
 use common::{Span, Spanned};
 
 use slynx_lexer::tokens::{Token, TokenKind};
@@ -53,6 +54,92 @@ impl Parser<'_> {
         }
         Ok(callbacks)
     }
+    ///Parses a component property. The given `span` is the span of the token `prop`
+    fn parse_component_property(
+        &mut self,
+        mut span: Span,
+        type_params: &[SymbolPointer],
+        modifier: VisibilityModifier,
+    ) -> Result<ComponentMember> {
+        let ident = self.expect_identifier()?;
+        match self.peek()?.kind {
+            TokenKind::Colon => {
+                self.eat()?;
+                let ty = self.parse_type(type_params)?;
+                let curr = self.eat()?;
+                let (rhs, callbacks) = match curr.kind {
+                    TokenKind::LBrace => {
+                        // `prop x: T { func ... }`
+                        let callbacks = self.parse_callbacks()?;
+                        span = span.merge_with(self.expect(&TokenKind::RBrace)?.span);
+                        if self.peek()?.kind == TokenKind::SemiColon {
+                            span = span.merge_with(self.eat()?.span);
+                        }
+                        (None, callbacks)
+                    }
+                    TokenKind::SemiColon => {
+                        span.end = curr.span.end;
+                        (None, Vec::new())
+                    }
+                    TokenKind::Eq => {
+                        let expr = self.parse_expression(type_params, ParserFlags::empty())?;
+                        if self.peek()?.kind == TokenKind::LBrace {
+                            // `prop x: T = expr { func ... }`
+                            self.eat()?;
+                            let callbacks = self.parse_callbacks()?;
+                            span.end = self.expect(&TokenKind::RBrace)?.span.end;
+                            if self.peek()?.kind == TokenKind::SemiColon {
+                                span.end = self.eat()?.span.end;
+                            }
+                            (Some(expr), callbacks)
+                        } else {
+                            span.end = self.expect(&TokenKind::SemiColon)?.span.end;
+                            (Some(expr), Vec::new())
+                        }
+                    }
+                    _ => {
+                        return self.unexpected_with(
+                            "Was expecing ';' to determine this property initialization is required by it's parent or '=' to give it a default value",
+                            curr,
+                        );
+                    }
+                };
+                Ok(ComponentMember {
+                    kind: ComponentMemberKind::Property {
+                        name: ident.data,
+                        callbacks,
+                        modifier,
+                        ty: Some(ty),
+                        rhs,
+                    },
+                    span,
+                })
+            }
+            TokenKind::Eq => {
+                self.eat()?;
+                let expr = self.parse_expression(type_params, ParserFlags::empty())?;
+                let callbacks = self.parse_optional_callbacks()?;
+                if callbacks.is_empty() {
+                    span.end = self.expect(&TokenKind::SemiColon)?.span.end;
+                }
+                Ok(ComponentMember {
+                    kind: ComponentMemberKind::Property {
+                        callbacks,
+                        name: ident.data,
+                        modifier,
+                        ty: None,
+                        rhs: Some(expr),
+                    },
+                    span,
+                })
+            }
+            _ => {
+                self.unexpected(
+                    "Was expecting '=' or ':' to define the type of the property or a ';' to keep it to be initialized by it's parent",
+                )
+            }
+        }
+    }
 
     /// Parses a component member, which can be either a child component or a property. The visibility `modifier` has already been consumed by the caller. It determines if the member is a child component (identified by an identifier followed by an expression) or a property (identified by the 'prop' keyword followed by an identifier and optional type and default value). The function constructs and returns a `ComponentMember` based on the parsed information, including its kind and span.
     fn parse_component_member(
@@ -60,7 +147,6 @@ impl Parser<'_> {
         modifier: VisibilityModifier,
         type_params: &[SymbolPointer],
     ) -> Result<ComponentMember> {
-        let mut span = self.peek()?.span;
         let curr = self.peek()?;
         match curr.kind {
             TokenKind::Identifier(_) if self.peek_at(1)?.kind == TokenKind::Eq => {
@@ -85,89 +171,26 @@ impl Parser<'_> {
                 })
             }
             TokenKind::Prop => {
-                self.eat()?;
-                let ident = self.expect_identifier()?;
-                match self.peek()?.kind {
-
-                    TokenKind::Colon => {
-                        self.eat()?;
-                        let ty = self.parse_type(type_params)?;
-                        let curr = self.eat()?;
-                        let (rhs, callbacks) = match curr.kind {
-                            TokenKind::LBrace => {
-                                // `prop x: T { func ... }`
-                                let callbacks = self.parse_callbacks()?;
-                                span.end = self.expect(&TokenKind::RBrace)?.span.end;
-                                if self.peek()?.kind == TokenKind::SemiColon {
-                                    span.end = self.eat()?.span.end;
-                                }
-                                (None, callbacks)
-                            }
-                            TokenKind::SemiColon => {
-                                span.end = curr.span.end;
-                                (None, Vec::new())
-                            }
-                            TokenKind::Eq => {
-                                let expr = self.parse_expression(type_params, ParserFlags::empty())?;
-                                if self.peek()?.kind == TokenKind::LBrace {
-                                    // `prop x: T = expr { func ... }`
-                                    self.eat()?;
-                                    let callbacks = self.parse_callbacks()?;
-                                    span.end = self.expect(&TokenKind::RBrace)?.span.end;
-                                    if self.peek()?.kind == TokenKind::SemiColon {
-                                        span.end = self.eat()?.span.end;
-                                    }
-                                    (Some(expr), callbacks)
-                                } else {
-                                    span.end = self.expect(&TokenKind::SemiColon)?.span.end;
-                                    (Some(expr), Vec::new())
-                                }
-                            }
-                            _ => {
-                                return self.unexpected_with(
-                                    "Was expecing ';' to determine this property initialization is required by it's parent or '=' to give it a default value",
-                                    curr,
-                                );
-                            }
-                        };
-                        Ok(ComponentMember {
-                            kind: ComponentMemberKind::Property {
-                                name: ident.data,
-                                callbacks,
-                                modifier,
-                                ty: Some(ty),
-                                rhs,
-                            },
-                            span,
-                        })
-                    }
-                    TokenKind::Eq => {
-                        self.eat()?;
-                        let expr = self.parse_expression(type_params, ParserFlags::empty())?;
-                        let callbacks = self.parse_optional_callbacks()?;
-                        if callbacks.is_empty() {
-                            span.end = self.expect(&TokenKind::SemiColon)?.span.end;
-                        }
-                        Ok(ComponentMember {
-                            kind: ComponentMemberKind::Property {
-                                callbacks,
-                                name: ident.data,
-                                modifier,
-                                ty: None,
-                                rhs: Some(expr),
-                            },
-                            span,
-                        })
-                    }
-                    _ => {
-                        self.unexpected(
-                            "Was expecting '=' or ':' to define the type of the property or a ';' to keep it to be initialized by it's parent",
-                        )
-                    }
-                }
+                let propspan = self.eat()?.span;
+                self.parse_component_property(propspan, type_params, modifier)
+            }
+            TokenKind::View => {
+                let propspan = self.eat()?.span;
+                let name = self.expect_identifier()?;
+                self.expect(&TokenKind::Eq)?;
+                let rhs = self.parse_expression(type_params, ParserFlags::empty())?;
+                let span = rhs.span.merge_with(propspan);
+                Ok(ComponentMember { kind:ComponentMemberKind::View { modifier, name: name.data, rhs } , span })
+            }
+            TokenKind::In => {
+                let propspan = self.eat()?.span;
+                let name = self.expect_identifier()?;
+                self.expect(&TokenKind::Colon)?;
+                let ty = self.parse_type(type_params)?;
+                Ok(ComponentMember { kind:ComponentMemberKind::Input { name: name.data, ty }, span: ty.span.merge_with(propspan)})
             }
             _ => self.unexpected(
-                "Was expecting some component member. Try defining a property, a method or child",
+                "Was expecting some component member. Try defining a property, a method, child, input or view",
             ),
         }
     }
