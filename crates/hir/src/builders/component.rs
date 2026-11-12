@@ -36,7 +36,6 @@ impl<'a> HirQueueBuilder<'a> {
         queue: &crate::builders::HirQueueBuilder,
         component_decl: &slynx_parser::ComponentDeclaration,
     ) -> Result<Vec<ComponentMemberDeclaration>> {
-        // Already resolved? (scoped to drop dashmap Ref before body resolution)
         {
             let comp_ref = self.hir.get_component(id);
             let comp = comp_ref.value();
@@ -45,7 +44,6 @@ impl<'a> HirQueueBuilder<'a> {
             }
         }
 
-        // Mark body as in-progress (simple cycle guard — body never demands body of another)
         if !queue.bodies_in_progress.insert(id) {
             return Err(HIRError::cyclic_component_body(
                 id.owner,
@@ -140,6 +138,34 @@ impl ComponentBuilder {
         let context = TypeContext::new(&component.generics.type_params);
         for member in &component.members {
             match &member.kind {
+                ComponentMemberKind::Input { name, ty } => {
+                    decls.push(ComponentMemberDeclaration::Input {
+                        name: *name,
+                        index: prop_index,
+                        span: member.span,
+                    });
+                    prop_index += 1;
+                }
+                ComponentMemberKind::View {
+                    modifier,
+                    name,
+                    rhs,
+                } => {
+                    let rhs = self.builder.build_expression(
+                        queue,
+                        ExpressionDescriptor {
+                            target: *rhs,
+                            expected: None,
+                            context: &context,
+                        },
+                    )?;
+                    decls.push(ComponentMemberDeclaration::View {
+                        name: *name,
+                        rhs,
+                        modifier: *modifier,
+                        span: member.span,
+                    });
+                }
                 ComponentMemberKind::Property {
                     name,
                     modifier,

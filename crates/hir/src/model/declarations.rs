@@ -289,6 +289,21 @@ pub enum ComponentMemberDeclaration {
         span: Span,
     },
 
+    Input {
+        name: SymbolPointer,
+        ///The index of this property in the component's property list. Internally this can be treated the
+        ///same way a state, but is immutable and updates when the value that provides it updates as well
+        index: usize,
+        span: Span,
+    },
+
+    View {
+        name: SymbolPointer,
+        rhs: Spanned<PoolId<HirExpression>>,
+        modifier: VisibilityModifier,
+        span: Span,
+    },
+
     /// A child component declaration.
     ///
     /// # Fields
