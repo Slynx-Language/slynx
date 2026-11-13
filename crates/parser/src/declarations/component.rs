@@ -4,7 +4,7 @@ use crate::{
     ast::{ComponentMember, ComponentMemberKind, VisibilityModifier},
     flags::ParserFlags,
 };
-use bitflags::Flags;
+
 use common::{Span, Spanned};
 
 use slynx_lexer::tokens::{Token, TokenKind};
@@ -180,6 +180,7 @@ impl Parser<'_> {
                 self.expect(&TokenKind::Eq)?;
                 let rhs = self.parse_expression(type_params, ParserFlags::empty())?;
                 let span = rhs.span.merge_with(propspan);
+                self.expect(&TokenKind::SemiColon)?;
                 Ok(ComponentMember { kind:ComponentMemberKind::View { modifier, name: name.data, rhs } , span })
             }
             TokenKind::In => {
@@ -187,6 +188,7 @@ impl Parser<'_> {
                 let name = self.expect_identifier()?;
                 self.expect(&TokenKind::Colon)?;
                 let ty = self.parse_type(type_params)?;
+                self.expect(&TokenKind::SemiColon)?;
                 Ok(ComponentMember { kind:ComponentMemberKind::Input { name: name.data, ty }, span: ty.span.merge_with(propspan)})
             }
             _ => self.unexpected(
