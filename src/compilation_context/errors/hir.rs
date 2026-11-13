@@ -15,6 +15,9 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::NotInferableProperty(name) => {
+                format!("Property {} could not have its type inferred. Denote the property type or use an expression whose type is known during compile time", hir.get_name(*name))
+            }
             HIRErrorKind::ViewWithoutDependencies(viewname) => {
                 format!("View '{}' value does not depend on anything. It should depend on at least one property or input", hir.get_name(*viewname))
             }
