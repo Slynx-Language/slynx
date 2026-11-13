@@ -15,6 +15,9 @@ use crate::{
 impl SlynxContext {
     fn hir_error_to_string(&self, hir: &SlynxHir, err: &HIRError) -> String {
         match &err.kind {
+            HIRErrorKind::ViewWithoutDependencies(viewname) => {
+                format!("View '{}' value does not depend on anything. It should depend on at least one property or input", hir.get_name(*viewname))
+            }
             HIRErrorKind::IntegerOutOfBounds { value, numeric, min, max } => {
                 format!("Number {value} is out of bounds for integer type '{}'. Write it in bounds of {min} to {max}", hir.view(*numeric).pretty_name())
             }
