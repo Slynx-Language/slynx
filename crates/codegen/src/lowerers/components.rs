@@ -112,7 +112,7 @@ impl<'a> LoweringState<'a> {
                     let comp_expr = &self.hir.store.component_expressions[c.data];
                     Some(self.get_type_of_component_expression(comp_expr, c.span, file))
                 }
-                ComponentMemberDeclaration::Property { .. } => None,
+                _ => None,
             })
             .collect::<Result<_, CodegenError>>()?;
 
