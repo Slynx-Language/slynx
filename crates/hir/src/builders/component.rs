@@ -138,12 +138,16 @@ impl ComponentBuilder {
         let context = TypeContext::new(&component.generics.type_params);
         for member in &component.members {
             match &member.kind {
-                ComponentMemberKind::Input { name, .. } => {
+                ComponentMemberKind::Input { name, ty } => {
                     decls.push(ComponentMemberDeclaration::Input {
                         name: *name,
                         index: prop_index,
                         span: member.span,
                     });
+                    let ty = queue
+                        .lowerer
+                        .lower_type(queue, self.builder.file(), *ty, &context)?;
+                    self.builder.create_variable(*name, false, ty.term);
                     prop_index += 1;
                 }
                 ComponentMemberKind::View {
@@ -166,12 +170,15 @@ impl ComponentBuilder {
                         index: prop_index,
                         span: member.span,
                     });
+                    self.builder
+                        .create_variable(*name, false, queue.hir.view(rhs.data).ty().term);
                     prop_index += 1;
                 }
                 ComponentMemberKind::Property {
                     name,
                     modifier,
                     rhs,
+                    ty,
                     ..
                 } => {
                     let rhs = if let Some(rhs) = rhs {
@@ -191,6 +198,25 @@ impl ComponentBuilder {
                     } else {
                         None
                     };
+                    {
+                        if let Some(ty) = rhs.map(|expr| queue.hir.view(expr.data).ty().term) {
+                            self.builder.create_variable(*name, true, ty);
+                        } else if let Some(ty) = ty {
+                            let ty = queue.lowerer.lower_type(
+                                queue,
+                                self.builder.file(),
+                                *ty,
+                                &context,
+                            )?;
+                            self.builder.create_variable(*name, true, ty.term);
+                        } else {
+                            return Err(HIRError::property_not_inferable(
+                                self.builder.file(),
+                                *name,
+                                member.span,
+                            ));
+                        }
+                    }
                     decls.push(ComponentMemberDeclaration::Property {
                         name: *name,
                         modifier: *modifier,

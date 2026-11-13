@@ -55,6 +55,8 @@ pub enum ExpectedTypeUsage {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    NotInferableProperty(SymbolPointer),
+
     ViewWithoutDependencies(SymbolPointer),
 
     IntegerOutOfBounds {
@@ -341,6 +343,9 @@ impl HIRError {
         }
     }
 
+    pub fn property_not_inferable(requester: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(requester, HIRErrorKind::NotInferableProperty(name), span)
+    }
     pub fn view_missing_dependencies(file: FileId, name: SymbolPointer, span: Span) -> Self {
         Self::new(file, HIRErrorKind::ViewWithoutDependencies(name), span)
     }
@@ -757,6 +762,9 @@ impl HIRError {
 impl std::fmt::Display for HIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
+            HIRErrorKind::NotInferableProperty(_) => {
+                write!(f, "Property could not have its type inferred")
+            }
             HIRErrorKind::IntegerOutOfBounds { .. } => {
                 write!(f, "Integer out of bounds")
             }
@@ -818,7 +826,11 @@ impl std::fmt::Display for HIRError {
                 "The right-hand side of a `matches` expression must be a variant name (`Foo`) or a variant call (`Foo(...)`)"
             ),
             HIRErrorKind::ViewWithoutDependencies(name) => {
-                write!(f, "View '{:?}' must depend on at least one input or property", name)
+                write!(
+                    f,
+                    "View '{:?}' must depend on at least one input or property",
+                    name
+                )
             }
             HIRErrorKind::VariantNotRecognized(_) => {
                 write!(f, "No reachable enum declares a variant with this name")
