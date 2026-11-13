@@ -35,8 +35,8 @@ component View {
 }
 
 func main(): sint32 {
-    let mut view = View {};
-    view.run()
+    let mut vue = View {};
+    vue.run()
 }
 "#;
 
@@ -104,8 +104,8 @@ component View {
 }
 
 func main(): sint32 {
-    let mut view = View {};
-    view.run()
+    let mut vue = View {};
+    vue.run()
 }
 "#,
     );
@@ -254,7 +254,7 @@ component View {
 }
 
 func main(): void {
-    let mut view = View {};
+    let mut vue = View {};
 }
 "#,
         "is not declared by the property type",
@@ -279,7 +279,7 @@ component View {
 }
 
 func main(): void {
-    let mut view = View {};
+    let mut vue = View {};
 }
 "#,
         "cannot map the method return value",
@@ -315,8 +315,8 @@ component View {
 }
 
 func main(): sint32 {
-    let mut view = View {};
-    view.run()
+    let mut vue = View {};
+    vue.run()
 }
 "#,
     );
@@ -344,7 +344,7 @@ component View {
 }
 
 func main(): void {
-    let view = View {};
+    let vue = View {};
 }
 "#,
         "must return 'void'",
@@ -375,8 +375,8 @@ component View {
 }
 
 func main(): sint32 {
-    let mut view = View {};
-    view.seen
+    let mut vue = View {};
+    vue.seen
 }
 "#,
         "must return 'void'",
@@ -412,8 +412,8 @@ component View {
 }
 
 func main(): void {
-    let mut view = View {};
-    view.run();
+    let mut vue = View {};
+    vue.run();
 }
 "#,
     );
@@ -450,7 +450,7 @@ component View {
 }
 
 func main(): void {
-    let view = View {};
+    let vue = View {};
 }
 "#,
         "Received an incorrect type",
@@ -477,7 +477,7 @@ component View {
 }
 
 func main(): void {
-    let view = View {};
+    let vue = View {};
 }
 "#,
         "parameter type(s) but maps",
@@ -504,7 +504,7 @@ component View {
 }
 
 func main(): void {
-    let view = View {};
+    let vue = View {};
 }
 "#,
         "Received an incorrect type",
