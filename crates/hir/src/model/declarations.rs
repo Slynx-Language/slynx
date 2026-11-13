@@ -301,6 +301,7 @@ pub enum ComponentMemberDeclaration {
         name: SymbolPointer,
         rhs: Spanned<PoolId<HirExpression>>,
         modifier: VisibilityModifier,
+        index: usize,
         span: Span,
     },
 

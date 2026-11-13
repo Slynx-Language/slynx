@@ -138,7 +138,7 @@ impl ComponentBuilder {
         let context = TypeContext::new(&component.generics.type_params);
         for member in &component.members {
             match &member.kind {
-                ComponentMemberKind::Input { name, ty } => {
+                ComponentMemberKind::Input { name, .. } => {
                     decls.push(ComponentMemberDeclaration::Input {
                         name: *name,
                         index: prop_index,
@@ -163,8 +163,10 @@ impl ComponentBuilder {
                         name: *name,
                         rhs,
                         modifier: *modifier,
+                        index: prop_index,
                         span: member.span,
                     });
+                    prop_index += 1;
                 }
                 ComponentMemberKind::Property {
                     name,

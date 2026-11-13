@@ -55,6 +55,8 @@ pub enum ExpectedTypeUsage {
 /// All possible error kinds that can occur during HIR generation.
 #[derive(Debug)]
 pub enum HIRErrorKind {
+    ViewWithoutDependencies(SymbolPointer),
+
     IntegerOutOfBounds {
         value: i64,
         numeric: TermId,
@@ -337,6 +339,10 @@ impl HIRError {
             span,
             backtrace: Backtrace::capture(),
         }
+    }
+
+    pub fn view_missing_dependencies(file: FileId, name: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::ViewWithoutDependencies(name), span)
     }
 
     pub fn integer_out_of_bounds(
@@ -811,6 +817,9 @@ impl std::fmt::Display for HIRError {
                 f,
                 "The right-hand side of a `matches` expression must be a variant name (`Foo`) or a variant call (`Foo(...)`)"
             ),
+            HIRErrorKind::ViewWithoutDependencies(name) => {
+                write!(f, "View '{:?}' must depend on at least one input or property", name)
+            }
             HIRErrorKind::VariantNotRecognized(_) => {
                 write!(f, "No reachable enum declares a variant with this name")
             }
