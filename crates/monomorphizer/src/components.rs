@@ -256,6 +256,30 @@ impl Monomorphizer {
         members
             .iter()
             .map(|member| match member {
+                ComponentMemberDeclaration::Input { name, index, span } => {
+                    Ok(ComponentMemberDeclaration::Input {
+                        name: *name,
+                        index: *index,
+                        span: *span,
+                    })
+                }
+
+                ComponentMemberDeclaration::View {
+                    name,
+                    rhs,
+                    modifier,
+                    index,
+                    span,
+                } => {
+                    let rhs = self.build_expression(hir, *rhs, subst, site)?;
+                    Ok(ComponentMemberDeclaration::View {
+                        name: *name,
+                        rhs,
+                        modifier: *modifier,
+                        index: *index,
+                        span: *span,
+                    })
+                }
                 ComponentMemberDeclaration::Property {
                     name,
                     modifier,

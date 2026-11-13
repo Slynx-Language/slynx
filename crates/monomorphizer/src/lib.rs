@@ -1146,7 +1146,7 @@ impl Monomorphizer {
                 .iter()
                 .filter_map(|member| match member {
                     ComponentMemberDeclaration::Child(expr) => Some(*expr),
-                    ComponentMemberDeclaration::Property { .. } => None,
+                    _ => None,
                 })
                 .enumerate()
                 .collect::<Vec<_>>()
