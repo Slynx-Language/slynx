@@ -12,7 +12,7 @@ use dashmap::DashMap;
 use module_loader::FileId;
 
 use crate::{
-    ComponentChild, ComponentType, DeclarationId, EnumType, EnumVariantType,
+    ComponentChild, ComponentProperty, ComponentType, DeclarationId, EnumType, EnumVariantType,
     HirFunctionDeclaration, InterfaceType, Result, StructField, StructType, SymbolPointer,
     TupleType, VariableId,
     helpers::Visible,
@@ -147,7 +147,7 @@ impl TypesContext {
         &self,
         name: SymbolPointer,
         owner: FileId,
-        properties: Vec<(SymbolPointer, TermId)>,
+        properties: Vec<ComponentProperty>,
         children: Vec<ComponentChild>,
     ) -> TermId {
         let comp_ty = self
