@@ -156,38 +156,21 @@ impl ExpressionBuilder {
         let final_type = {
             let ty = expression_viewer.ty();
             let reference = if descriptor.mutable {
+                self.is_expression_able_to_write(queue, hir_expression)?;
                 Term::mutable_reference(ty.term)
             } else {
                 Term::reference(ty.term)
             };
             Owned::new(ty.owner, queue.hir.types.create_type(reference))
         };
-        let able_to_mutate = expression_viewer.is_able_to_mutability(&self.variables);
+
         let out = HirExpression {
             ty: final_type,
             kind: HirExpressionKind::Reference(hir_expression),
         };
-        match (descriptor.mutable, able_to_mutate) {
-            (true, false) if let Some(var) = expression_viewer.as_variable() => {
-                let name = self
-                    .variable_name(var)
-                    .expect("Variable should contain a name");
-                Err(HIRError::expression_not_mutable(
-                    self.file(),
-                    NotMutableReason::ImmutableVariable(name),
-                    hir_expression.span,
-                ))
-            }
-            (true, false) => Err(HIRError::expression_not_mutable(
-                self.file(),
-                NotMutableReason::ExpressionNotAssignable,
-                hir_expression.span,
-            )),
-            _ => {
-                let out = queue.hir.store.insert_expression(out);
-                Ok(hir_expression.span.make_spanned(out))
-            }
-        }
+
+        let out = queue.hir.store.insert_expression(out);
+        Ok(hir_expression.span.make_spanned(out))
     }
 
     pub(super) fn build_bool(&self, queue: &HirQueueBuilder, value: bool) -> HirExpression {

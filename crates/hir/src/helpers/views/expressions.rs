@@ -17,19 +17,7 @@ impl HirViewer<'_, PoolId<HirExpression>> {
     pub fn ty_viewer(&self) -> HirViewer<'_, TermId> {
         self.new_with(self.ty().term)
     }
-    pub fn is_able_to_mutability(&self, vars: &HashMap<VariableId, VariableInfo>) -> bool {
-        match &self.hir[self.data].kind {
-            HirExpressionKind::Identifier(ident) if let Some(var) = vars.get(ident) => {
-                var.mutable
-                    || self
-                        .new_with(vars[ident].type_id)
-                        .is_mutable_ref()
-                        .is_some()
-            }
 
-            _ => true,
-        }
-    }
     pub fn as_variable(&self) -> Option<VariableId> {
         match &self.hir[self.data].kind {
             HirExpressionKind::Identifier(ident) => Some(*ident),
