@@ -15,10 +15,6 @@ use crate::{
     id::OwnerId,
 };
 
-pub struct ComponentBuildResult {
-    pub(crate) decls: Vec<ComponentMemberDeclaration>,
-}
-
 pub struct ComponentBuilder {
     target: DeclarationId<HirComponentDeclaration>,
     builder: ExpressionBuilder,
@@ -55,7 +51,7 @@ impl<'a> HirQueueBuilder<'a> {
         let result = ComponentBuilder::new(id).resolve_body(queue, component_decl);
 
         queue.bodies_in_progress.remove(&id);
-        result.map(|r| r.decls)
+        result
     }
 
     pub(crate) fn enqueue_component(
@@ -126,7 +122,7 @@ impl ComponentBuilder {
         mut self,
         queue: &HirQueueBuilder,
         component: &ComponentDeclaration,
-    ) -> Result<ComponentBuildResult> {
+    ) -> Result<Vec<ComponentMemberDeclaration>> {
         let mut decls = Vec::new();
         let component_term = queue.hir.get_component(self.target).value().ty;
         let raw_type = queue.hir.view(component_term);
@@ -257,6 +253,6 @@ impl ComponentBuilder {
                 }
             }
         }
-        Ok(ComponentBuildResult { decls })
+        Ok(decls)
     }
 }

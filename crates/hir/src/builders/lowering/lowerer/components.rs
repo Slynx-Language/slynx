@@ -6,7 +6,8 @@ use slynx_parser::{
 };
 
 use crate::{
-    ComponentChild, HIRError, HirNode, HirQueueBuilder, PropertyCallback, Result, SymbolPointer,
+    ComponentChild, ComponentProperty, ComponentPropertyKind, HIRError, HirNode, HirQueueBuilder,
+    PropertyCallback, Result, SymbolPointer,
     arrays::ArrayTerm,
     builders::lowering::ASTLowerer,
     term::{Term, TermId},
@@ -265,7 +266,6 @@ impl<'a> ASTLowerer<'a> {
         component: &'a ComponentDeclaration,
     ) -> Result<TermId> {
         let context = TypeContext::new(&component.generics.type_params);
-        let mut properties = Vec::with_capacity(component.members.len());
 
         // First pass: collect member info for view inference and known child types.
         let mut members: HashMap<SymbolPointer, MemberInfo> = HashMap::new();
@@ -303,7 +303,8 @@ impl<'a> ASTLowerer<'a> {
 
         let mut view_cache: HashMap<SymbolPointer, TermId> = HashMap::new();
 
-        let (callback_groups, children) = {
+        let (callback_groups, children, properties) = {
+            let mut properties = Vec::with_capacity(component.members.len());
             let mut children = Vec::with_capacity(component.members.len());
             let mut callback_groups: Vec<(usize, SymbolPointer, TermId, Vec<&FuncDeclaration>)> =
                 Vec::new();
@@ -315,7 +316,11 @@ impl<'a> ASTLowerer<'a> {
                             Some(MemberInfo::Value(ty)) => *ty,
                             _ => unreachable!("input type collected in first pass"),
                         };
-                        properties.push((*name, ty));
+                        properties.push(ComponentProperty {
+                            name: *name,
+                            property_kind: ComponentPropertyKind::Input,
+                            ty,
+                        });
                     }
                     ComponentMemberKind::View { name, rhs, .. } => {
                         let ty = if let Some(&cached) = view_cache.get(name) {
@@ -340,7 +345,11 @@ impl<'a> ASTLowerer<'a> {
                             view_cache.insert(*name, ty);
                             ty
                         };
-                        properties.push((*name, ty));
+                        properties.push(ComponentProperty {
+                            name: *name,
+                            ty,
+                            property_kind: ComponentPropertyKind::View,
+                        });
                     }
                     ComponentMemberKind::Property {
                         name,
@@ -350,7 +359,11 @@ impl<'a> ASTLowerer<'a> {
                     } => {
                         if let Some(ty) = ty {
                             let field = self.lower_type(queue, requester, *ty, &context)?.term;
-                            properties.push((*name, field));
+                            properties.push(ComponentProperty {
+                                name: *name,
+                                ty: field,
+                                property_kind: ComponentPropertyKind::Property,
+                            });
                             if !callbacks.is_empty() {
                                 callback_groups.push((
                                     property_index,
@@ -398,7 +411,7 @@ impl<'a> ASTLowerer<'a> {
                     }
                 }
             }
-            (callback_groups, children)
+            (callback_groups, children, properties)
         };
 
         let component_type =

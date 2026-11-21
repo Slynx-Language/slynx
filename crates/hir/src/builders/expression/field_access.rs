@@ -7,8 +7,8 @@ use module_loader::ASTType;
 use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
-    HIRError, HirCallbackInvocation, HirExpression, HirExpressionKind, Owned, Result,
-    SymbolPointer,
+    ComponentPropertyKind, HIRError, HirCallbackInvocation, HirExpression, HirExpressionKind,
+    Owned, Result, SymbolPointer,
     builders::{
         HirQueueBuilder,
         expression::{
