@@ -38,7 +38,6 @@
 //! # Related Types
 //!
 //! - [`HirType`] — The main type enum
-//! - [`ComponentProperty`] — Property of a component type
 //! - [`crate::hir::TypeId`] — Type identifiers
 //! - [`crate::hir::modules::TypesModule`] — Type management
 pub mod arrays;
@@ -55,88 +54,6 @@ use crate::{SymbolPointer, Visible, term::TermId};
 use common::{VisibilityModifier, pool::DedupPoolId};
 use module_loader::FileId;
 use smallvec::SmallVec;
-
-/// A property of a component type.
-///
-/// Component properties define the interface of a component, including
-/// the property name, its type, and visibility.
-///
-/// # Fields
-///
-/// - `0` — The visibility modifier (`pub` or private)
-/// - `1` — The property name
-/// - `2` — The property's type ID
-///
-/// # Example
-///
-/// ```slynx
-/// component Button(props: ButtonProps) {
-///     pub label: str = "Click me"  // ComponentProperty(Public, "label", str)
-///     private count: int = 0       // ComponentProperty(Private, "count", int)
-/// }
-/// ```
-#[derive(Debug, Clone)]
-pub struct ComponentProperty(VisibilityModifier, SymbolPointer, TermId);
-
-impl ComponentProperty {
-    /// Creates a new component property.
-    ///
-    /// # Arguments
-    ///
-    /// * `visibility` — The property's visibility (`pub` or private)
-    /// * `name` — The property's name
-    /// * `ty` — The property's type ID
-    ///
-    /// # Returns
-    ///
-    /// A new [`ComponentProperty`] instance.
-    pub fn new(visibility: VisibilityModifier, name: SymbolPointer, ty: TermId) -> Self {
-        Self(visibility, name, ty)
-    }
-
-    /// Creates a new public component property.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` — The property's name
-    /// * `ty` — The property's type ID
-    ///
-    /// # Returns
-    ///
-    /// A new [`ComponentProperty`] with public visibility.
-    pub fn new_public(name: SymbolPointer, ty: TermId) -> Self {
-        Self::new(VisibilityModifier::Public, name, ty)
-    }
-
-    /// Creates a new private component property.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` — The property's name
-    /// * `ty` — The property's type ID
-    ///
-    /// # Returns
-    ///
-    /// A new [`ComponentProperty`] with private visibility.
-    pub fn new_private(name: SymbolPointer, ty: TermId) -> Self {
-        Self::new(VisibilityModifier::Private, name, ty)
-    }
-
-    /// Returns the property's visibility modifier.
-    pub fn visibility(&self) -> &VisibilityModifier {
-        &self.0
-    }
-
-    /// Returns the property's name.
-    pub fn name(&self) -> SymbolPointer {
-        self.1
-    }
-
-    /// Returns the property's type ID.
-    pub fn prop_type(&self) -> TermId {
-        self.2
-    }
-}
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TupleType {
@@ -207,6 +124,30 @@ impl Hash for ComponentChild {
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub enum ComponentPropertyKind {
+    Property,
+    View,
+    Input,
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub struct ComponentProperty {
+    pub ty: TermId,
+    pub name: SymbolPointer,
+    pub property_kind: ComponentPropertyKind,
+}
+
+impl ComponentProperty {
+    pub fn with_ty(&self, ty: TermId) -> Self {
+        Self {
+            ty,
+            name: self.name,
+            property_kind: self.property_kind.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct ComponentType {
     pub(crate) name: SymbolPointer,
     /// The file this component was declared in.
@@ -217,7 +158,7 @@ pub struct ComponentType {
     /// them and a private component would leak into the file that reused its
     /// shape.
     pub(crate) owner: FileId,
-    pub(crate) properties: Vec<Visible<StructField>>,
+    pub(crate) properties: Vec<Visible<ComponentProperty>>,
     pub(crate) children: Vec<ComponentChild>,
 }
 
