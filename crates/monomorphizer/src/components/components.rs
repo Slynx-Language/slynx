@@ -127,7 +127,9 @@ impl Monomorphizer {
                             })
                     };
 
-                    Ok(DeclarationId::new(owner, specialized_local))
+                    let specialized = DeclarationId::new(owner, specialized_local);
+                    monomorphizer.monomorphize_component_graph(hir, template, specialized);
+                    Ok(specialized)
                 },
             },
             site,
@@ -209,7 +211,7 @@ impl Monomorphizer {
                     span,
                     site,
                 )?;
-                Ok((prop.name, new_ty))
+                Ok(prop.with_ty(new_ty))
             })
             .collect::<Result<Vec<_>>>()?;
 
