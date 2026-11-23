@@ -3,8 +3,8 @@ use module_loader::{ASTType, ASTTypeKind};
 use slynx_parser::{ComponentExpression, ComponentMemberValue, TypeContext};
 
 use crate::{
-    ComponentChildExpression, HIRError, HIRErrorKind, HirComponentExpression, PropertyExpression,
-    Result,
+    ComponentChildExpression, ComponentMemberDeclaration, HIRError, HIRErrorKind,
+    HirComponentExpression, PropertyExpression, Result,
     builders::HirQueueBuilder,
     context::HirSymbol,
     generics::GenericTypeArguments,
@@ -258,6 +258,19 @@ impl ExpressionBuilder {
                 child.map(|child| ComponentChildExpression::new(index, child))
             })
             .collect();
+
+        // Required component properties and inputs must be provided by the
+        // caller. Requiredness is stored on the component type itself.
+        let provided: Vec<usize> = properties.iter().map(|property| property.index()).collect();
+        let mut missing = Vec::new();
+        for (position, prop) in comp_view.props().iter().enumerate() {
+            if prop.data.required && !provided.contains(&position) {
+                missing.push(prop.data.name);
+            }
+        }
+        if !missing.is_empty() {
+            return Err(HIRError::missing_properties(self.file(), missing, span));
+        }
 
         let id = queue
             .hir

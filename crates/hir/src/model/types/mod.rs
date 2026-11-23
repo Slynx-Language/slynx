@@ -135,6 +135,7 @@ pub struct ComponentProperty {
     pub ty: TermId,
     pub name: SymbolPointer,
     pub property_kind: ComponentPropertyKind,
+    pub required: bool,
 }
 
 impl ComponentProperty {
@@ -143,6 +144,7 @@ impl ComponentProperty {
             ty,
             name: self.name,
             property_kind: self.property_kind.clone(),
+            required: self.required,
         }
     }
 }

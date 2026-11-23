@@ -320,6 +320,7 @@ impl<'a> ASTLowerer<'a> {
                             name: *name,
                             property_kind: ComponentPropertyKind::Input,
                             ty,
+                            required: true,
                         });
                     }
                     ComponentMemberKind::View { name, rhs, .. } => {
@@ -349,12 +350,14 @@ impl<'a> ASTLowerer<'a> {
                             name: *name,
                             ty,
                             property_kind: ComponentPropertyKind::View,
+                            required: false,
                         });
                     }
                     ComponentMemberKind::Property {
                         name,
                         ty,
                         callbacks,
+                        rhs,
                         ..
                     } => {
                         if let Some(ty) = ty {
@@ -363,6 +366,7 @@ impl<'a> ASTLowerer<'a> {
                                 name: *name,
                                 ty: field,
                                 property_kind: ComponentPropertyKind::Property,
+                                required: rhs.is_none(),
                             });
                             if !callbacks.is_empty() {
                                 callback_groups.push((
