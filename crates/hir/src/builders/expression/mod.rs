@@ -12,8 +12,8 @@ use module_loader::FileId;
 use slynx_parser::{ASTExpression, TypeContext};
 
 use crate::{
-    HIRError, HirExpression, HirExpressionKind, HirStatement, Owned, Result, SymbolPointer,
-    VariableId,
+    ComponentPropertyKind, HIRError, HirExpression, HirExpressionKind, HirStatement, Owned, Result,
+    SymbolPointer, VariableId,
     builders::{
         HirQueueBuilder,
         expression::{
@@ -200,8 +200,22 @@ impl ExpressionBuilder {
             {
                 Ok(())
             }
-            HirExpressionKind::FieldAccess { expr, .. } => {
+            HirExpressionKind::ChildAccess { expr, .. } => {
                 self.is_expression_able_to_write(queue, expr)
+            }
+            HirExpressionKind::FieldAccess {
+                expr: parent_expr,
+                field_index,
+                ..
+            } => {
+                let parent_ty = queue.hir[parent_expr.data].ty.term;
+                if let Some(component) = queue.hir.view(parent_ty).nominal().is_component()
+                    && let Some(ComponentPropertyKind::View | ComponentPropertyKind::Input) =
+                        component.property_kind(field_index)
+                {
+                    return Err(HIRError::invalid_expr_write(self.file(), expr.span));
+                }
+                self.is_expression_able_to_write(queue, parent_expr)
             }
             HirExpressionKind::Deref(inner)
                 if queue

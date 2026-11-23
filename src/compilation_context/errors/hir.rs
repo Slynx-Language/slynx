@@ -266,6 +266,9 @@ impl SlynxContext {
             HIRErrorKind::CyclicComponentBody { component: _ } => {
                 "cyclic component body resolution".to_string()
             }
+            HIRErrorKind::CyclicReactiveDependency { component } => {
+                format!("cyclic reactive dependency in component '{}'", hir.get_name(*component))
+            }
             HIRErrorKind::GenericArityMismatch {
                 func,
                 declared,
@@ -410,6 +413,9 @@ impl SlynxContext {
                     "Cannot borrow variable '{}' as mutable because it is immutable",
                     hir.get_variable_name(*variable)
                 )
+            }
+            OwnershipErrorKind::ImmutableComponentProperty => {
+                "Cannot mutate an input or view component property".to_string()
             }
         };
 

@@ -1,0 +1,16 @@
+// xfail: input properties are immutable and cannot be mutated
+component MyComponent {
+	in suamae: sint32;
+	pub prop slaoq:sint32 = 12;
+	view seupai = slaoq * suamae;
+
+	pub func yeah(&mut self): void {
+		self.suamae += 12;
+	}
+}
+
+func main(): MyComponent {
+	let mut c = MyComponent {};
+	c.yeah();
+	c
+}

@@ -149,6 +149,9 @@ pub struct SlynxHir<'a> {
     pub types: TypesContext,
     /// All HIR data pools and file declarations.
     pub store: HirStore,
+    /// Reactive dependency graphs generated for component declarations.
+    pub component_graphs:
+        dashmap::DashMap<DeclarationId<HirComponentDeclaration>, crate::builders::reactive_graph::ReactiveGraph>,
 }
 
 impl<'a> SlynxHir<'a> {
@@ -169,6 +172,7 @@ impl<'a> SlynxHir<'a> {
             symbols_registry: SymbolRegistry::default(),
             types: TypesContext::new(),
             store: HirStore::new(),
+            component_graphs: dashmap::DashMap::new(),
         };
         if let Err(e) = crate::builders::generate_hir(&out, modules) {
             Err((out, e))

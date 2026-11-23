@@ -5,6 +5,7 @@ mod function;
 mod generic;
 pub(crate) mod interfaces;
 mod lowering;
+pub mod reactive_graph;
 mod work_channel;
 use std::{cell::RefCell, ops::Deref};
 
@@ -121,8 +122,6 @@ pub struct HirQueueBuilder<'a> {
     pub signature_stack: RefCell<Vec<(FileId, SymbolPointer)>>,
 }
 
-impl HirNode<'_> {}
-
 impl<'a> HirQueueBuilder<'a> {
     pub fn new(hir: &'a SlynxHir<'a>, modules: &'a Modules<'a>) -> Self {
         Self {
@@ -227,6 +226,7 @@ impl<'a> HirQueueBuilder<'a> {
                     if let Ok(PendantComponent { owner, component }) = component {
                         let decls = self.component_body(owner, self, component)?;
                         self.resolved_components.insert(owner, decls);
+                        self.enqueue_dag(owner)?;
                     }
                 }
             }
@@ -242,8 +242,8 @@ impl<'a> HirQueueBuilder<'a> {
         }
         for mut entry in self.resolved_components.iter_mut() {
             let mut file = self.hir.get_file_mut(entry.key().owner);
-            let func = file.declarations.components.get_mut(entry.key().term);
-            func.props.append(&mut entry);
+            let component = file.declarations.components.get_mut(entry.key().term);
+            component.props.append(&mut entry);
         }
         Ok(())
     }

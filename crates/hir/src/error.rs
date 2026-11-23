@@ -261,6 +261,11 @@ pub enum HIRErrorKind {
         /// The component whose body caused the cycle.
         component: ComponentId,
     },
+    /// A reactive dependency graph for a component contains a cycle.
+    CyclicReactiveDependency {
+        /// The component whose reactive graph contains the cycle.
+        component: SymbolPointer,
+    },
     /// A generic function was called with the wrong number of explicit type
     /// arguments (e.g. `compare<int>(a, b)` on a `func compare<T, U>`).
     GenericArityMismatch {
@@ -701,6 +706,10 @@ impl HIRError {
         Self::new(file, HIRErrorKind::CyclicComponentBody { component }, span)
     }
 
+    pub fn cyclic_reactive_dependency(file: FileId, component: SymbolPointer, span: Span) -> Self {
+        Self::new(file, HIRErrorKind::CyclicReactiveDependency { component }, span)
+    }
+
     /// Creates a [`HIRErrorKind::GenericArityMismatch`] error.
     pub fn generic_arity_mismatch(
         file: FileId,
@@ -932,6 +941,9 @@ impl std::fmt::Display for HIRError {
             }
             HIRErrorKind::CyclicComponentBody { component: _ } => {
                 write!(f, "cyclic component body resolution")
+            }
+            HIRErrorKind::CyclicReactiveDependency { component } => {
+                write!(f, "cyclic reactive dependency in component '{:?}'", component)
             }
             HIRErrorKind::GenericArityMismatch {
                 func,

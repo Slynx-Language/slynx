@@ -96,6 +96,8 @@ pub enum OwnershipErrorKind {
     MoveWhileBorrowed { variable: VariableId },
     /// Trying to borrow mutably an immutable variable.
     MutablyBorrowImmutable { variable: VariableId },
+    /// Trying to mutate an input or view component property.
+    ImmutableComponentProperty,
 }
 
 /// Check if a type is Copy (can be implicitly duplicated).

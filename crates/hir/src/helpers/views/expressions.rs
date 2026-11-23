@@ -1,10 +1,7 @@
-use std::collections::HashMap;
-
 use common::pool::PoolId;
 
 use crate::{
-    HirExpression, HirExpressionKind, Owned, VariableId, builders::VariableInfo,
-    helpers::HirViewer, term::TermId,
+    HirExpression, HirExpressionKind, Owned, VariableId, helpers::HirViewer, term::TermId,
 };
 
 impl HirViewer<'_, PoolId<HirExpression>> {

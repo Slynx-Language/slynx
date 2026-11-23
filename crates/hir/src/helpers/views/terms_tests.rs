@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod views_terms_tests {
     use common::{FrontendSymbol, SymbolsModule};
+    use dashmap::DashMap;
 
     use crate::{
         EnumVariantType, SlynxHir, SymbolPointer, arrays::ArrayTerm, context::TypesContext,
@@ -13,6 +14,7 @@ mod views_terms_tests {
             symbols_registry: Default::default(),
             types: TypesContext::new(),
             store: HirStore::new(),
+            component_graphs: DashMap::new(),
         }
     }
 

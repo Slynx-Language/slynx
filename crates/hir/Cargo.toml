@@ -19,3 +19,4 @@ ordered-float.workspace=true
 crossbeam-channel.workspace=true
 either.workspace=true
 thiserror.workspace=true
+petgraph.workspace=true

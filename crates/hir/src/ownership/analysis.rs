@@ -8,8 +8,8 @@ use common::{Span, Spanned, pool::PoolId};
 use module_loader::FileId;
 
 use crate::{
-    DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration, HirStatement,
-    SlynxHir, VariableId, model::HirPlace,
+    ComponentPropertyKind, DeclarationId, HirExpression, HirExpressionKind, HirFunctionDeclaration,
+    HirStatement, SlynxHir, VariableId, model::HirPlace,
 };
 
 use super::{
@@ -136,7 +136,24 @@ impl OwnershipAnalysis {
                     ));
                 }
             }
-            HirExpressionKind::FieldAccess { expr: parent, .. } => {
+            HirExpressionKind::FieldAccess {
+                expr: parent,
+                field_index,
+                ..
+            } => {
+                let parent_ty = hir[parent.data].ty.term;
+                if let Some(component) = hir.view(parent_ty).nominal().is_component() {
+                    if let Some(kind) = component.property_kind(*field_index) {
+                        if matches!(kind, ComponentPropertyKind::Input | ComponentPropertyKind::View) {
+                            self.errors.push(OwnershipError::new(
+                                OwnershipErrorKind::ImmutableComponentProperty,
+                                expr.span,
+                                file,
+                            ));
+                            return;
+                        }
+                    }
+                }
                 self.analyze_expression_as_place(file, hir, parent, state);
             }
             HirExpressionKind::Deref(inner) => {
@@ -329,6 +346,17 @@ impl OwnershipAnalysis {
         span: Span,
         state: &mut FunctionOwnershipState,
     ) {
+        if mutable && is_immutable_component_property(hir, inner.data) {
+            self.errors.push(OwnershipError::new(
+                OwnershipErrorKind::ImmutableComponentProperty,
+                span,
+                file,
+            ));
+            // The inner expression is still read, not consumed.
+            self.analyze_expression_read(file, hir, inner, state);
+            return;
+        }
+
         let kind = if mutable {
             BorrowKind::Mutable
         } else {
@@ -375,5 +403,28 @@ impl OwnershipAnalysis {
 
         // The inner expression is READ, not consumed (taking a ref borrows it)
         self.analyze_expression_read(file, hir, inner, state);
+    }
+}
+
+fn is_immutable_component_property(
+    hir: &SlynxHir,
+    expr_id: common::pool::PoolId<HirExpression>,
+) -> bool {
+    match &hir[expr_id].kind {
+        HirExpressionKind::FieldAccess {
+            expr: parent,
+            field_index,
+            ..
+        } => {
+            let parent_ty = hir[parent.data].ty.term;
+            if let Some(component) = hir.view(parent_ty).nominal().is_component() {
+                if let Some(kind) = component.property_kind(*field_index) {
+                    return matches!(kind, ComponentPropertyKind::Input | ComponentPropertyKind::View);
+                }
+            }
+            false
+        }
+        HirExpressionKind::Deref(inner) => is_immutable_component_property(hir, inner.data),
+        _ => false,
     }
 }
