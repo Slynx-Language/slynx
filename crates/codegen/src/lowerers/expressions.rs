@@ -1,7 +1,7 @@
 use common::{Operator, Span, Spanned, pool::PoolId};
 use slynx_hir::{
-    DeclarationId, HirCallbackInvocation, HirExpression, HirExpressionKind, HirFunctionDeclaration,
-    HirStatement, SymbolPointer, ownership::ExpressionUse, term::TermId,
+    ComponentPropertyKind, DeclarationId, HirCallbackInvocation, HirExpression, HirExpressionKind,
+    HirFunctionDeclaration, HirStatement, SymbolPointer, ownership::ExpressionUse, term::TermId,
 };
 use slynx_ir::{IRPointer, IRStorage, IRType, IRTypeId, Label, Opcode, Operand, Value};
 use smallvec::{SmallVec, smallvec};
@@ -340,8 +340,36 @@ impl<'a> LoweringState<'a> {
         field_name: Option<SymbolPointer>,
         ctx: &mut FunctionContext,
     ) -> Result<Value, CodegenError> {
-        let value = self.lower_expression(expr, ctx)?;
         let ty = self.hir[expr.data].ty.term;
+
+        let view_call = if let Some(component) = self.hir.view(ty).nominal().is_component() {
+            if component
+                .property_kind(field_index as usize)
+                .is_some_and(|kind| matches!(kind, ComponentPropertyKind::View))
+            {
+                let view_funcs = self.view_functions.get(&ty).cloned().unwrap_or_default();
+                let func = *view_funcs.get(&(field_index as usize)).ok_or(CodegenError::new(
+                    CodegenErrorKind::IRTypeNotRecognized(ty),
+                    expr.span,
+                    ctx.file(),
+                ))?;
+                let ret_ty = {
+                    let ir = ctx.ir();
+                    let func_ty = ir.get(func).ty();
+                    let IRType::Function(fid) = ir.types.get_type(func_ty) else {
+                        unreachable!()
+                    };
+                    ir.types.get_function_type(*fid).get_return_type()
+                };
+                Some((func, ret_ty))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let value = self.lower_expression(expr, ctx)?;
 
         match () {
             _ if self.hir.is_external_type(ty) => {
@@ -362,6 +390,9 @@ impl<'a> LoweringState<'a> {
 
                 let fp = ctx.field_ref(base, field_index);
                 Ok(ctx.emit(Opcode::Deref, smallvec![fp], field_type))
+            }
+            _ if let Some((func, ret_ty)) = view_call => {
+                Ok(ctx.call(func, &[value], ret_ty))
             }
             _ => Ok(ctx.get_field(value, field_index)),
         }
@@ -452,7 +483,6 @@ impl<'a> LoweringState<'a> {
             )
         };
         let expression = &self.hir[expr.data];
-
         let value = match &expression.kind {
             HirExpressionKind::Deref(inner) => {
                 let inner = self.lower_expression(*inner, context)?;
@@ -588,7 +618,7 @@ impl<'a> LoweringState<'a> {
                 field_index,
                 field_name,
             } => self.lower_field_access(*expr, *field_index as u16, *field_name, context)?,
-            HirExpressionKind::Component(c) => self.get_component_expression(*c, context)?,
+            HirExpressionKind::Component(c) => self.get_component_expression(*c, context, None)?,
             HirExpressionKind::ChildAccess { expr, child_index } => {
                 let parent = self.lower_expression(*expr, context)?;
                 let ty = self.types.get_or_create_ir_type(

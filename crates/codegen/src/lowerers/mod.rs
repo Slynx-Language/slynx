@@ -12,7 +12,7 @@ use slynx_hir::{
     SlynxHir,
     id::{AnyDeclarationId, AnyLocalDeclarationId},
     ownership::OwnershipAnalysis,
-    term::TermNode,
+    term::{TermId, TermNode},
 };
 use slynx_ir::{
     Component, Function, GlobalValue, IRPointer, IRStorage, IRTypeId, InitValue, SlynxIR,
@@ -58,6 +58,8 @@ pub struct LoweringState<'a> {
     functions: HashMap<DeclarationId<HirFunctionDeclaration>, IRPointer<Function, 1>>,
     ///Hoisted IR components keyed by HIR declaration.
     components: HashMap<DeclarationId<HirComponentDeclaration>, IRPointer<Component, 1>>,
+    ///Generated view functions keyed by component type term.
+    view_functions: HashMap<TermId, HashMap<usize, IRPointer<slynx_ir::Function, 1>>>,
     ///Ownership analysis results for move/copy/borrow tracking.
     ownership: OwnershipAnalysis,
 }
@@ -72,6 +74,7 @@ impl<'a> LoweringState<'a> {
             globals: HashMap::new(),
             functions: HashMap::new(),
             components: HashMap::new(),
+            view_functions: HashMap::new(),
             ownership: OwnershipAnalysis::new(),
         }
     }
