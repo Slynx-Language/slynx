@@ -9,7 +9,7 @@ use common::{
 };
 use either::Either;
 use module_loader::FileId;
-use slynx_parser::{ASTExpression, TypeContext};
+use slynx_parser::{ASTExpression, Type, TypeContext};
 
 use crate::{
     ComponentPropertyKind, HIRError, HirExpression, HirExpressionKind, HirStatement, Owned, Result,
@@ -114,6 +114,40 @@ impl ExpressionBuilder {
             target: owner,
             variables: VariablesManager::default(),
             self_type,
+        }
+    }
+
+    ///Tries to get the self type of this expression builder. Returns none if this builder has no self type
+    pub fn self_type(
+        &self,
+        queue: &HirQueueBuilder,
+        ast_type: Spanned<DedupPoolId<Type>>,
+        context: &TypeContext,
+    ) -> Option<Result<Owned<TermId>>> {
+        if let Some(t) = self.self_type {
+            Some(
+                queue
+                    .lowerer
+                    .lower_type_with_self(queue, self.file(), ast_type, context, t),
+            )
+        } else {
+            None
+        }
+    }
+
+    ///Tries to get the self_type from the current builder. If it doesn't exist, simply lowers the given `ast_type`.
+    pub fn self_type_or_lower(
+        &self,
+        queue: &HirQueueBuilder,
+        ast_type: Spanned<DedupPoolId<Type>>,
+        context: &TypeContext,
+    ) -> Result<Owned<TermId>> {
+        if let Some(t) = self.self_type(queue, ast_type, context) {
+            t
+        } else {
+            queue
+                .lowerer
+                .lower_type(queue, self.file(), ast_type, context)
         }
     }
 

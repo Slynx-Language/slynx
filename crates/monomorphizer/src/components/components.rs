@@ -258,10 +258,16 @@ impl Monomorphizer {
         members
             .iter()
             .map(|member| match member {
-                ComponentMemberDeclaration::Input { name, index, span } => {
+                ComponentMemberDeclaration::Input {
+                    name,
+                    index,
+                    callbacks,
+                    span,
+                } => {
                     Ok(ComponentMemberDeclaration::Input {
                         name: *name,
                         index: *index,
+                        callbacks: callbacks.clone(),
                         span: *span,
                     })
                 }

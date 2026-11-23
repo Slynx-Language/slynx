@@ -138,6 +138,11 @@ impl ComponentBuilder {
                     decls.push(ComponentMemberDeclaration::Input {
                         name: *name,
                         index: prop_index,
+                        callbacks: queue
+                            .hir
+                            .types
+                            .callbacks
+                            .property_callbacks_of(component_term, prop_index),
                         span: member.span,
                     });
                     let ty = queue

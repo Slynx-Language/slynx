@@ -311,7 +311,7 @@ impl<'a> ASTLowerer<'a> {
             let mut property_index = 0;
             for member in &component.members {
                 match &member.kind {
-                    ComponentMemberKind::Input { name, .. } => {
+                    ComponentMemberKind::Input { name, ty, callbacks, .. } => {
                         let ty = match members.get(name) {
                             Some(MemberInfo::Value(ty)) => *ty,
                             _ => unreachable!("input type collected in first pass"),
@@ -322,6 +322,15 @@ impl<'a> ASTLowerer<'a> {
                             ty,
                             required: true,
                         });
+                        if !callbacks.is_empty() {
+                            callback_groups.push((
+                                property_index,
+                                *name,
+                                ty,
+                                callbacks.iter().collect(),
+                            ));
+                        }
+                        property_index += 1;
                     }
                     ComponentMemberKind::View { name, rhs, .. } => {
                         let ty = if let Some(&cached) = view_cache.get(name) {
@@ -352,6 +361,7 @@ impl<'a> ASTLowerer<'a> {
                             property_kind: ComponentPropertyKind::View,
                             required: false,
                         });
+                        property_index += 1;
                     }
                     ComponentMemberKind::Property {
                         name,

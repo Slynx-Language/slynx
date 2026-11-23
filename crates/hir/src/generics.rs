@@ -38,7 +38,7 @@ use crate::{
 /// expressions — before resolving or substituting types against it.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct GenericTypeArguments {
-    slots: Vec<TermId>,
+    pub slots: Vec<TermId>,
 }
 
 impl GenericTypeArguments {

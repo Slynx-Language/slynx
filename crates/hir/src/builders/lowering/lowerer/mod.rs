@@ -51,6 +51,9 @@ impl<'a> ASTLowerer<'a> {
         )
     }
 
+    ///Tries to lower the given `ty` with the given `self_substitute` thus for every `Self` that appears the given `self_substitute` is replaced.
+    ///
+    ///For example: If the given `ty` represents Result<Vec<Self>, Vec<HashMap<str, Self>>> and the provided `self_substitute` is `i32` this generates: Result<Vec<i32>, Vec<HashMap<str, i32>>>
     pub(crate) fn lower_type_with_self(
         &self,
         queue: &crate::builders::HirQueueBuilder<'a>,

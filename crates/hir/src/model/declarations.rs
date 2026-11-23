@@ -294,6 +294,7 @@ pub enum ComponentMemberDeclaration {
         ///The index of this property in the component's property list. Internally this can be treated the
         ///same way a state, but is immutable and updates when the value that provides it updates as well
         index: usize,
+        callbacks: Vec<PropertyCallback>,
         span: Span,
     },
 

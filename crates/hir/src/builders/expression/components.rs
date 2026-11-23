@@ -3,8 +3,8 @@ use module_loader::{ASTType, ASTTypeKind};
 use slynx_parser::{ComponentExpression, ComponentMemberValue, TypeContext};
 
 use crate::{
-    ComponentChildExpression, ComponentMemberDeclaration, HIRError, HIRErrorKind,
-    HirComponentExpression, PropertyExpression, Result,
+    ComponentChildExpression, ComponentMemberDeclaration, DeclarationId, HIRError, HIRErrorKind,
+    HirComponentDeclaration, HirComponentExpression, PropertyExpression, Result,
     builders::HirQueueBuilder,
     context::HirSymbol,
     generics::GenericTypeArguments,
@@ -25,6 +25,32 @@ pub struct ComponentExpressionDescriptor<'a> {
 }
 
 impl ExpressionBuilder {
+    pub(crate) fn get_or_enqueue_component(
+        &mut self,
+        queue: &HirQueueBuilder,
+        symbol: HirSymbol,
+        span: Span,
+    ) -> crate::Result<DeclarationId<HirComponentDeclaration>> {
+        match queue.hir.find_component_by_symbol(symbol) {
+            Some(c) => Ok(c),
+            None if let Some(ASTType {
+                owner,
+                content: ASTTypeKind::Component(comp),
+            }) = queue.lowerer.lookup.find_type(symbol.owner, symbol.term) =>
+            {
+                let comp = queue.modules.get_entry(owner).component().get(comp);
+                queue.enqueue_component(comp, owner)
+            }
+            None => {
+                return Err(HIRError::component_not_found(
+                    self.file(),
+                    symbol.term,
+                    span,
+                ));
+            }
+        }
+    }
+
     pub(crate) fn build_component_expression(
         &mut self,
         queue: &HirQueueBuilder,
@@ -35,79 +61,56 @@ impl ExpressionBuilder {
             context,
         }: ComponentExpressionDescriptor,
     ) -> Result<Spanned<PoolId<HirComponentExpression>>> {
-        let name = queue.get_plain_type(component.name).identifier;
-        let lowered = if let Some(self_type) = self.self_type {
-            queue.lowerer.lower_type_with_self(
-                queue,
-                self.file(),
-                component.name,
-                context,
-                self_type,
-            )?
-        } else {
-            queue
-                .lowerer
-                .lower_type(queue, self.file(), component.name, context)?
-        };
-        let ty = lowered.term;
+        let lowered = self.self_type_or_lower(queue, component.name, context)?;
         let ty_view = queue.hir.view(lowered.term);
         let Some(comp_view) = ty_view.nominal().is_component() else {
             return Err(HIRError::not_a_component(self.file(), lowered.term, span));
         };
-        let concrete_name = queue.hir.types.get_component_name(comp_view.data);
-        let concrete_owner = queue.hir.types.get_component_owner(comp_view.data);
-        let symbol = HirSymbol {
-            owner: concrete_owner,
-            term: concrete_name,
-        };
-        if queue.hir.find_component_by_symbol(symbol).is_none() {
-            if let Some(ASTType {
-                owner,
-                content: ASTTypeKind::Component(comp),
-            }) = queue
-                .lowerer
-                .lookup
-                .find_type(concrete_owner, concrete_name)
-            {
-                let comp = queue.modules.get_entry(owner).component().get(comp);
-                queue.enqueue_component(comp, owner)?;
-            } else {
-                return Err(HIRError::component_not_found(self.file(), name, span));
-            }
-        }
+
+        let hircomponent = self.get_or_enqueue_component(
+            queue,
+            HirSymbol {
+                owner: comp_view.owner(),
+                term: comp_view.name(),
+            },
+            span,
+        )?;
+
         let arity = queue
             .hir
-            .find_component_by_symbol(symbol)
-            .map(|decl| queue.hir.get_component(decl).generics.len())
-            .unwrap_or(0);
+            .get_file(hircomponent.owner)
+            .declarations
+            .components[hircomponent.term]
+            .generics
+            .len();
 
         // Explicit type arguments can come from one of two places: a literal
         // that spells them out (`Box<int> { .. }`, whose lowered type is an
         // `Apply`), or the type expected at this position (`let b: Box<int> =
         // Box { .. }`). Both are recovered before inference so explicit
         // arguments always win over the ones we infer from property values.
-        let mut generics = GenericTypeArguments::new();
-        generics.reserve(arity);
-        let explicit: &[TermId] = match ty_view.raw().node() {
-            TermNode::Apply { args, .. } => args.as_slice(),
-            _ => match expected {
-                Some(expected)
-                    if queue
-                        .hir
-                        .view(expected)
-                        .nominal()
-                        .is_component()
-                        .map(|c| c.data())
-                        == Some(comp_view.data())
-                        && let TermNode::Apply { args, .. } =
-                            queue.hir.view(expected).raw().node() =>
-                {
-                    args.as_slice()
-                }
-                _ => &[],
-            },
+        let mut generics = {
+            let explicit: Vec<TermId> = match ty_view.raw().node() {
+                TermNode::Apply { args, .. } => args.clone(),
+                _ => match expected {
+                    Some(expected)
+                        if queue
+                            .hir
+                            .view(expected)
+                            .nominal()
+                            .is_component()
+                            .map(|c| c.data())
+                            == Some(comp_view.data())
+                            && let TermNode::Apply { args, .. } =
+                                queue.hir.view(expected).raw().node() =>
+                    {
+                        args.clone()
+                    }
+                    _ => vec![],
+                },
+            };
+            GenericTypeArguments { slots: explicit }
         };
-        generics.merge_explicit(explicit);
 
         let mut properties = Vec::new();
         let has_declared_children = !comp_view.children().is_empty();
@@ -154,7 +157,7 @@ impl ExpressionBuilder {
                     // couldnt find any member with name `prop_name`
                     return Err(HIRError::property_unrecognized(
                         self.file(),
-                        ty,
+                        lowered.term,
                         vec![*prop_name],
                         span,
                     ));
