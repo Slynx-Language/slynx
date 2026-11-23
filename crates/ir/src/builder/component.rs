@@ -18,6 +18,7 @@ pub struct ComponentBuilder<'a> {
     children: Vec<IRTypeId>,
     child_values: Vec<Value>,
     initial_calls: Vec<InitialCall>,
+    binds: Vec<(u16, u16, u16, Option<IRPointer<Function, 1>>)>,
     preamble_start: Option<usize>,
     ir: &'a mut SlynxIR,
 }
@@ -31,6 +32,7 @@ impl<'a> ComponentBuilder<'a> {
             children: Vec::new(),
             child_values: Vec::new(),
             initial_calls: Vec::new(),
+            binds: Vec::new(),
             preamble_start: None,
         }
     }
@@ -110,6 +112,16 @@ impl<'a> ComponentBuilder<'a> {
         self.initial_calls.push(InitialCall { func_ptr: f, args });
     }
 
+    pub fn add_bind(
+        &mut self,
+        source: u16,
+        child: u16,
+        field: u16,
+        modifier: Option<IRPointer<Function, 1>>,
+    ) {
+        self.binds.push((source, child, field, modifier));
+    }
+
     pub fn generate(mut self) -> IRPointer<Component, 1> {
         {
             let component = self.ir.get(self.component_id);
@@ -133,6 +145,18 @@ impl<'a> ComponentBuilder<'a> {
                 initcall.args.into(),
                 self.ir.types.void_type(),
             ));
+        }
+        for (source, child, field, modifier) in self.binds {
+            self.ir.instructions.push(Instruction {
+                opcode: Opcode::Bind {
+                    source,
+                    child,
+                    field,
+                    modifier,
+                },
+                operands: smallvec![],
+                value_type: self.ir.types.void_type(),
+            });
         }
         let len = self.ir.instructions.len() - start;
         self.ir.get_mut(self.component_id).ui_instruction = IRPointer::new(start, len);

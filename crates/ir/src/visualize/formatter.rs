@@ -587,6 +587,20 @@ impl<'a> Formatter<'a> {
                 let name = view.get_name();
                 format!("@initcall {name}, {comp};")
             }
+            Opcode::Bind {
+                source,
+                child,
+                field,
+                modifier,
+            } => {
+                let modifier_str = if let Some(func) = modifier {
+                    let view = self.ir.get_view(*func);
+                    format!(" |> {}", view.get_name())
+                } else {
+                    String::new()
+                };
+                format!("@bind %f{}{} -> #c{}, {};", source, modifier_str, child, field)
+            }
             Opcode::Struct => {
                 let ty_str = self.fmt_type(self.types.get_type(instr.value_type));
                 let args = self.fmt_operands(&instr.operands);
@@ -703,6 +717,7 @@ impl<'a> Formatter<'a> {
                 | Opcode::Write
                 | Opcode::SetField(_)
                 | Opcode::DynSetField(_)
+                | Opcode::Bind { .. }
                 | Opcode::Ret
         )
     }

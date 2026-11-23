@@ -131,6 +131,15 @@ pub enum Opcode {
     /// Call a style initializer function on a component.
     InitCall(IRPointer<Function, 1>),
 
+    /// Reactive bind: when `source` changes, update the given child field,
+    /// optionally applying `modifier`.
+    Bind {
+        source: u16,
+        child: u16,
+        field: u16,
+        modifier: Option<IRPointer<Function, 1>>,
+    },
+
     Global(IRPointer<GlobalValue, 1>),
     GlobalExtern(SymbolPointer),
     Array,
@@ -170,7 +179,7 @@ pub struct Instruction {
 
 impl Opcode {
     pub fn is_ui(&self) -> bool {
-        matches!(self, Opcode::InitCall(_))
+        matches!(self, Opcode::InitCall(_) | Opcode::Bind { .. })
     }
     ///Checks if the Opcode executes something and so cannot be discarted directly
     pub fn is_impure(&self) -> bool {
@@ -184,6 +193,7 @@ impl Opcode {
                 | Opcode::DynMethodCall(_)
                 | Opcode::Call(_)
                 | Opcode::InitCall(_)
+                | Opcode::Bind { .. }
                 | Opcode::Br(_)
                 | Opcode::Cbr { .. }
                 | Opcode::Ret
