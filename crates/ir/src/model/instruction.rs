@@ -138,6 +138,7 @@ pub enum Opcode {
         child: u16,
         field: u16,
         modifier: Option<IRPointer<Function, 1>>,
+        callbacks: Vec<IRPointer<Function, 1>>,
     },
 
     Global(IRPointer<GlobalValue, 1>),

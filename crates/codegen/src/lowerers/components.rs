@@ -170,8 +170,8 @@ impl<'a> LoweringState<'a> {
         let prepared_binds = self.prepare_reactive_binds(id, props, ir, file, span, &view_funcs)?;
         let mut builder = ComponentBuilder::new(ptr, ir);
 
-        for (source, child, field, modifier) in prepared_binds {
-            builder.add_bind(source, child, field, modifier);
+        for (source, child, field, modifier, callbacks) in prepared_binds {
+            builder.add_bind(source, child, field, modifier, callbacks);
         }
 
         builder.generate();
@@ -329,7 +329,16 @@ impl<'a> LoweringState<'a> {
         file: FileId,
         span: Span,
         view_funcs: &HashMap<usize, IRPointer<slynx_ir::Function, 1>>,
-    ) -> Result<Vec<(u16, u16, u16, Option<IRPointer<slynx_ir::Function, 1>>)>, CodegenError> {
+    ) -> Result<
+        Vec<(
+            u16,
+            u16,
+            u16,
+            Option<IRPointer<slynx_ir::Function, 1>>,
+            Vec<IRPointer<slynx_ir::Function, 1>>,
+        )>,
+        CodegenError,
+    > {
         let Some(graph) = self.hir.component_graphs.get(&id) else {
             return Ok(Vec::new());
         };
@@ -371,7 +380,13 @@ impl<'a> LoweringState<'a> {
         }
 
         let mut update_funcs: HashMap<(usize, usize), IRPointer<slynx_ir::Function, 1>> = HashMap::new();
-        let mut prepared: Vec<(u16, u16, u16, Option<IRPointer<slynx_ir::Function, 1>>)> = Vec::new();
+        let mut prepared: Vec<(
+            u16,
+            u16,
+            u16,
+            Option<IRPointer<slynx_ir::Function, 1>>,
+            Vec<IRPointer<slynx_ir::Function, 1>>,
+        )> = Vec::new();
 
         for node in graph.graph.node_indices() {
             let DagNode::ChildField { child, field } = graph.graph[node] else {
@@ -415,6 +430,21 @@ impl<'a> LoweringState<'a> {
                 Some(update_funcs[&(child, field)])
             };
 
+            let cb_defs = child_terms
+                .get(child)
+                .copied()
+                .map(|t| {
+                    self.hir
+                        .types
+                        .callbacks
+                        .property_callbacks_of(t, field)
+                })
+                .unwrap_or_default();
+            let cb_funcs: Vec<IRPointer<slynx_ir::Function, 1>> = cb_defs
+                .iter()
+                .filter_map(|cb| self.functions.get(&cb.function).copied())
+                .collect();
+
             for trigger in triggers {
                 if let Some(source_ir) = self.ir_field_index(props, trigger) {
                     prepared.push((
@@ -422,6 +452,7 @@ impl<'a> LoweringState<'a> {
                         child as u16,
                         child_field_ir as u16,
                         update_func,
+                        cb_funcs.clone(),
                     ));
                 }
             }

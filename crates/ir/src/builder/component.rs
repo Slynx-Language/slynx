@@ -18,7 +18,7 @@ pub struct ComponentBuilder<'a> {
     children: Vec<IRTypeId>,
     child_values: Vec<Value>,
     initial_calls: Vec<InitialCall>,
-    binds: Vec<(u16, u16, u16, Option<IRPointer<Function, 1>>)>,
+    binds: Vec<(u16, u16, u16, Option<IRPointer<Function, 1>>, Vec<IRPointer<Function, 1>>)>,
     preamble_start: Option<usize>,
     ir: &'a mut SlynxIR,
 }
@@ -118,8 +118,9 @@ impl<'a> ComponentBuilder<'a> {
         child: u16,
         field: u16,
         modifier: Option<IRPointer<Function, 1>>,
+        callbacks: Vec<IRPointer<Function, 1>>,
     ) {
-        self.binds.push((source, child, field, modifier));
+        self.binds.push((source, child, field, modifier, callbacks));
     }
 
     pub fn generate(mut self) -> IRPointer<Component, 1> {
@@ -146,13 +147,14 @@ impl<'a> ComponentBuilder<'a> {
                 self.ir.types.void_type(),
             ));
         }
-        for (source, child, field, modifier) in self.binds {
+        for (source, child, field, modifier, callbacks) in self.binds {
             self.ir.instructions.push(Instruction {
                 opcode: Opcode::Bind {
                     source,
                     child,
                     field,
                     modifier,
+                    callbacks,
                 },
                 operands: smallvec![],
                 value_type: self.ir.types.void_type(),

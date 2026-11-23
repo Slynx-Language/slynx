@@ -592,6 +592,7 @@ impl<'a> Formatter<'a> {
                 child,
                 field,
                 modifier,
+                callbacks: _,
             } => {
                 let modifier_str = if let Some(func) = modifier {
                     let view = self.ir.get_view(*func);
