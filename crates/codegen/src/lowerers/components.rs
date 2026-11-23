@@ -41,7 +41,35 @@ impl<'a> LoweringState<'a> {
                 let num_props = props.len();
                 let mut prop_values = vec![Value::VOID; num_props];
                 for prop in properties {
-                    let val = if let Some(map) = member_values {
+                    eprintln!("DEBUG prop expr kind: {:?}", self.hir[prop.expr().data].kind);
+                    let val = if let HirExpressionKind::Component(c) = &self.hir[prop.expr().data].kind {
+                        self.get_component_expression(*c, ctx, member_values)?
+                    } else if let HirExpressionKind::Object { name, fields } = &self.hir[prop.expr().data].kind {
+                        let ty = self.types.get_mapped_type(name).ok_or(CodegenError::new(
+                            CodegenErrorKind::IRTypeNotRecognized(*name),
+                            value.span,
+                            ctx.file(),
+                        ))?;
+                        let field_values: Vec<Value> = fields
+                            .iter()
+                            .map(|field| {
+                                if let Some(map) = member_values {
+                                    if let HirExpressionKind::Identifier(var) =
+                                        &self.hir[field.data].kind
+                                    {
+                                        if var.is_component() {
+                                            return map.get(var).copied().unwrap_or_else(|| {
+                                                self.lower_expression(*field, ctx)
+                                                    .unwrap_or(Value::VOID)
+                                            });
+                                        }
+                                    }
+                                }
+                                self.lower_expression(*field, ctx).unwrap_or(Value::VOID)
+                            })
+                            .collect();
+                        ctx.struct_literal(ty, &field_values)
+                    } else if let Some(map) = member_values {
                         if let HirExpressionKind::Identifier(var) = &self.hir[prop.expr().data].kind {
                             if var.is_component() {
                                 map.get(var).copied().unwrap_or_else(|| {
@@ -68,11 +96,17 @@ impl<'a> LoweringState<'a> {
             }
             let mut ordered_children: Vec<_> = children.iter().collect();
             ordered_children.sort_by_key(|child| child.index());
+            let mut child_member_values = current_member_values.clone();
+            if let Some(parent_map) = member_values {
+                for (key, value) in parent_map {
+                    child_member_values.entry(*key).or_insert(*value);
+                }
+            }
             for child in ordered_children {
                 let child_value = self.get_component_expression(
                     *child.expr(),
                     ctx,
-                    Some(&current_member_values),
+                    Some(&child_member_values),
                 )?;
                 all_values.push(child_value);
             }
