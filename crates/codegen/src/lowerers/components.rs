@@ -41,7 +41,6 @@ impl<'a> LoweringState<'a> {
                 let num_props = props.len();
                 let mut prop_values = vec![Value::VOID; num_props];
                 for prop in properties {
-                    eprintln!("DEBUG prop expr kind: {:?}", self.hir[prop.expr().data].kind);
                     let val = if let HirExpressionKind::Component(c) = &self.hir[prop.expr().data].kind {
                         self.get_component_expression(*c, ctx, member_values)?
                     } else if let HirExpressionKind::Object { name, fields } = &self.hir[prop.expr().data].kind {
