@@ -1,4 +1,5 @@
-use common::pool::DedupPoolId;
+use common::{FrontendSymbol, SymbolPointer, pool::DedupPoolId};
+use module_loader::FileId;
 
 use crate::{
     ComponentChild, ComponentProperty, ComponentPropertyKind, ComponentType, Visible,
@@ -6,9 +7,12 @@ use crate::{
 };
 
 impl HirViewer<'_, DedupPoolId<ComponentType>> {
-    pub fn name(&self) -> &str {
-        let name = self.hir.types[self.data].name;
-        self.hir.get_name(name)
+    pub fn owner(&self) -> FileId {
+        self.hir.types.get_component_owner(self.data)
+    }
+
+    pub fn name(&self) -> SymbolPointer<FrontendSymbol> {
+        self.hir.types[self.data].name
     }
     pub fn props(&self) -> &[Visible<ComponentProperty>] {
         &self.hir.types[self.data].properties
@@ -20,7 +24,9 @@ impl HirViewer<'_, DedupPoolId<ComponentType>> {
 
     /// Resolves the [`ComponentPropertyKind`] of the property at `index`, if any.
     pub fn property_kind(&self, index: usize) -> Option<ComponentPropertyKind> {
-        self.props().get(index).map(|prop| prop.data.property_kind.clone())
+        self.props()
+            .get(index)
+            .map(|prop| prop.data.property_kind.clone())
     }
 
     pub fn children(&self) -> &[ComponentChild] {

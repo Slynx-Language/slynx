@@ -25,6 +25,7 @@ pub enum ComponentMemberKind {
     Input {
         name: SymbolPointer,
         ty: Spanned<DedupPoolId<Type>>, //since this one musn't have a default value, the type is required
+        callbacks: Vec<FuncDeclaration>,
     },
     ///Represents a component view. Such as `component C { view myview = property * 2;}`
     View {

@@ -87,7 +87,7 @@ impl<'a> HirViewer<'a, TermId> {
                     let name = self.hir.types.storage.get_enum_name(*e);
                     self.hir.get_name(name).to_string()
                 }
-                DescriptorId::Component(c) => self.new_with(*c).name().to_string(),
+                DescriptorId::Component(c) => self.hir.get_name(self.new_with(*c).name()).to_string(),
             },
             TermNode::Func { args, ret } => {
                 let args = args
@@ -295,7 +295,7 @@ impl<'a> HirViewer<'a, TermId> {
                 let name = self.hir.types.storage.get_enum_name(*e);
                 self.hir.get_name(name).to_string()
             }
-            TermNode::Data(DescriptorId::Component(c)) => self.new_with(*c).name().to_string(),
+            TermNode::Data(DescriptorId::Component(c)) => self.hir.get_name(self.new_with(*c).name()).to_string(),
             TermNode::Func { args, ret } => {
                 let args = args
                     .iter()

@@ -271,7 +271,7 @@ impl<'a> ASTLowerer<'a> {
         let mut members: HashMap<SymbolPointer, MemberInfo> = HashMap::new();
         for member in &component.members {
             match &member.kind {
-                ComponentMemberKind::Input { name, ty } => {
+                ComponentMemberKind::Input { name, ty, .. } => {
                     let input = self.lower_type(queue, requester, *ty, &context)?;
                     members.insert(*name, MemberInfo::Value(input.term));
                 }

@@ -134,7 +134,7 @@ impl ComponentBuilder {
         let context = TypeContext::new(&component.generics.type_params);
         for member in &component.members {
             match &member.kind {
-                ComponentMemberKind::Input { name, ty } => {
+                ComponentMemberKind::Input { name, ty, .. } => {
                     decls.push(ComponentMemberDeclaration::Input {
                         name: *name,
                         index: prop_index,

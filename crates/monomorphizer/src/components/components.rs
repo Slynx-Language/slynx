@@ -66,7 +66,7 @@ impl Monomorphizer {
         } else {
             return Err(HIRError::not_a_component(site, ty, span));
         };
-        let name = hir.intern_name(comp_view.name());
+        let name = hir.intern_name(hir.get_name(comp_view.name()));
 
         let Some(template) = self.find_declaration_by_name::<HirComponentDeclaration>(hir, name)
         else {

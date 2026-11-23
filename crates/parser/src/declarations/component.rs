@@ -188,8 +188,11 @@ impl Parser<'_> {
                 let name = self.expect_identifier()?;
                 self.expect(&TokenKind::Colon)?;
                 let ty = self.parse_type(type_params)?;
-                self.expect(&TokenKind::SemiColon)?;
-                Ok(ComponentMember { kind:ComponentMemberKind::Input { name: name.data, ty }, span: ty.span.merge_with(propspan)})
+                let callbacks = self.parse_optional_callbacks()?;
+                if self.peek()?.kind == TokenKind::SemiColon {
+                    self.eat()?;
+                }
+                Ok(ComponentMember { kind:ComponentMemberKind::Input { name: name.data, ty, callbacks }, span: ty.span.merge_with(propspan)})
             }
             _ => self.unexpected(
                 "Was expecting some component member. Try defining a property, a method, child, input or view",
