@@ -4,7 +4,8 @@ use common::{Span, Spanned, pool::PoolId};
 use petgraph::visit::EdgeRef;
 use slynx_hir::{
     ComponentMemberDeclaration, ComponentPropertyKind, DeclarationId, FileId, HirComponentDeclaration,
-    HirComponentExpression, HirExpression, HirExpressionKind, VariableId, reactive_graph::DagNode, term::TermId,
+    HirComponentExpression, HirExpression, HirExpressionKind, SymbolPointer, VariableId,
+    reactive_graph::DagNode, term::TermId,
 };
 use slynx_ir::{ComponentBuilder, ComponentValueBuilder, IRPointer, IRType, IRTypeId, SlynxIR, Value};
 
@@ -257,23 +258,28 @@ impl<'a> LoweringState<'a> {
                 file,
             ))?;
 
-        let views: Vec<(usize, Spanned<PoolId<HirExpression>>)> = props
+        let views: Vec<(usize, SymbolPointer, Spanned<PoolId<HirExpression>>)> = props
             .iter()
             .filter_map(|prop| match prop {
-                ComponentMemberDeclaration::View { index, rhs, .. } => Some((*index, *rhs)),
+                ComponentMemberDeclaration::View {
+                    index, name, rhs, ..
+                } => Some((*index, *name, *rhs)),
                 _ => None,
             })
             .collect();
 
         let mut ptrs: HashMap<usize, (IRPointer<slynx_ir::Function, 1>, IRTypeId)> = HashMap::new();
-        for (view_index, rhs) in &views {
+        for (view_index, view_name, rhs) in &views {
             let view_ty_term = self.hir[rhs.data].ty.term;
             let view_ty = self.types.get_or_create_ir_type(view_ty_term, span, ir, file)?;
-            let func_ptr = ir.create_function(&format!("{}_view{}", comp_name, view_index), false);
+            let func_ptr = ir.create_function(
+                &format!("{}_view{}", comp_name, self.hir.get_name(*view_name)),
+                false,
+            );
             ptrs.insert(*view_index, (func_ptr, view_ty));
         }
 
-        for (view_index, rhs) in &views {
+        for (view_index, _view_name, rhs) in &views {
             let (func_ptr, view_ty) = ptrs[view_index];
             let ptr_ty = ir.types.pointer_type(comp_ir_ty);
             let mut ctx = FunctionContext::new(ir.build_function(func_ptr), file);
